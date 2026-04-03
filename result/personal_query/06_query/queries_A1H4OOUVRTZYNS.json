@@ -1,0 +1,31 @@
+{
+  "user_id": "A1H4OOUVRTZYNS",
+  "timestamp": "2026-04-03T22:25:51.781855",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 12,
+  "num_long_sentences": 104,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013921,
+    "dep_distance": 0.244573,
+    "modifier_density": 0.193128,
+    "coord_chain": 0.229808,
+    "negation_scope": 0.00743,
+    "voice_ratio": 0.008013,
+    "branching_direction": 0.500253,
+    "advcl_freq": 0.020662,
+    "comp_clause_freq": 0.033029,
+    "fanout": 2.167891,
+    "parataxis_freq": 0.002458,
+    "prep_density": 0.087037,
+    "appos_freq": 0.004864,
+    "avg_sentence_length": 22.2
+  },
+  "attributes": {
+    "A1": "Adhesive Vinyl",
+    "A2": "Cricut",
+    "A3": "9.29",
+    "A4": "Silver",
+    "A5": "Seasonal"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

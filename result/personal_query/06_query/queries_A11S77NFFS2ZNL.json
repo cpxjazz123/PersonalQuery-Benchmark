@@ -1,0 +1,31 @@
+{
+  "user_id": "A11S77NFFS2ZNL",
+  "timestamp": "2026-04-03T22:21:26.255183",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 15,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.008332,
+    "dep_distance": 0.245259,
+    "modifier_density": 0.185829,
+    "coord_chain": 0.306667,
+    "negation_scope": 0.013745,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.532399,
+    "advcl_freq": 0.015553,
+    "comp_clause_freq": 0.053785,
+    "fanout": 2.286558,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.082361,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 28.7
+  },
+  "attributes": {
+    "A1": "Stamping",
+    "A2": "Co-link",
+    "A3": "16.59",
+    "A4": "Silver",
+    "A5": "Leather craft"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 28 words per sentence"
+}

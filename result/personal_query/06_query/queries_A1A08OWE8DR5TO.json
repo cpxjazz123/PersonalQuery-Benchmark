@@ -1,0 +1,31 @@
+{
+  "user_id": "A1A08OWE8DR5TO",
+  "timestamp": "2026-04-03T22:23:38.372190",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 22,
+  "num_long_sentences": 96,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015506,
+    "dep_distance": 0.265983,
+    "modifier_density": 0.147381,
+    "coord_chain": 0.232292,
+    "negation_scope": 0.007139,
+    "voice_ratio": 0.002083,
+    "branching_direction": 0.497655,
+    "advcl_freq": 0.012253,
+    "comp_clause_freq": 0.033685,
+    "fanout": 2.084329,
+    "parataxis_freq": 0.001008,
+    "prep_density": 0.085235,
+    "appos_freq": 0.003838,
+    "avg_sentence_length": 21.0
+  },
+  "attributes": {
+    "A1": "Adhesives",
+    "A2": "Crystal Clay",
+    "A3": "4.89",
+    "A4": "Antique silver",
+    "A5": "Polymer clay"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

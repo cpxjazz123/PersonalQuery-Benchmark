@@ -1,0 +1,31 @@
+{
+  "user_id": "A1470RVVIJCGFL",
+  "timestamp": "2026-04-03T22:22:08.504823",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 9,
+  "num_long_sentences": 42,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.0099,
+    "dep_distance": 0.262943,
+    "modifier_density": 0.173221,
+    "coord_chain": 0.195238,
+    "negation_scope": 0.010045,
+    "voice_ratio": 0.042659,
+    "branching_direction": 0.490698,
+    "advcl_freq": 0.022156,
+    "comp_clause_freq": 0.046224,
+    "fanout": 2.147071,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.082534,
+    "appos_freq": 0.006249,
+    "avg_sentence_length": 19.4
+  },
+  "attributes": {
+    "A1": "Molds",
+    "A2": "Soap Mold",
+    "A3": "5.92",
+    "A4": "Handmade",
+    "A5": "Handmade"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

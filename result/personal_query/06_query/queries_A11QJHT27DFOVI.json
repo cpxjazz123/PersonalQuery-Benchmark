@@ -1,0 +1,31 @@
+{
+  "user_id": "A11QJHT27DFOVI",
+  "timestamp": "2026-04-03T22:21:25.856845",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 10,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.033334,
+    "dep_distance": 0.150203,
+    "modifier_density": 0.248484,
+    "coord_chain": 0.2,
+    "negation_scope": 0.0,
+    "voice_ratio": 0.125,
+    "branching_direction": 0.441387,
+    "advcl_freq": 0.0,
+    "comp_clause_freq": 0.016667,
+    "fanout": 1.966666,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.127273,
+    "appos_freq": 0.016667,
+    "avg_sentence_length": 31.5
+  },
+  "attributes": {
+    "A1": "Airbrush Materials",
+    "A2": "Delta Creative",
+    "A3": "5.67",
+    "A4": "Yellow",
+    "A5": "Children"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 31 words per sentence"
+}

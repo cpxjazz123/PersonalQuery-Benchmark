@@ -1,0 +1,31 @@
+{
+  "user_id": "A1DY1V5KC3UBFD",
+  "timestamp": "2026-04-03T22:24:43.270140",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 37,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.006126,
+    "dep_distance": 0.262133,
+    "modifier_density": 0.195983,
+    "coord_chain": 0.337838,
+    "negation_scope": 0.00747,
+    "voice_ratio": 0.074324,
+    "branching_direction": 0.514553,
+    "advcl_freq": 0.022723,
+    "comp_clause_freq": 0.017289,
+    "fanout": 2.207721,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.083058,
+    "appos_freq": 0.002454,
+    "avg_sentence_length": 20.8
+  },
+  "attributes": {
+    "A1": "Jewelry Making",
+    "A2": "YIWU",
+    "A3": "9.99",
+    "A4": "Antique silver",
+    "A5": "Decoration"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

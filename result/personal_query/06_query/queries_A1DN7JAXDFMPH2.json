@@ -1,0 +1,31 @@
+{
+  "user_id": "A1DN7JAXDFMPH2",
+  "timestamp": "2026-04-03T22:24:40.404775",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 15,
+  "num_long_sentences": 93,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.017697,
+    "dep_distance": 0.236856,
+    "modifier_density": 0.147583,
+    "coord_chain": 0.197849,
+    "negation_scope": 0.01668,
+    "voice_ratio": 0.079851,
+    "branching_direction": 0.479872,
+    "advcl_freq": 0.020783,
+    "comp_clause_freq": 0.039524,
+    "fanout": 2.079859,
+    "parataxis_freq": 0.000448,
+    "prep_density": 0.095387,
+    "appos_freq": 0.002261,
+    "avg_sentence_length": 22.8
+  },
+  "attributes": {
+    "A1": "Clay Molds",
+    "A2": "Lisa Pavelka",
+    "A3": "13.07",
+    "A4": "Large",
+    "A5": "Polymer clay"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

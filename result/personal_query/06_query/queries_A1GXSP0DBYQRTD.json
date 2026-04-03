@@ -1,0 +1,31 @@
+{
+  "user_id": "A1GXSP0DBYQRTD",
+  "timestamp": "2026-04-03T22:25:43.283392",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 1,
+  "num_long_sentences": 61,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.025396,
+    "dep_distance": 0.187433,
+    "modifier_density": 0.17899,
+    "coord_chain": 0.314754,
+    "negation_scope": 0.005383,
+    "voice_ratio": 0.141257,
+    "branching_direction": 0.429999,
+    "advcl_freq": 0.021137,
+    "comp_clause_freq": 0.017,
+    "fanout": 1.896502,
+    "parataxis_freq": 0.000656,
+    "prep_density": 0.133964,
+    "appos_freq": 0.012651,
+    "avg_sentence_length": 31.7
+  },
+  "attributes": {
+    "A1": "Adults' Paint-By-Number Kits",
+    "A2": "Colour Talk",
+    "A3": "9.69",
+    "A4": "Textured",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 31 words per sentence"
+}

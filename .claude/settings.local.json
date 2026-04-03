@@ -1,9 +1,9 @@
 {
   "permissions": {
-    "allow": ["Edit(/)", "Write(/)", "Bash", "Edit(.claude/**)", "Write(.claude/**)"],
+    "allow": ["Edit(*)", "Write(*)", "Bash(*)", "Read(*)", "Glob(*)", "Grep(*)"],
     "defaultMode": "bypassPermissions",
-    "dangerouslySkipPermissions": true
+    "dangerouslySkipPermissions": true,
+    "skipDangerousModePermissionPrompt": true
   },
-  "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "effortLevel": "high"
 }

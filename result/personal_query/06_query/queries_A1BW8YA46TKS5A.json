@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BW8YA46TKS5A",
+  "timestamp": "2026-04-03T22:24:11.132771",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 17,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.008562,
+    "dep_distance": 0.277496,
+    "modifier_density": 0.177543,
+    "coord_chain": 0.188235,
+    "negation_scope": 0.015428,
+    "voice_ratio": 0.088235,
+    "branching_direction": 0.527158,
+    "advcl_freq": 0.013748,
+    "comp_clause_freq": 0.025427,
+    "fanout": 2.163866,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.084194,
+    "appos_freq": 0.002262,
+    "avg_sentence_length": 21.4
+  },
+  "attributes": {
+    "A1": "Stabilizers",
+    "A2": "TAOindustry",
+    "A3": "14.99",
+    "A4": "Black",
+    "A5": "Embroidery"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

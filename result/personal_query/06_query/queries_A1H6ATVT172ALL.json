@@ -1,0 +1,31 @@
+{
+  "user_id": "A1H6ATVT172ALL",
+  "timestamp": "2026-04-03T22:25:52.264184",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 55,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011772,
+    "dep_distance": 0.280733,
+    "modifier_density": 0.155423,
+    "coord_chain": 0.149091,
+    "negation_scope": 0.009511,
+    "voice_ratio": 0.036364,
+    "branching_direction": 0.471399,
+    "advcl_freq": 0.015496,
+    "comp_clause_freq": 0.034939,
+    "fanout": 1.977648,
+    "parataxis_freq": 0.002139,
+    "prep_density": 0.110158,
+    "appos_freq": 0.004944,
+    "avg_sentence_length": 17.6
+  },
+  "attributes": {
+    "A1": "Fabric",
+    "A2": "Michael Miller",
+    "A3": "9.85",
+    "A4": "Turquoise",
+    "A5": "Quilting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 17 words per sentence"
+}

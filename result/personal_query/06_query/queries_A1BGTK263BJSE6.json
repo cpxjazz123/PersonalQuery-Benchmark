@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BGTK263BJSE6",
+  "timestamp": "2026-04-03T22:24:01.242366",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 31,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011534,
+    "dep_distance": 0.23692,
+    "modifier_density": 0.183507,
+    "coord_chain": 0.119355,
+    "negation_scope": 0.009365,
+    "voice_ratio": 0.032258,
+    "branching_direction": 0.512279,
+    "advcl_freq": 0.030963,
+    "comp_clause_freq": 0.02612,
+    "fanout": 2.129284,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.089154,
+    "appos_freq": 0.001613,
+    "avg_sentence_length": 20.7
+  },
+  "attributes": {
+    "A1": "Cutting Tools",
+    "A2": "VEVOR",
+    "A3": "125.98",
+    "A4": "Smooth",
+    "A5": "Jewelry"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

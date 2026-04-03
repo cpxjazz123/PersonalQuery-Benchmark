@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FNH4Q3SRCRBA",
+  "timestamp": "2026-04-03T22:25:17.033895",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 75,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.009451,
+    "dep_distance": 0.202364,
+    "modifier_density": 0.210601,
+    "coord_chain": 0.328,
+    "negation_scope": 0.012913,
+    "voice_ratio": 0.083111,
+    "branching_direction": 0.511138,
+    "advcl_freq": 0.03033,
+    "comp_clause_freq": 0.030345,
+    "fanout": 2.242884,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.092629,
+    "appos_freq": 0.004513,
+    "avg_sentence_length": 33.7
+  },
+  "attributes": {
+    "A1": "Sewing Machines",
+    "A2": "Reliable Corporation",
+    "A3": "699.00",
+    "A4": "Craftsman",
+    "A5": "Sewing"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 33 words per sentence"
+}

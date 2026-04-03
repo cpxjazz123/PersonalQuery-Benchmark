@@ -1,0 +1,31 @@
+{
+  "user_id": "A1C12CL8RKQEW5",
+  "timestamp": "2026-04-03T22:24:13.470339",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 24,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010774,
+    "dep_distance": 0.249624,
+    "modifier_density": 0.159843,
+    "coord_chain": 0.254167,
+    "negation_scope": 0.016555,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.510176,
+    "advcl_freq": 0.02137,
+    "comp_clause_freq": 0.053392,
+    "fanout": 2.289738,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.067469,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 22.5
+  },
+  "attributes": {
+    "A1": "Modeling Compounds",
+    "A2": "Thermomorph",
+    "A3": "26.95",
+    "A4": "Clear",
+    "A5": "Crafting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

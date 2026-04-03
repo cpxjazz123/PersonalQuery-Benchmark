@@ -1,0 +1,31 @@
+{
+  "user_id": "A13O7URKO1TU39",
+  "timestamp": "2026-04-03T22:21:49.416010",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 30,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012718,
+    "dep_distance": 0.253454,
+    "modifier_density": 0.195012,
+    "coord_chain": 0.18,
+    "negation_scope": 0.010649,
+    "voice_ratio": 0.077778,
+    "branching_direction": 0.51295,
+    "advcl_freq": 0.027789,
+    "comp_clause_freq": 0.035255,
+    "fanout": 2.183949,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.080101,
+    "appos_freq": 0.00303,
+    "avg_sentence_length": 19.9
+  },
+  "attributes": {
+    "A1": "Wax",
+    "A2": "Your Natural Planet",
+    "A3": "10.99",
+    "A4": "Yellow",
+    "A5": "Glass"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HDQMD058B644",
+  "timestamp": "2026-04-03T22:25:58.110105",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 48,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01408,
+    "dep_distance": 0.207957,
+    "modifier_density": 0.235348,
+    "coord_chain": 0.361806,
+    "negation_scope": 0.003738,
+    "voice_ratio": 0.047642,
+    "branching_direction": 0.493739,
+    "advcl_freq": 0.024182,
+    "comp_clause_freq": 0.031127,
+    "fanout": 2.002209,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.097855,
+    "appos_freq": 0.0088,
+    "avg_sentence_length": 46.0
+  },
+  "attributes": {
+    "A1": "Craft Sticks",
+    "A2": "Perfect Stix",
+    "A3": "15.12",
+    "A4": "Cream",
+    "A5": "Crafts"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 46 words per sentence"
+}

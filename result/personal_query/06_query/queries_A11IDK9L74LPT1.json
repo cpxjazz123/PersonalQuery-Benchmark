@@ -1,0 +1,31 @@
+{
+  "user_id": "A11IDK9L74LPT1",
+  "timestamp": "2026-04-03T22:21:23.257281",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 34,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013254,
+    "dep_distance": 0.27374,
+    "modifier_density": 0.181415,
+    "coord_chain": 0.158824,
+    "negation_scope": 0.012479,
+    "voice_ratio": 0.071078,
+    "branching_direction": 0.517275,
+    "advcl_freq": 0.020323,
+    "comp_clause_freq": 0.032646,
+    "fanout": 2.244664,
+    "parataxis_freq": 0.003064,
+    "prep_density": 0.080993,
+    "appos_freq": 0.018582,
+    "avg_sentence_length": 18.7
+  },
+  "attributes": {
+    "A1": "Bead Assortments",
+    "A2": "Hidden Hollow Beads",
+    "A3": "5.24",
+    "A4": "Round",
+    "A5": "Jewelry"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

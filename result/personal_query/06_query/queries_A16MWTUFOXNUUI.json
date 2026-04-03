@@ -1,0 +1,31 @@
+{
+  "user_id": "A16MWTUFOXNUUI",
+  "timestamp": "2026-04-03T22:22:45.821259",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 21,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012831,
+    "dep_distance": 0.238193,
+    "modifier_density": 0.181557,
+    "coord_chain": 0.304762,
+    "negation_scope": 0.02364,
+    "voice_ratio": 0.047619,
+    "branching_direction": 0.515314,
+    "advcl_freq": 0.024098,
+    "comp_clause_freq": 0.034254,
+    "fanout": 2.230542,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.078427,
+    "appos_freq": 0.008413,
+    "avg_sentence_length": 28.6
+  },
+  "attributes": {
+    "A1": "Light Boxes",
+    "A2": "Crayola",
+    "A3": "24.99",
+    "A4": "Short",
+    "A5": "Children"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 28 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A17TA8O2SBG3EG",
+  "timestamp": "2026-04-03T22:23:04.611463",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 18,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.024603,
+    "dep_distance": 0.285489,
+    "modifier_density": 0.133028,
+    "coord_chain": 0.133333,
+    "negation_scope": 0.0,
+    "voice_ratio": 0.111111,
+    "branching_direction": 0.503788,
+    "advcl_freq": 0.047619,
+    "comp_clause_freq": 0.051282,
+    "fanout": 2.456085,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.075641,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 18.0
+  },
+  "attributes": {
+    "A1": "Textile Paints",
+    "A2": "Deval Products",
+    "A3": "10.22",
+    "A4": "Pink",
+    "A5": "Children"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

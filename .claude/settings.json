@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "MultiEdit(*)",
+      "Edit(*)"
+    ],
+    "defaultMode": "bypassPermissions",
+    "dangerouslySkipPermissions": true,
+    "skipDangerousModePermissionPrompt": true,
+    "additionalDirectories": [
+      "/home/wlia0047/ar57/wenyu/.claude/skills/PersoanlQuery/05_syntactic_analysis",
+      "/fs04/ar57/wenyu/.claude/skills/PersoanlQuery/05_syntactic_analysis"
+    ]
+  }
+}

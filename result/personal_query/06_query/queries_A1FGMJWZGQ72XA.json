@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FGMJWZGQ72XA",
+  "timestamp": "2026-04-03T22:25:08.900060",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 42,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.014723,
+    "dep_distance": 0.241385,
+    "modifier_density": 0.14996,
+    "coord_chain": 0.180159,
+    "negation_scope": 0.010972,
+    "voice_ratio": 0.011905,
+    "branching_direction": 0.484314,
+    "advcl_freq": 0.025268,
+    "comp_clause_freq": 0.047079,
+    "fanout": 2.196087,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.087326,
+    "appos_freq": 0.004015,
+    "avg_sentence_length": 22.2
+  },
+  "attributes": {
+    "A1": "Wire",
+    "A2": "Artistic Wire",
+    "A3": "12.38",
+    "A4": "Silver plated",
+    "A5": "Metal"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

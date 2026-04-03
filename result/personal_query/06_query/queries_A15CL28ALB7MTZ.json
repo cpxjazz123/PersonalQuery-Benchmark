@@ -1,0 +1,31 @@
+{
+  "user_id": "A15CL28ALB7MTZ",
+  "timestamp": "2026-04-03T22:22:30.732770",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 32,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.02319,
+    "dep_distance": 0.244292,
+    "modifier_density": 0.134914,
+    "coord_chain": 0.14375,
+    "negation_scope": 0.008002,
+    "voice_ratio": 0.09375,
+    "branching_direction": 0.51195,
+    "advcl_freq": 0.018585,
+    "comp_clause_freq": 0.040744,
+    "fanout": 2.124245,
+    "parataxis_freq": 0.001736,
+    "prep_density": 0.088018,
+    "appos_freq": 0.001359,
+    "avg_sentence_length": 20.2
+  },
+  "attributes": {
+    "A1": "Pre-Stretched Canvas",
+    "A2": "CONDA and Kiddy Color",
+    "A3": "21.99",
+    "A4": "Handmade",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

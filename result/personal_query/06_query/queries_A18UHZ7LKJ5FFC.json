@@ -1,0 +1,31 @@
+{
+  "user_id": "A18UHZ7LKJ5FFC",
+  "timestamp": "2026-04-03T22:23:19.017183",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 11,
+  "num_long_sentences": 81,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011621,
+    "dep_distance": 0.22905,
+    "modifier_density": 0.176579,
+    "coord_chain": 0.22716,
+    "negation_scope": 0.010211,
+    "voice_ratio": 0.028909,
+    "branching_direction": 0.4971,
+    "advcl_freq": 0.028948,
+    "comp_clause_freq": 0.043767,
+    "fanout": 2.290661,
+    "parataxis_freq": 0.003613,
+    "prep_density": 0.084884,
+    "appos_freq": 0.003445,
+    "avg_sentence_length": 27.1
+  },
+  "attributes": {
+    "A1": "Cord Locks",
+    "A2": "CooBigo",
+    "A3": "4.99",
+    "A4": "Round",
+    "A5": "Camping"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 27 words per sentence"
+}

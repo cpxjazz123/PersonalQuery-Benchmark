@@ -1,0 +1,31 @@
+{
+  "user_id": "A170W9H21Y5M20",
+  "timestamp": "2026-04-03T22:22:52.490835",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 27,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013509,
+    "dep_distance": 0.224651,
+    "modifier_density": 0.188617,
+    "coord_chain": 0.225926,
+    "negation_scope": 0.009519,
+    "voice_ratio": 0.039506,
+    "branching_direction": 0.524743,
+    "advcl_freq": 0.019988,
+    "comp_clause_freq": 0.038264,
+    "fanout": 2.156869,
+    "parataxis_freq": 0.003519,
+    "prep_density": 0.081163,
+    "appos_freq": 0.003154,
+    "avg_sentence_length": 26.3
+  },
+  "attributes": {
+    "A1": "Counted Kits",
+    "A2": "Dimensions Needlecrafts",
+    "A3": "7.47",
+    "A4": "White",
+    "A5": "Cross stitch"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 26 words per sentence"
+}

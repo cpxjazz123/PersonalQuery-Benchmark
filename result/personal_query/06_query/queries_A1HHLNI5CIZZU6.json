@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HHLNI5CIZZU6",
+  "timestamp": "2026-04-03T22:25:59.161728",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 13,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01359,
+    "dep_distance": 0.222067,
+    "modifier_density": 0.190647,
+    "coord_chain": 0.261538,
+    "negation_scope": 0.022791,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.529319,
+    "advcl_freq": 0.022537,
+    "comp_clause_freq": 0.030527,
+    "fanout": 2.236843,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.096881,
+    "appos_freq": 0.007326,
+    "avg_sentence_length": 28.2
+  },
+  "attributes": {
+    "A1": "Scrapbooking",
+    "A2": "Project Life by Becky Higgins",
+    "A3": "19.99",
+    "A4": "Olive",
+    "A5": "Scrapbook"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 28 words per sentence"
+}

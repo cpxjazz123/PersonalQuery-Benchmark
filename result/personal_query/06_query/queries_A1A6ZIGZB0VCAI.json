@@ -1,0 +1,31 @@
+{
+  "user_id": "A1A6ZIGZB0VCAI",
+  "timestamp": "2026-04-03T22:23:41.519148",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 46,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.020287,
+    "dep_distance": 0.244884,
+    "modifier_density": 0.167589,
+    "coord_chain": 0.130435,
+    "negation_scope": 0.013548,
+    "voice_ratio": 0.043478,
+    "branching_direction": 0.486809,
+    "advcl_freq": 0.010473,
+    "comp_clause_freq": 0.026494,
+    "fanout": 2.019804,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.119442,
+    "appos_freq": 0.007208,
+    "avg_sentence_length": 18.8
+  },
+  "attributes": {
+    "A1": "Watercolor Paper",
+    "A2": "US Art Supply",
+    "A3": "14.96",
+    "A4": "White",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

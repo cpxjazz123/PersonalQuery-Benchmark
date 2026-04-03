@@ -1,0 +1,31 @@
+{
+  "user_id": "A1CXHEF9ZH3W0W",
+  "timestamp": "2026-04-03T22:24:30.959254",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 45,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013217,
+    "dep_distance": 0.28026,
+    "modifier_density": 0.21486,
+    "coord_chain": 0.155556,
+    "negation_scope": 0.003986,
+    "voice_ratio": 0.051852,
+    "branching_direction": 0.52933,
+    "advcl_freq": 0.015501,
+    "comp_clause_freq": 0.037143,
+    "fanout": 2.114491,
+    "parataxis_freq": 0.0003,
+    "prep_density": 0.07908,
+    "appos_freq": 0.005011,
+    "avg_sentence_length": 17.8
+  },
+  "attributes": {
+    "A1": "Paints",
+    "A2": "Winsor & Newton",
+    "A3": "18.51",
+    "A4": "Yellow",
+    "A5": "Artists"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 17 words per sentence"
+}

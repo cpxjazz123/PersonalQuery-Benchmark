@@ -1,0 +1,31 @@
+{
+  "user_id": "A1AJJMN1404JW7",
+  "timestamp": "2026-04-03T22:23:46.570448",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 25,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.022191,
+    "dep_distance": 0.256983,
+    "modifier_density": 0.136637,
+    "coord_chain": 0.208,
+    "negation_scope": 0.011348,
+    "voice_ratio": 0.113333,
+    "branching_direction": 0.534886,
+    "advcl_freq": 0.01933,
+    "comp_clause_freq": 0.02939,
+    "fanout": 2.21596,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.074565,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 21.3
+  },
+  "attributes": {
+    "A1": "Paint Thinners",
+    "A2": "Martin & F. Weber",
+    "A3": "19.69",
+    "A4": "Thin",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

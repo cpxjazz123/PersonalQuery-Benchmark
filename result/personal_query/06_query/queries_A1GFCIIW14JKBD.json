@@ -1,0 +1,31 @@
+{
+  "user_id": "A1GFCIIW14JKBD",
+  "timestamp": "2026-04-03T22:25:34.773207",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 8,
+  "num_long_sentences": 53,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.019385,
+    "dep_distance": 0.238178,
+    "modifier_density": 0.212993,
+    "coord_chain": 0.162264,
+    "negation_scope": 0.009747,
+    "voice_ratio": 0.016352,
+    "branching_direction": 0.523525,
+    "advcl_freq": 0.013658,
+    "comp_clause_freq": 0.042415,
+    "fanout": 2.067969,
+    "parataxis_freq": 0.000472,
+    "prep_density": 0.101766,
+    "appos_freq": 0.001048,
+    "avg_sentence_length": 24.1
+  },
+  "attributes": {
+    "A1": "Safety Pins",
+    "A2": "HOUSWEETY",
+    "A3": "7.49",
+    "A4": "Silver tone",
+    "A5": "Crafting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 24 words per sentence"
+}

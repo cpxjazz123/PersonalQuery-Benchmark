@@ -1,0 +1,31 @@
+{
+  "user_id": "A1GI87CG310IVN",
+  "timestamp": "2026-04-03T22:25:35.959843",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 42,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.002935,
+    "dep_distance": 0.271938,
+    "modifier_density": 0.196788,
+    "coord_chain": 0.12381,
+    "negation_scope": 0.019202,
+    "voice_ratio": 0.02381,
+    "branching_direction": 0.545948,
+    "advcl_freq": 0.022609,
+    "comp_clause_freq": 0.03953,
+    "fanout": 2.229107,
+    "parataxis_freq": 0.002991,
+    "prep_density": 0.081924,
+    "appos_freq": 0.006316,
+    "avg_sentence_length": 20.1
+  },
+  "attributes": {
+    "A1": "Embellishments",
+    "A2": "ROBINS NEST",
+    "A3": "18.23",
+    "A4": "Mini",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

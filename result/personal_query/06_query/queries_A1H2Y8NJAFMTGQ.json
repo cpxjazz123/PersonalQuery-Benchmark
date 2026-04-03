@@ -1,0 +1,31 @@
+{
+  "user_id": "A1H2Y8NJAFMTGQ",
+  "timestamp": "2026-04-03T22:25:51.043247",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 47,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010927,
+    "dep_distance": 0.25241,
+    "modifier_density": 0.173779,
+    "coord_chain": 0.302128,
+    "negation_scope": 0.009207,
+    "voice_ratio": 0.019504,
+    "branching_direction": 0.489431,
+    "advcl_freq": 0.021639,
+    "comp_clause_freq": 0.035147,
+    "fanout": 2.116782,
+    "parataxis_freq": 0.000242,
+    "prep_density": 0.082455,
+    "appos_freq": 0.008026,
+    "avg_sentence_length": 22.9
+  },
+  "attributes": {
+    "A1": "Face Painting",
+    "A2": "Create A Face",
+    "A3": "10.99",
+    "A4": "Smooth",
+    "A5": "Presentation"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

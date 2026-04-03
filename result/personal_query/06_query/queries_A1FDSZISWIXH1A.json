@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FDSZISWIXH1A",
+  "timestamp": "2026-04-03T22:25:08.216908",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 31,
+  "num_long_sentences": 743,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.014892,
+    "dep_distance": 0.250099,
+    "modifier_density": 0.212167,
+    "coord_chain": 0.217093,
+    "negation_scope": 0.008683,
+    "voice_ratio": 0.051996,
+    "branching_direction": 0.507707,
+    "advcl_freq": 0.022456,
+    "comp_clause_freq": 0.030205,
+    "fanout": 2.116324,
+    "parataxis_freq": 7.8e-05,
+    "prep_density": 0.082426,
+    "appos_freq": 0.004388,
+    "avg_sentence_length": 21.5
+  },
+  "attributes": {
+    "A1": "Sewing",
+    "A2": "Coats & Clark Inc.",
+    "A3": "5.00",
+    "A4": "Sheer",
+    "A5": "Storage"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

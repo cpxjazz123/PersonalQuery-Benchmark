@@ -1,0 +1,31 @@
+{
+  "user_id": "A1E4X1ZK3G6OFS",
+  "timestamp": "2026-04-03T22:24:46.168383",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 20,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015137,
+    "dep_distance": 0.20678,
+    "modifier_density": 0.15722,
+    "coord_chain": 0.175,
+    "negation_scope": 0.011747,
+    "voice_ratio": 0.0225,
+    "branching_direction": 0.475616,
+    "advcl_freq": 0.03861,
+    "comp_clause_freq": 0.048618,
+    "fanout": 2.272078,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.096796,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 28.5
+  },
+  "attributes": {
+    "A1": "Jewelry Sizers",
+    "A2": "EuroTool",
+    "A3": "12.83",
+    "A4": "Polished",
+    "A5": "Decoration"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 28 words per sentence"
+}

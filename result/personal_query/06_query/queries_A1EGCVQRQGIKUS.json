@@ -1,0 +1,31 @@
+{
+  "user_id": "A1EGCVQRQGIKUS",
+  "timestamp": "2026-04-03T22:24:52.350318",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 18,
+  "num_long_sentences": 145,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.005069,
+    "dep_distance": 0.3033,
+    "modifier_density": 0.143346,
+    "coord_chain": 0.14069,
+    "negation_scope": 0.01108,
+    "voice_ratio": 0.086207,
+    "branching_direction": 0.50261,
+    "advcl_freq": 0.024186,
+    "comp_clause_freq": 0.040711,
+    "fanout": 2.114192,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.08526,
+    "appos_freq": 0.000493,
+    "avg_sentence_length": 15.3
+  },
+  "attributes": {
+    "A1": "Bead Assortments",
+    "A2": "YazyCraft",
+    "A3": "7.69",
+    "A4": "Crystal",
+    "A5": "Jewelry making"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 15 words per sentence"
+}

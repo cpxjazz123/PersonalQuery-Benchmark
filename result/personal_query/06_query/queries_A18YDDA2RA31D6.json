@@ -1,0 +1,31 @@
+{
+  "user_id": "A18YDDA2RA31D6",
+  "timestamp": "2026-04-03T22:23:19.294458",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 1,
+  "num_long_sentences": 20,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011156,
+    "dep_distance": 0.263068,
+    "modifier_density": 0.168073,
+    "coord_chain": 0.235,
+    "negation_scope": 0.015012,
+    "voice_ratio": 0.025,
+    "branching_direction": 0.523197,
+    "advcl_freq": 0.027491,
+    "comp_clause_freq": 0.044741,
+    "fanout": 2.324869,
+    "parataxis_freq": 0.002,
+    "prep_density": 0.055227,
+    "appos_freq": 0.007143,
+    "avg_sentence_length": 23.1
+  },
+  "attributes": {
+    "A1": "Screen Printing Kits",
+    "A2": "Provo Craft & Novelty/ yudu",
+    "A3": "349.99",
+    "A4": "Black",
+    "A5": "Home"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

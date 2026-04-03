@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HIW8QEDZ26KA",
+  "timestamp": "2026-04-03T22:26:00.244834",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 8,
+  "num_long_sentences": 34,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.008403,
+    "dep_distance": 0.224644,
+    "modifier_density": 0.212414,
+    "coord_chain": 0.176471,
+    "negation_scope": 0.00662,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.528746,
+    "advcl_freq": 0.024005,
+    "comp_clause_freq": 0.038795,
+    "fanout": 2.13435,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.090047,
+    "appos_freq": 0.002503,
+    "avg_sentence_length": 23.8
+  },
+  "attributes": {
+    "A1": "Earring Backs",
+    "A2": "Earring Clip on Converters",
+    "A3": "7.49",
+    "A4": "Clear",
+    "A5": "Earring"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

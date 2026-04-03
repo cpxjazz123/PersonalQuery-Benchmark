@@ -1,0 +1,31 @@
+{
+  "user_id": "A10ZFE6YE0UHW8",
+  "timestamp": "2026-04-03T22:21:14.202561",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 51,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011369,
+    "dep_distance": 0.272838,
+    "modifier_density": 0.214528,
+    "coord_chain": 0.152941,
+    "negation_scope": 0.00605,
+    "voice_ratio": 0.029412,
+    "branching_direction": 0.519996,
+    "advcl_freq": 0.010638,
+    "comp_clause_freq": 0.029143,
+    "fanout": 1.836174,
+    "parataxis_freq": 0.008957,
+    "prep_density": 0.093992,
+    "appos_freq": 0.021994,
+    "avg_sentence_length": 18.1
+  },
+  "attributes": {
+    "A1": "Interlocking Tape",
+    "A2": "Country Brook Design",
+    "A3": "12.95",
+    "A4": "Black",
+    "A5": "Sign"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

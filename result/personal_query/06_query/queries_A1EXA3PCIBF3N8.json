@@ -1,0 +1,31 @@
+{
+  "user_id": "A1EXA3PCIBF3N8",
+  "timestamp": "2026-04-03T22:24:57.298533",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 40,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013584,
+    "dep_distance": 0.257624,
+    "modifier_density": 0.205685,
+    "coord_chain": 0.22,
+    "negation_scope": 0.011392,
+    "voice_ratio": 0.036905,
+    "branching_direction": 0.550688,
+    "advcl_freq": 0.020207,
+    "comp_clause_freq": 0.038754,
+    "fanout": 2.260977,
+    "parataxis_freq": 0.003116,
+    "prep_density": 0.070976,
+    "appos_freq": 0.003494,
+    "avg_sentence_length": 22.5
+  },
+  "attributes": {
+    "A1": "Weaving Loom Tools",
+    "A2": "Kiserena",
+    "A3": "32.99",
+    "A4": "Mini",
+    "A5": "Kids"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

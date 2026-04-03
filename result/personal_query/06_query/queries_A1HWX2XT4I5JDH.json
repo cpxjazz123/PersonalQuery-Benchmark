@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HWX2XT4I5JDH",
+  "timestamp": "2026-04-03T22:26:04.594959",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 20,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.020406,
+    "dep_distance": 0.207365,
+    "modifier_density": 0.203435,
+    "coord_chain": 0.34,
+    "negation_scope": 0.015115,
+    "voice_ratio": 0.045,
+    "branching_direction": 0.491377,
+    "advcl_freq": 0.015805,
+    "comp_clause_freq": 0.038932,
+    "fanout": 2.166937,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.079008,
+    "appos_freq": 0.011328,
+    "avg_sentence_length": 26.9
+  },
+  "attributes": {
+    "A1": "Storage Boxes",
+    "A2": "IRIS USA, Inc.",
+    "A3": "39.99",
+    "A4": "Portable",
+    "A5": "Paper"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 26 words per sentence"
+}

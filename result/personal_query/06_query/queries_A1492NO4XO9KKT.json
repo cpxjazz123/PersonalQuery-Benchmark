@@ -1,0 +1,31 @@
+{
+  "user_id": "A1492NO4XO9KKT",
+  "timestamp": "2026-04-03T22:22:09.378848",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 12,
+  "num_long_sentences": 61,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.013617,
+    "dep_distance": 0.278332,
+    "modifier_density": 0.234407,
+    "coord_chain": 0.114754,
+    "negation_scope": 0.010378,
+    "voice_ratio": 0.079235,
+    "branching_direction": 0.529413,
+    "advcl_freq": 0.021061,
+    "comp_clause_freq": 0.019814,
+    "fanout": 2.149488,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.088451,
+    "appos_freq": 0.006177,
+    "avg_sentence_length": 18.4
+  },
+  "attributes": {
+    "A1": "Floral Moss",
+    "A2": "Appalachian Emporium",
+    "A3": "16.49",
+    "A4": "Large",
+    "A5": "Garden"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A1B4LH6XKWSPV5",
+  "timestamp": "2026-04-03T22:23:56.208604",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 9,
+  "num_long_sentences": 15,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.007407,
+    "dep_distance": 0.22349,
+    "modifier_density": 0.226259,
+    "coord_chain": 0.066667,
+    "negation_scope": 0.014425,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.577445,
+    "advcl_freq": 0.046296,
+    "comp_clause_freq": 0.045,
+    "fanout": 1.978495,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.078202,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 23.5
+  },
+  "attributes": {
+    "A1": "Ribbons",
+    "A2": "May Arts",
+    "A3": "27.50",
+    "A4": "Small",
+    "A5": "Crafting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

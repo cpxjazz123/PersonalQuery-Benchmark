@@ -1,0 +1,31 @@
+{
+  "user_id": "A18DJY64V6Q9OA",
+  "timestamp": "2026-04-03T22:23:10.086665",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 14,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010786,
+    "dep_distance": 0.208555,
+    "modifier_density": 0.208265,
+    "coord_chain": 0.428571,
+    "negation_scope": 0.017723,
+    "voice_ratio": 0.10119,
+    "branching_direction": 0.52265,
+    "advcl_freq": 0.02423,
+    "comp_clause_freq": 0.042595,
+    "fanout": 2.318443,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.073333,
+    "appos_freq": 0.003247,
+    "avg_sentence_length": 34.9
+  },
+  "attributes": {
+    "A1": "Bead Assortments",
+    "A2": "Sweet & Happy Girl's Gemstone Art Beads",
+    "A3": "7.86",
+    "A4": "Black",
+    "A5": "Jewelry making"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 34 words per sentence"
+}

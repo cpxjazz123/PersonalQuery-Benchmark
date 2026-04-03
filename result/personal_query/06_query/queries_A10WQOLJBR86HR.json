@@ -1,0 +1,31 @@
+{
+  "user_id": "A10WQOLJBR86HR",
+  "timestamp": "2026-04-03T22:21:12.684526",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 25,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016956,
+    "dep_distance": 0.284351,
+    "modifier_density": 0.152423,
+    "coord_chain": 0.2,
+    "negation_scope": 0.015125,
+    "voice_ratio": 0.02,
+    "branching_direction": 0.47048,
+    "advcl_freq": 0.011289,
+    "comp_clause_freq": 0.032501,
+    "fanout": 2.117272,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.101528,
+    "appos_freq": 0.001481,
+    "avg_sentence_length": 18.4
+  },
+  "attributes": {
+    "A1": "Dress Forms",
+    "A2": "only mannequins",
+    "A3": "45.00",
+    "A4": "Black",
+    "A5": "Display"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

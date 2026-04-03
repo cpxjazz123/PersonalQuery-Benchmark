@@ -1,0 +1,31 @@
+{
+  "user_id": "A1DX578XX2FRD8",
+  "timestamp": "2026-04-03T22:24:42.892000",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 11,
+  "num_long_sentences": 38,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011435,
+    "dep_distance": 0.270501,
+    "modifier_density": 0.138118,
+    "coord_chain": 0.144737,
+    "negation_scope": 0.009743,
+    "voice_ratio": 0.073308,
+    "branching_direction": 0.489562,
+    "advcl_freq": 0.017026,
+    "comp_clause_freq": 0.045622,
+    "fanout": 2.130091,
+    "parataxis_freq": 0.002632,
+    "prep_density": 0.103084,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 18.1
+  },
+  "attributes": {
+    "A1": "Cords",
+    "A2": "IBK Craft Supply",
+    "A3": "9.40",
+    "A4": "Black",
+    "A5": "Metal"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A10T20J62Z0OVB",
+  "timestamp": "2026-04-03T22:21:10.490317",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 29,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015141,
+    "dep_distance": 0.248568,
+    "modifier_density": 0.252096,
+    "coord_chain": 0.151724,
+    "negation_scope": 0.012007,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.523699,
+    "advcl_freq": 0.011605,
+    "comp_clause_freq": 0.036501,
+    "fanout": 2.125076,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.083765,
+    "appos_freq": 0.013793,
+    "avg_sentence_length": 21.1
+  },
+  "attributes": {
+    "A1": "Kits",
+    "A2": "Daniel Smith",
+    "A3": "23.99",
+    "A4": "Blue",
+    "A5": "Artists"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

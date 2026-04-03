@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BA4E4LQIXMA7",
+  "timestamp": "2026-04-03T22:23:58.504511",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 31,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.019175,
+    "dep_distance": 0.259266,
+    "modifier_density": 0.195683,
+    "coord_chain": 0.206452,
+    "negation_scope": 0.006496,
+    "voice_ratio": 0.029032,
+    "branching_direction": 0.515952,
+    "advcl_freq": 0.016127,
+    "comp_clause_freq": 0.032545,
+    "fanout": 2.164187,
+    "parataxis_freq": 0.001075,
+    "prep_density": 0.07873,
+    "appos_freq": 0.002749,
+    "avg_sentence_length": 20.6
+  },
+  "attributes": {
+    "A1": "Pottery Tools",
+    "A2": "Makin's USA",
+    "A3": "30.13",
+    "A4": "Small",
+    "A5": "Children"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

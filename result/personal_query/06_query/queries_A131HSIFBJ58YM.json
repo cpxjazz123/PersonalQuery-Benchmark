@@ -1,0 +1,31 @@
+{
+  "user_id": "A131HSIFBJ58YM",
+  "timestamp": "2026-04-03T22:21:39.989621",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 73,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012403,
+    "dep_distance": 0.262934,
+    "modifier_density": 0.207705,
+    "coord_chain": 0.208219,
+    "negation_scope": 0.012478,
+    "voice_ratio": 0.061644,
+    "branching_direction": 0.459512,
+    "advcl_freq": 0.017489,
+    "comp_clause_freq": 0.020141,
+    "fanout": 2.225706,
+    "parataxis_freq": 0.000652,
+    "prep_density": 0.102202,
+    "appos_freq": 0.007021,
+    "avg_sentence_length": 20.1
+  },
+  "attributes": {
+    "A1": "Scrapbooking Storage",
+    "A2": "IRIS USA, Inc.",
+    "A3": "14.30",
+    "A4": "Small",
+    "A5": "Craft"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

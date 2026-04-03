@@ -1,0 +1,31 @@
+{
+  "user_id": "A19EROENT1SSRI",
+  "timestamp": "2026-04-03T22:23:25.028913",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 16,
+  "num_long_sentences": 50,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011039,
+    "dep_distance": 0.28009,
+    "modifier_density": 0.153854,
+    "coord_chain": 0.148,
+    "negation_scope": 0.017766,
+    "voice_ratio": 0.05,
+    "branching_direction": 0.509922,
+    "advcl_freq": 0.028706,
+    "comp_clause_freq": 0.035391,
+    "fanout": 2.205449,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.085428,
+    "appos_freq": 0.002591,
+    "avg_sentence_length": 19.5
+  },
+  "attributes": {
+    "A1": "Card Stock",
+    "A2": "Bazzill Basics Paper",
+    "A3": "17.25",
+    "A4": "Black",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

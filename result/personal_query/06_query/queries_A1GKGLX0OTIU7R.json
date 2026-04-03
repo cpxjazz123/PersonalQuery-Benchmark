@@ -1,0 +1,31 @@
+{
+  "user_id": "A1GKGLX0OTIU7R",
+  "timestamp": "2026-04-03T22:25:36.767178",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 19,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016851,
+    "dep_distance": 0.225299,
+    "modifier_density": 0.179412,
+    "coord_chain": 0.168421,
+    "negation_scope": 0.015825,
+    "voice_ratio": 0.122807,
+    "branching_direction": 0.465936,
+    "advcl_freq": 0.028435,
+    "comp_clause_freq": 0.034836,
+    "fanout": 2.075135,
+    "parataxis_freq": 0.001698,
+    "prep_density": 0.100816,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 25.1
+  },
+  "attributes": {
+    "A1": "Metal Stamping Tools",
+    "A2": "Pebbles",
+    "A3": "16.58",
+    "A4": "Large",
+    "A5": "Making"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 25 words per sentence"
+}

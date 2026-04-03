@@ -1,0 +1,31 @@
+{
+  "user_id": "A1GUNDQSGLTI4S",
+  "timestamp": "2026-04-03T22:25:41.292172",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 49,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015497,
+    "dep_distance": 0.227738,
+    "modifier_density": 0.193543,
+    "coord_chain": 0.204082,
+    "negation_scope": 0.014151,
+    "voice_ratio": 0.044898,
+    "branching_direction": 0.500449,
+    "advcl_freq": 0.012598,
+    "comp_clause_freq": 0.030014,
+    "fanout": 2.107885,
+    "parataxis_freq": 0.001458,
+    "prep_density": 0.099707,
+    "appos_freq": 0.001646,
+    "avg_sentence_length": 27.0
+  },
+  "attributes": {
+    "A1": "Earring Backs",
+    "A2": "UnCommon Artistry",
+    "A3": "22.99",
+    "A4": "Silver",
+    "A5": "Earring"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 27 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A19KWBV69AMHTZ",
+  "timestamp": "2026-04-03T22:23:28.535916",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 75,
+  "num_long_sentences": 253,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015903,
+    "dep_distance": 0.274765,
+    "modifier_density": 0.144064,
+    "coord_chain": 0.187352,
+    "negation_scope": 0.011479,
+    "voice_ratio": 0.026943,
+    "branching_direction": 0.483606,
+    "advcl_freq": 0.021112,
+    "comp_clause_freq": 0.03458,
+    "fanout": 2.162252,
+    "parataxis_freq": 0.000691,
+    "prep_density": 0.090067,
+    "appos_freq": 0.001085,
+    "avg_sentence_length": 17.7
+  },
+  "attributes": {
+    "A1": "Embellishments",
+    "A2": "Prima Marketing",
+    "A3": "6.85",
+    "A4": "Vintage",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 17 words per sentence"
+}

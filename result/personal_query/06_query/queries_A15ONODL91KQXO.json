@@ -1,0 +1,31 @@
+{
+  "user_id": "A15ONODL91KQXO",
+  "timestamp": "2026-04-03T22:22:34.360682",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 23,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.020819,
+    "dep_distance": 0.255641,
+    "modifier_density": 0.183278,
+    "coord_chain": 0.086957,
+    "negation_scope": 0.003311,
+    "voice_ratio": 0.066667,
+    "branching_direction": 0.517866,
+    "advcl_freq": 0.015953,
+    "comp_clause_freq": 0.054858,
+    "fanout": 2.154847,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.07321,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 18.3
+  },
+  "attributes": {
+    "A1": "Decorative Paper",
+    "A2": "ADVANTUS CORPORATION",
+    "A3": "8.09",
+    "A4": "Vintage",
+    "A5": "Calligraphy"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A1AS3V8XNGU6QX",
+  "timestamp": "2026-04-03T22:23:49.138016",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 27,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016052,
+    "dep_distance": 0.238103,
+    "modifier_density": 0.206879,
+    "coord_chain": 0.118519,
+    "negation_scope": 0.008319,
+    "voice_ratio": 0.040123,
+    "branching_direction": 0.484578,
+    "advcl_freq": 0.023506,
+    "comp_clause_freq": 0.018136,
+    "fanout": 1.962849,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.101108,
+    "appos_freq": 0.006209,
+    "avg_sentence_length": 18.4
+  },
+  "attributes": {
+    "A1": "Die-Cuts",
+    "A2": "Sizzix",
+    "A3": "14.35",
+    "A4": "Small",
+    "A5": "Leather"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

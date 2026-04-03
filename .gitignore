@@ -112,3 +112,6 @@ result/personal_query/00_data_preparation/reviews_*.json
 result/personal_query/00_data_preparation/all_user_reviews.json
 result/personal_query/00_data_preparation/all_qualified_users.json
 result/personal_query/06_query/dual_queries_*.json
+envs/
+data/Amazon-Reviews-2023/
+LingConv/

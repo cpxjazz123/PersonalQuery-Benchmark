@@ -1,0 +1,31 @@
+{
+  "user_id": "A1F155OPUT5KP",
+  "timestamp": "2026-04-03T22:24:59.416716",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 15,
+  "num_long_sentences": 62,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.017268,
+    "dep_distance": 0.241384,
+    "modifier_density": 0.157137,
+    "coord_chain": 0.21129,
+    "negation_scope": 0.008555,
+    "voice_ratio": 0.024731,
+    "branching_direction": 0.507106,
+    "advcl_freq": 0.020459,
+    "comp_clause_freq": 0.039328,
+    "fanout": 2.218184,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.079124,
+    "appos_freq": 0.00374,
+    "avg_sentence_length": 23.0
+  },
+  "attributes": {
+    "A1": "Die-Cuts",
+    "A2": "Spellbinders",
+    "A3": "14.52",
+    "A4": "Thin",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A18IPVDDTPQKOW",
+  "timestamp": "2026-04-03T22:23:13.644840",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 31,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.007944,
+    "dep_distance": 0.262059,
+    "modifier_density": 0.168915,
+    "coord_chain": 0.180645,
+    "negation_scope": 0.014674,
+    "voice_ratio": 0.053226,
+    "branching_direction": 0.502045,
+    "advcl_freq": 0.02514,
+    "comp_clause_freq": 0.039748,
+    "fanout": 2.137692,
+    "parataxis_freq": 0.001403,
+    "prep_density": 0.079263,
+    "appos_freq": 0.001008,
+    "avg_sentence_length": 19.9
+  },
+  "attributes": {
+    "A1": "Kraft Paper",
+    "A2": "Metronic International",
+    "A3": "9.90",
+    "A4": "Square",
+    "A5": "Plastic"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

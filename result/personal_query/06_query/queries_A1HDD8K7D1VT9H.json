@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HDD8K7D1VT9H",
+  "timestamp": "2026-04-03T22:25:57.602090",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 10,
+  "num_long_sentences": 42,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.020677,
+    "dep_distance": 0.252117,
+    "modifier_density": 0.166354,
+    "coord_chain": 0.140476,
+    "negation_scope": 0.01668,
+    "voice_ratio": 0.069444,
+    "branching_direction": 0.488503,
+    "advcl_freq": 0.014747,
+    "comp_clause_freq": 0.053921,
+    "fanout": 2.162646,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.098335,
+    "appos_freq": 0.003875,
+    "avg_sentence_length": 20.1
+  },
+  "attributes": {
+    "A1": "Rotary Cutter Blades",
+    "A2": "OLFA",
+    "A3": "19.84",
+    "A4": "Curved",
+    "A5": "Cutting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

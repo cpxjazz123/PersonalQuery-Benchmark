@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BA0FMKHJRJ3A",
+  "timestamp": "2026-04-03T22:23:57.963056",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 14,
+  "num_long_sentences": 19,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01469,
+    "dep_distance": 0.225603,
+    "modifier_density": 0.130874,
+    "coord_chain": 0.235088,
+    "negation_scope": 0.01733,
+    "voice_ratio": 0.070175,
+    "branching_direction": 0.483114,
+    "advcl_freq": 0.016447,
+    "comp_clause_freq": 0.051252,
+    "fanout": 2.20105,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.080893,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 21.6
+  },
+  "attributes": {
+    "A1": "Head Pins",
+    "A2": "Sodacraft",
+    "A3": "7.99",
+    "A4": "Flat",
+    "A5": "Jewelry making"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

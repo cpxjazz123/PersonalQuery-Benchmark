@@ -1,0 +1,31 @@
+{
+  "user_id": "A13NM1PES9OXVN",
+  "timestamp": "2026-04-03T22:21:48.705370",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 24,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015242,
+    "dep_distance": 0.185716,
+    "modifier_density": 0.234447,
+    "coord_chain": 0.408333,
+    "negation_scope": 0.010826,
+    "voice_ratio": 0.048611,
+    "branching_direction": 0.46758,
+    "advcl_freq": 0.011466,
+    "comp_clause_freq": 0.02873,
+    "fanout": 2.241373,
+    "parataxis_freq": 0.000718,
+    "prep_density": 0.096137,
+    "appos_freq": 0.008638,
+    "avg_sentence_length": 34.9
+  },
+  "attributes": {
+    "A1": "Art Sets",
+    "A2": "Faber Castell",
+    "A3": "35.00",
+    "A4": "Portable",
+    "A5": "Beginners"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 34 words per sentence"
+}

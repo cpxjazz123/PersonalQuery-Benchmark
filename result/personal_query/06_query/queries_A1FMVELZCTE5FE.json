@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FMVELZCTE5FE",
+  "timestamp": "2026-04-03T22:25:16.321278",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 18,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010866,
+    "dep_distance": 0.270403,
+    "modifier_density": 0.212942,
+    "coord_chain": 0.172222,
+    "negation_scope": 0.008758,
+    "voice_ratio": 0.027778,
+    "branching_direction": 0.546947,
+    "advcl_freq": 0.013046,
+    "comp_clause_freq": 0.043135,
+    "fanout": 2.182384,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.075734,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 22.3
+  },
+  "attributes": {
+    "A1": "Leathercraft Accessories",
+    "A2": "Fiebing's",
+    "A3": "7.99",
+    "A4": "Small",
+    "A5": "Decoration"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

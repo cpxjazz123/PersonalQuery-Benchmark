@@ -1,0 +1,31 @@
+{
+  "user_id": "A1HO6J5FLD39T3",
+  "timestamp": "2026-04-03T22:26:01.996339",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 22,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010243,
+    "dep_distance": 0.247802,
+    "modifier_density": 0.148728,
+    "coord_chain": 0.272727,
+    "negation_scope": 0.023383,
+    "voice_ratio": 0.090909,
+    "branching_direction": 0.540059,
+    "advcl_freq": 0.03524,
+    "comp_clause_freq": 0.056638,
+    "fanout": 2.392707,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.062759,
+    "appos_freq": 0.000967,
+    "avg_sentence_length": 29.2
+  },
+  "attributes": {
+    "A1": "Iron-on Transfers",
+    "A2": "Dritz",
+    "A3": "9.99",
+    "A4": "White",
+    "A5": "Applique"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 29 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A1AQX0237A7KXP",
+  "timestamp": "2026-04-03T22:23:48.994797",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 39,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016754,
+    "dep_distance": 0.258366,
+    "modifier_density": 0.237018,
+    "coord_chain": 0.179487,
+    "negation_scope": 0.010068,
+    "voice_ratio": 0.037179,
+    "branching_direction": 0.496186,
+    "advcl_freq": 0.021975,
+    "comp_clause_freq": 0.034467,
+    "fanout": 2.156575,
+    "parataxis_freq": 0.000855,
+    "prep_density": 0.088068,
+    "appos_freq": 0.005769,
+    "avg_sentence_length": 21.2
+  },
+  "attributes": {
+    "A1": "Paintbrush Sets",
+    "A2": "dainayw",
+    "A3": "1.54",
+    "A4": "Handmade",
+    "A5": "Beginners"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

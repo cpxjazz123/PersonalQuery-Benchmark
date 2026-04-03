@@ -1,0 +1,31 @@
+{
+  "user_id": "A13Q2C9E10MPD9",
+  "timestamp": "2026-04-03T22:22:03.335597",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 26,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012854,
+    "dep_distance": 0.226346,
+    "modifier_density": 0.215369,
+    "coord_chain": 0.184615,
+    "negation_scope": 0.001241,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.537468,
+    "advcl_freq": 0.016407,
+    "comp_clause_freq": 0.04948,
+    "fanout": 2.144071,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.075275,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 24.3
+  },
+  "attributes": {
+    "A1": "Cutting Mats",
+    "A2": "Merangue",
+    "A3": "29.59",
+    "A4": "Smooth",
+    "A5": "Cutting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 24 words per sentence"
+}

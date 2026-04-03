@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BZ76ESIYPC7U",
+  "timestamp": "2026-04-03T22:24:13.116841",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 17,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01737,
+    "dep_distance": 0.238343,
+    "modifier_density": 0.166042,
+    "coord_chain": 0.294118,
+    "negation_scope": 0.006157,
+    "voice_ratio": 0.034314,
+    "branching_direction": 0.501314,
+    "advcl_freq": 0.021719,
+    "comp_clause_freq": 0.031102,
+    "fanout": 2.296159,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.074924,
+    "appos_freq": 0.00346,
+    "avg_sentence_length": 25.3
+  },
+  "attributes": {
+    "A1": "Die-Cuts",
+    "A2": "We R Memory Keepers",
+    "A3": "124.99",
+    "A4": "Portable",
+    "A5": "Crafting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 25 words per sentence"
+}

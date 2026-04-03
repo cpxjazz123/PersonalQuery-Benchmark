@@ -1,0 +1,31 @@
+{
+  "user_id": "A18NTI5V03ZD6Y",
+  "timestamp": "2026-04-03T22:23:14.638090",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 18,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.009061,
+    "dep_distance": 0.195189,
+    "modifier_density": 0.203625,
+    "coord_chain": 0.355556,
+    "negation_scope": 0.006945,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.496778,
+    "advcl_freq": 0.031447,
+    "comp_clause_freq": 0.057951,
+    "fanout": 2.145815,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.06843,
+    "appos_freq": 0.010054,
+    "avg_sentence_length": 41.0
+  },
+  "attributes": {
+    "A1": "Scrapbooking",
+    "A2": "CR. Gibson",
+    "A3": "10.60",
+    "A4": "White",
+    "A5": "Scrapbook"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 41 words per sentence"
+}

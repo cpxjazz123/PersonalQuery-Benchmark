@@ -1,0 +1,31 @@
+{
+  "user_id": "A1EDVN97YI8G7D",
+  "timestamp": "2026-04-03T22:24:51.123462",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 26,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.010183,
+    "dep_distance": 0.272349,
+    "modifier_density": 0.247585,
+    "coord_chain": 0.076923,
+    "negation_scope": 0.0,
+    "voice_ratio": 0.025641,
+    "branching_direction": 0.532198,
+    "advcl_freq": 0.018785,
+    "comp_clause_freq": 0.051352,
+    "fanout": 1.989523,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.092655,
+    "appos_freq": 0.008097,
+    "avg_sentence_length": 19.5
+  },
+  "attributes": {
+    "A1": "Bright Paintbrushes",
+    "A2": "da Vinci Brushes",
+    "A3": "11.78",
+    "A4": "Handmade",
+    "A5": "Outdoor"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

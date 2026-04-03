@@ -1,0 +1,31 @@
+{
+  "user_id": "A15E01GJRFSLZM",
+  "timestamp": "2026-04-03T22:22:31.058251",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 26,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.003064,
+    "dep_distance": 0.250194,
+    "modifier_density": 0.213964,
+    "coord_chain": 0.25,
+    "negation_scope": 0.0,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.461177,
+    "advcl_freq": 0.018172,
+    "comp_clause_freq": 0.042817,
+    "fanout": 2.070132,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.09794,
+    "appos_freq": 0.008359,
+    "avg_sentence_length": 19.6
+  },
+  "attributes": {
+    "A1": "Sticker Machines",
+    "A2": "ONOR-TECH",
+    "A3": "2.69",
+    "A4": "Cute",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

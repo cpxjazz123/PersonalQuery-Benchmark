@@ -1,0 +1,31 @@
+{
+  "user_id": "A1A7PHXA3IHVER",
+  "timestamp": "2026-04-03T22:23:41.808685",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 12,
+  "num_long_sentences": 48,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01595,
+    "dep_distance": 0.262865,
+    "modifier_density": 0.21694,
+    "coord_chain": 0.183333,
+    "negation_scope": 0.008231,
+    "voice_ratio": 0.033854,
+    "branching_direction": 0.540266,
+    "advcl_freq": 0.017351,
+    "comp_clause_freq": 0.029271,
+    "fanout": 2.069587,
+    "parataxis_freq": 0.001603,
+    "prep_density": 0.089871,
+    "appos_freq": 0.004044,
+    "avg_sentence_length": 22.5
+  },
+  "attributes": {
+    "A1": "Die-Cut Machines",
+    "A2": "Gemini by Crafter's Companion",
+    "A3": "157.01",
+    "A4": "White",
+    "A5": "Cutting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

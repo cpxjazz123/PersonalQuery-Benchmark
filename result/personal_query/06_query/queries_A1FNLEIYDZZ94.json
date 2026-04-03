@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FNLEIYDZZ94",
+  "timestamp": "2026-04-03T22:25:17.151597",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 19,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.018066,
+    "dep_distance": 0.240348,
+    "modifier_density": 0.154634,
+    "coord_chain": 0.126316,
+    "negation_scope": 0.026459,
+    "voice_ratio": 0.064536,
+    "branching_direction": 0.507567,
+    "advcl_freq": 0.031083,
+    "comp_clause_freq": 0.036036,
+    "fanout": 2.389801,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.083821,
+    "appos_freq": 0.002105,
+    "avg_sentence_length": 23.7
+  },
+  "attributes": {
+    "A1": "Craft Supplies",
+    "A2": "Lillian Rose",
+    "A3": "6.18",
+    "A4": "Vintage",
+    "A5": "Men"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

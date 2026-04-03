@@ -1,0 +1,31 @@
+{
+  "user_id": "A1FYGMRKYQWZRI",
+  "timestamp": "2026-04-03T22:25:21.555106",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 18,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.008718,
+    "dep_distance": 0.257851,
+    "modifier_density": 0.20267,
+    "coord_chain": 0.244444,
+    "negation_scope": 0.011459,
+    "voice_ratio": 0.027778,
+    "branching_direction": 0.509908,
+    "advcl_freq": 0.015368,
+    "comp_clause_freq": 0.024279,
+    "fanout": 2.352884,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.065412,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 22.3
+  },
+  "attributes": {
+    "A1": "Jewelry Making Tools",
+    "A2": "SE",
+    "A3": "9.39",
+    "A4": "Clear",
+    "A5": "Jewelry"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

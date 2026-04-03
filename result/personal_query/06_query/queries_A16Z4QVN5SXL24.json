@@ -1,0 +1,31 @@
+{
+  "user_id": "A16Z4QVN5SXL24",
+  "timestamp": "2026-04-03T22:22:51.817716",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 13,
+  "num_long_sentences": 121,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.025752,
+    "dep_distance": 0.251671,
+    "modifier_density": 0.152668,
+    "coord_chain": 0.128926,
+    "negation_scope": 0.010932,
+    "voice_ratio": 0.070248,
+    "branching_direction": 0.497601,
+    "advcl_freq": 0.022964,
+    "comp_clause_freq": 0.029926,
+    "fanout": 2.057526,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.093724,
+    "appos_freq": 0.000192,
+    "avg_sentence_length": 19.8
+  },
+  "attributes": {
+    "A1": "Quilling Strips",
+    "A2": "YazyCraft",
+    "A3": "4.99",
+    "A4": "Purple",
+    "A5": "Scrapbooking"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

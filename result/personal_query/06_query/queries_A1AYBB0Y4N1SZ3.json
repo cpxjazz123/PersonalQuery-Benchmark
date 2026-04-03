@@ -1,0 +1,31 @@
+{
+  "user_id": "A1AYBB0Y4N1SZ3",
+  "timestamp": "2026-04-03T22:23:51.669741",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 1,
+  "num_long_sentences": 34,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.009753,
+    "dep_distance": 0.269938,
+    "modifier_density": 0.18403,
+    "coord_chain": 0.173529,
+    "negation_scope": 0.00579,
+    "voice_ratio": 0.014706,
+    "branching_direction": 0.495087,
+    "advcl_freq": 0.028653,
+    "comp_clause_freq": 0.023777,
+    "fanout": 2.144656,
+    "parataxis_freq": 0.001131,
+    "prep_density": 0.108918,
+    "appos_freq": 0.005942,
+    "avg_sentence_length": 18.4
+  },
+  "attributes": {
+    "A1": "Wood Carving Tools",
+    "A2": "Neiko",
+    "A3": "39.85",
+    "A4": "Clear",
+    "A5": "Carving"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 18 words per sentence"
+}

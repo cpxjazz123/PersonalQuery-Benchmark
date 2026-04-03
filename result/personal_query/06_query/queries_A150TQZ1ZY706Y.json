@@ -1,0 +1,31 @@
+{
+  "user_id": "A150TQZ1ZY706Y",
+  "timestamp": "2026-04-03T22:22:26.509651",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 14,
+  "num_long_sentences": 84,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01088,
+    "dep_distance": 0.270745,
+    "modifier_density": 0.181174,
+    "coord_chain": 0.182143,
+    "negation_scope": 0.010631,
+    "voice_ratio": 0.016865,
+    "branching_direction": 0.524012,
+    "advcl_freq": 0.026464,
+    "comp_clause_freq": 0.041785,
+    "fanout": 2.303134,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.070345,
+    "appos_freq": 0.001887,
+    "avg_sentence_length": 19.4
+  },
+  "attributes": {
+    "A1": "Adults' Paint-By-Number Kits",
+    "A2": "Colour Talk",
+    "A3": "9.60",
+    "A4": "Textured",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

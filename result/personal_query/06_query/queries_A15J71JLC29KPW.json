@@ -1,0 +1,31 @@
+{
+  "user_id": "A15J71JLC29KPW",
+  "timestamp": "2026-04-03T22:22:32.677741",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 44,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.022707,
+    "dep_distance": 0.254755,
+    "modifier_density": 0.171046,
+    "coord_chain": 0.181818,
+    "negation_scope": 0.012295,
+    "voice_ratio": 0.085227,
+    "branching_direction": 0.511817,
+    "advcl_freq": 0.019309,
+    "comp_clause_freq": 0.024711,
+    "fanout": 2.193104,
+    "parataxis_freq": 0.001623,
+    "prep_density": 0.07637,
+    "appos_freq": 0.009051,
+    "avg_sentence_length": 20.0
+  },
+  "attributes": {
+    "A1": "Beading Mats, Trays",
+    "A2": "Darice",
+    "A3": "5.44",
+    "A4": "Grey",
+    "A5": "Bracelet"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

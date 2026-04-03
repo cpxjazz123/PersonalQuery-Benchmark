@@ -1,0 +1,31 @@
+{
+  "user_id": "A15XUEXTCJUL6A",
+  "timestamp": "2026-04-03T22:22:36.632677",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 26,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.023545,
+    "dep_distance": 0.250665,
+    "modifier_density": 0.198236,
+    "coord_chain": 0.084615,
+    "negation_scope": 0.013146,
+    "voice_ratio": 0.044872,
+    "branching_direction": 0.471049,
+    "advcl_freq": 0.017192,
+    "comp_clause_freq": 0.029986,
+    "fanout": 2.020181,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.12173,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 20.3
+  },
+  "attributes": {
+    "A1": "Organization, Storage",
+    "A2": "Blue Q",
+    "A3": "7.87",
+    "A4": "Blue",
+    "A5": "Men"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

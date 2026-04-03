@@ -1,0 +1,31 @@
+{
+  "user_id": "A16JQPB6A557ZE",
+  "timestamp": "2026-04-03T22:22:43.676511",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 9,
+  "num_long_sentences": 25,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012247,
+    "dep_distance": 0.205219,
+    "modifier_density": 0.183565,
+    "coord_chain": 0.166667,
+    "negation_scope": 0.012831,
+    "voice_ratio": 0.026667,
+    "branching_direction": 0.531502,
+    "advcl_freq": 0.030994,
+    "comp_clause_freq": 0.065468,
+    "fanout": 2.238074,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.071939,
+    "appos_freq": 0.007255,
+    "avg_sentence_length": 28.9
+  },
+  "attributes": {
+    "A1": "Floral Moss",
+    "A2": "Super Moss",
+    "A3": "11.51",
+    "A4": "Green",
+    "A5": "Outdoor"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 28 words per sentence"
+}

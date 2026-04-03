@@ -1,0 +1,31 @@
+{
+  "user_id": "A14E7LZASLSX36",
+  "timestamp": "2026-04-03T22:22:10.803170",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 30,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.014914,
+    "dep_distance": 0.251641,
+    "modifier_density": 0.177569,
+    "coord_chain": 0.18,
+    "negation_scope": 0.004652,
+    "voice_ratio": 0.033333,
+    "branching_direction": 0.507099,
+    "advcl_freq": 0.016439,
+    "comp_clause_freq": 0.037773,
+    "fanout": 2.014473,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.106846,
+    "appos_freq": 0.001754,
+    "avg_sentence_length": 21.2
+  },
+  "attributes": {
+    "A1": "Glue Gun Sticks",
+    "A2": "Ad-Tech",
+    "A3": "28.18",
+    "A4": "Black",
+    "A5": "Diy"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

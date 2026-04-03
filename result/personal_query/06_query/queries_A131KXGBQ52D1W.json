@@ -1,0 +1,31 @@
+{
+  "user_id": "A131KXGBQ52D1W",
+  "timestamp": "2026-04-03T22:21:40.130030",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 8,
+  "num_long_sentences": 24,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016346,
+    "dep_distance": 0.235173,
+    "modifier_density": 0.152981,
+    "coord_chain": 0.2,
+    "negation_scope": 0.015891,
+    "voice_ratio": 0.013889,
+    "branching_direction": 0.498493,
+    "advcl_freq": 0.012171,
+    "comp_clause_freq": 0.044755,
+    "fanout": 2.034557,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.092889,
+    "appos_freq": 0.001667,
+    "avg_sentence_length": 21.9
+  },
+  "attributes": {
+    "A1": "Leathercraft Rivets",
+    "A2": "RUBYCA",
+    "A3": "9.99",
+    "A4": "Crystal",
+    "A5": "Decorating"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A1BJAPZS9M952V",
+  "timestamp": "2026-04-03T22:24:02.362492",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 11,
+  "num_long_sentences": 23,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.011783,
+    "dep_distance": 0.27542,
+    "modifier_density": 0.191527,
+    "coord_chain": 0.173913,
+    "negation_scope": 0.005176,
+    "voice_ratio": 0.049689,
+    "branching_direction": 0.547544,
+    "advcl_freq": 0.021052,
+    "comp_clause_freq": 0.048821,
+    "fanout": 2.379469,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.076791,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 20.4
+  },
+  "attributes": {
+    "A1": "Batting",
+    "A2": "Warm Company Batting",
+    "A3": "25.79",
+    "A4": "White",
+    "A5": "Quilting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

@@ -1,0 +1,31 @@
+{
+  "user_id": "A14UUJMRQ6ULRV",
+  "timestamp": "2026-04-03T22:22:21.156246",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 4,
+  "num_long_sentences": 33,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012784,
+    "dep_distance": 0.262276,
+    "modifier_density": 0.189586,
+    "coord_chain": 0.175758,
+    "negation_scope": 0.004625,
+    "voice_ratio": 0.015152,
+    "branching_direction": 0.508481,
+    "advcl_freq": 0.028104,
+    "comp_clause_freq": 0.026203,
+    "fanout": 2.095735,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.099289,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 19.2
+  },
+  "attributes": {
+    "A1": "Sewing Baskets",
+    "A2": "Dritz St. Jane",
+    "A3": "31.43",
+    "A4": "Black",
+    "A5": "Organizing"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

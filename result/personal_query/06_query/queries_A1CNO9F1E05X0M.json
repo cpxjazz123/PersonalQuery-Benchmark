@@ -1,0 +1,31 @@
+{
+  "user_id": "A1CNO9F1E05X0M",
+  "timestamp": "2026-04-03T22:24:25.828466",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 6,
+  "num_long_sentences": 22,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.014932,
+    "dep_distance": 0.265428,
+    "modifier_density": 0.151326,
+    "coord_chain": 0.181818,
+    "negation_scope": 0.021782,
+    "voice_ratio": 0.068182,
+    "branching_direction": 0.519935,
+    "advcl_freq": 0.031278,
+    "comp_clause_freq": 0.044901,
+    "fanout": 2.329103,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.070219,
+    "appos_freq": 0.001623,
+    "avg_sentence_length": 21.3
+  },
+  "attributes": {
+    "A1": "Paints",
+    "A2": "Jacquard",
+    "A3": "3",
+    "A4": "Pearl",
+    "A5": "Polymer clay"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 21 words per sentence"
+}

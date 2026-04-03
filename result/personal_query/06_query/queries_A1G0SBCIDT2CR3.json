@@ -1,0 +1,31 @@
+{
+  "user_id": "A1G0SBCIDT2CR3",
+  "timestamp": "2026-04-03T22:25:27.331052",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 3,
+  "num_long_sentences": 22,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.016648,
+    "dep_distance": 0.221702,
+    "modifier_density": 0.164415,
+    "coord_chain": 0.368182,
+    "negation_scope": 0.008725,
+    "voice_ratio": 0.045455,
+    "branching_direction": 0.504725,
+    "advcl_freq": 0.01286,
+    "comp_clause_freq": 0.028517,
+    "fanout": 2.033467,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.090151,
+    "appos_freq": 0.001976,
+    "avg_sentence_length": 23.4
+  },
+  "attributes": {
+    "A1": "Round Paintbrushes",
+    "A2": "Silver Brush Limited",
+    "A3": "11.58",
+    "A4": "Silver",
+    "A5": "Painting"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

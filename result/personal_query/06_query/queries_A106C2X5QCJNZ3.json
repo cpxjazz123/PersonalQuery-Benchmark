@@ -1,0 +1,31 @@
+{
+  "user_id": "A106C2X5QCJNZ3",
+  "timestamp": "2026-04-03T22:21:03.058603",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 5,
+  "num_long_sentences": 43,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.019351,
+    "dep_distance": 0.25713,
+    "modifier_density": 0.139443,
+    "coord_chain": 0.176744,
+    "negation_scope": 0.010455,
+    "voice_ratio": 0.034884,
+    "branching_direction": 0.485642,
+    "advcl_freq": 0.026989,
+    "comp_clause_freq": 0.030748,
+    "fanout": 2.145473,
+    "parataxis_freq": 0.001224,
+    "prep_density": 0.092345,
+    "appos_freq": 0.003428,
+    "avg_sentence_length": 20.2
+  },
+  "attributes": {
+    "A1": "Sumi Brushes",
+    "A2": "LM Treasures",
+    "A3": "14.40",
+    "A4": "Long",
+    "A5": "Calligraphy"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 20 words per sentence"
+}

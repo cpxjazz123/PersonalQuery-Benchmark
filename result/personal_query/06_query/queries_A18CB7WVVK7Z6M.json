@@ -1,0 +1,31 @@
+{
+  "user_id": "A18CB7WVVK7Z6M",
+  "timestamp": "2026-04-03T22:23:09.200720",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 1,
+  "num_long_sentences": 23,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.015207,
+    "dep_distance": 0.252706,
+    "modifier_density": 0.152986,
+    "coord_chain": 0.269565,
+    "negation_scope": 0.011272,
+    "voice_ratio": 0.111594,
+    "branching_direction": 0.508947,
+    "advcl_freq": 0.020883,
+    "comp_clause_freq": 0.033382,
+    "fanout": 2.180146,
+    "parataxis_freq": 0.002174,
+    "prep_density": 0.085121,
+    "appos_freq": 0.008169,
+    "avg_sentence_length": 22.0
+  },
+  "attributes": {
+    "A1": "Easels",
+    "A2": "US Art Supply",
+    "A3": "139.96",
+    "A4": "Large",
+    "A5": "Storage"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

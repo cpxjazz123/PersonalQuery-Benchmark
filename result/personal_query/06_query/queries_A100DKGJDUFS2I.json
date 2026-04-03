@@ -1,0 +1,31 @@
+{
+  "user_id": "A100DKGJDUFS2I",
+  "timestamp": "2026-04-03T22:21:01.705429",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 11,
+  "num_long_sentences": 82,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.012623,
+    "dep_distance": 0.280865,
+    "modifier_density": 0.175264,
+    "coord_chain": 0.15,
+    "negation_scope": 0.012544,
+    "voice_ratio": 0.038821,
+    "branching_direction": 0.48944,
+    "advcl_freq": 0.015457,
+    "comp_clause_freq": 0.040677,
+    "fanout": 2.252882,
+    "parataxis_freq": 0.000938,
+    "prep_density": 0.084114,
+    "appos_freq": 0.001854,
+    "avg_sentence_length": 19.0
+  },
+  "attributes": {
+    "A1": "Scrapbooking Storage",
+    "A2": "IRIS USA, Inc.",
+    "A3": "14.30",
+    "A4": "Small",
+    "A5": "Craft"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 19 words per sentence"
+}

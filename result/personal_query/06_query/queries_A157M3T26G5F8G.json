@@ -1,0 +1,31 @@
+{
+  "user_id": "A157M3T26G5F8G",
+  "timestamp": "2026-04-03T22:22:29.777487",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 14,
+  "num_long_sentences": 20,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.01473,
+    "dep_distance": 0.196556,
+    "modifier_density": 0.206121,
+    "coord_chain": 0.33,
+    "negation_scope": 0.007941,
+    "voice_ratio": 0.0,
+    "branching_direction": 0.493206,
+    "advcl_freq": 0.007666,
+    "comp_clause_freq": 0.034157,
+    "fanout": 2.275934,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.074166,
+    "appos_freq": 0.0,
+    "avg_sentence_length": 26.9
+  },
+  "attributes": {
+    "A1": "Bead Assortments",
+    "A2": "EuroTool",
+    "A3": "6.78",
+    "A4": "Delicate",
+    "A5": "Beads"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- connect multiple ideas with 'and', 'but', 'or' (e.g., 'for X, Y, and Z');\n- use some adjectives to describe the product;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 26 words per sentence"
+}

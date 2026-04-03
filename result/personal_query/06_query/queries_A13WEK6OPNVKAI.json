@@ -1,0 +1,31 @@
+{
+  "user_id": "A13WEK6OPNVKAI",
+  "timestamp": "2026-04-03T22:22:05.631141",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 7,
+  "num_long_sentences": 31,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.005457,
+    "dep_distance": 0.242716,
+    "modifier_density": 0.183447,
+    "coord_chain": 0.225806,
+    "negation_scope": 0.010439,
+    "voice_ratio": 0.03871,
+    "branching_direction": 0.518649,
+    "advcl_freq": 0.029906,
+    "comp_clause_freq": 0.043561,
+    "fanout": 2.198747,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.065473,
+    "appos_freq": 0.003233,
+    "avg_sentence_length": 23.1
+  },
+  "attributes": {
+    "A1": "Airbrush Materials",
+    "A2": "Badger Air-Brush Co.",
+    "A3": "14.73",
+    "A4": "Silver",
+    "A5": "Creating"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 23 words per sentence"
+}

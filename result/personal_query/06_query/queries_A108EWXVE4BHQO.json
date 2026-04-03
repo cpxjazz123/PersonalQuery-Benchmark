@@ -1,0 +1,31 @@
+{
+  "user_id": "A108EWXVE4BHQO",
+  "timestamp": "2026-04-03T22:21:03.687838",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 12,
+  "num_long_sentences": 38,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.019229,
+    "dep_distance": 0.241394,
+    "modifier_density": 0.170926,
+    "coord_chain": 0.226316,
+    "negation_scope": 0.012657,
+    "voice_ratio": 0.070175,
+    "branching_direction": 0.471786,
+    "advcl_freq": 0.016119,
+    "comp_clause_freq": 0.034836,
+    "fanout": 2.186159,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.100598,
+    "appos_freq": 0.002632,
+    "avg_sentence_length": 22.0
+  },
+  "attributes": {
+    "A1": "Card Stock",
+    "A2": "Tim Holtz Idea-ology",
+    "A3": "6.59",
+    "A4": "Vintage",
+    "A5": "Arrangement"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- use one coordination (e.g., 'X and Y');\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- write medium-length sentences with some inserted phrases;\n- target approximately 22 words per sentence"
+}

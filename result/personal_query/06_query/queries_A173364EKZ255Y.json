@@ -1,0 +1,31 @@
+{
+  "user_id": "A173364EKZ255Y",
+  "timestamp": "2026-04-03T22:22:53.187781",
+  "pipeline": "local_spacy_14d_only",
+  "num_reviews_total": 2,
+  "num_long_sentences": 14,
+  "target_complexity": {
+    "subordinate_clause_freq": 0.031016,
+    "dep_distance": 0.192688,
+    "modifier_density": 0.167975,
+    "coord_chain": 0.142857,
+    "negation_scope": 0.004856,
+    "voice_ratio": 0.010204,
+    "branching_direction": 0.455768,
+    "advcl_freq": 0.034751,
+    "comp_clause_freq": 0.051782,
+    "fanout": 2.034382,
+    "parataxis_freq": 0.0,
+    "prep_density": 0.099976,
+    "appos_freq": 0.002381,
+    "avg_sentence_length": 29.4
+  },
+  "attributes": {
+    "A1": "Eye Pins",
+    "A2": "PH PandaHall",
+    "A3": "9.49",
+    "A4": "Mini",
+    "A5": "Jewelry making"
+  },
+  "style_description": "use simple, flat sentence structure without subordinate clauses;\n- avoid coordination, keep each idea separate;\n- be concise, avoid extra modifiers;\n- use positive/affirmative phrasing;\n- keep subject and verb close together, write short sentences;\n- target approximately 29 words per sentence"
+}
