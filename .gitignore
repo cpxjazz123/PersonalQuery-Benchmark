@@ -115,3 +115,5 @@ result/personal_query/06_query/dual_queries_*.json
 envs/
 data/Amazon-Reviews-2023/
 LingConv/
+.omx/
+.codex/
