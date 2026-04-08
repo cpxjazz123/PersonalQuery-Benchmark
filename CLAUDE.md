@@ -215,25 +215,14 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
 
 **配置文件**：`/fs04/ar57/wenyu/PersoanlQuery/05_syntactic_analysis/lingconv.py`（参数硬编码）
 
-**运行环境**：`conda activate /home/wlia0047/ar57/wenyu/envs/lingconv`（transformers==4.46.0）
-
 **运行命令**：
 ```bash
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-     conda activate /home/wlia0047/ar57/wenyu/envs/lingconv && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
      cd /fs04/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
      python -u 05_lingconv.py"
 ```
-
-**当前配置**：
-- `combine_method`: decoder_add_first
-- `batch_size`: 64
-- `gradient_accumulation`: 4（等效 batch_size=256）
-- `epochs`: 2
-- `early_stopping_patience`: 3
-- 缓存目录：`/home/wlia0047/ar57_scratch/wenyu/ling_conversion_data_cache`
-
 ---
 
 ### Stage 6: 查询生成

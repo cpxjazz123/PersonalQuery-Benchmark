@@ -499,14 +499,140 @@ def select_best_cpu_node(nodes):
     """
     if not nodes:
         return None
-    
+
     available_nodes = [n for n in nodes if n['cpu_idle'] > 0]
-    
+
     if not available_nodes:
         available_nodes = nodes
-    
+
     available_nodes.sort(key=lambda n: (-n['cpu_idle'], -n['idle_ratio'], n['node']))
     return available_nodes[0] if available_nodes else None
+
+
+def find_completely_idle_gpu_nodes(prefer_gpu_type=None):
+    """
+    查找完全空闲的GPU节点（所有CPU和GPU都未被占用）。
+    使用此方法可以绕过Fairshare调度，直接指定节点保证100%立即分配。
+
+    Returns:
+        list: 完全空闲的节点列表，每个节点包含 node, gpu_type, gpu_total, cpu_total
+    """
+    try:
+        # 获取预留节点列表（sinfo -p gpu -N 不显示 resv 状态，需要用 sinfo -a 补充）
+        reserved_nodes = set()
+        result_resv = subprocess.run(
+            ['sinfo', '-a', '-o', '%N %a', '--noheader'],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        if result_resv.returncode == 0:
+            for line in result_resv.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == 'resv':
+                    # 解析节点列表，如 m3a[105-107] 或 m3a105
+                    node_expr = parts[0]
+                    if '[' in node_expr:
+                        # 格式: m3a[105-107]
+                        prefix = node_expr.split('[')[0]
+                        range_part = node_expr.split('[')[1].rstrip(']')
+                        for r in range_part.split(','):
+                            if '-' in r:
+                                start, end = r.split('-')
+                                for i in range(int(start), int(end) + 1):
+                                    reserved_nodes.add(f"{prefix}{i}")
+                            else:
+                                reserved_nodes.add(f"{prefix}{r}")
+                    else:
+                        reserved_nodes.add(node_expr)
+
+        # 查询GPU节点的CPU分配状态 (A/I/O/T 格式)
+        # %N = 节点名, %a = 状态, %C = CPU分配 (allocated/idle/other/total), %e = 内存, %G = GPU信息
+        result = subprocess.run(
+            ['sinfo', '-p', 'gpu', '-N', '-o', '%N %a %C %e %G', '--noheader'],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+
+        if result.returncode != 0:
+            print(f"[sbatch_wrapper] ⚠️  查询空闲节点失败: {result.stderr}", file=sys.stderr)
+            return []
+
+        idle_nodes = []
+        for line in result.stdout.strip().split('\n'):
+            if not line.strip():
+                continue
+
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+
+            node_name = parts[0]
+            node_state = parts[1]  # up, down, drain, etc.
+            cpu_info = parts[2]    # A/I/O/T 格式
+
+            # 跳过非UP状态的节点
+            if node_state != 'up':
+                continue
+
+            # 跳过预留状态的节点
+            if node_name in reserved_nodes:
+                continue
+
+            # 解析CPU分配状态
+            cpu_parts = cpu_info.split('/')
+            if len(cpu_parts) >= 4:
+                cpu_allocated = int(cpu_parts[0])
+                cpu_idle = int(cpu_parts[1])
+                cpu_total = int(cpu_parts[3])
+            else:
+                continue
+
+            # 只选择完全空闲的节点（所有CPU都idle）
+            if cpu_allocated != 0 or cpu_idle != cpu_total:
+                continue
+
+            # 解析GPU信息
+            gpu_type = "unknown"
+            gpu_total = 0
+            if len(parts) >= 5 and parts[4]:
+                gres_info = parts[4]
+                # 格式: gpu:xxx:Y 或 gres/gpu:xxx:Y
+                match = re.search(r'gpu:(\w+):?(\d+)', gres_info)
+                if match:
+                    gpu_type = match.group(1)
+                    gpu_total = int(match.group(2))
+                else:
+                    gpu_total = 1
+
+            # 过滤GPU类型
+            if prefer_gpu_type:
+                prefer_type = prefer_gpu_type.upper()
+                if not gpu_type.upper().startswith(prefer_type):
+                    continue
+
+            idle_nodes.append({
+                'node': node_name,
+                'gpu_type': gpu_type,
+                'gpu_total': gpu_total,
+                'cpu_total': cpu_total
+            })
+
+        # 按GPU类型优先级排序
+        gpu_priority = {'H100': 150, 'A100': 100, 'L40S': 80, 'A40': 60, 'A10': 40, 'T4': 20}
+        idle_nodes.sort(key=lambda n: (-gpu_priority.get(n['gpu_type'].upper(), 0), -n['gpu_total']))
+
+        return idle_nodes
+
+    except subprocess.TimeoutExpired:
+        print("[sbatch_wrapper] ⚠️  查询空闲节点超时", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"[sbatch_wrapper] ⚠️  查询空闲节点时出错: {e}", file=sys.stderr)
+        return []
 
 
 def print_gpu_status(nodes, selected_node=None):
@@ -592,10 +718,11 @@ def main():
     # Parse command from command line arguments
     args = sys.argv[1:]
     use_gpu = False
+    num_gpus = 1            # GPU数量，默认为1
     time_limit = None
     prefer_gpu_type = None  # 首选GPU类型
     list_gpu_only = False   # 仅列出GPU状态
-    
+
     # Simple argument parser for wrapper options
     remaining_args = []
     i = 0
@@ -606,6 +733,10 @@ def main():
         elif args[i] == "--gpu-type" and i + 1 < len(args):
             prefer_gpu_type = args[i+1]
             use_gpu = True  # 指定GPU类型自动启用GPU
+            i += 2
+        elif args[i] == "--num-gpus" and i + 1 < len(args):
+            num_gpus = int(args[i+1])
+            use_gpu = True  # 指定GPU数量自动启用GPU
             i += 2
         elif args[i] == "--list-gpu":
             list_gpu_only = True
@@ -718,22 +849,46 @@ def main():
 
     # Get current directory
     current_dir = os.getcwd() or "/home/wlia0047/ar57/wenyu"
-    
-    # 节点分配由 SLURM 自动选择
+
+    # 节点分配：GPU任务优先查找空闲节点直接分配，CPU任务使用 all 分区
     partition_option = "#SBATCH -p gpu" if use_gpu else "#SBATCH -p comp"
-    
+
+    # GPU任务：查找空闲GPU节点，优先直接分配以绕过排队
+    nodelist_option = ""
+    constraint_option = ""
+    if use_gpu:
+        idle_gpu_nodes = find_completely_idle_gpu_nodes(prefer_gpu_type)
+        if idle_gpu_nodes:
+            best_node = idle_gpu_nodes[0]
+            nodelist_option = f"#SBATCH --nodelist={best_node['node']}"
+            print(f"[sbatch_wrapper] 🎯 找到空闲GPU节点: {best_node['node']} ({best_node['gpu_type']}, {best_node['gpu_total']} GPUs, {best_node['cpu_total']} CPUs)", file=sys.stderr)
+        else:
+            # 没找到完全空闲节点，回退到constraint方式
+            if prefer_gpu_type:
+                constraint_option = f"#SBATCH --constraint={prefer_gpu_type}"
+                print(f"[sbatch_wrapper] ℹ️  未找到完全空闲GPU节点，使用约束: --constraint={prefer_gpu_type}", file=sys.stderr)
+            else:
+                print(f"[sbatch_wrapper] ℹ️  未找到完全空闲GPU节点，使用自动分配", file=sys.stderr)
+    else:
+        # 非GPU任务，不使用constraint
+        pass
+
     # Create sbatch script
     memory_allocation = "#SBATCH --mem=64G" if is_python_script_command(original_command) else ""
-    gpu_allocation = "#SBATCH --gres=gpu:1" if use_gpu else ""
+    gpu_allocation = f"#SBATCH --gres=gpu:{num_gpus}" if use_gpu else ""
+    ntasks_option = f"#SBATCH --ntasks={num_gpus}" if use_gpu and num_gpus > 1 else ""
     time_allocation = f"#SBATCH --time={time_limit}" if time_limit else ""
-    
+
     script_content = f"""#!/bin/bash
 #SBATCH --output={log_pattern}
 #SBATCH --error={err_pattern}
 {partition_option}
 {memory_allocation}
 {gpu_allocation}
+{ntasks_option}
 {time_allocation}
+{nodelist_option}
+{constraint_option}
 set -e
 source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh
 conda activate /home/wlia0047/ar57_scratch/wenyu/stark
@@ -744,10 +899,13 @@ export PYTHONUNBUFFERED=1
     
     script_file.write_text(script_content, encoding='utf-8')
     script_file.chmod(0o755)
-    
+
     # Submit the job
     print("[sbatch_wrapper] 提交作业到 SLURM...")
 
+    # 如果 nodelist 可用，直接指定节点（绕过排队）
+    # 如果失败（节点不可用），回退到 constraint 方式
+    fallback_to_constraint = False
     try:
         result = subprocess.run(
             ['sbatch', str(script_file)],
