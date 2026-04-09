@@ -850,28 +850,14 @@ def main():
     # Get current directory
     current_dir = os.getcwd() or "/home/wlia0047/ar57/wenyu"
 
-    # 节点分配：GPU任务优先查找空闲节点直接分配，CPU任务使用 all 分区
+    # 节点分配：GPU任务使用 gpu 分区，CPU任务使用 comp 分区，由SLURM自动分配
     partition_option = "#SBATCH -p gpu" if use_gpu else "#SBATCH -p comp"
 
-    # GPU任务：查找空闲GPU节点，优先直接分配以绕过排队
-    nodelist_option = ""
+    # GPU任务：指定GPU类型偏好（如果提供）
     constraint_option = ""
-    if use_gpu:
-        idle_gpu_nodes = find_completely_idle_gpu_nodes(prefer_gpu_type)
-        if idle_gpu_nodes:
-            best_node = idle_gpu_nodes[0]
-            nodelist_option = f"#SBATCH --nodelist={best_node['node']}"
-            print(f"[sbatch_wrapper] 🎯 找到空闲GPU节点: {best_node['node']} ({best_node['gpu_type']}, {best_node['gpu_total']} GPUs, {best_node['cpu_total']} CPUs)", file=sys.stderr)
-        else:
-            # 没找到完全空闲节点，回退到constraint方式
-            if prefer_gpu_type:
-                constraint_option = f"#SBATCH --constraint={prefer_gpu_type}"
-                print(f"[sbatch_wrapper] ℹ️  未找到完全空闲GPU节点，使用约束: --constraint={prefer_gpu_type}", file=sys.stderr)
-            else:
-                print(f"[sbatch_wrapper] ℹ️  未找到完全空闲GPU节点，使用自动分配", file=sys.stderr)
-    else:
-        # 非GPU任务，不使用constraint
-        pass
+    if use_gpu and prefer_gpu_type:
+        constraint_option = f"#SBATCH --constraint={prefer_gpu_type}"
+        print(f"[sbatch_wrapper] 🎯 GPU类型约束: --constraint={prefer_gpu_type}", file=sys.stderr)
 
     # Create sbatch script
     memory_allocation = "#SBATCH --mem=64G" if is_python_script_command(original_command) else ""
@@ -887,7 +873,6 @@ def main():
 {gpu_allocation}
 {ntasks_option}
 {time_allocation}
-{nodelist_option}
 {constraint_option}
 set -e
 source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh
@@ -903,9 +888,6 @@ export PYTHONUNBUFFERED=1
     # Submit the job
     print("[sbatch_wrapper] 提交作业到 SLURM...")
 
-    # 如果 nodelist 可用，直接指定节点（绕过排队）
-    # 如果失败（节点不可用），回退到 constraint 方式
-    fallback_to_constraint = False
     try:
         result = subprocess.run(
             ['sbatch', str(script_file)],
@@ -914,14 +896,12 @@ export PYTHONUNBUFFERED=1
             check=True
         )
 
-        # Extract job ID from output
         match = re.search(r'Submitted batch job (\d+)', result.stdout)
         if not match:
             print("[sbatch_wrapper] ❌ 提交 sbatch 作业失败: 无法解析作业 ID")
             sys.exit(1)
 
         job_id = match.group(1)
-        # Construct actual filenames for monitoring
         log_file = log_dir / f"{script_name}_{job_id}.log"
         err_file = log_dir / f"{script_name}_{job_id}.err"
 
