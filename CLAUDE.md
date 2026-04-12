@@ -209,19 +209,34 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
 
 ---
 
-### Stage 5: LINGCONV 模型训练
+### Stage 5: 句法分析与LINGCONV模型训练
 
-**阶段描述**：训练 LINGCONV 论文实现的语言嵌入层注入模型，实现复杂度可控的句子改写。
+**阶段描述**：本阶段包含两类操作：
 
-**配置文件**：`/fs04/ar57/wenyu/PersoanlQuery/05_syntactic_analysis/lingconv.py`（参数硬编码）
+**A. 句法特征分析脚本**（使用 spaCy，无需 GPU）：
+使用 spaCy 对用户评论进行9种句法特征分析，生成用户画像。
 
-**运行命令**：
+| 脚本 | 功能 | 输出文件 |
+|-----|------|---------|
+| `05_acl.py` | 形容词性从句（Adjectival Clause） | `acl_user_profiles.json` |
+| `05_advcl.py` | 状语从句（Adverbial Clause） | `advcl_user_profiles.json` |
+| `05_attr_density.py` | 属性提及密度 | `attr_density_user_profiles.json` |
+| `05_ccomp.py` | 补语从句（Clausal Complement） | `ccomp_user_profiles.json` |
+| `05_conj.py` | 并列连接词（Conjunction） | `conj_user_profiles.json` |
+| `05_modal.py` | 情态动词（Modal） | `modal_user_profiles.json` |
+| `05_not_tree.py` | 否定结构（Negation） | `neg_user_profiles.json` |
+| `05_passive.py` | 被动语态（Passive Voice） | `passive_user_profiles.json` |
+| `05_relcl_tree.py` | 关系从句（Relative Clause） | `relcl_user_profiles.json` |
+
+**运行命令（句法分析，无需GPU）**：
 ```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
+# 运行单个分析脚本
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /fs04/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
-     python -u 05_lingconv.py"
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_acl.py"
+
 ```
 ---
 
@@ -242,42 +257,7 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
 
 ---
 
-### Stage 7: 迭代式风格优化
-
-**阶段描述**：使用 GLM-5 模型对查询进行迭代式优化，使其风格对齐到用户写作特征。
-
-**运行命令**：
-```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
-    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     python -u PersoanlQuery/07_iterative_refinement/07_iterative_refinement.py \
-         --query-dir /home/wlia0047/wenyu/result/personal_query/06_query \
-         --linguistic-dir /home/wlia0047/wenyu/result/personal_query/05_syntactic_analysis \
-         --output-dir /home/wlia0047/wenyu/result/personal_query/07_iterative_refinement \
-         --max-rounds 5 \
-         --candidates-per-round 3 \
-         --feature-set style_only_16 \
-         --max-workers 1"
-```
-
----
-
-### Stage 8: 拼写难度打分模型
-
-**阶段描述**：训练认知拼写难度模型，为后续噪声注入提供精准靶点参考。
-
-**运行命令**：
-```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
-    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     python -u PersoanlQuery/08_spelling_difficulty/08_train_spelling_model.py"
-```
-
----
-
-### Stage 9: 靶向噪声注入
+### Stage 7: 靶向噪声注入
 
 **阶段描述**：根据用户真实拼写错误历史，精确注入个性化噪声到查询中。
 
@@ -287,49 +267,13 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
      cd /fs04/ar57/wenyu && \
-     python -u PersoanlQuery/09_targeted_noisy_query/09_generate_all_user_noisy_queries.py"
+     python -u PersoanlQuery/07_targeted_noisy_query/09_generate_all_user_noisy_queries.py"
 ```
+
 
 ---
 
-### Stage 10: 多维度评估
-
-**阶段描述**：验证个性化提升效果，对比 Public Query vs Personalized Query。
-
-**运行命令**：
-```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
-    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /fs04/ar57/wenyu && \
-     python -u PersoanlQuery/10_evaluation/10_evaluate_LLM_score.py \
-         --input-file /fs04/ar57/wenyu/result/personal_query/06_query/queries_A13OFOB1394G31.json \
-         --persona-dir /fs04/ar57/wenyu/result/personal_query/03_persona \
-         --output-dir /fs04/ar57/wenyu/result/personal_query/10_evaluation \
-         --workers 10"
-```
-
----
-
-### Stage 11: 人类评估
-
-**阶段描述**：验证 LLM 自动评估与真人评估的对齐度，检测系统性偏见。
-
-**运行命令**：
-```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
-    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     python -u PersoanlQuery/11_human_evaluation/11_generate_human_eval_tasks.py \
-         --stage10-dir /home/wlia0047/wenyu/result/personal_query/10_evaluation \
-         --stage9-dir /home/wlia0047/wenyu/result/personal_query/09_targeted_noisy_query \
-         --persona-dir /home/wlia0047/wenyu/result/personal_query/03_persona/results \
-         --output-dir /home/wlia0047/wenyu/result/personal_query/11_human_evaluation/tasks"
-```
-
----
-
-### Stage 12: 检索评估
+### Stage 8: 检索评估
 
 **阶段描述**：构建索引文件、查询缓存，并评估所有用户的查询在多种检索模型下的表现。
 
@@ -339,22 +283,22 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/12_retrieval/evaluators && \
-     python -u 12_build_retriever_indices.py"
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
+     python -u 08_build_retriever_indices.py"
 
 # 构建查询缓存
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/12_retrieval/evaluators && \
-     python -u 12_generate_query_cache.py"
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval/evaluators && \
+     python -u 08_generate_query_cache.py"
 
-# 批量评估
+# 全量评估
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/12_retrieval && \
-     python -u 12_evaluate_all_users_fullscale.py"
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
+     python -u 08_fast_fullscale_eval.py"
 ```
 
 ---
