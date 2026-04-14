@@ -53,6 +53,16 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
      cd /fs04/ar57/wenyu && python3 script.py"
 ```
 
+**需要使用 fit 分区时——使用 sbatch_wrapper --gpu --fit**：
+```bash
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu --fit \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /fs04/ar57/wenyu && python3 script.py"
+```
+- `--fit`：使用 fit 分区，需要 fitq QOS
+- 适用于长时间运行的 GPU 任务
+
 ### Rule 3: Required Environment Every Time
 
 Every execution call MUST include:
@@ -146,13 +156,7 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
      cd /fs04/ar57/wenyu && \
      python -u PersoanlQuery/00_data_preparation/00_batch_prepare_data.py \
-         --review-file /fs04/ar57/wenyu/data/Amazon-Reviews-2018/raw/Arts_Crafts_and_Sewing.json.gz \
-         --meta-file /fs04/ar57/wenyu/data/Amazon-Reviews-2018/raw/meta_Arts_Crafts_and_Sewing.json.gz \
-         --min-reviews 100 \
-         --max-reviews 400 \
-         --max-users 10 \
-         --output-dir result/personal_query/00_data_preparation"
-```
+
 
 ---
 
@@ -196,16 +200,59 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
 
 ### Stage 4: 写作风格分析
 
-**阶段描述**：分析用户的字符级拼写错误，进行详细的错误分类和统计。
+**阶段描述**：分析用户的字符级拼写错误（不包括连字符/复合词变体错误），进行详细的错误分类和统计。支持按类别（Arts_Crafts_and_Sewing, Grocery_and_Gourmet_Food, Pet_Supplies）分别运行。
 
-**运行命令**：
+**运行命令（ACL错误提取，无需GPU）**：
 ```bash
+# ACL错误提取 - Arts_Crafts_and_Sewing
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /fs04/ar57/wenyu && \
-     python -u PersoanlQuery/04_writing_analysis/04_extract_all_user_errors.py"
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_acl_errors_Arts_Crafts_and_Sewing.py"
+
+# ACL错误提取 - Grocery_and_Gourmet_Food
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_acl_errors_Grocery_and_Gourmet_Food.py"
+
+# ACL错误提取 - Pet_Supplies
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_acl_errors_Pet_Supplies.py"
 ```
+
+**运行命令（CCOMP错误提取，无需GPU）**：
+```bash
+# CCOMP错误提取 - Arts_Crafts_and_Sewing
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_ccomp_errors_Arts_Crafts_and_Sewing.py"
+
+# CCOMP错误提取 - Grocery_and_Gourmet_Food
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_ccomp_errors_Grocery_and_Gourmet_Food.py"
+
+# CCOMP错误提取 - Pet_Supplies
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/04_writing_analysis && \
+     python -u 04_extract_ccomp_errors_Pet_Supplies.py"
+```
+
+**输出文件**：
+- `result/personal_query/04_writing_analysis/{Category}/acl_error.json`
+- `result/personal_query/04_writing_analysis/{Category}/ccomp_error.json`
 
 ---
 
@@ -214,29 +261,67 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
 **阶段描述**：本阶段包含两类操作：
 
 **A. 句法特征分析脚本**（使用 spaCy，无需 GPU）：
-使用 spaCy 对用户评论进行9种句法特征分析，生成用户画像。
+使用 spaCy 对用户评论进行9种句法特征分析，生成用户画像。每个脚本支持三个类别。
 
-| 脚本 | 功能 | 输出文件 |
-|-----|------|---------|
-| `05_acl.py` | 形容词性从句（Adjectival Clause） | `acl_user_profiles.json` |
-| `05_advcl.py` | 状语从句（Adverbial Clause） | `advcl_user_profiles.json` |
-| `05_attr_density.py` | 属性提及密度 | `attr_density_user_profiles.json` |
-| `05_ccomp.py` | 补语从句（Clausal Complement） | `ccomp_user_profiles.json` |
-| `05_conj.py` | 并列连接词（Conjunction） | `conj_user_profiles.json` |
-| `05_modal.py` | 情态动词（Modal） | `modal_user_profiles.json` |
-| `05_not_tree.py` | 否定结构（Negation） | `neg_user_profiles.json` |
-| `05_passive.py` | 被动语态（Passive Voice） | `passive_user_profiles.json` |
-| `05_relcl_tree.py` | 关系从句（Relative Clause） | `relcl_user_profiles.json` |
 
 **运行命令（句法分析，无需GPU）**：
 ```bash
-# 运行单个分析脚本
+# ACL句法分析 - 三个类别
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
      cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
-     python -u 05_acl.py"
+     python -u 05_acl_Arts_Crafts_and_Sewing.py"
 
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_acl_Grocery_and_Gourmet_Food.py"
+
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_acl_Pet_Supplies.py"
+
+# CCOMP句法分析 - 三个类别
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_ccomp_Arts_Crafts_and_Sewing.py"
+
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_ccomp_Grocery_and_Gourmet_Food.py"
+
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_ccomp_Pet_Supplies.py"
+
+# 属性密度分析 - 三个类别
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_attr_density_Arts_Crafts_and_Sewing.py"
+
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_attr_density_Grocery_and_Gourmet_Food.py"
+
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/05_syntactic_analysis && \
+     python -u 05_attr_density_Pet_Supplies.py"
 ```
 ---
 
@@ -290,15 +375,29 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval/evaluators && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
      python -u 08_generate_query_cache.py"
 
-# 全量评估
+# 全量评估 - Arts_Crafts_and_Sewing
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
      conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
      cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
-     python -u 08_fast_fullscale_eval.py"
+     python -u 08_fast_fullscale_eval_Arts_Crafts_and_Sewing.py"
+
+# 全量评估 - Grocery_and_Gourmet_Food
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
+     python -u 08_fast_fullscale_eval_Grocery_and_Gourmet_Food.py"
+
+# 全量评估 - Pet_Supplies
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /home/wlia0047/ar57/wenyu/PersoanlQuery/08_retrieval && \
+     python -u 08_fast_fullscale_eval_Pet_Supplies.py"
 ```
 
 ---
