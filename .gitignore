@@ -107,6 +107,9 @@ opencode
 *.fls
 *.synctex.gz
 
+# 排除整个 result 目录
+result/
+
 # 排除用户评论数据文件
 result/personal_query/00_data_preparation/reviews_*.json
 result/personal_query/00_data_preparation/all_user_reviews.json
