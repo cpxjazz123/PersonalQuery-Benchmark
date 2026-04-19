@@ -344,9 +344,27 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
 
 ### Stage 7: 靶向噪声注入
 
-**阶段描述**：根据用户真实拼写错误历史，精确注入个性化噪声到查询中。
+**阶段描述**：根据用户真实拼写错误历史，精确注入个性化噪声到查询中。支持两种方式：
+1. **规则替换方式**（旧）：使用正则表达式直接替换
+2. **LLM 生成方式**（新）：使用 LLM 根据用户错误模式生成更自然的噪声查询
 
-**运行命令**：
+**运行命令（LLM 生成方式，推荐）**：
+```bash
+# Pet_Supplies
+python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
+    "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
+     conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
+     cd /fs04/ar57/wenyu && \
+     python -u PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm.py"
+```
+
+**注意**：运行前需在脚本中设置 `CATEGORY` 变量，可选值：`Arts_Crafts_and_Sewing`, `Grocery_and_Gourmet_Food`, `Pet_Supplies`
+
+**输出文件**：
+- `result/personal_query/07_inject_noisy/{Category}/acl_noisy_query.json`
+- `result/personal_query/07_inject_noisy/{Category}/ccomp_noisy_query.json`
+
+**运行命令（规则替换方式，旧）**：
 ```bash
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
     "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
