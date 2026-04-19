@@ -112,6 +112,18 @@ result/personal_query/00_data_preparation/reviews_*.json
 result/personal_query/00_data_preparation/all_user_reviews.json
 result/personal_query/00_data_preparation/all_qualified_users.json
 result/personal_query/06_query/dual_queries_*.json
+
+# 排除大文件（超过 GitHub 100MB 限制）
+result/personal_query/00_data_preparation/all_users_reviews.json
+result/personal_query/00_data_preparation/*/all_users_reviews.json
+result/personal_query/00_data_preparation/selected_users.json
+result/personal_query/00_data_preparation/*/selected_users.json
+result/personal_query/01_preference_extraction/stage1_filtered_users_reviews.json
+result/personal_query/01_preference_extraction/*/stage1_filtered_users_reviews.json
+result/personal_query/05_syntactic_analysis/attr_density_sentences.jsonl
+result/personal_query/05_syntactic_analysis/*/attr_density_sentences.jsonl
+result/personal_query/05_syntactic_analysis/*/*_sentences.jsonl
+result/personal_query/06_query/visualization/radar_chart.png
 envs/
 data/Amazon-Reviews-2023/
 LingConv/
