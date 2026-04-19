@@ -718,6 +718,7 @@ def main():
     # Parse command from command line arguments
     args = sys.argv[1:]
     use_gpu = False
+    use_fit = False         # 使用 fit 分区
     num_gpus = 1            # GPU数量，默认为1
     time_limit = None
     prefer_gpu_type = None  # 首选GPU类型
@@ -729,6 +730,10 @@ def main():
     while i < len(args):
         if args[i] == "--gpu":
             use_gpu = True
+            i += 1
+        elif args[i] == "--fit":
+            use_fit = True
+            use_gpu = True  # fit 分区自动启用 GPU
             i += 1
         elif args[i] == "--gpu-type" and i + 1 < len(args):
             prefer_gpu_type = args[i+1]
@@ -851,7 +856,16 @@ def main():
     current_dir = os.getcwd() or "/home/wlia0047/ar57/wenyu"
 
     # 节点分配：GPU任务使用 gpu 分区，CPU任务使用 comp 分区，由SLURM自动分配
-    partition_option = "#SBATCH -p gpu" if use_gpu else "#SBATCH -p comp"
+    # fit 分区用于长时间运行的 GPU 任务，需要 fitq QOS
+    qos_option = ""
+    if use_fit:
+        partition_option = "#SBATCH -p fit"
+        qos_option = "#SBATCH --qos=fitq"
+        print(f"[sbatch_wrapper] 🎯 使用 fit 分区 + fitq QOS", file=sys.stderr)
+    elif use_gpu:
+        partition_option = "#SBATCH -p gpu"
+    else:
+        partition_option = "#SBATCH -p comp"
 
     # GPU任务：指定GPU类型偏好（如果提供）
     constraint_option = ""
@@ -869,6 +883,7 @@ def main():
 #SBATCH --output={log_pattern}
 #SBATCH --error={err_pattern}
 {partition_option}
+{qos_option}
 {memory_allocation}
 {gpu_allocation}
 {ntasks_option}
