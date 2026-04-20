@@ -50,11 +50,6 @@ venv/
 env/
 .venv/
 
-# 排除 Cursor 临时文件
-.cursor/hooks/logs/
-.cursor/scratchpad.md
-.cursor/worktrees.json
-
 # 排除嵌入的 git 仓库（应作为子模块添加）
 GR_Analysis/
 ontology-nlp/

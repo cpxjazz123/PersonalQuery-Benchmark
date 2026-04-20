@@ -665,10 +665,10 @@ def main():
     # Check if running as a hook (has JSON input from stdin)
     input_data = read_input()
     is_hook_mode = bool(input_data)
-    
+
     # Always log when hook is called (even if no input)
     print(f"[sbatch_wrapper] Hook被调用 - is_hook_mode: {is_hook_mode}, stdin_isatty: {sys.stdin.isatty()}", file=sys.stderr)
-    
+
     if is_hook_mode:
         # Hook mode: intercept command and wrap with sbatch
         command = input_data.get("command", "").strip()
@@ -678,18 +678,18 @@ def main():
             input_data.get("workingDirectory") or
             os.getcwd()
         )
-        
+
         # Debug output
         print(f"[sbatch_wrapper] 命令: {command[:200]}", file=sys.stderr)
         print(f"[sbatch_wrapper] 工作目录: {working_dir}", file=sys.stderr)
-        
+
         # Check if this is a Python script command
         is_python_script = is_python_script_command(command)
         has_sbatch = has_sbatch_in_command(command)
-        
+
         print(f"[sbatch_wrapper] 是 Python 脚本命令: {is_python_script}", file=sys.stderr)
         print(f"[sbatch_wrapper] 包含 sbatch: {has_sbatch}", file=sys.stderr)
-        
+
         # Always allow in hook mode - let commands proceed
         if has_sbatch:
             # Already wrapped, allow as-is
@@ -709,11 +709,11 @@ def main():
                 "continue": True,
                 "permission": "allow"
             }
-        
+
         # Output JSON response for hook mode
         print(json.dumps(output, ensure_ascii=False))
         return
-    
+
     # Direct mode: execute command via sbatch
     # Parse command from command line arguments
     args = sys.argv[1:]
@@ -723,6 +723,8 @@ def main():
     time_limit = None
     prefer_gpu_type = None  # 首选GPU类型
     list_gpu_only = False   # 仅列出GPU状态
+    nodelist = None         # 指定节点列表
+    partition = None        # 指定分区
 
     # Simple argument parser for wrapper options
     remaining_args = []
@@ -748,6 +750,14 @@ def main():
             i += 1
         elif args[i] == "--time" and i + 1 < len(args):
             time_limit = args[i+1]
+            i += 2
+        elif args[i] == "--nodelist" and i + 1 < len(args):
+            nodelist = args[i+1]
+            print(f"[sbatch_wrapper] 🎯 指定节点列表: {nodelist}", file=sys.stderr)
+            i += 2
+        elif args[i] == "--partition" and i + 1 < len(args):
+            partition = args[i+1]
+            print(f"[sbatch_wrapper] 🎯 指定分区: {partition}", file=sys.stderr)
             i += 2
         else:
             remaining_args.append(args[i])
@@ -857,8 +867,12 @@ def main():
 
     # 节点分配：GPU任务使用 gpu 分区，CPU任务使用 comp 分区，由SLURM自动分配
     # fit 分区用于长时间运行的 GPU 任务，需要 fitq QOS
+    # 自定义分区优先于默认逻辑
     qos_option = ""
-    if use_fit:
+    if partition:
+        partition_option = f"#SBATCH -p {partition}"
+        print(f"[sbatch_wrapper] 🎯 使用自定义分区: {partition}", file=sys.stderr)
+    elif use_fit:
         partition_option = "#SBATCH -p fit"
         qos_option = "#SBATCH --qos=fitq"
         print(f"[sbatch_wrapper] 🎯 使用 fit 分区 + fitq QOS", file=sys.stderr)
@@ -872,6 +886,12 @@ def main():
     if use_gpu and prefer_gpu_type:
         constraint_option = f"#SBATCH --constraint={prefer_gpu_type}"
         print(f"[sbatch_wrapper] 🎯 GPU类型约束: --constraint={prefer_gpu_type}", file=sys.stderr)
+
+    # 指定节点列表
+    nodelist_option = ""
+    if nodelist:
+        nodelist_option = f"#SBATCH --nodelist={nodelist}"
+        print(f"[sbatch_wrapper] 🎯 指定节点: {nodelist}", file=sys.stderr)
 
     # Create sbatch script
     memory_allocation = "#SBATCH --mem=64G" if is_python_script_command(original_command) else ""
@@ -889,6 +909,7 @@ def main():
 {ntasks_option}
 {time_allocation}
 {constraint_option}
+{nodelist_option}
 set -e
 source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh
 conda activate /home/wlia0047/ar57_scratch/wenyu/stark
