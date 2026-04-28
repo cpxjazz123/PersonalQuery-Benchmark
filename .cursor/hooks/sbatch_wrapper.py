@@ -720,6 +720,7 @@ def main():
     use_gpu = False
     use_fit = False         # 使用 fit 分区
     num_gpus = 1            # GPU数量，默认为1
+    cpus_per_task = None
     time_limit = None
     prefer_gpu_type = None  # 首选GPU类型
     list_gpu_only = False   # 仅列出GPU状态
@@ -744,6 +745,11 @@ def main():
         elif args[i] == "--num-gpus" and i + 1 < len(args):
             num_gpus = int(args[i+1])
             use_gpu = True  # 指定GPU数量自动启用GPU
+            i += 2
+        elif args[i] == "--cpus-per-task" and i + 1 < len(args):
+            cpus_per_task = int(args[i+1])
+            if cpus_per_task < 1:
+                raise ValueError("--cpus-per-task must be >= 1")
             i += 2
         elif args[i] == "--list-gpu":
             list_gpu_only = True
@@ -897,6 +903,7 @@ def main():
     memory_allocation = "#SBATCH --mem=64G" if is_python_script_command(original_command) else ""
     gpu_allocation = f"#SBATCH --gres=gpu:{num_gpus}" if use_gpu else ""
     ntasks_option = f"#SBATCH --ntasks={num_gpus}" if use_gpu and num_gpus > 1 else ""
+    cpus_option = f"#SBATCH --cpus-per-task={cpus_per_task}" if cpus_per_task is not None else ""
     time_allocation = f"#SBATCH --time={time_limit}" if time_limit else ""
 
     script_content = f"""#!/bin/bash
@@ -907,6 +914,7 @@ def main():
 {memory_allocation}
 {gpu_allocation}
 {ntasks_option}
+{cpus_option}
 {time_allocation}
 {constraint_option}
 {nodelist_option}
