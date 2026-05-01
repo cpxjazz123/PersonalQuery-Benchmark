@@ -127,3 +127,10 @@ data/Amazon-Reviews-2023/
 LingConv/
 .omx/
 .codex/
+
+# 不推送本地工具/工作目录
+.claude/
+.cursor/
+.config/opencode/
+ComfyUI/
+awesome-ai-research-writing/

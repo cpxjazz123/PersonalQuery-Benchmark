@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": ["Edit(*)", "Write(*)", "Bash(*)", "Read(*)", "Glob(*)", "Grep(*)"],
-    "defaultMode": "bypassPermissions",
-    "dangerouslySkipPermissions": true,
-    "skipDangerousModePermissionPrompt": true
-  },
-  "effortLevel": "high"
-}
