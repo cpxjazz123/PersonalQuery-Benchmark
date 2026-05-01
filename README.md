@@ -2,12 +2,6 @@
 
 This repository implements a personalized query generation and evaluation pipeline for e-commerce review data. The goal is to extract user preferences from historical reviews, analyze writing and syntactic traits, generate personalized queries, inject user-specific noise, and evaluate downstream retrieval performance.
 
-## Notes
-
-- The main project directory is currently named `PersoanlQuery/`. This spelling is kept as-is in the repository, so please use the actual path when running scripts.
-- Most outputs are written to `result/personal_query/`.
-- Several local-only tool and workspace directories are intentionally excluded from the remote repository.
-
 ## Repository Layout
 
 The main code lives under `PersoanlQuery/`:
@@ -30,20 +24,6 @@ Other commonly used directories:
 - `logs/`: `sbatch_wrapper` execution logs
 - `bin/`: local helper scripts
 
-## Environment
-
-The project mainly depends on:
-
-- Python
-- Conda environment: `/home/wlia0047/ar57_scratch/wenyu/stark`
-- Cluster submission wrapper: `/home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py`
-
-Recommended working directory:
-
-```bash
-cd /fs04/ar57/wenyu
-```
-
 ## How To Run
 
 All project scripts are expected to run through `sbatch_wrapper`.
@@ -51,20 +31,20 @@ All project scripts are expected to run through `sbatch_wrapper`.
 General template:
 
 ```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
-  "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-   conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-   cd /fs04/ar57/wenyu && \
+python3 <path-to-sbatch_wrapper.py> \
+  "source <conda-init-script> && \
+   conda activate <your-conda-env> && \
+   cd <repo-root> && \
    python -u <script.py>"
 ```
 
 For GPU jobs:
 
 ```bash
-python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
-  "source /apps/anaconda/2024.02-1/etc/profile.d/conda.sh && \
-   conda activate /home/wlia0047/ar57_scratch/wenyu/stark && \
-   cd /fs04/ar57/wenyu && \
+python3 <path-to-sbatch_wrapper.py> --gpu \
+  "source <conda-init-script> && \
+   conda activate <your-conda-env> && \
+   cd <repo-root> && \
    python -u <script.py>"
 ```
 
