@@ -134,6 +134,7 @@ LingConv/
 .config/opencode/
 ComfyUI/
 awesome-ai-research-writing/
+bin/
 
 # 不推送本地文档与数据目录
 AGENTS.md
