@@ -21,32 +21,8 @@ Other commonly used directories:
 
 - `result/personal_query/`: stage outputs
 - `data/`: raw and processed datasets
-- `logs/`: `sbatch_wrapper` execution logs
+- `logs/`: execution logs
 - `bin/`: local helper scripts
-
-## How To Run
-
-All project scripts are expected to run through `sbatch_wrapper`.
-
-General template:
-
-```bash
-python3 <path-to-sbatch_wrapper.py> \
-  "source <conda-init-script> && \
-   conda activate <your-conda-env> && \
-   cd <repo-root> && \
-   python -u <script.py>"
-```
-
-For GPU jobs:
-
-```bash
-python3 <path-to-sbatch_wrapper.py> --gpu \
-  "source <conda-init-script> && \
-   conda activate <your-conda-env> && \
-   cd <repo-root> && \
-   python -u <script.py>"
-```
 
 ## Typical Pipeline
 
