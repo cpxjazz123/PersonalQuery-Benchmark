@@ -1,54 +1,54 @@
 # PersonalQuery
 
-本仓库实现了一套面向电商评论数据的个性化查询生成与评估流水线，目标是从用户历史评论中抽取偏好、分析写作与句法特征、生成个性化查询、注入用户特有噪声，并在检索任务上做评估。
+This repository implements a personalized query generation and evaluation pipeline for e-commerce review data. The goal is to extract user preferences from historical reviews, analyze writing and syntactic traits, generate personalized queries, inject user-specific noise, and evaluate downstream retrieval performance.
 
-注意：
+## Notes
 
-- 目录名当前为 `PersoanlQuery/`，这是仓库内现有拼写，脚本路径请按实际目录使用。
-- 大部分结果默认写入 `result/personal_query/`。
-- 当前仓库只保留项目代码与必要配置；本地工具目录、文档工作区和部分数据目录已被配置为不再推送到远程。
+- The main project directory is currently named `PersoanlQuery/`. This spelling is kept as-is in the repository, so please use the actual path when running scripts.
+- Most outputs are written to `result/personal_query/`.
+- Several local-only tool and workspace directories are intentionally excluded from the remote repository.
 
-## 目录结构
+## Repository Layout
 
-核心代码位于 `PersoanlQuery/`：
+The main code lives under `PersoanlQuery/`:
 
-- `00_data_preparation/`：按域筛选用户并准备评论数据
-- `01_preference_extraction/`：从评论中抽取商品属性与用户偏好
-- `04_writing_analysis/`：抽取拼写/句法相关错误
-- `05_syntactic_analysis/`：统计 ACL、CCOMP、属性密度等句法复杂度特征
-- `06_query/`：基于用户画像生成正确查询
-- `07_inject_noisy/`：基于用户错误模式生成 noisy query
-- `08_retrieval/`：构建索引、缓存并进行检索评估
-- `09_noisy_retrieval/`：评估 noisy query 的检索表现
-- `10_compare_all_domain/`：跨域对比分析
-- `11_query_dataset/`：构建和上传 query dataset
+- `00_data_preparation/`: user filtering and review data preparation by domain
+- `01_preference_extraction/`: product attribute and preference extraction from reviews
+- `04_writing_analysis/`: user error extraction and writing-style analysis
+- `05_syntactic_analysis/`: ACL, CCOMP, and attribute-density complexity analysis
+- `06_query/`: correct personalized query generation
+- `07_inject_noisy/`: noisy query generation based on user error patterns
+- `08_retrieval/`: index building, query caching, and retrieval evaluation
+- `09_noisy_retrieval/`: retrieval evaluation for noisy queries
+- `10_compare_all_domain/`: cross-domain comparison
+- `11_query_dataset/`: query dataset packaging and upload utilities
 
-其它常用目录：
+Other commonly used directories:
 
-- `result/personal_query/`：各阶段输出结果
-- `data/`：原始与处理中数据
-- `logs/`：`sbatch_wrapper` 运行日志
-- `bin/`：本地辅助脚本
+- `result/personal_query/`: stage outputs
+- `data/`: raw and processed datasets
+- `logs/`: `sbatch_wrapper` execution logs
+- `bin/`: local helper scripts
 
-## 运行要求
+## Environment
 
-本项目主要依赖：
+The project mainly depends on:
 
 - Python
-- Conda 环境：`/home/wlia0047/ar57_scratch/wenyu/stark`
-- 集群提交包装器：`/home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py`
+- Conda environment: `/home/wlia0047/ar57_scratch/wenyu/stark`
+- Cluster submission wrapper: `/home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py`
 
-推荐工作目录：
+Recommended working directory:
 
 ```bash
 cd /fs04/ar57/wenyu
 ```
 
-## 运行方式
+## How To Run
 
-所有脚本统一通过 `sbatch_wrapper` 提交。
+All project scripts are expected to run through `sbatch_wrapper`.
 
-通用模板：
+General template:
 
 ```bash
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
@@ -58,7 +58,7 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py \
    python -u <script.py>"
 ```
 
-如果任务需要 GPU，则改为：
+For GPU jobs:
 
 ```bash
 python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
@@ -68,9 +68,9 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
    python -u <script.py>"
 ```
 
-## 典型流水线
+## Typical Pipeline
 
-下面是当前仓库中最常用的阶段顺序：
+The most common stage order in the current repository is:
 
 1. `00_data_preparation`
 2. `01_preference_extraction`
@@ -83,42 +83,42 @@ python3 /home/wlia0047/ar57/wenyu/.cursor/hooks/sbatch_wrapper.py --gpu \
 9. `10_compare_all_domain`
 10. `11_query_dataset`
 
-## 代表性脚本
+## Representative Scripts
 
-按域生成正确查询：
+Correct query generation by domain:
 
 - `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Baby_Products.py`
 - `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Grocery_and_Gourmet_Food.py`
 - `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Pet_Supplies.py`
 
-按域生成 noisy query：
+Noisy query generation by domain:
 
 - `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Baby_Products.py`
 - `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Grocery_and_Gourmet_Food.py`
 - `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Pet_Supplies.py`
 
-按域执行 retrieval：
+Retrieval evaluation by domain:
 
 - `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Baby_Products.py`
 - `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Grocery_and_Gourmet_Food.py`
 - `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Pet_Supplies.py`
 
-## 输出说明
+## Output Files
 
-常见输出位置：
+Common output locations:
 
-- 正确查询：`result/personal_query/06_query/<Domain>/query.json`
-- 错误查询：`result/personal_query/07_inject_noisy/<Domain>/noisy_query.json`
-- 检索汇总：`result/personal_query/08_retrieval/<Domain>/retrieval_all_summary.json`
-- noisy 检索对比：`result/personal_query/09_noisy_retrieval/<Domain>/correct_vs_noisy_results.json`
+- Correct queries: `result/personal_query/06_query/<Domain>/query.json`
+- Noisy queries: `result/personal_query/07_inject_noisy/<Domain>/noisy_query.json`
+- Retrieval summary: `result/personal_query/08_retrieval/<Domain>/retrieval_all_summary.json`
+- Correct vs. noisy retrieval comparison: `result/personal_query/09_noisy_retrieval/<Domain>/correct_vs_noisy_results.json`
 
-## 当前状态
+## Current Scope
 
-当前仓库已经包含：
+The repository currently includes:
 
-- 三个域的 query 生成脚本
-- 三个域的 noisy query 生成脚本
-- noisy retrieval 和跨域比较脚本
-- query dataset 构建与 Hugging Face 上传脚本
+- correct query generation scripts for three domains
+- noisy query generation scripts for three domains
+- noisy retrieval and cross-domain comparison scripts
+- query dataset construction and Hugging Face upload utilities
 
-如果要继续扩展新域，建议直接参考 `Baby_Products`、`Grocery_and_Gourmet_Food`、`Pet_Supplies` 三套现有脚本命名与输出结构。
+If you want to extend the pipeline to a new domain, the existing `Baby_Products`, `Grocery_and_Gourmet_Food`, and `Pet_Supplies` implementations are the best templates for naming, stage structure, and output layout.
