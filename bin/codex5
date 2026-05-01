@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+export TMPDIR=/home/wlia0047/wlia0047-codex-ipc-5
+export CODEX_HOME=/home/wlia0047/wlia0047-codex-5
+mkdir -p "$TMPDIR" "$CODEX_HOME"
+cp -f /home/wlia0047/.codex/config.toml "$CODEX_HOME/config.toml"
+cp -f /home/wlia0047/.codex/auth.json "$CODEX_HOME/auth.json"
+cp -f /home/wlia0047/.codex/version.json "$CODEX_HOME/version.json"
+cp -f /home/wlia0047/.codex/models_cache.json "$CODEX_HOME/models_cache.json"
+cp -f /home/wlia0047/.codex/installation_id "$CODEX_HOME/installation_id"
+exec /home/wlia0047/.vscode-server/bin/10c8e557c8b9f9ed0a87f61f1c9a44bde731c409/node /home/wlia0047/.bun/install/global/node_modules/@openai/codex/bin/codex.js "$@"
