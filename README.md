@@ -1,80 +1,106 @@
 # PersonalQuery
 
-This repository implements a personalized query generation and evaluation pipeline for e-commerce review data. The goal is to extract user preferences from historical reviews, analyze writing and syntactic traits, generate personalized queries, inject user-specific noise, and evaluate downstream retrieval performance.
+PersonalQuery is a personalized product-search pipeline built from user review history. The project focuses on turning raw review behavior into user-grounded search queries, modeling user-specific writing patterns, and evaluating how personalized and noisy queries affect downstream retrieval.
 
-## Repository Layout
+## Pipeline Overview
 
-The main code lives under `PersoanlQuery/`:
+The pipeline is organized as a sequential personalized-query construction workflow.
 
-- `00_data_preparation/`: user filtering and review data preparation by domain
-- `01_preference_extraction/`: product attribute and preference extraction from reviews
-- `04_writing_analysis/`: user error extraction and writing-style analysis
-- `05_syntactic_analysis/`: ACL, CCOMP, and attribute-density complexity analysis
-- `06_query/`: correct personalized query generation
-- `07_inject_noisy/`: noisy query generation based on user error patterns
-- `08_retrieval/`: index building, query caching, and retrieval evaluation
-- `09_noisy_retrieval/`: retrieval evaluation for noisy queries
-- `10_compare_all_domain/`: cross-domain comparison
-- `11_query_dataset/`: query dataset packaging and upload utilities
+**Stage 0: User filtering and review preparation**
 
-Other commonly used directories:
+The pipeline first selects qualified users and collects their review history. This stage prepares the user-level review corpus that will be used in all later steps.
 
-- `result/personal_query/`: stage outputs
-- `data/`: raw and processed datasets
-- `logs/`: execution logs
-- `bin/`: local helper scripts
+**Stage 1: Preference extraction**
 
-## Typical Pipeline
+The system extracts product attributes and user preferences from historical reviews. These preferences provide the semantic grounding for later query generation.
 
-The most common stage order in the current repository is:
+**Stage 2: Query-set filtering**
 
-1. `00_data_preparation`
-2. `01_preference_extraction`
-3. `04_writing_analysis`
-4. `05_syntactic_analysis`
-5. `06_query`
-6. `07_inject_noisy`
-7. `08_retrieval`
-8. `09_noisy_retrieval`
-9. `10_compare_all_domain`
-10. `11_query_dataset`
+The extracted preferences are filtered so that only products and attributes that satisfy the required constraints are kept for query construction.
 
-## Representative Scripts
+**Stage 3: Persona description generation**
 
-Correct query generation by domain:
+This stage is intended to convert filtered preference signals into textual persona descriptions. In the current codebase, this stage is not the main operational focus of the released pipeline.
 
-- `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Baby_Products.py`
-- `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Grocery_and_Gourmet_Food.py`
-- `PersoanlQuery/06_query/06_generate_by_persona_placeholder_Pet_Supplies.py`
+**Stage 4: Writing-pattern analysis**
 
-Noisy query generation by domain:
+The system analyzes user writing behavior, especially user-specific error patterns. These signals are later used to create realistic noisy query variants instead of generic synthetic noise.
 
-- `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Baby_Products.py`
-- `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Grocery_and_Gourmet_Food.py`
-- `PersoanlQuery/07_inject_noisy/07_generate_noisy_queries_by_llm_Pet_Supplies.py`
+**Stage 5: Syntactic complexity analysis**
 
-Retrieval evaluation by domain:
+The pipeline estimates user-level linguistic complexity, including broad and deeper syntactic patterns. These complexity signals are used to control the style and complexity level of generated queries.
 
-- `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Baby_Products.py`
-- `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Grocery_and_Gourmet_Food.py`
-- `PersoanlQuery/08_retrieval/08_fast_fullscale_eval_Pet_Supplies.py`
+**Stage 6: Personalized clean-query generation**
 
-## Output Files
+Given user preferences and complexity signals, the system generates personalized clean queries for target products. Each product can produce different query styles, including broader and deeper formulations.
 
-Common output locations:
+**Stage 7: Personalized noisy-query generation**
 
-- Correct queries: `result/personal_query/06_query/<Domain>/query.json`
-- Noisy queries: `result/personal_query/07_inject_noisy/<Domain>/noisy_query.json`
-- Retrieval summary: `result/personal_query/08_retrieval/<Domain>/retrieval_all_summary.json`
-- Correct vs. noisy retrieval comparison: `result/personal_query/09_noisy_retrieval/<Domain>/correct_vs_noisy_results.json`
+The clean queries are transformed into noisy queries using user-specific writing-error patterns. This stage creates error-aware query variants for robustness analysis.
 
-## Current Scope
+**Stage 8: Retrieval evaluation**
 
-The repository currently includes:
+The generated queries are evaluated with retrieval models to measure ranking quality and robustness. This stage supports comparison between clean queries and noisy queries under the same product-search setting.
 
-- correct query generation scripts for three domains
-- noisy query generation scripts for three domains
-- noisy retrieval and cross-domain comparison scripts
-- query dataset construction and Hugging Face upload utilities
+Overall, the pipeline maps:
 
-If you want to extend the pipeline to a new domain, the existing `Baby_Products`, `Grocery_and_Gourmet_Food`, and `Pet_Supplies` implementations are the best templates for naming, stage structure, and output layout.
+`user reviews -> preferences -> linguistic profile -> clean queries -> noisy queries -> retrieval evaluation`
+
+## Dataset Overview
+
+The current released dataset is a flattened query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7.
+
+### Included Categories
+
+- `Baby_Products`
+- `Grocery_and_Gourmet_Food`
+- `Pet_Supplies`
+
+### Dataset Files
+
+The dataset is stored under `dataset/` as three category-specific JSON files:
+
+- `dataset/Baby_Products_query.json`
+- `dataset/Grocery_and_Gourmet_Food_query.json`
+- `dataset/Pet_Supplies_query.json`
+
+Each file is a JSON array. Each record corresponds to one personalized query instance for a specific user-product pair and query style.
+
+### What Each Record Contains
+
+Each dataset record includes:
+
+- `category`: product domain
+- `uuid`: user identifier
+- `asin`: target product identifier
+- `query_category`: query style label
+- `complexity_level`: complexity level of the generated query
+- `profile_complexity_level`: user-level complexity profile
+- `correct_query`: the clean personalized query
+- `correct_word_count`: number of words in the clean query
+- `idf`: average inverse document frequency score of the query tokens
+- `attrs_used`: product attributes used during query construction
+- `has_error_query`: whether a user-specific noisy query is available
+- `error_query`: the noisy query when available
+- `injected_errors`: structured description of injected user-specific errors
+
+### Dataset Construction Logic
+
+The dataset is built from the following components:
+
+- Stage 5 provides the user complexity profile
+- Stage 6 provides the clean personalized queries
+- Stage 7 provides noisy query variants when user-specific writing-error evidence is available
+
+As a result, the dataset supports multiple research settings:
+
+- personalized query generation
+- user-grounded query style modeling
+- noisy-query robustness analysis
+- retrieval evaluation under realistic user-specific query variation
+
+### Notes
+
+- `query_category` distinguishes broader versus deeper query formulations.
+- Not every record has an `error_query`; when no matched user-specific error pattern is available, the clean query is still kept.
+- The released dataset keeps the final query-centered records rather than intermediate pipeline artifacts.
