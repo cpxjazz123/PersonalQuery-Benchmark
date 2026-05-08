@@ -84,23 +84,28 @@ Each dataset record includes:
 - `error_query`: the noisy query when available
 - `injected_errors`: structured description of injected user-specific errors
 
-### Dataset Construction Logic
+Example record:
 
-The dataset is built from the following components:
-
-- Stage 5 provides the user complexity profile
-- Stage 6 provides the clean personalized queries
-- Stage 7 provides noisy query variants when user-specific writing-error evidence is available
-
-As a result, the dataset supports multiple research settings:
-
-- personalized query generation
-- user-grounded query style modeling
-- noisy-query robustness analysis
-- retrieval evaluation under realistic user-specific query variation
-
-### Notes
-
-- `query_category` distinguishes broader versus deeper query formulations.
-- Not every record has an `error_query`; when no matched user-specific error pattern is available, the clean query is still kept.
-- The released dataset keeps the final query-centered records rather than intermediate pipeline artifacts.
+```json
+{
+  "category": "Baby_Products",
+  "uuid": "AG3FZXXT5BHVQW3FTLL4EF42ULRA",
+  "asin": "B00195W9MM",
+  "query_category": "wide",
+  "complexity_level": 1,
+  "profile_complexity_level": 1,
+  "correct_query": "I need baby bottles from Bottle Burper priced at 9.99 which are easy to use",
+  "correct_word_count": 15,
+  "idf": 3.892145224737435,
+  "attrs_used": {
+    "A1": "Bottles",
+    "A2": "Bottle Burper",
+    "A3": "9.99",
+    "A5": "Baby",
+    "A10": "Easy"
+  },
+  "has_error_query": false,
+  "error_query": null,
+  "injected_errors": []
+}
+```
