@@ -88,29 +88,29 @@ Example record:
 
 ```json
 {
-  "category": "Pet_Supplies",
-  "uuid": "AET5X5X6NGBYB6G4EWBLCI7FN3SQ",
-  "asin": "B007R6G8JW",
+  "category": "Baby_Products",
+  "uuid": "AHF6EWREYSKQYL5QZV6K7M7ZW5SA",
+  "asin": "B07M68D3M2",
   "query_category": "wide",
-  "complexity_level": 0,
-  "profile_complexity_level": 0,
-  "correct_query": "I need a premium API freshwater aquarium fish for men with natural safety features priced at $17.99.",
-  "correct_word_count": 17,
-  "idf": 3.876862224171261,
+  "complexity_level": 1,
+  "profile_complexity_level": 1,
+  "correct_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infant care",
+  "correct_word_count": 16,
+  "idf": 3.873109713729398,
   "attrs_used": {
-    "A1": "Aquarium Fish",
-    "A2": "API",
-    "A3": "17.99",
-    "A5": "Men",
-    "A8": "Natural"
+    "A1": "Bath Tubs",
+    "A2": "Intime",
+    "A3": "25.99",
+    "A4": "Portable",
+    "A5": "Babies"
   },
   "has_error_query": true,
-  "error_query": "I need a premium API water aquarium fish for men with natural safety features priced at $17.99.",
+  "error_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infa care",
   "injected_errors": [
     {
-      "correct": "freshwater",
-      "error": "water",
-      "error_type": "modifier_typo",
+      "correct": "infant",
+      "error": "infa",
+      "error_type": "typo",
       "note": ""
     }
   ]
