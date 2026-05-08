@@ -75,7 +75,6 @@ Each dataset record includes:
 - `asin`: target product identifier
 - `query_category`: query style label
 - `complexity_level`: complexity level of the generated query
-- `profile_complexity_level`: complexity level aligned with the packaged query
 - `correct_query`: the clean personalized query
 - `correct_word_count`: number of words in the clean query
 - `idf`: average inverse document frequency score of the query tokens
@@ -93,7 +92,6 @@ Example record:
   "asin": "B07M68D3M2",
   "query_category": "wide",
   "complexity_level": 1,
-  "profile_complexity_level": 1,
   "correct_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infant care",
   "correct_word_count": 16,
   "idf": 3.873109713729398,
