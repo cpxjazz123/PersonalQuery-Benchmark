@@ -75,7 +75,7 @@ Each dataset record includes:
 - `asin`: target product identifier
 - `query_category`: query style label
 - `complexity_level`: complexity level of the generated query
-- `profile_complexity_level`: user-level complexity profile
+- `profile_complexity_level`: complexity level aligned with the packaged query
 - `correct_query`: the clean personalized query
 - `correct_word_count`: number of words in the clean query
 - `idf`: average inverse document frequency score of the query tokens
