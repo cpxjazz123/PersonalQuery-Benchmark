@@ -88,24 +88,31 @@ Example record:
 
 ```json
 {
-  "category": "Baby_Products",
-  "uuid": "AG3FZXXT5BHVQW3FTLL4EF42ULRA",
-  "asin": "B00195W9MM",
+  "category": "Pet_Supplies",
+  "uuid": "AET5X5X6NGBYB6G4EWBLCI7FN3SQ",
+  "asin": "B007R6G8JW",
   "query_category": "wide",
-  "complexity_level": 1,
-  "profile_complexity_level": 1,
-  "correct_query": "I need baby bottles from Bottle Burper priced at 9.99 which are easy to use",
-  "correct_word_count": 15,
-  "idf": 3.892145224737435,
+  "complexity_level": 0,
+  "profile_complexity_level": 0,
+  "correct_query": "I need a premium API freshwater aquarium fish for men with natural safety features priced at $17.99.",
+  "correct_word_count": 17,
+  "idf": 3.876862224171261,
   "attrs_used": {
-    "A1": "Bottles",
-    "A2": "Bottle Burper",
-    "A3": "9.99",
-    "A5": "Baby",
-    "A10": "Easy"
+    "A1": "Aquarium Fish",
+    "A2": "API",
+    "A3": "17.99",
+    "A5": "Men",
+    "A8": "Natural"
   },
-  "has_error_query": false,
-  "error_query": null,
-  "injected_errors": []
+  "has_error_query": true,
+  "error_query": "I need a premium API water aquarium fish for men with natural safety features priced at $17.99.",
+  "injected_errors": [
+    {
+      "correct": "freshwater",
+      "error": "water",
+      "error_type": "modifier_typo",
+      "note": ""
+    }
+  ]
 }
 ```
