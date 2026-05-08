@@ -83,33 +83,61 @@ Each dataset record includes:
 - `error_query`: the noisy query when available
 - `injected_errors`: structured description of injected user-specific errors
 
-Example record:
+Example records for the same `uuid` and `asin`:
 
 ```json
-{
-  "category": "Baby_Products",
-  "uuid": "AHF6EWREYSKQYL5QZV6K7M7ZW5SA",
-  "asin": "B07M68D3M2",
-  "query_category": "wide",
-  "complexity_level": 1,
-  "correct_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infant care",
-  "correct_word_count": 16,
-  "idf": 3.873109713729398,
-  "attrs_used": {
-    "A1": "Bath Tubs",
-    "A2": "Intime",
-    "A3": "25.99",
-    "A4": "Portable",
-    "A5": "Babies"
+[
+  {
+    "category": "Baby_Products",
+    "uuid": "AFGEQT5M464DC6XMWVO5Q6ZXZ6AA",
+    "asin": "B07Q4QS1R8",
+    "query_category": "wide",
+    "complexity_level": 0,
+    "correct_query": "I want to buy Intime brand portable bath tubs for babies at the price of 25.99 dollars",
+    "correct_word_count": 17,
+    "idf": 3.685258237919617,
+    "attrs_used": {
+      "A1": "Bath Tubs",
+      "A2": "Intime",
+      "A3": "25.99",
+      "A4": "Portable",
+      "A5": "Babies"
+    },
+    "has_error_query": true,
+    "error_query": "I want to buy Intime brand portable bath tubs for babies at the price of 25.99 dollars wholesomely great",
+    "injected_errors": [
+      {
+        "correct": "great",
+        "error": "wholesomely great",
+        "error_type": "modifier_typo"
+      }
+    ]
   },
-  "has_error_query": true,
-  "error_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infa care",
-  "injected_errors": [
-    {
-      "correct": "infant",
-      "error": "infa",
-      "error_type": "typo"
-    }
-  ]
-}
+  {
+    "category": "Baby_Products",
+    "uuid": "AFGEQT5M464DC6XMWVO5Q6ZXZ6AA",
+    "asin": "B07Q4QS1R8",
+    "query_category": "deep",
+    "complexity_level": 0,
+    "correct_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infant care",
+    "correct_word_count": 16,
+    "idf": 3.873109713729398,
+    "attrs_used": {
+      "A1": "Bath Tubs",
+      "A2": "Intime",
+      "A3": "25.99",
+      "A4": "Portable",
+      "A5": "Babies"
+    },
+    "has_error_query": true,
+    "error_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infa care",
+    "injected_errors": [
+      {
+        "correct": "infant",
+        "error": "infa",
+        "error_type": "typo"
+      }
+    ]
+  }
+]
 ```
