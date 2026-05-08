@@ -1050,8 +1050,7 @@
       {
         "correct": "just",
         "error": "sucking",
-        "error_type": "misspellings/misrecognitions",
-        "note": ""
+        "error_type": "misspellings/misrecognitions"
       }
     ]
   },
@@ -1078,8 +1077,7 @@
       {
         "correct": "people",
         "error": "ppl",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -1106,8 +1104,7 @@
       {
         "correct": "for",
         "error": "w/",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -1449,8 +1446,7 @@
       {
         "correct": "design",
         "error": "intentions",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -1498,8 +1494,7 @@
       {
         "correct": "are",
         "error": "went",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -1715,8 +1710,7 @@
       {
         "correct": "spot",
         "error": "side",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -2077,8 +2071,7 @@
       {
         "correct": "and",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -2357,8 +2350,7 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -2469,8 +2461,7 @@
       {
         "correct": "Monitor",
         "error": "Monuseor",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -2581,8 +2572,7 @@
       {
         "correct": "I want",
         "error": "I want wayyyyy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -2882,8 +2872,7 @@
       {
         "correct": "as",
         "error": "like",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -2910,8 +2899,7 @@
       {
         "correct": "intended",
         "error": "ended",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -3358,8 +3346,7 @@
       {
         "correct": "clean",
         "error": "right",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -3407,8 +3394,7 @@
       {
         "correct": "is",
         "error": "can",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -3456,8 +3442,7 @@
       {
         "correct": "safe",
         "error": "award",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -4639,8 +4624,7 @@
       {
         "correct": "plenty",
         "error": "plentynof",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -5276,8 +5260,7 @@
       {
         "correct": "snug",
         "error": "snuggly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -5661,8 +5644,7 @@
       {
         "correct": "different",
         "error": "rent",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -6634,14 +6616,12 @@
       {
         "correct": "convenience",
         "error": "inaurqncw",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "include",
         "error": "is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -6813,8 +6793,7 @@
       {
         "correct": "works well for",
         "error": "jammy for",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -7952,8 +7931,7 @@
       {
         "correct": "accessible",
         "error": "assessable",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -8316,14 +8294,12 @@
       {
         "correct": "which",
         "error": "hich",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "Office",
         "error": "Ofice",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -8560,14 +8536,12 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "gentle",
         "error": "soft",
-        "error_type": "semantic_variation",
-        "note": ""
+        "error_type": "semantic_variation"
       }
     ]
   },
@@ -8698,8 +8672,7 @@
       {
         "correct": "this",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -9419,14 +9392,12 @@
       {
         "correct": "amongst",
         "error": "amongst",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "amongst",
         "error": "activating",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -9578,8 +9549,7 @@
       {
         "correct": "my",
         "error": "themselves",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -9710,8 +9680,7 @@
       {
         "correct": "great",
         "error": "wholesomely great",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -9738,8 +9707,7 @@
       {
         "correct": "infant",
         "error": "infa",
-        "error_type": "typo",
-        "note": ""
+        "error_type": "typo"
       }
     ]
   },
@@ -9913,8 +9881,7 @@
       {
         "correct": "minutes",
         "error": "mins",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -10465,8 +10432,7 @@
       {
         "correct": "it's",
         "error": "which",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -11123,8 +11089,7 @@
       {
         "correct": "for",
         "error": "over",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -11613,8 +11578,7 @@
       {
         "correct": "are",
         "error": "gone",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -11746,8 +11710,7 @@
       {
         "correct": "and",
         "error": "my",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -11795,14 +11758,12 @@
       {
         "correct": "toddlers",
         "error": "toddlayers",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "little",
         "error": "littlelayer",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -12060,8 +12021,7 @@
       {
         "correct": "are",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -12193,8 +12153,7 @@
       {
         "correct": "I",
         "error": "oh",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -12368,8 +12327,7 @@
       {
         "correct": "past",
         "error": "passed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -12438,8 +12396,7 @@
       {
         "correct": "Definitely",
         "error": "Deffinatly",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -12886,8 +12843,7 @@
       {
         "correct": "expecting",
         "error": "spectinng",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -14486,8 +14442,7 @@
       {
         "correct": "Manual",
         "error": "Wayual",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },
@@ -14702,8 +14657,7 @@
       {
         "correct": "but",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -14877,8 +14831,7 @@
       {
         "correct": "I want",
         "error": "the want",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -15535,8 +15488,7 @@
       {
         "correct": "with",
         "error": "through",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -16864,8 +16816,7 @@
       {
         "correct": "15.32 pounds",
         "error": "a scare of 15.32 pounds",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -17038,8 +16989,7 @@
       {
         "correct": "plastic",
         "error": "plastwayc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -17087,8 +17037,7 @@
       {
         "correct": "everywhere",
         "error": "every",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -17598,8 +17547,7 @@
       {
         "correct": "angle",
         "error": "auction",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -18024,14 +17972,12 @@
       {
         "correct": "a",
         "error": "s",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "p",
         "error": "b",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -18163,8 +18109,7 @@
       {
         "correct": "safe",
         "error": "soft",
-        "error_type": "saw_seen_substitution",
-        "note": ""
+        "error_type": "saw_seen_substitution"
       }
     ]
   },
@@ -18506,20 +18451,17 @@
       {
         "correct": "Christmas",
         "error": "Chrimas",
-        "error_type": "consonant_cluster_error",
-        "note": ""
+        "error_type": "consonant_cluster_error"
       },
       {
         "correct": "festive",
         "error": "festibe",
-        "error_type": "phonetic_simplification",
-        "note": ""
+        "error_type": "phonetic_simplification"
       },
       {
         "correct": "secure",
         "error": "seuure",
-        "error_type": "consonant_cluster_error",
-        "note": ""
+        "error_type": "consonant_cluster_error"
       }
     ]
   },
@@ -19176,8 +19118,7 @@
       {
         "correct": "Pillowfort",
         "error": "Pillofort",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -19204,14 +19145,12 @@
       {
         "correct": "towels",
         "error": "toandels",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "quickly",
         "error": "quickandly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -19574,8 +19513,7 @@
       {
         "correct": "temperamental",
         "error": "tempered",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -19938,8 +19876,7 @@
       {
         "correct": "would",
         "error": "was",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -20700,8 +20637,7 @@
       {
         "correct": "it",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -20748,8 +20684,7 @@
       {
         "correct": "the",
         "error": "t",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -20944,8 +20879,7 @@
       {
         "correct": "somehow",
         "error": "some",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -21266,8 +21200,7 @@
       {
         "correct": "easily",
         "error": "she",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -21294,8 +21227,7 @@
       {
         "correct": "tandem",
         "error": "tandomesies",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -21385,8 +21317,7 @@
       {
         "correct": "definitely",
         "error": "defiantly",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -21581,8 +21512,7 @@
       {
         "correct": "for",
         "error": "to",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -21798,8 +21728,7 @@
       {
         "correct": "without",
         "error": "w/out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -21847,8 +21776,7 @@
       {
         "correct": "that doesn't leak",
         "error": "that doesn&#34;leak&#34;",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -21980,8 +21908,7 @@
       {
         "correct": "AOLIKES",
         "error": "AOLILES",
-        "error_type": "typo",
-        "note": ""
+        "error_type": "typo"
       }
     ]
   },
@@ -22323,8 +22250,7 @@
       {
         "correct": "that",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -23421,8 +23347,7 @@
       {
         "correct": "find",
         "error": "tight",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -23575,8 +23500,7 @@
       {
         "correct": "which",
         "error": "those",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -24275,8 +24199,7 @@
       {
         "correct": "their",
         "error": "they're",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -24366,8 +24289,7 @@
       {
         "correct": "booster",
         "error": "booklet",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -24730,8 +24652,7 @@
       {
         "correct": "safety spigot",
         "error": "safety spicket",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -24800,8 +24721,7 @@
       {
         "correct": "lightweight",
         "error": "light",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -24891,8 +24811,7 @@
       {
         "correct": "about",
         "error": "on",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -24982,8 +24901,7 @@
       {
         "correct": "just",
         "error": "skirt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -25157,14 +25075,12 @@
       {
         "correct": "easy",
         "error": "eazy",
-        "error_type": "phonetic_approximation",
-        "note": ""
+        "error_type": "phonetic_approximation"
       },
       {
         "correct": "use",
         "error": "uese",
-        "error_type": "letter_substitution",
-        "note": ""
+        "error_type": "letter_substitution"
       }
     ]
   },
@@ -25338,8 +25254,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -25741,8 +25656,7 @@
       {
         "correct": "Definitely",
         "error": "Def",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -26483,8 +26397,7 @@
       {
         "correct": "that",
         "error": "is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -27246,8 +27159,7 @@
       {
         "correct": "in",
         "error": "thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -28574,8 +28486,7 @@
       {
         "correct": "bedroom",
         "error": "bedgate",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -29356,8 +29267,7 @@
       {
         "correct": "it",
         "error": "that",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -29405,8 +29315,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -29705,8 +29614,7 @@
       {
         "correct": "for",
         "error": "through",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -30090,8 +29998,7 @@
       {
         "correct": "just stays",
         "error": "is just stays",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -30202,8 +30109,7 @@
       {
         "correct": "that",
         "error": "which",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -30356,8 +30262,7 @@
       {
         "correct": "need",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -30447,8 +30352,7 @@
       {
         "correct": "look",
         "error": "like",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -30580,8 +30484,7 @@
       {
         "correct": "adjustable",
         "error": "Bertable",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -30608,8 +30511,7 @@
       {
         "correct": "are",
         "error": "keep",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -31350,8 +31252,7 @@
       {
         "correct": "inserts",
         "error": "colleges",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -31651,8 +31552,7 @@
       {
         "correct": "cute",
         "error": "cutesy",
-        "error_type": "typo_near_key",
-        "note": ""
+        "error_type": "typo_near_key"
       }
     ]
   },
@@ -31783,8 +31683,7 @@
       {
         "correct": "to",
         "error": "about",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -31811,8 +31710,7 @@
       {
         "correct": "gently",
         "error": "threw",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -31965,8 +31863,7 @@
       {
         "correct": "soft",
         "error": "Osborn",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -32454,8 +32351,7 @@
       {
         "correct": "clear",
         "error": "claer",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -32608,8 +32504,7 @@
       {
         "correct": "ideal",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -33119,8 +33014,7 @@
       {
         "correct": "different",
         "error": "dif",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -33462,8 +33356,7 @@
       {
         "correct": "definitely",
         "error": "defiantly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -33679,8 +33572,7 @@
       {
         "correct": "anything",
         "error": "thing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -33707,8 +33599,7 @@
       {
         "correct": "is",
         "error": "made",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -34260,8 +34151,7 @@
       {
         "correct": "and",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -34393,8 +34283,7 @@
       {
         "correct": "them",
         "error": "put",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -34903,8 +34792,7 @@
       {
         "correct": "high quality",
         "error": "inconsolable quality",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -35057,8 +34945,7 @@
       {
         "correct": "not",
         "error": "t",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -35356,8 +35243,7 @@
       {
         "correct": "need",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -35573,8 +35459,7 @@
       {
         "correct": "easily",
         "error": "covcertable",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -35664,8 +35549,7 @@
       {
         "correct": "important",
         "error": "importnsbt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -35713,8 +35597,7 @@
       {
         "correct": "I think",
         "error": "I sink",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -36056,8 +35939,7 @@
       {
         "correct": "on",
         "error": "with",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -36105,8 +35987,7 @@
       {
         "correct": "dumb",
         "error": "dingy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -36784,8 +36665,7 @@
       {
         "correct": "the",
         "error": "was",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -36833,8 +36713,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -37426,8 +37305,7 @@
       {
         "correct": "comes",
         "error": "ares",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -37475,8 +37353,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -37608,8 +37485,7 @@
       {
         "correct": "honey children",
         "error": "hubby children",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -37636,20 +37512,17 @@
       {
         "correct": "I",
         "error": "i",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which",
         "error": "wich",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "offers",
         "error": "offer",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -38684,8 +38557,7 @@
       {
         "correct": "that are lightweight",
         "error": "what are lightweight",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -39363,8 +39235,7 @@
       {
         "correct": "but",
         "error": "for",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -39391,8 +39262,7 @@
       {
         "correct": "priced",
         "error": "prieced",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -39419,8 +39289,7 @@
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -40601,8 +40470,7 @@
       {
         "correct": "since",
         "error": "beings",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -40671,8 +40539,7 @@
       {
         "correct": "Storage",
         "error": "corkscrew",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -40993,8 +40860,7 @@
       {
         "correct": "for a storage",
         "error": "for seys storage",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -41336,8 +41202,7 @@
       {
         "correct": "overall",
         "error": "over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -41826,8 +41691,7 @@
       {
         "correct": "bedroom",
         "error": "store",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -42001,8 +41865,7 @@
       {
         "correct": "which",
         "error": "when",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -42029,8 +41892,7 @@
       {
         "correct": "those",
         "error": "them",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -42162,8 +42024,7 @@
       {
         "correct": "especially",
         "error": "esp",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -42967,8 +42828,7 @@
       {
         "correct": "standard",
         "error": "creeped",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -43057,8 +42917,7 @@
       {
         "correct": "polypropylene",
         "error": "polyproylene",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -43127,8 +42986,7 @@
       {
         "correct": "soft",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -43490,8 +43348,7 @@
       {
         "correct": "baby",
         "error": "b",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -43686,8 +43543,7 @@
       {
         "correct": "priced at",
         "error": "priced back at",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -43966,8 +43822,7 @@
       {
         "correct": "closure",
         "error": "clouser",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -44519,8 +44374,7 @@
       {
         "correct": "stroller",
         "error": "like",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -44925,8 +44779,7 @@
       {
         "correct": "large",
         "error": "layer",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -45245,8 +45098,7 @@
       {
         "correct": "otherwise",
         "error": "otherwise",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -45525,8 +45377,7 @@
       {
         "correct": "safe",
         "error": "sake",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -45867,8 +45718,7 @@
       {
         "correct": "Baby",
         "error": "Babby",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -47197,8 +47047,7 @@
       {
         "correct": "accidents",
         "error": "addicents",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -47708,8 +47557,7 @@
       {
         "correct": "matches",
         "error": "anys",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -47736,8 +47584,7 @@
       {
         "correct": "it",
         "error": "the",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -47764,8 +47611,7 @@
       {
         "correct": "easier",
         "error": "easy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -50123,8 +49969,7 @@
       {
         "correct": "quiet",
         "error": "ship",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -50235,8 +50080,7 @@
       {
         "correct": "Classic",
         "error": "Classicsent",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -50347,8 +50191,7 @@
       {
         "correct": "for",
         "error": "on",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -50480,8 +50323,7 @@
       {
         "correct": "infant",
         "error": "infnat",
-        "error_type": "letter_omission",
-        "note": ""
+        "error_type": "letter_omission"
       }
     ]
   },
@@ -51306,8 +51148,7 @@
       {
         "correct": "Drooling",
         "error": "hand Drooling",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -51418,8 +51259,7 @@
       {
         "correct": "it",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -51803,8 +51643,7 @@
       {
         "correct": "without",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -52272,14 +52111,12 @@
       {
         "correct": "safe",
         "error": "spill",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "can",
         "error": "cnt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -52369,8 +52206,7 @@
       {
         "correct": "little",
         "error": "litttttle",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -52712,8 +52548,7 @@
       {
         "correct": "but",
         "error": "billet",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -52845,8 +52680,7 @@
       {
         "correct": "gentle warming",
         "error": "gentle molding",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -53061,8 +52895,7 @@
       {
         "correct": "soft",
         "error": "fluffy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -53780,8 +53613,7 @@
       {
         "correct": "sometimes",
         "error": "times",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -54123,8 +53955,7 @@
       {
         "correct": "to",
         "error": "I",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -54193,8 +54024,7 @@
       {
         "correct": "them",
         "error": "it",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -54221,8 +54051,7 @@
       {
         "correct": "search",
         "error": "hunt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -54396,8 +54225,7 @@
       {
         "correct": "I need",
         "error": "I'd need",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -54949,14 +54777,12 @@
       {
         "correct": "sheets",
         "error": "seets",
-        "error_type": "character_swap",
-        "note": ""
+        "error_type": "character_swap"
       },
       {
         "correct": "soft",
         "error": "soff",
-        "error_type": "character_swap",
-        "note": ""
+        "error_type": "character_swap"
       }
     ]
   },
@@ -55319,8 +55145,7 @@
       {
         "correct": "with",
         "error": "of",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -55347,8 +55172,7 @@
       {
         "correct": "for",
         "error": "corporations",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -55396,8 +55220,7 @@
       {
         "correct": "for men",
         "error": "for men putter",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -55760,8 +55583,7 @@
       {
         "correct": "stuck",
         "error": "stiffed",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -56040,8 +55862,7 @@
       {
         "correct": "I want it",
         "error": "I want that",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -56404,8 +56225,7 @@
       {
         "correct": "without",
         "error": "out",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -56600,14 +56420,12 @@
       {
         "correct": "soft",
         "error": "sofft",
-        "error_type": "character_insertion",
-        "note": ""
+        "error_type": "character_insertion"
       },
       {
         "correct": "infant",
         "error": "infnat",
-        "error_type": "character_transposition",
-        "note": ""
+        "error_type": "character_transposition"
       }
     ]
   },
@@ -57577,8 +57395,7 @@
       {
         "correct": "I need",
         "error": "I tried need",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -57668,8 +57485,7 @@
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -57947,8 +57763,7 @@
       {
         "correct": "soft",
         "error": "study",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -58645,8 +58460,7 @@
       {
         "correct": "assembled",
         "error": "auctioned",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -58736,8 +58550,7 @@
       {
         "correct": "that",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -59184,8 +58997,7 @@
       {
         "correct": "not",
         "error": "and",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -59548,8 +59360,7 @@
       {
         "correct": "most",
         "error": "very",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -59786,8 +59597,7 @@
       {
         "correct": "too",
         "error": "Another",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -60360,8 +60170,7 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -60913,8 +60722,7 @@
       {
         "correct": "because",
         "error": "coz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -61968,8 +61776,7 @@
       {
         "correct": "costs",
         "error": "lay",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -62290,8 +62097,7 @@
       {
         "correct": "Zermat",
         "error": "Zermaut",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -62421,8 +62227,7 @@
       {
         "correct": "your",
         "error": "their",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -62449,8 +62254,7 @@
       {
         "correct": "gentle",
         "error": "attaches",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -62916,8 +62720,7 @@
       {
         "correct": "for women that arrive beautifully packaged",
         "error": "for women breast that arrive beautifully packaged",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -63614,8 +63417,7 @@
       {
         "correct": "with",
         "error": "w",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -64249,8 +64051,7 @@
       {
         "correct": "themselves",
         "error": "selves",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -64613,8 +64414,7 @@
       {
         "correct": "Sets",
         "error": "Goals",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -64830,8 +64630,7 @@
       {
         "correct": "kids",
         "error": "min",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -65236,8 +65035,7 @@
       {
         "correct": "an",
         "error": "en",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -65264,8 +65062,7 @@
       {
         "correct": "sweetie",
         "error": "soothie",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -66655,8 +66452,7 @@
       {
         "correct": "though",
         "error": "throw",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -66809,8 +66605,7 @@
       {
         "correct": "Definitely",
         "error": "Defiantly",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -66837,8 +66632,7 @@
       {
         "correct": "for",
         "error": "to",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -67096,14 +66890,12 @@
       {
         "correct": "a",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "a",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -67193,8 +66985,7 @@
       {
         "correct": "long-term",
         "error": "ruff-term",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -67410,8 +67201,7 @@
       {
         "correct": "priced",
         "error": "bank",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -67645,8 +67435,7 @@
       {
         "correct": "it",
         "error": "this",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -67673,14 +67462,12 @@
       {
         "correct": "it",
         "error": "that",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "it",
         "error": "that",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -67812,8 +67599,7 @@
       {
         "correct": "that is easy to clean",
         "error": "easy good clean",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -68869,8 +68655,7 @@
       {
         "correct": "ducky",
         "error": "daddy",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },
@@ -68938,8 +68723,7 @@
       {
         "correct": "improvement",
         "error": "advancing",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -69260,8 +69044,7 @@
       {
         "correct": "nursery",
         "error": "nusery",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },
@@ -69393,8 +69176,7 @@
       {
         "correct": "gentle",
         "error": "dribble",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -69567,8 +69349,7 @@
       {
         "correct": "Wingbo",
         "error": "Umbo",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -70580,8 +70361,7 @@
       {
         "correct": "aren't",
         "error": "isn",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -70839,8 +70619,7 @@
       {
         "correct": "Pampers",
         "error": "marries",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -70886,8 +70665,7 @@
       {
         "correct": "around",
         "error": "ard",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -72195,8 +71973,7 @@
       {
         "correct": "came",
         "error": "can",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -72496,8 +72273,7 @@
       {
         "correct": "those",
         "error": "that",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -72671,8 +72447,7 @@
       {
         "correct": "that is",
         "error": "that too is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -73035,8 +72810,7 @@
       {
         "correct": "who",
         "error": "at",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -73105,8 +72879,7 @@
       {
         "correct": "definitely",
         "error": "def",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -74307,8 +74080,7 @@
       {
         "correct": "you",
         "error": "y",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -74335,8 +74107,7 @@
       {
         "correct": "to",
         "error": "there",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -74720,8 +74491,7 @@
       {
         "correct": "easy",
         "error": "superrrr",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -74914,14 +74684,12 @@
       {
         "correct": "which are",
         "error": "separatelike",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which are",
         "error": "separatelike",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -74990,8 +74758,7 @@
       {
         "correct": "too",
         "error": "t",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -75522,8 +75289,7 @@
       {
         "correct": "product",
         "error": "produre",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -75655,8 +75421,7 @@
       {
         "correct": "for my baby priced at 5.99",
         "error": "for my baby actually for 5.99",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -75872,8 +75637,7 @@
       {
         "correct": "to",
         "error": "2",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -76026,8 +75790,7 @@
       {
         "correct": "however",
         "error": "how",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -77188,14 +76951,12 @@
       {
         "correct": "which",
         "error": "wihch",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "have",
         "error": "hav",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -77598,8 +77359,7 @@
       {
         "correct": "easy",
         "error": "leach",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -78235,8 +77995,7 @@
       {
         "correct": "because",
         "error": "Bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -78284,8 +78043,7 @@
       {
         "correct": "they're",
         "error": "their",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -79257,8 +79015,7 @@
       {
         "correct": "and",
         "error": "our",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -79390,8 +79147,7 @@
       {
         "correct": "gentle",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -79964,8 +79720,7 @@
       {
         "correct": "has",
         "error": "of",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -80265,8 +80020,7 @@
       {
         "correct": "comfortable",
         "error": "good",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -80881,8 +80635,7 @@
       {
         "correct": "suitable for",
         "error": "under",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -81854,8 +81607,7 @@
       {
         "correct": "blankets",
         "error": "faucets",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -82008,8 +81760,7 @@
       {
         "correct": "which is",
         "error": "that's",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -82286,8 +82037,7 @@
       {
         "correct": "for",
         "error": "over for",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -82503,8 +82253,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -82741,8 +82490,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -82769,8 +82517,7 @@
       {
         "correct": "cute",
         "error": "liquidy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -82797,8 +82544,7 @@
       {
         "correct": "of",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -83014,8 +82760,7 @@
       {
         "correct": "it",
         "error": "there",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -83042,8 +82787,7 @@
       {
         "correct": "as a gift",
         "error": "a gift",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -83259,8 +83003,7 @@
       {
         "correct": "for",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -83287,8 +83030,7 @@
       {
         "correct": "easily",
         "error": "ideally",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -83399,8 +83141,7 @@
       {
         "correct": "to",
         "error": "help",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -83763,8 +83504,7 @@
       {
         "correct": "perfect",
         "error": "figures",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -85025,8 +84765,7 @@
       {
         "correct": "whether",
         "error": "if",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -85809,8 +85548,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -86194,8 +85932,7 @@
       {
         "correct": "very",
         "error": "veeeery",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -86978,8 +86715,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -87006,8 +86742,7 @@
       {
         "correct": "my",
         "error": "ya",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -87055,8 +86790,7 @@
       {
         "correct": "smooth",
         "error": "undecorated",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -87377,8 +87111,7 @@
       {
         "correct": "stayed",
         "error": "aged",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -87405,8 +87138,7 @@
       {
         "correct": "piece",
         "error": "pc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -87496,8 +87228,7 @@
       {
         "correct": "for",
         "error": "but",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -88091,8 +87822,7 @@
       {
         "correct": "suitable",
         "error": "responding",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -88602,8 +88332,7 @@
       {
         "correct": "that",
         "error": "is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -88861,8 +88590,7 @@
       {
         "correct": "lightweight",
         "error": "weight",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -88994,14 +88722,12 @@
       {
         "correct": "that",
         "error": "ever",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "ever",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -89468,8 +89194,7 @@
       {
         "correct": "them",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -89790,14 +89515,12 @@
       {
         "correct": "display",
         "error": "alarms",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "easy",
         "error": "grand",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -89824,8 +89547,7 @@
       {
         "correct": "display",
         "error": "consequential",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -90062,8 +89784,7 @@
       {
         "correct": "that is",
         "error": "went",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -90090,8 +89811,7 @@
       {
         "correct": "outgrowing",
         "error": "growing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -90118,14 +89838,12 @@
       {
         "correct": "at",
         "error": "st",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "babies",
         "error": "sabies",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -90152,8 +89870,7 @@
       {
         "correct": "weighing",
         "error": "wishing",
-        "error_type": "letter_substitution_error",
-        "note": ""
+        "error_type": "letter_substitution_error"
       }
     ]
   },
@@ -90180,8 +89897,7 @@
       {
         "correct": "themselves",
         "error": "themself",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -90250,8 +89966,7 @@
       {
         "correct": "don't",
         "error": "t",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -90362,8 +90077,7 @@
       {
         "correct": "plus",
         "error": "plant",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -90390,8 +90104,7 @@
       {
         "correct": "we",
         "error": "we're",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -90418,8 +90131,7 @@
       {
         "correct": "straps",
         "error": "stings",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -90488,8 +90200,7 @@
       {
         "correct": "little",
         "error": "littel",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -90787,8 +90498,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -91213,8 +90923,7 @@
       {
         "correct": "are",
         "error": "r",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -91661,8 +91370,7 @@
       {
         "correct": "wasn't",
         "error": "not",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -92067,8 +91775,7 @@
       {
         "correct": "troubles",
         "error": "trbuck",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -92137,8 +91844,7 @@
       {
         "correct": "set",
         "error": "sat",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -92291,8 +91997,7 @@
       {
         "correct": "for",
         "error": "until",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -92361,20 +92066,17 @@
       {
         "correct": "at",
         "error": "it",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "for",
         "error": "when",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which is",
         "error": "which one",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -92943,8 +92645,7 @@
       {
         "correct": "comfortable",
         "error": "weary",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -94186,8 +93887,7 @@
       {
         "correct": "it",
         "error": "them",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -94256,8 +93956,7 @@
       {
         "correct": "when weighing",
         "error": "off weighing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -95646,8 +95345,7 @@
       {
         "correct": "bath",
         "error": "boon",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -95695,8 +95393,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -96833,8 +96530,7 @@
       {
         "correct": "because",
         "error": "bcus",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -96924,8 +96620,7 @@
       {
         "correct": "are",
         "error": "took",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -98211,8 +97906,7 @@
       {
         "correct": "very",
         "error": "that",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -98239,8 +97933,7 @@
       {
         "correct": "spoonful",
         "error": "spoon",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -98686,8 +98379,7 @@
       {
         "correct": "with",
         "error": "w",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -98945,8 +98637,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -99015,8 +98706,7 @@
       {
         "correct": "to have",
         "error": "to of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -99190,8 +98880,7 @@
       {
         "correct": "that is",
         "error": "that what",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -99407,8 +99096,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -99477,8 +99165,7 @@
       {
         "correct": "soft",
         "error": "slight",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -99505,8 +99192,7 @@
       {
         "correct": "babies",
         "error": "baby",
-        "error_type": "suffix_dropping",
-        "note": ""
+        "error_type": "suffix_dropping"
       }
     ]
   },
@@ -99743,8 +99429,7 @@
       {
         "correct": "mature",
         "error": "manicure",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -100527,8 +100212,7 @@
       {
         "correct": "comfort",
         "error": "confect",
-        "error_type": "syllable_omission",
-        "note": ""
+        "error_type": "syllable_omission"
       }
     ]
   },
@@ -100660,8 +100344,7 @@
       {
         "correct": "Plastic",
         "error": "Plashave",
-        "error_type": "substitution_error",
-        "note": ""
+        "error_type": "substitution_error"
       }
     ]
   },
@@ -100709,8 +100392,7 @@
       {
         "correct": "infant",
         "error": "nappers",
-        "error_type": "word_substitution",
-        "note": ""
+        "error_type": "word_substitution"
       }
     ]
   },
@@ -101010,8 +100692,7 @@
       {
         "correct": "weren't",
         "error": "didn't",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -101080,8 +100761,7 @@
       {
         "correct": "and",
         "error": "on",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -101192,8 +100872,7 @@
       {
         "correct": "wasn't",
         "error": "weren't",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -101325,8 +101004,7 @@
       {
         "correct": "me",
         "error": "myself",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -101689,8 +101367,7 @@
       {
         "correct": "missing",
         "error": "meeting",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -101717,8 +101394,7 @@
       {
         "correct": "sturdy",
         "error": "Stacy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -102143,14 +101819,12 @@
       {
         "correct": "just",
         "error": "j",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "just",
         "error": "j",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -102828,8 +102502,7 @@
       {
         "correct": "infant",
         "error": "Night",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -103087,8 +102760,7 @@
       {
         "correct": "adorable",
         "error": "comfy",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -103262,8 +102934,7 @@
       {
         "correct": "as perfect",
         "error": "being perfect",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -104151,8 +103822,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -104914,8 +104584,7 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -105695,8 +105364,7 @@
       {
         "correct": "my",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -106058,8 +105726,7 @@
       {
         "correct": "another",
         "error": "an",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -106968,8 +106635,7 @@
       {
         "correct": "gentle",
         "error": "only",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -107038,8 +106704,7 @@
       {
         "correct": "durable",
         "error": "rampid",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -107402,8 +107067,7 @@
       {
         "correct": "Easy",
         "error": "Rased",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -107472,8 +107136,7 @@
       {
         "correct": "back",
         "error": "back and teething",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -107815,8 +107478,7 @@
       {
         "correct": "harder",
         "error": "tougher",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -108410,8 +108072,7 @@
       {
         "correct": "specially",
         "error": "repaired",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -108837,14 +108498,12 @@
       {
         "correct": "feeding",
         "error": "budled",
-        "error_type": "syllable_substitution",
-        "note": ""
+        "error_type": "syllable_substitution"
       },
       {
         "correct": "silicone",
         "error": "silidcone",
-        "error_type": "keyboard_proximity_error",
-        "note": ""
+        "error_type": "keyboard_proximity_error"
       }
     ]
   },
@@ -108955,8 +108614,7 @@
       {
         "correct": "around",
         "error": "found",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -109235,8 +108893,7 @@
       {
         "correct": "safe",
         "error": "quilt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -109704,8 +109361,7 @@
       {
         "correct": "compartments",
         "error": "departments",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -109774,8 +109430,7 @@
       {
         "correct": "perfect",
         "error": "prob",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -109802,8 +109457,7 @@
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -109851,8 +109505,7 @@
       {
         "correct": "last",
         "error": "hold",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -109899,8 +109552,7 @@
       {
         "correct": "overall",
         "error": "all",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -110074,8 +109726,7 @@
       {
         "correct": "vinyl",
         "error": "winy",
-        "error_type": "letter_substitution",
-        "note": ""
+        "error_type": "letter_substitution"
       }
     ]
   },
@@ -110291,8 +109942,7 @@
       {
         "correct": "However",
         "error": "How",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -110340,8 +109990,7 @@
       {
         "correct": "but",
         "error": "is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -110515,8 +110164,7 @@
       {
         "correct": "wherever",
         "error": "where",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -110648,14 +110296,12 @@
       {
         "correct": "that",
         "error": "I",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "I",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -110913,8 +110559,7 @@
       {
         "correct": "because",
         "error": "cuz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -111885,8 +111530,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -112039,8 +111683,7 @@
       {
         "correct": "first",
         "error": "1st",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -112634,8 +112277,7 @@
       {
         "correct": "decalmile",
         "error": "decalmember",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -113124,8 +112766,7 @@
       {
         "correct": "lightweight",
         "error": "light",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -113299,8 +112940,7 @@
       {
         "correct": "they add",
         "error": "it add",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -113683,14 +113323,12 @@
       {
         "correct": "safe",
         "error": "busted",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "easy",
         "error": "encumber",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -113780,8 +113418,7 @@
       {
         "correct": "Overall",
         "error": "Over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -113996,8 +113633,7 @@
       {
         "correct": "wipeable",
         "error": "wipe",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -114045,8 +113681,7 @@
       {
         "correct": "baby's",
         "error": "children",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -114765,8 +114400,7 @@
       {
         "correct": "for",
         "error": "in",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -115066,8 +114700,7 @@
       {
         "correct": "it",
         "error": "abs",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -115367,8 +115000,7 @@
       {
         "correct": "from",
         "error": "blocks",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -115626,8 +115258,7 @@
       {
         "correct": "because",
         "error": "cus",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -116054,8 +115685,7 @@
       {
         "correct": "firm support",
         "error": "coerced",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -116690,8 +116320,7 @@
       {
         "correct": "supposed",
         "error": "sapose",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -116739,8 +116368,7 @@
       {
         "correct": "that",
         "error": "there",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -116830,8 +116458,7 @@
       {
         "correct": "without",
         "error": "w/o",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -116921,8 +116548,7 @@
       {
         "correct": "durable",
         "error": "concave",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -117705,8 +117331,7 @@
       {
         "correct": "memory",
         "error": "memorie",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -117943,14 +117568,12 @@
       {
         "correct": "because",
         "error": "b/c",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "really",
         "error": "reaalllllllllllllly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -118460,8 +118083,7 @@
       {
         "correct": "rubbery",
         "error": "rubberish",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -118677,8 +118299,7 @@
       {
         "correct": "with development",
         "error": "with of development",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -118789,8 +118410,7 @@
       {
         "correct": "past",
         "error": "passed",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -119342,8 +118962,7 @@
       {
         "correct": "caves",
         "error": "concaves",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -119370,8 +118989,7 @@
       {
         "correct": "that",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -120637,8 +120255,7 @@
       {
         "correct": "that is",
         "error": "them is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -121271,8 +120888,7 @@
       {
         "correct": "little",
         "error": "lil",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -121446,8 +121062,7 @@
       {
         "correct": "durable",
         "error": "duarfear",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -121789,8 +121404,7 @@
       {
         "correct": "priced",
         "error": "made",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -121838,14 +121452,12 @@
       {
         "correct": "cost",
         "error": "piques",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "use",
         "error": "rise",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -122334,8 +121946,7 @@
       {
         "correct": "lifetime",
         "error": "life",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -122488,8 +122099,7 @@
       {
         "correct": "spilled",
         "error": "spilt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -122810,8 +122420,7 @@
       {
         "correct": "newborn",
         "error": "born",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -122964,8 +122573,7 @@
       {
         "correct": "to",
         "error": "this",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -123199,8 +122807,7 @@
       {
         "correct": "grandma's",
         "error": "gramma's",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -123248,8 +122855,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -123276,8 +122882,7 @@
       {
         "correct": "soft",
         "error": "softed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -123827,8 +123432,7 @@
       {
         "correct": "are",
         "error": "anywhere",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -123876,8 +123480,7 @@
       {
         "correct": "bunching",
         "error": "rouching",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -124135,8 +123738,7 @@
       {
         "correct": "of",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -124709,8 +124311,7 @@
       {
         "correct": "are",
         "error": "qre",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -125115,8 +124716,7 @@
       {
         "correct": "probably",
         "error": "prob",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -125647,8 +125247,7 @@
       {
         "correct": "use",
         "error": "extract",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -126074,8 +125673,7 @@
       {
         "correct": "itself",
         "error": "it's",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -126604,8 +126202,7 @@
       {
         "correct": "measuring",
         "error": "memorizing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -126695,8 +126292,7 @@
       {
         "correct": "the",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -126786,14 +126382,12 @@
       {
         "correct": "around",
         "error": "exposure",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "1002029203949849291",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -127303,8 +126897,7 @@
       {
         "correct": "to",
         "error": "2",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -127394,8 +126987,7 @@
       {
         "correct": "securely",
         "error": "in",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -127506,8 +127098,7 @@
       {
         "correct": "much",
         "error": "many",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -127828,14 +127419,12 @@
       {
         "correct": "are",
         "error": "have",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -128155,8 +127744,7 @@
       {
         "correct": "which",
         "error": "whereas",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -128393,8 +127981,7 @@
       {
         "correct": "generous",
         "error": "gracious",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -129366,8 +128953,7 @@
       {
         "correct": "gentle",
         "error": "sindel",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -129540,8 +129126,7 @@
       {
         "correct": "rating",
         "error": "rarable",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -130009,14 +129594,12 @@
       {
         "correct": "are",
         "error": "Ire",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "and",
         "error": "Ind",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -130148,8 +129731,7 @@
       {
         "correct": "and",
         "error": "Aaaannnnd",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -130617,8 +130199,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -130687,8 +130268,7 @@
       {
         "correct": "which",
         "error": "which&#62;",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -130841,8 +130421,7 @@
       {
         "correct": "that are safe that have a soft fit that keep skin dry",
         "error": "that are safe that have a soft fit midnight that keep skin dry",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -131058,8 +130637,7 @@
       {
         "correct": "priced at 27.99",
         "error": "peruse",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -131107,8 +130685,7 @@
       {
         "correct": "non-toxic",
         "error": "no1n-toxic",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -131282,8 +130859,7 @@
       {
         "correct": "looks",
         "error": "couldn't look",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -131457,8 +131033,7 @@
       {
         "correct": "because",
         "error": "by",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -133206,8 +132781,7 @@
       {
         "correct": "wherever",
         "error": "where",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -134155,8 +133729,7 @@
       {
         "correct": "that",
         "error": "there",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -134246,8 +133819,7 @@
       {
         "correct": "without",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -134295,8 +133867,7 @@
       {
         "correct": "large",
         "error": "thoroughway",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -134785,8 +134356,7 @@
       {
         "correct": "perfect",
         "error": "defer",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -135044,8 +134614,7 @@
       {
         "correct": "with",
         "error": "in",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -135114,8 +134683,7 @@
       {
         "correct": "yet",
         "error": "isn't",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -135793,8 +135361,7 @@
       {
         "correct": "and",
         "error": "bcuz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -135884,8 +135451,7 @@
       {
         "correct": "priced",
         "error": "prevail",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -136227,8 +135793,7 @@
       {
         "correct": "exactly",
         "error": "exctutly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -137200,8 +136765,7 @@
       {
         "correct": "apply",
         "error": "comp",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -137333,20 +136897,17 @@
       {
         "correct": "keeps",
         "error": "organises",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "coz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -137457,8 +137018,7 @@
       {
         "correct": "Mostly",
         "error": "Mainly",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -137653,8 +137213,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138122,8 +137681,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138612,8 +138170,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -138640,8 +138197,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138773,8 +138329,7 @@
       {
         "correct": "cautious",
         "error": "precautionous",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138864,8 +138419,7 @@
       {
         "correct": "large size",
         "error": "large bouncing size",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138913,8 +138467,7 @@
       {
         "correct": "I",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -138983,8 +138536,7 @@
       {
         "correct": "designed",
         "error": "desiged",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -139179,14 +138731,12 @@
       {
         "correct": "for",
         "error": "since",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "has",
         "error": "got",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -139548,8 +139098,7 @@
       {
         "correct": "Toddler",
         "error": "Todder",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -139995,8 +139544,7 @@
       {
         "correct": "priced",
         "error": "leeched",
-        "error_type": "phonetic_substitution_error",
-        "note": ""
+        "error_type": "phonetic_substitution_error"
       }
     ]
   },
@@ -140128,8 +139676,7 @@
       {
         "correct": "that are",
         "error": "w",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -140177,8 +139724,7 @@
       {
         "correct": "perfect",
         "error": "picking",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -140541,8 +140087,7 @@
       {
         "correct": "more",
         "error": "same",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -140861,8 +140406,7 @@
       {
         "correct": "dollars",
         "error": "dollabs",
-        "error_type": "phonetic_substitution_affected_by_clause_pattern",
-        "note": ""
+        "error_type": "phonetic_substitution_affected_by_clause_pattern"
       }
     ]
   },
@@ -141792,8 +141336,7 @@
       {
         "correct": "at",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -142345,20 +141888,17 @@
       {
         "correct": "fit",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "he",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "he",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -142404,8 +141944,7 @@
       {
         "correct": "with",
         "error": "on",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -142705,8 +142244,7 @@
       {
         "correct": "I",
         "error": "my",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -143594,8 +143132,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -144146,8 +143683,7 @@
       {
         "correct": "all",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -144531,8 +144067,7 @@
       {
         "correct": "firstborn's",
         "error": "born's",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -144873,8 +144408,7 @@
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -146135,14 +145669,12 @@
       {
         "correct": "teething",
         "error": "theing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "teething",
         "error": "theing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -146610,8 +146142,7 @@
       {
         "correct": "want",
         "error": "got",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -146848,8 +146379,7 @@
       {
         "correct": "unbuckle",
         "error": "unbuckling",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -146918,8 +146448,7 @@
       {
         "correct": "soft",
         "error": "softweeds",
-        "error_type": "spelling_error",
-        "note": ""
+        "error_type": "spelling_error"
       }
     ]
   },
@@ -146967,8 +146496,7 @@
       {
         "correct": "in",
         "error": "snugged",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -147184,8 +146712,7 @@
       {
         "correct": "fits",
         "error": "fit e",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -147233,8 +146760,7 @@
       {
         "correct": "that are",
         "error": "Shea",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -147911,8 +147437,7 @@
       {
         "correct": "don't",
         "error": "you",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -147981,8 +147506,7 @@
       {
         "correct": "install",
         "error": "door",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -148030,8 +147554,7 @@
       {
         "correct": "seconds",
         "error": "sconds",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -148247,8 +147770,7 @@
       {
         "correct": "need",
         "error": "this",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -148590,8 +148112,7 @@
       {
         "correct": "drawing",
         "error": "drawring",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -148660,8 +148181,7 @@
       {
         "correct": "safe",
         "error": "saf",
-        "error_type": "truncation",
-        "note": ""
+        "error_type": "truncation"
       }
     ]
   },
@@ -148772,8 +148292,7 @@
       {
         "correct": "Baby",
         "error": "Babyte",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -148800,8 +148319,7 @@
       {
         "correct": "bedside",
         "error": "side",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -149248,8 +148766,7 @@
       {
         "correct": "not",
         "error": "sure",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -149276,8 +148793,7 @@
       {
         "correct": "look",
         "error": "fav",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -149430,8 +148946,7 @@
       {
         "correct": "Disney",
         "error": "Diesney",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -149626,8 +149141,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -150158,8 +149672,7 @@
       {
         "correct": "Décor",
         "error": "Poet",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -150354,8 +149867,7 @@
       {
         "correct": "a",
         "error": "along",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -150676,8 +150188,7 @@
       {
         "correct": "snack",
         "error": "snak",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -150746,8 +150257,7 @@
       {
         "correct": "spots",
         "error": "jokes",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -150816,8 +150326,7 @@
       {
         "correct": "I need",
         "error": "It's for",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -150907,8 +150416,7 @@
       {
         "correct": "which",
         "error": "as",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -150935,8 +150443,7 @@
       {
         "correct": "priced at 12.99",
         "error": "priced at an amount of 12.99",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -151005,8 +150512,7 @@
       {
         "correct": "It is",
         "error": "This is",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -151432,8 +150938,7 @@
       {
         "correct": "has",
         "error": "for",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -151712,14 +151217,12 @@
       {
         "correct": "because",
         "error": "cuz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "them",
         "error": "they",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -152376,8 +151879,7 @@
       {
         "correct": "at",
         "error": "the",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -152612,8 +152114,7 @@
       {
         "correct": "Cotton",
         "error": "Cotten",
-        "error_type": "vowel_substitution",
-        "note": ""
+        "error_type": "vowel_substitution"
       }
     ]
   },
@@ -152748,8 +152249,7 @@
       {
         "correct": "overall",
         "error": "all",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -153049,8 +152549,7 @@
       {
         "correct": "suitable",
         "error": "suitble",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -153224,14 +152723,12 @@
       {
         "correct": "toddler",
         "error": "eoddler",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "comfortable",
         "error": "comforeable",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -154033,8 +153530,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -154774,8 +154270,7 @@
       {
         "correct": "I need",
         "error": "I very",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -154802,14 +154297,12 @@
       {
         "correct": "for",
         "error": "over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "over",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -154857,8 +154350,7 @@
       {
         "correct": "Smooth surface",
         "error": "Smooth every surface",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -155242,8 +154734,7 @@
       {
         "correct": "of",
         "error": "I",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -155711,8 +155202,7 @@
       {
         "correct": "they",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -157314,8 +156804,7 @@
       {
         "correct": "clear",
         "error": "walla",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -158244,8 +157733,7 @@
       {
         "correct": "I",
         "error": "o",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -158314,8 +157802,7 @@
       {
         "correct": "especially",
         "error": "esp",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -158342,8 +157829,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -158559,8 +158045,7 @@
       {
         "correct": "that are",
         "error": "threw",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -158629,8 +158114,7 @@
       {
         "correct": "probably",
         "error": "probs",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -158741,8 +158225,7 @@
       {
         "correct": "find",
         "error": "thing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -159084,8 +158567,7 @@
       {
         "correct": "held",
         "error": "holded",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -159154,8 +158636,7 @@
       {
         "correct": "something",
         "error": "sth",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -159182,14 +158663,12 @@
       {
         "correct": "that",
         "error": "th",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "sensitive",
         "error": "sensiti",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -161061,8 +160540,7 @@
       {
         "correct": "cheap",
         "error": "chincy",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -161110,8 +160588,7 @@
       {
         "correct": "before",
         "error": "b4",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -161642,8 +161119,7 @@
       {
         "correct": "that",
         "error": "ll",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -161775,8 +161251,7 @@
       {
         "correct": "for",
         "error": "save",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -162286,8 +161761,7 @@
       {
         "correct": "Den Haven",
         "error": "Den Graco",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -162671,8 +162145,7 @@
       {
         "correct": "cute",
         "error": "cutee",
-        "error_type": "vowel_extension_error",
-        "note": ""
+        "error_type": "vowel_extension_error"
       }
     ]
   },
@@ -163266,8 +162739,7 @@
       {
         "correct": "it",
         "error": "them",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -163378,8 +162850,7 @@
       {
         "correct": "which is ideal",
         "error": "accompanied",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -163574,8 +163045,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -163749,8 +163219,7 @@
       {
         "correct": "priced at",
         "error": "over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164008,8 +163477,7 @@
       {
         "correct": "for you",
         "error": "for u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164141,8 +163609,7 @@
       {
         "correct": "bulky",
         "error": "bulkbier",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164316,8 +163783,7 @@
       {
         "correct": "for",
         "error": "in",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164407,8 +163873,7 @@
       {
         "correct": "top",
         "error": "topics",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164561,14 +164026,12 @@
       {
         "correct": "supplies",
         "error": "suppiles",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "Storage",
         "error": "Storate",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -164595,8 +164058,7 @@
       {
         "correct": "disposable",
         "error": "diaposal",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164770,14 +164232,12 @@
       {
         "correct": "booster",
         "error": "parade",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "children",
         "error": "chilren",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -164867,8 +164327,7 @@
       {
         "correct": "because",
         "error": "b/c",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -165210,8 +164669,7 @@
       {
         "correct": "where",
         "error": "wear",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -165511,8 +164969,7 @@
       {
         "correct": "that offer",
         "error": "and/or offer",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -165728,8 +165185,7 @@
       {
         "correct": "months",
         "error": "6mons",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -166739,14 +166195,12 @@
       {
         "correct": "weigh",
         "error": "weigh of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that weigh",
         "error": "that weigh of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -166794,8 +166248,7 @@
       {
         "correct": "somehow",
         "error": "some",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -167704,8 +167157,7 @@
       {
         "correct": "easy",
         "error": "curve easy",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -168193,8 +167645,7 @@
       {
         "correct": "without",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -168368,8 +167819,7 @@
       {
         "correct": "I",
         "error": "Are",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -168585,8 +168035,7 @@
       {
         "correct": "through",
         "error": "threw",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -168844,8 +168293,7 @@
       {
         "correct": "stainless",
         "error": "suckless",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -169061,8 +168509,7 @@
       {
         "correct": "about",
         "error": "aba",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -169488,8 +168935,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -169705,8 +169151,7 @@
       {
         "correct": "would have",
         "error": "would of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -169796,8 +169241,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -169929,8 +169373,7 @@
       {
         "correct": "definitely",
         "error": "def",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -170272,8 +169715,7 @@
       {
         "correct": "or",
         "error": "again",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -170447,8 +169889,7 @@
       {
         "correct": "provide",
         "error": "gives",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -170706,14 +170147,12 @@
       {
         "correct": "protected",
         "error": "pratected",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "sturdy",
         "error": "sturda",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -170782,8 +170221,7 @@
       {
         "correct": "infant",
         "error": "new",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -170936,8 +170374,7 @@
       {
         "correct": "that's",
         "error": "where",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -170985,8 +170422,7 @@
       {
         "correct": "apply",
         "error": "breastapply",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -171915,8 +171351,7 @@
       {
         "correct": "under",
         "error": "weather",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -172552,8 +171987,7 @@
       {
         "correct": "probably",
         "error": "pry",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -172811,8 +172245,7 @@
       {
         "correct": "pieces",
         "error": "peoples",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -172944,8 +172377,7 @@
       {
         "correct": "that are",
         "error": "what are",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -173077,8 +172509,7 @@
       {
         "correct": "convenience",
         "error": "convince",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -173126,8 +172557,7 @@
       {
         "correct": "at",
         "error": "over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -173385,8 +172815,7 @@
       {
         "correct": "around",
         "error": "extended",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -173434,8 +172863,7 @@
       {
         "correct": "I would want",
         "error": "I will want",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -173461,8 +172889,7 @@
       {
         "correct": "anyone",
         "error": "any",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -173509,8 +172936,7 @@
       {
         "correct": "sometime",
         "error": "somechane",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -174439,8 +173865,7 @@
       {
         "correct": "Babylooms",
         "error": "Bbaylooms",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -175160,8 +174585,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -175188,8 +174612,7 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -175489,8 +174912,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -175790,8 +175212,7 @@
       {
         "correct": "feels",
         "error": "have",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -176301,8 +175722,7 @@
       {
         "correct": "that is",
         "error": "that what is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -176538,8 +175958,7 @@
       {
         "correct": "safe",
         "error": "ssee",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -176566,8 +175985,7 @@
       {
         "correct": "safely",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -176657,14 +176075,12 @@
       {
         "correct": "that are",
         "error": "it's are",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that stay",
         "error": "it's stay",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -176712,8 +176128,7 @@
       {
         "correct": "body",
         "error": "bprdy",
-        "error_type": "letter_substitution_error",
-        "note": ""
+        "error_type": "letter_substitution_error"
       }
     ]
   },
@@ -176824,8 +176239,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -178026,8 +177440,7 @@
       {
         "correct": "work well",
         "error": "work good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -178662,8 +178075,7 @@
       {
         "correct": "gentle",
         "error": "genntle",
-        "error_type": "letter_omission",
-        "note": ""
+        "error_type": "letter_omission"
       }
     ]
   },
@@ -178858,8 +178270,7 @@
       {
         "correct": "by",
         "error": "buy",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -179180,8 +178591,7 @@
       {
         "correct": "sensitive",
         "error": "getitive",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -179459,8 +178869,7 @@
       {
         "correct": "obstacle",
         "error": "obstical",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -180054,14 +179463,12 @@
       {
         "correct": "which are",
         "error": "deff are",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which are",
         "error": "deff are",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -180402,8 +179809,7 @@
       {
         "correct": "stools",
         "error": "bowels",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -180513,8 +179919,7 @@
       {
         "correct": "no",
         "error": "nowhere",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -180583,8 +179988,7 @@
       {
         "correct": "compact",
         "error": "embraced",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -180989,8 +180393,7 @@
       {
         "correct": "weigh",
         "error": "way",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -181479,8 +180882,7 @@
       {
         "correct": "seems",
         "error": "se",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -182682,8 +182084,7 @@
       {
         "correct": "especially",
         "error": "esp",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -183339,8 +182740,7 @@
       {
         "correct": "overpowering",
         "error": "powering",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -183493,8 +182893,7 @@
       {
         "correct": "that is",
         "error": "thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -183542,8 +182941,7 @@
       {
         "correct": "at a price of",
         "error": "bc I have",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -183612,8 +183010,7 @@
       {
         "correct": "however",
         "error": "how",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -184186,8 +183583,7 @@
       {
         "correct": "few birthday gift",
         "error": "little birthday gift",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -184277,8 +183673,7 @@
       {
         "correct": "past",
         "error": "passed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -184410,8 +183805,7 @@
       {
         "correct": "complications",
         "error": "complicate",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -184690,8 +184084,7 @@
       {
         "correct": "didn't",
         "error": "not",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -184718,8 +184111,7 @@
       {
         "correct": "is USB rechargeable",
         "error": "USB rechargeable surpasses expectations",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -184809,8 +184201,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -185277,8 +184668,7 @@
       {
         "correct": "came",
         "error": "did",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -185410,8 +184800,7 @@
       {
         "correct": "perfect",
         "error": "prefect",
-        "error_type": "spelling_variation",
-        "note": ""
+        "error_type": "spelling_variation"
       }
     ]
   },
@@ -185963,8 +185352,7 @@
       {
         "correct": "I",
         "error": "o",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -186390,8 +185778,7 @@
       {
         "correct": "delivery",
         "error": "deli",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -186901,8 +186288,7 @@
       {
         "correct": "feature",
         "error": "poured",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -187138,8 +186524,7 @@
       {
         "correct": "been",
         "error": "reviewed",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -187376,8 +186761,7 @@
       {
         "correct": "with",
         "error": "is",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -187949,8 +187333,7 @@
       {
         "correct": "Easy",
         "error": "lid",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -188250,14 +187633,12 @@
       {
         "correct": "Classroom",
         "error": "Classpoom",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "at",
         "error": "pot",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -188704,8 +188085,7 @@
       {
         "correct": "the",
         "error": "I",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -188816,14 +188196,12 @@
       {
         "correct": "are",
         "error": "also",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "are",
         "error": "also",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -189352,14 +188730,12 @@
       {
         "correct": "stickers",
         "error": "piece",
-        "error_type": "vocabulary_substitution",
-        "note": ""
+        "error_type": "vocabulary_substitution"
       },
       {
         "correct": "piece",
         "error": "piecing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -190665,8 +190041,7 @@
       {
         "correct": "are",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -191553,8 +190928,7 @@
       {
         "correct": "them",
         "error": "it",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -191686,8 +191060,7 @@
       {
         "correct": "worn",
         "error": "spent",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -191714,14 +191087,12 @@
       {
         "correct": "are",
         "error": "where",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "are",
         "error": "where",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -192040,8 +191411,7 @@
       {
         "correct": "their",
         "error": "they're",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -192446,8 +191816,7 @@
       {
         "correct": "perfect",
         "error": "prefect",
-        "error_type": "character_omission",
-        "note": ""
+        "error_type": "character_omission"
       }
     ]
   },
@@ -192852,8 +192221,7 @@
       {
         "correct": "that is",
         "error": "that of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -192985,8 +192353,7 @@
       {
         "correct": "pack",
         "error": "pallet",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },
@@ -193327,14 +192694,12 @@
       {
         "correct": "is",
         "error": "just",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "is",
         "error": "just",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -193676,14 +193041,12 @@
       {
         "correct": "comfort",
         "error": "comply",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "use",
         "error": "say",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -193857,8 +193220,7 @@
       {
         "correct": "transitioning",
         "error": "transiting",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -193968,8 +193330,7 @@
       {
         "correct": "fewer",
         "error": "less",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -194122,8 +193483,7 @@
       {
         "correct": "said",
         "error": "saying",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -194549,8 +193909,7 @@
       {
         "correct": "seems",
         "error": "stays",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -194598,14 +193957,12 @@
       {
         "correct": "made of",
         "error": "layered",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "weighing",
         "error": "sizing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -194695,8 +194052,7 @@
       {
         "correct": "big",
         "error": "bank",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -194931,8 +194287,7 @@
       {
         "correct": "powders",
         "error": "powder",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -194959,8 +194314,7 @@
       {
         "correct": "gentle",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -195218,8 +194572,7 @@
       {
         "correct": "for",
         "error": "fare",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -195477,8 +194830,7 @@
       {
         "correct": "quality",
         "error": "quailing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -195736,8 +195088,7 @@
       {
         "correct": "for babies priced at 7.99",
         "error": "for babies when priced at 7.99",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -196329,8 +195680,7 @@
       {
         "correct": "that includes",
         "error": "the includes",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -196588,14 +195938,12 @@
       {
         "correct": "because",
         "error": "my",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "Great",
         "error": "For",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -196727,14 +196075,12 @@
       {
         "correct": "sleek",
         "error": "very",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "secure",
         "error": "súmale",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -196824,8 +196170,7 @@
       {
         "correct": "bright",
         "error": "ruff",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },
@@ -197817,8 +197162,7 @@
       {
         "correct": "Parent",
         "error": "Paren/",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -197929,8 +197273,7 @@
       {
         "correct": "Babies",
         "error": "Babie",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -198671,8 +198014,7 @@
       {
         "correct": "at",
         "error": "too",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -198741,8 +198083,7 @@
       {
         "correct": "USB",
         "error": "u",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -199126,8 +198467,7 @@
       {
         "correct": "need",
         "error": "was",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -199635,8 +198975,7 @@
       {
         "correct": "I",
         "error": "o",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -199935,8 +199274,7 @@
       {
         "correct": "at 19.99",
         "error": "at over 19.99",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -200236,8 +199574,7 @@
       {
         "correct": "men",
         "error": "babies",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -200348,8 +199685,7 @@
       {
         "correct": "effortlessly",
         "error": "effortly",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -200418,8 +199754,7 @@
       {
         "correct": "store",
         "error": "storing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -200761,14 +200096,12 @@
       {
         "correct": ",",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": ",",
         "error": "do",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -200858,8 +200191,7 @@
       {
         "correct": "and",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -201369,14 +200701,12 @@
       {
         "correct": "too",
         "error": "way",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "too",
         "error": "way",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -201592,8 +200922,7 @@
       {
         "correct": "standard",
         "error": "standar",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -202395,8 +201724,7 @@
       {
         "correct": "that are",
         "error": "their",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -202780,8 +202108,7 @@
       {
         "correct": "Baby",
         "error": "ppl",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -202996,8 +202323,7 @@
       {
         "correct": "overall",
         "error": "all",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -203444,8 +202770,7 @@
       {
         "correct": "securely",
         "error": "secur",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -203682,8 +203007,7 @@
       {
         "correct": "definitely",
         "error": "defiantly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -204275,8 +203599,7 @@
       {
         "correct": "babies",
         "error": "babys",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -204324,8 +203647,7 @@
       {
         "correct": "weigh",
         "error": "tgsf",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -204352,8 +203674,7 @@
       {
         "correct": "themselves",
         "error": "themself",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -204820,8 +204141,7 @@
       {
         "correct": "for",
         "error": "on",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -204911,8 +204231,7 @@
       {
         "correct": "really light blue",
         "error": "very light blue",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -205002,8 +204321,7 @@
       {
         "correct": "because",
         "error": "Bc",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -205030,8 +204348,7 @@
       {
         "correct": "because",
         "error": "Bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -205268,8 +204585,7 @@
       {
         "correct": "I",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -205715,8 +205031,7 @@
       {
         "correct": "for",
         "error": "&",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -206184,8 +205499,7 @@
       {
         "correct": "under",
         "error": "union",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -206504,8 +205818,7 @@
       {
         "correct": "weigh",
         "error": "waigh",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -206721,8 +206034,7 @@
       {
         "correct": "about",
         "error": "abin",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -207946,8 +207258,7 @@
       {
         "correct": "for",
         "error": "ever",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -208121,8 +207432,7 @@
       {
         "correct": "separate",
         "error": "seprete",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -208422,8 +207732,7 @@
       {
         "correct": "well-priced",
         "error": "good-priced",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -208450,8 +207759,7 @@
       {
         "correct": "offers",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -208877,8 +208185,7 @@
       {
         "correct": "with",
         "error": "w",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -209367,8 +208674,7 @@
       {
         "correct": "you",
         "error": "u",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -209668,8 +208974,7 @@
       {
         "correct": "for",
         "error": "good",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -209885,8 +209190,7 @@
       {
         "correct": "lower",
         "error": "lesser",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -211256,8 +210560,7 @@
       {
         "correct": "under",
         "error": "around",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -211368,14 +210671,12 @@
       {
         "correct": "overall",
         "error": "over",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which",
         "error": "whi",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -212095,8 +211396,7 @@
       {
         "correct": "I",
         "error": "o",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -212207,8 +211507,7 @@
       {
         "correct": "well priced",
         "error": "good priced",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -212382,8 +211681,7 @@
       {
         "correct": "screen",
         "error": "soon",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -212662,8 +211960,7 @@
       {
         "correct": "because",
         "error": "bcs",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -213026,8 +212323,7 @@
       {
         "correct": "feature",
         "error": "feather",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -213200,8 +212496,7 @@
       {
         "correct": "woven",
         "error": "weaved",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -213563,8 +212858,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -214032,8 +213326,7 @@
       {
         "correct": "which are",
         "error": "n",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -214060,20 +213353,17 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "and",
         "error": "n",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -214142,8 +213432,7 @@
       {
         "correct": "couldn't",
         "error": "cldnt",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -214170,8 +213459,7 @@
       {
         "correct": "that",
         "error": "a",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -214513,8 +213801,7 @@
       {
         "correct": "that is suitable for children",
         "error": "it is suitable for children",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -214855,8 +214142,7 @@
       {
         "correct": "they're",
         "error": "it's",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -215240,8 +214526,7 @@
       {
         "correct": "priced",
         "error": "seem",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -215625,8 +214910,7 @@
       {
         "correct": "set",
         "error": "string",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -215800,8 +215084,7 @@
       {
         "correct": "newborn",
         "error": "juniors",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -215954,8 +215237,7 @@
       {
         "correct": "design",
         "error": "decorational",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -216528,8 +215810,7 @@
       {
         "correct": "well for",
         "error": "well thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -216661,8 +215942,7 @@
       {
         "correct": "\"White Crib Sheets\"",
         "error": "&#34;White Crib Sheets&#34;",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -217339,8 +216619,7 @@
       {
         "correct": "so",
         "error": "sonic",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -217976,8 +217255,7 @@
       {
         "correct": "my",
         "error": "might",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -218088,8 +217366,7 @@
       {
         "correct": "frozen",
         "error": "freezed",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -219922,8 +219199,7 @@
       {
         "correct": "left",
         "error": "leaved",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -220580,8 +219856,7 @@
       {
         "correct": "transitioning",
         "error": "transferring",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -220692,8 +219967,7 @@
       {
         "correct": "took",
         "error": "looked",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -221098,8 +220372,7 @@
       {
         "correct": "fit",
         "error": "are",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -221546,8 +220819,7 @@
       {
         "correct": "they're",
         "error": "they",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -221658,8 +220930,7 @@
       {
         "correct": "wouldn't",
         "error": "wouldt",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -221686,8 +220957,7 @@
       {
         "correct": "gentle",
         "error": "tender",
-        "error_type": "semantic_substitution_error",
-        "note": ""
+        "error_type": "semantic_substitution_error"
       }
     ]
   },
@@ -222134,8 +221404,7 @@
       {
         "correct": "shorter",
         "error": "thinner",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -222246,8 +221515,7 @@
       {
         "correct": "safe",
         "error": "absorptive",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -222505,8 +221773,7 @@
       {
         "correct": "Children",
         "error": "8monthers",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -223015,8 +222282,7 @@
       {
         "correct": "structured",
         "error": "strcturo",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -223106,8 +222372,7 @@
       {
         "correct": "because",
         "error": "becausing",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -224370,8 +223635,7 @@
       {
         "correct": "convenience",
         "error": "adapt",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -224565,8 +223829,7 @@
       {
         "correct": "past",
         "error": "passed",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -225262,8 +224525,7 @@
       {
         "correct": "whichever",
         "error": "which",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -225626,8 +224888,7 @@
       {
         "correct": "the",
         "error": "in",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -225822,8 +225083,7 @@
       {
         "correct": "little",
         "error": "lighting",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -226081,8 +225341,7 @@
       {
         "correct": "because",
         "error": "bcs",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -226802,8 +226061,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -227985,8 +227243,7 @@
       {
         "correct": "that are",
         "error": "that one are",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -228286,8 +227543,7 @@
       {
         "correct": "for",
         "error": "faze",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -228377,8 +227633,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -228552,8 +227807,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -228958,14 +228212,12 @@
       {
         "correct": "which is soft",
         "error": "which it is soft",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "which helps",
         "error": "which the helps",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -229790,8 +229042,7 @@
       {
         "correct": "use",
         "error": "insert",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -230511,8 +229762,7 @@
       {
         "correct": "definitely",
         "error": "definate",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -230854,8 +230104,7 @@
       {
         "correct": "newborn",
         "error": "preg",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -231511,8 +230760,7 @@
       {
         "correct": "with my potty training toddler",
         "error": "with that",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -231539,8 +230787,7 @@
       {
         "correct": "but",
         "error": "butter",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -231714,8 +230961,7 @@
       {
         "correct": "different",
         "error": "diff",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -232288,8 +231534,7 @@
       {
         "correct": "for",
         "error": "one",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -232484,8 +231729,7 @@
       {
         "correct": "wherever",
         "error": "where",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -232575,8 +231819,7 @@
       {
         "correct": "through",
         "error": "thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -232960,8 +232203,7 @@
       {
         "correct": "natural",
         "error": "Reno",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -233261,8 +232503,7 @@
       {
         "correct": "have",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -233289,8 +232530,7 @@
       {
         "correct": "Stair",
         "error": "Case",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -233317,8 +232557,7 @@
       {
         "correct": "under",
         "error": "overnight",
-        "error_type": "spelling_variation",
-        "note": ""
+        "error_type": "spelling_variation"
       }
     ]
   },
@@ -233659,8 +232898,7 @@
       {
         "correct": "is",
         "error": "our",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -233834,8 +233072,7 @@
       {
         "correct": "everywhere",
         "error": "every",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -234345,8 +233582,7 @@
       {
         "correct": "handful",
         "error": "full",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -234646,8 +233882,7 @@
       {
         "correct": "also",
         "error": "aswell",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -235073,8 +234308,7 @@
       {
         "correct": "I",
         "error": "I'd",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -235605,8 +234839,7 @@
       {
         "correct": "finish",
         "error": "fit",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -235948,8 +235181,7 @@
       {
         "correct": "at",
         "error": "as",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -236312,8 +235544,7 @@
       {
         "correct": "all",
         "error": "everyone",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -236487,8 +235718,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -236746,8 +235976,7 @@
       {
         "correct": "too",
         "error": "2",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -236795,8 +236024,7 @@
       {
         "correct": "milk",
         "error": "Michael",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -237474,8 +236702,7 @@
       {
         "correct": "lightweight",
         "error": "lighter",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -237817,8 +237044,7 @@
       {
         "correct": "transportable",
         "error": "transported",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -237992,8 +237218,7 @@
       {
         "correct": "definitely",
         "error": "deff",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -238041,8 +237266,7 @@
       {
         "correct": "through",
         "error": "threw",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -238342,8 +237566,7 @@
       {
         "correct": "my",
         "error": "our",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -238769,8 +237992,7 @@
       {
         "correct": "affordable",
         "error": "as soar",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -239028,8 +238250,7 @@
       {
         "correct": "well",
         "error": "good",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -239181,8 +238402,7 @@
       {
         "correct": "would",
         "error": "rather",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -239734,8 +238954,7 @@
       {
         "correct": "portable",
         "error": "threw",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -239867,8 +239086,7 @@
       {
         "correct": "bottom",
         "error": "down",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -240273,14 +239491,12 @@
       {
         "correct": "and",
         "error": "d",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "and",
         "error": "d",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -240559,8 +239775,7 @@
       {
         "correct": "though",
         "error": "tho",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -241763,8 +240978,7 @@
       {
         "correct": "was",
         "error": "will",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -242106,8 +241320,7 @@
       {
         "correct": "for",
         "error": "fumbly",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -242638,8 +241851,7 @@
       {
         "correct": "durable",
         "error": "without durable",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -242834,8 +242046,7 @@
       {
         "correct": "that are",
         "error": "they are",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -242862,8 +242073,7 @@
       {
         "correct": "and",
         "error": "a",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -242890,8 +242100,7 @@
       {
         "correct": "firm support",
         "error": "firm high support",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -243023,8 +242232,7 @@
       {
         "correct": "panel",
         "error": "pay",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -243387,8 +242595,7 @@
       {
         "correct": "for",
         "error": "that",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -244255,8 +243462,7 @@
       {
         "correct": "near California",
         "error": "from California",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -245543,8 +244749,7 @@
       {
         "correct": "though",
         "error": "tho",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -245990,8 +245195,7 @@
       {
         "correct": "Why",
         "error": "How",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -246060,8 +245264,7 @@
       {
         "correct": "with",
         "error": "this",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -246340,8 +245543,7 @@
       {
         "correct": "HALO",
         "error": "vebola",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -246677,8 +245879,7 @@
       {
         "correct": "I have gotten",
         "error": "I've got",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -246726,8 +245927,7 @@
       {
         "correct": "fun",
         "error": "like",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -246964,8 +246164,7 @@
       {
         "correct": "Infant",
         "error": "Infa",
-        "error_type": "word_endings_dropped",
-        "note": ""
+        "error_type": "word_endings_dropped"
       }
     ]
   },
@@ -247034,20 +246233,17 @@
       {
         "correct": "stair",
         "error": "steir",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "States",
         "error": "Stetes",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "that",
         "error": "thet",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -248269,8 +247465,7 @@
       {
         "correct": "at",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -248863,14 +248058,12 @@
       {
         "correct": "from",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "for",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -248960,14 +248153,12 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "people",
         "error": "ppl",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -249309,8 +248500,7 @@
       {
         "correct": "though",
         "error": "tho",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -249778,8 +248968,7 @@
       {
         "correct": "priced",
         "error": "dated",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -250709,8 +249898,7 @@
       {
         "correct": "thin",
         "error": "skinnier",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -250800,8 +249988,7 @@
       {
         "correct": "cheap",
         "error": "chinky",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -250975,8 +250162,7 @@
       {
         "correct": "plays",
         "error": "flows",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -251024,8 +250210,7 @@
       {
         "correct": "are",
         "error": "that's",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -251786,8 +250971,7 @@
       {
         "correct": "little",
         "error": "lil",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -252486,8 +251670,7 @@
       {
         "correct": "which are White which are for baby",
         "error": "which a White which a for baby",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -252640,8 +251823,7 @@
       {
         "correct": "overhead",
         "error": "head",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -252983,8 +252165,7 @@
       {
         "correct": "from",
         "error": "thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -253578,8 +252759,7 @@
       {
         "correct": "refills",
         "error": "changings",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -254213,8 +253393,7 @@
       {
         "correct": "because",
         "error": "bcuz",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -254409,8 +253588,7 @@
       {
         "correct": "anywhere",
         "error": "where",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -254437,8 +253615,7 @@
       {
         "correct": "everyday",
         "error": "day",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -254738,8 +253915,7 @@
       {
         "correct": "because",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -254766,8 +253942,7 @@
       {
         "correct": "storage and at",
         "error": "storage a at",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -254941,8 +254116,7 @@
       {
         "correct": "had",
         "error": "bought",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -255074,8 +254248,7 @@
       {
         "correct": "a",
         "error": "one",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -255584,8 +254757,7 @@
       {
         "correct": "which",
         "error": "that",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -256284,8 +255456,7 @@
       {
         "correct": "over",
         "error": "through",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -256501,8 +255672,7 @@
       {
         "correct": "it's",
         "error": "there's",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -256676,8 +255846,7 @@
       {
         "correct": "plastic",
         "error": "plasti",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -256828,8 +255997,7 @@
       {
         "correct": "which",
         "error": "that",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -256940,8 +256108,7 @@
       {
         "correct": "overall",
         "error": "over",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -257535,14 +256702,12 @@
       {
         "correct": "why",
         "error": "y",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "why",
         "error": "y",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -258408,8 +257573,7 @@
       {
         "correct": "interestingly",
         "error": "incidentally",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -258751,8 +257915,7 @@
       {
         "correct": "feeding",
         "error": "pur&eacute;eding",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -259283,8 +258446,7 @@
       {
         "correct": "baby",
         "error": "before",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -259395,8 +258557,7 @@
       {
         "correct": "where",
         "error": "wear",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -260051,8 +259212,7 @@
       {
         "correct": "alongside",
         "error": "side",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -260646,8 +259806,7 @@
       {
         "correct": "comfortable",
         "error": "gymnast",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -261094,8 +260253,7 @@
       {
         "correct": "with",
         "error": "w",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -261583,8 +260741,7 @@
       {
         "correct": "keep",
         "error": "would",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -261632,8 +260789,7 @@
       {
         "correct": "underneath",
         "error": "under",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -262479,14 +261635,12 @@
       {
         "correct": "whatever",
         "error": "what",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "without",
         "error": "out",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -263393,8 +262547,7 @@
       {
         "correct": "specifically",
         "error": "specially",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -263673,8 +262826,7 @@
       {
         "correct": "crib",
         "error": "bed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -264436,8 +263588,7 @@
       {
         "correct": "that make wonderful presents",
         "error": "them make wonderful presents",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -264631,8 +263782,7 @@
       {
         "correct": "orange",
         "error": "ovary",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -265287,8 +264437,7 @@
       {
         "correct": "only",
         "error": "oplay",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -265630,8 +264779,7 @@
       {
         "correct": "for",
         "error": "vetch",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -265889,8 +265037,7 @@
       {
         "correct": "and",
         "error": "the",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -266568,14 +265715,12 @@
       {
         "correct": "I need",
         "error": "o need",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "monitor",
         "error": "monotor",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -267421,8 +266566,7 @@
       {
         "correct": "anyone",
         "error": "one",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -268016,8 +267160,7 @@
       {
         "correct": "that",
         "error": "bc",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -268443,14 +267586,12 @@
       {
         "correct": "for",
         "error": "of",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "standard",
         "error": "sandard",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -269128,8 +268269,7 @@
       {
         "correct": "whether",
         "error": "norther",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -269303,8 +268443,7 @@
       {
         "correct": "made",
         "error": "mixed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -269583,8 +268722,7 @@
       {
         "correct": "few",
         "error": "only",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -269611,8 +268749,7 @@
       {
         "correct": "and",
         "error": "but",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -269870,8 +269007,7 @@
       {
         "correct": "torn",
         "error": "picked",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -271156,8 +270292,7 @@
       {
         "correct": "Absolutely",
         "error": "Absoulty",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -271184,8 +270319,7 @@
       {
         "correct": "meant",
         "error": "stated",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -271296,8 +270430,7 @@
       {
         "correct": "little",
         "error": "lil",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -271324,8 +270457,7 @@
       {
         "correct": "problem",
         "error": "prob",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -271352,8 +270484,7 @@
       {
         "correct": "good",
         "error": "well",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -271506,8 +270637,7 @@
       {
         "correct": "Indoor",
         "error": "Indore",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272016,8 +271146,7 @@
       {
         "correct": "pounds",
         "error": "mill",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272316,8 +271445,7 @@
       {
         "correct": "fits",
         "error": "harnessed",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272365,8 +271493,7 @@
       {
         "correct": "baby's",
         "error": "she's",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272414,8 +271541,7 @@
       {
         "correct": "big",
         "error": "bigger",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272881,14 +272007,12 @@
       {
         "correct": "and",
         "error": "you",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       },
       {
         "correct": "downside",
         "error": "down side",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -272915,8 +272039,7 @@
       {
         "correct": "container",
         "error": "card",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -273237,8 +272360,7 @@
       {
         "correct": "sleeping",
         "error": "linty",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -273622,8 +272744,7 @@
       {
         "correct": "convenient",
         "error": "am",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -273776,8 +272897,7 @@
       {
         "correct": "and",
         "error": "n",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -274224,8 +273344,7 @@
       {
         "correct": "that",
         "error": "what",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -275384,8 +274503,7 @@
       {
         "correct": "without",
         "error": "w/p",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -276903,8 +276021,7 @@
       {
         "correct": "comfortable",
         "error": "comfort",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -277540,8 +276657,7 @@
       {
         "correct": "compact",
         "error": "floating",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -277883,8 +276999,7 @@
       {
         "correct": "recommend",
         "error": "reamend",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -278163,8 +277278,7 @@
       {
         "correct": "through",
         "error": "thru",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -279344,8 +278458,7 @@
       {
         "correct": "that",
         "error": "where",
-        "error_type": "clause_boundary_error",
-        "note": ""
+        "error_type": "clause_boundary_error"
       }
     ]
   },
@@ -279876,14 +278989,12 @@
       {
         "correct": "priced",
         "error": "prcied",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       },
       {
         "correct": "Sport",
         "error": "Sprot",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -280686,8 +279797,7 @@
       {
         "correct": "which",
         "error": "Anne",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -280755,8 +279865,7 @@
       {
         "correct": "will weigh",
         "error": "be weigh",
-        "error_type": "modal_distortion",
-        "note": ""
+        "error_type": "modal_distortion"
       }
     ]
   },
@@ -281539,8 +280648,7 @@
       {
         "correct": "don't",
         "error": "do",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -281797,8 +280905,7 @@
       {
         "correct": "fantastically",
         "error": "fantastic",
-        "error_type": "modifier_typo",
-        "note": ""
+        "error_type": "modifier_typo"
       }
     ]
   },
@@ -281993,8 +281100,7 @@
       {
         "correct": "work",
         "error": "wurk",
-        "error_type": "phonetic_substitution",
-        "note": ""
+        "error_type": "phonetic_substitution"
       }
     ]
   },

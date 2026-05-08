@@ -110,8 +110,7 @@ Example record:
     {
       "correct": "infant",
       "error": "infa",
-      "error_type": "typo",
-      "note": ""
+      "error_type": "typo"
     }
   ]
 }
