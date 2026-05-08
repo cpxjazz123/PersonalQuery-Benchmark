@@ -48,7 +48,7 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a flattened query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7.
+The current released dataset is a user-product query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7.
 
 ### Included Categories
 
@@ -64,7 +64,7 @@ The dataset is stored under `dataset/` as three category-specific JSON files:
 - `dataset/Grocery_and_Gourmet_Food_query.json`
 - `dataset/Pet_Supplies_query.json`
 
-Each file is a JSON array. Each record corresponds to one personalized query instance for a specific user-product pair and query style.
+Each file is a JSON array. Each record corresponds to one user-product pair and contains both query styles for that pair.
 
 ### What Each Record Contains
 
@@ -73,71 +73,61 @@ Each dataset record includes:
 - `category`: product domain
 - `uuid`: user identifier
 - `asin`: target product identifier
-- `query_category`: query style label
+- `attrs_used`: shared product attributes used during query construction
+- `queries`: the paired query records for this user-product pair
+
+Each item in `queries` includes:
+
+- `query_category`: query style label, either `wide` or `deep`
 - `complexity_level`: complexity level of the generated query
 - `correct_query`: the clean personalized query
 - `correct_word_count`: number of words in the clean query
 - `idf`: average inverse document frequency score of the query tokens
-- `attrs_used`: product attributes used during query construction
 - `has_error_query`: whether a user-specific noisy query is available
 - `error_query`: the noisy query when available
 - `injected_errors`: structured description of injected user-specific errors
 
-Example records for the same `uuid` and `asin`:
+Example record:
 
 ```json
-[
-  {
-    "category": "Baby_Products",
-    "uuid": "AFGEQT5M464DC6XMWVO5Q6ZXZ6AA",
-    "asin": "B07Q4QS1R8",
-    "query_category": "wide",
-    "complexity_level": 0,
-    "correct_query": "I want to buy Intime brand portable bath tubs for babies at the price of 25.99 dollars",
-    "correct_word_count": 17,
-    "idf": 3.685258237919617,
-    "attrs_used": {
-      "A1": "Bath Tubs",
-      "A2": "Intime",
-      "A3": "25.99",
-      "A4": "Portable",
-      "A5": "Babies"
-    },
-    "has_error_query": true,
-    "error_query": "I want to buy Intime brand portable bath tubs for babies at the price of 25.99 dollars wholesomely great",
-    "injected_errors": [
-      {
-        "correct": "great",
-        "error": "wholesomely great",
-        "error_type": "modifier_typo"
-      }
-    ]
+{
+  "category": "Baby_Products",
+  "uuid": "AG7SUO3C7PCG6HLJWNA2HUFFIIWA",
+  "asin": "B07K1J433J",
+  "attrs_used": {
+    "A1": "Monitors",
+    "A2": "AOLIKES",
+    "A3": "8.72",
+    "A5": "Infant",
+    "A15": "0.634 ounces"
   },
-  {
-    "category": "Baby_Products",
-    "uuid": "AFGEQT5M464DC6XMWVO5Q6ZXZ6AA",
-    "asin": "B07Q4QS1R8",
-    "query_category": "deep",
-    "complexity_level": 0,
-    "correct_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infant care",
-    "correct_word_count": 16,
-    "idf": 3.873109713729398,
-    "attrs_used": {
-      "A1": "Bath Tubs",
-      "A2": "Intime",
-      "A3": "25.99",
-      "A4": "Portable",
-      "A5": "Babies"
+  "queries": [
+    {
+      "query_category": "wide",
+      "complexity_level": 1,
+      "correct_query": "I need AOLIKES monitors for infant care priced at 8.72 dollars which weigh 0.634 ounces",
+      "correct_word_count": 15,
+      "idf": 5.132433929453185,
+      "has_error_query": false,
+      "error_query": null,
+      "injected_errors": []
     },
-    "has_error_query": true,
-    "error_query": "I need a Portable Intime Bath Tubs for Babies priced at 25.99 for everyday infa care",
-    "injected_errors": [
+    {
+      "query_category": "deep",
+      "complexity_level": 1,
+      "correct_query": "I need AOLIKES monitors for infant use priced at 8.72 that weigh only 0.634 ounces",
+      "correct_word_count": 15,
+      "idf": 4.600452007683166,
+      "has_error_query": true,
+      "error_query": "I need AOLILES monitors for infant use priced at 8.72 that weigh only 0.634 ounces",
+      "injected_errors": [
       {
-        "correct": "infant",
-        "error": "infa",
+        "correct": "AOLIKES",
+        "error": "AOLILES",
         "error_type": "typo"
       }
-    ]
-  }
-]
+      ]
+    }
+  ]
+}
 ```
