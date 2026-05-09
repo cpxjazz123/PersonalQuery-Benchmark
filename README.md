@@ -92,40 +92,46 @@ Example record:
 ```json
 {
   "category": "Baby_Products",
-  "uuid": "AG7SUO3C7PCG6HLJWNA2HUFFIIWA",
-  "asin": "B07K1J433J",
+  "uuid": "AGHMQ5VB6VPTFS7J5SH4O4MIWOFA",
+  "asin": "B07R4BY7RY",
   "attrs_used": {
-    "A1": "Monitors",
-    "A2": "AOLIKES",
-    "A3": "8.72",
-    "A5": "Infant",
-    "A15": "0.634 ounces"
+    "A1": "Birth Announcements",
+    "A2": "Back & Bump Comfort",
+    "A3": "12.97",
+    "A5": "Baby",
+    "A15": "3.2 ounces"
   },
   "queries": [
     {
       "query_category": "wide",
       "complexity_level": 1,
-      "correct_query": "I need AOLIKES monitors for infant care priced at 8.72 dollars which weigh 0.634 ounces",
-      "correct_word_count": 15,
-      "idf": 5.132433929453185,
-      "has_error_query": false,
-      "error_query": null,
-      "injected_errors": []
+      "correct_query": "I need Birth Announcements by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
+      "correct_word_count": 18,
+      "idf": 4.907239898603139,
+      "has_error_query": true,
+      "error_query": "Birth Announcements that ppl love by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
+      "injected_errors": [
+        {
+          "correct": "people",
+          "error": "ppl",
+          "error_type": "modifier_typo"
+        }
+      ]
     },
     {
       "query_category": "deep",
       "complexity_level": 1,
-      "correct_query": "I need AOLIKES monitors for infant use priced at 8.72 that weigh only 0.634 ounces",
-      "correct_word_count": 15,
-      "idf": 4.600452007683166,
+      "correct_query": "I need birth announcements from Back & Bump Comfort that are lightweight at 3.2 ounces for my baby under $12.97",
+      "correct_word_count": 20,
+      "idf": 3.8897115929329673,
       "has_error_query": true,
-      "error_query": "I need AOLILES monitors for infant use priced at 8.72 that weigh only 0.634 ounces",
+      "error_query": "I need birth announcements from Back & Bump Comfort w/ lightweight design at 3.2 ounces for my baby under $12.97",
       "injected_errors": [
-      {
-        "correct": "AOLIKES",
-        "error": "AOLILES",
-        "error_type": "typo"
-      }
+        {
+          "correct": "with",
+          "error": "w/",
+          "error_type": "clause_boundary_error"
+        }
       ]
     }
   ]
