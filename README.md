@@ -48,7 +48,7 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a user-product query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7.
+The current released dataset is a user-product query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7. Stage 6 provides the base clean queries, and Stage 7 can revise a clean query when an anchor must be inserted before personalized noisy injection.
 
 ### Included Categories
 
@@ -80,8 +80,8 @@ Each item in `queries` includes:
 
 - `query_category`: query style label, either `wide` or `deep`
 - `complexity_level`: complexity level of the generated query
-- `correct_query`: the clean personalized query
-- `correct_word_count`: number of words in the clean query
+- `correct_query`: the final clean personalized query used downstream; this may be the original Stage 6 query or a Stage 7 revised query
+- `correct_word_count`: number of words in the final clean query
 - `idf`: average inverse document frequency score of the query tokens
 - `has_error_query`: whether a user-specific noisy query is available
 - `error_query`: the noisy query when available
