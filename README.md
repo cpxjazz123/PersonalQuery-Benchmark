@@ -105,9 +105,9 @@ Example record:
     {
       "query_category": "wide",
       "complexity_level": 1,
-      "correct_query": "I need Birth Announcements by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
-      "correct_word_count": 18,
-      "idf": 4.907239898603139,
+      "correct_query": "Birth Announcements that people love by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
+      "correct_word_count": 19,
+      "idf": 4.743433442387942,
       "has_error_query": true,
       "error_query": "Birth Announcements that ppl love by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
       "injected_errors": [
@@ -121,9 +121,9 @@ Example record:
     {
       "query_category": "deep",
       "complexity_level": 1,
-      "correct_query": "I need birth announcements from Back & Bump Comfort that are lightweight at 3.2 ounces for my baby under $12.97",
+      "correct_query": "I need birth announcements from Back & Bump Comfort with lightweight design at 3.2 ounces for my baby under $12.97",
       "correct_word_count": 20,
-      "idf": 3.8897115929329673,
+      "idf": 3.8841771468533652,
       "has_error_query": true,
       "error_query": "I need birth announcements from Back & Bump Comfort w/ lightweight design at 3.2 ounces for my baby under $12.97",
       "injected_errors": [
