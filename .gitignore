@@ -1,0 +1,146 @@
+# 排除超过100MB的大文件
+data/Amazon-Reviews-2018/intermediate/df_review.pkl
+data/Amazon-Reviews-2018/intermediate/df_ucsd_meta.pkl
+data/Amazon-Reviews-2018/processed/user_reviews/user_product_reviews.json
+data/Amazon-Reviews-2018/processed/cache/Arts_Crafts_and_Sewing__brand-category-color/node_info.pkl
+data/Amazon-Reviews-2018/processed/node_info.pkl
+data/Amazon-Reviews-2018/raw/*.json
+data/Amazon-Reviews-2018/raw/*.json.gz
+
+# 排除其他常见的大文件和临时文件
+*.pkl
+*.pkl.gz
+*.pt
+*.h5
+*.hdf5
+__pycache__/
+*.pyc
+*.pyo
+*.ipynb_checkpoints/
+.DS_Store
+*.log
+*.err
+*.out
+
+# 排除 stark 目录下的大文件和目录
+stark/processed.zip
+stark/data/
+stark/emb/
+stark/Colbertv2eval/
+stark/ANCEeval/
+stark/BM25eval/
+stark/DRPeval/
+stark/LLMbasedeval/
+stark/LLMRankereval/
+stark/.cache/
+stark/.conda/
+stark/__pycache__/
+
+# 排除缓存和临时文件
+.cache/
+tmp/
+logs/
+*.log
+*.err
+*.out
+
+# 排除虚拟环境
+ruff-venv/
+venv/
+env/
+.venv/
+
+# 排除嵌入的 git 仓库（应作为子模块添加）
+GR_Analysis/
+ontology-nlp/
+ruff-mcp-server/
+
+# 排除数据文件和结果文件
+detection_results_ngram.json
+spelling_analysis_combined_batch_ulhdemmplr.json
+spelling_errors_detected_idf_jaccard.json
+
+# 排除测试和临时脚本（根据需要调整）
+# test.py
+# spell_checker_idf_jaccard.py
+stark/cache/
+
+stark/
+
+stark/
+data/
+
+# 排除模型checkpoint中的大文件
+.claude/skills/PersoanlQuery/14_fine_tuning/checkpoint_e5/model.safetensors
+.claude/skills/PersoanlQuery/14_fine_tuning/checkpoint_e5_v2_contrastive/model.safetensors
+**/*.safetensors
+
+# 排除独立的 git 仓库
+Amazon-C4/
+oh-my-openagent/
+Agent_Foundation_Models/
+Assignment/
+LatentMem/
+
+# 排除二进制文件
+opencode
+
+# 排除备份文件
+*.bak
+.gitignore_bak
+
+# 排除 IDE 配置
+.vscode/
+
+# 排除符号链接
+.agents
+
+# 排除 LaTeX 辅助文件
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# 排除整个 result 目录
+result/
+
+# 排除用户评论数据文件
+result/personal_query/00_data_preparation/reviews_*.json
+result/personal_query/00_data_preparation/all_user_reviews.json
+result/personal_query/00_data_preparation/all_qualified_users.json
+result/personal_query/06_query/dual_queries_*.json
+
+# 排除大文件（超过 GitHub 100MB 限制）
+result/personal_query/00_data_preparation/all_users_reviews.json
+result/personal_query/00_data_preparation/*/all_users_reviews.json
+result/personal_query/00_data_preparation/selected_users.json
+result/personal_query/00_data_preparation/*/selected_users.json
+result/personal_query/01_preference_extraction/stage1_filtered_users_reviews.json
+result/personal_query/01_preference_extraction/*/stage1_filtered_users_reviews.json
+result/personal_query/05_syntactic_analysis/attr_density_sentences.jsonl
+result/personal_query/05_syntactic_analysis/*/attr_density_sentences.jsonl
+result/personal_query/05_syntactic_analysis/*/*_sentences.jsonl
+result/personal_query/06_query/visualization/radar_chart.png
+envs/
+data/Amazon-Reviews-2023/
+LingConv/
+.omx/
+.codex/
+
+# 不推送本地工具/工作目录
+.claude/
+.cursor/
+.config/opencode/
+ComfyUI/
+awesome-ai-research-writing/
+bin/
+
+# 不推送本地文档与数据目录
+AGENTS.md
+CLAUDE.md
+paper/
+data/
