@@ -92,44 +92,44 @@ Example record:
 ```json
 {
   "category": "Baby_Products",
-  "uuid": "AGHMQ5VB6VPTFS7J5SH4O4MIWOFA",
-  "asin": "B07R4BY7RY",
+  "uuid": "AGGJ6M3DMU6EAI77MFWR7COWZ33A",
+  "asin": "B07NM52TLR",
   "attrs_used": {
-    "A1": "Birth Announcements",
-    "A2": "Back & Bump Comfort",
-    "A3": "12.97",
-    "A5": "Baby",
-    "A15": "3.2 ounces"
+    "A1": "Convertible",
+    "A2": "Clek",
+    "A3": "449.99",
+    "A7": "Alloy Steel",
+    "A8": "Safe"
   },
   "queries": [
     {
       "query_category": "wide",
-      "complexity_level": 1,
-      "correct_query": "Birth Announcements that people love by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
+      "complexity_level": 2,
+      "correct_query": "I need a Clek convertible car seat which is made of alloy steel while being safe, priced at $449.99.",
       "correct_word_count": 19,
-      "idf": 4.743433442387942,
+      "idf": 3.948987552142784,
       "has_error_query": true,
-      "error_query": "Birth Announcements that ppl love by Back & Bump Comfort priced at 12.97 for Baby which weigh 3.2 ounces",
+      "error_query": "I need a Clek convertible car seat which is made of alloy steel when being safe, priced at $449.99.",
       "injected_errors": [
         {
-          "correct": "people",
-          "error": "ppl",
+          "correct": "while",
+          "error": "when",
           "error_type": "modifier_typo"
         }
       ]
     },
     {
       "query_category": "deep",
-      "complexity_level": 1,
-      "correct_query": "I need birth announcements from Back & Bump Comfort with lightweight design at 3.2 ounces for my baby under $12.97",
-      "correct_word_count": 20,
-      "idf": 3.8841771468533652,
+      "complexity_level": 2,
+      "correct_query": "I need a convertible Clek car seat that is safe and made of alloy steel that costs $449.99, and also want those.",
+      "correct_word_count": 22,
+      "idf": 3.5073339169354765,
       "has_error_query": true,
-      "error_query": "I need birth announcements from Back & Bump Comfort w/ lightweight design at 3.2 ounces for my baby under $12.97",
+      "error_query": "I need a convertible Clek car seat that is safe and made of alloy steel that costs $449.99, and also want them.",
       "injected_errors": [
         {
-          "correct": "with",
-          "error": "w/",
+          "correct": "those",
+          "error": "them",
           "error_type": "clause_boundary_error"
         }
       ]
