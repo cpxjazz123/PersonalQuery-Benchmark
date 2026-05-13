@@ -91,29 +91,29 @@ Example record:
 
 ```json
 {
-  "category": "Baby_Products",
-  "uuid": "AGGJ6M3DMU6EAI77MFWR7COWZ33A",
-  "asin": "B07NM52TLR",
+  "category": "Grocery_and_Gourmet_Food",
+  "uuid": "AGU552MYZNZ7ENJ432YPOT7MISTA",
+  "asin": "B09WMP8TJ7",
   "attrs_used": {
-    "A1": "Convertible",
-    "A2": "Clek",
-    "A3": "449.99",
-    "A7": "Alloy Steel",
-    "A8": "Safe"
+    "A1": "Baking Syrups",
+    "A2": "ONETANG",
+    "A3": "7.99",
+    "A5": "Baking",
+    "A16": "Kosher Certified"
   },
   "queries": [
     {
       "query_category": "wide",
       "complexity_level": 2,
-      "correct_query": "I need a Clek convertible car seat which is made of alloy steel while being safe, priced at $449.99.",
-      "correct_word_count": 19,
-      "idf": 3.948987552142784,
+      "correct_query": "I need Baking Syrups from ONETANG priced at 7.99 for Baking which is Kosher Certified which is vanilla flavored, nothing overkill",
+      "correct_word_count": 21,
+      "idf": 4.447411123507031,
       "has_error_query": true,
-      "error_query": "I need a Clek convertible car seat which is made of alloy steel when being safe, priced at $449.99.",
+      "error_query": "I need Baking Syrups from ONETANG priced at 7.99 for Baking which is Kosher Certified which is vanilla flavored, nothing over",
       "injected_errors": [
         {
-          "correct": "while",
-          "error": "when",
+          "correct": "overkill",
+          "error": "over",
           "error_type": "modifier_typo"
         }
       ]
@@ -121,15 +121,15 @@ Example record:
     {
       "query_category": "deep",
       "complexity_level": 2,
-      "correct_query": "I need a convertible Clek car seat that is safe and made of alloy steel that costs $449.99, and also want those.",
-      "correct_word_count": 22,
-      "idf": 3.5073339169354765,
+      "correct_query": "I need Baking Syrups by ONETANG priced at 7.99 for Baking that has a rich caramel flavor with hints of licorice that works well as a vanilla extract substitute",
+      "correct_word_count": 29,
+      "idf": 4.176467214404339,
       "has_error_query": true,
-      "error_query": "I need a convertible Clek car seat that is safe and made of alloy steel that costs $449.99, and also want them.",
+      "error_query": "I need Baking Syrups by ONETANG priced at 7.99 for Baking that has a rich caramel flavor with hints of liquorish that works well as a vanilla extract substitute",
       "injected_errors": [
         {
-          "correct": "those",
-          "error": "them",
+          "correct": "licorice",
+          "error": "liquorish",
           "error_type": "clause_boundary_error"
         }
       ]
