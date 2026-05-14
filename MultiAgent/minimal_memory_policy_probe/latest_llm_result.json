@@ -1,0 +1,241 @@
+{
+  "cache_summary": {
+    "context_only": {
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 300,
+      "input_tokens": 309,
+      "output_tokens": 2375
+    },
+    "distilled": {
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1930,
+      "input_tokens": 309,
+      "output_tokens": 841
+    }
+  },
+  "claim": "A real LLM using distilled teacher memory-policy trajectories should learn when to read/write/compress/forget and when to use tools, outperforming a prompt that treats memory only as static context.",
+  "config": {
+    "eval_count": 2,
+    "example_count": 2,
+    "max_retries": 5,
+    "max_tokens": 2048,
+    "meta_file": "/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2023/meta_Baby_Products.jsonl.gz",
+    "min_distilled_top1": 0.0,
+    "min_gain": -1.0,
+    "min_policy_accuracy": 0.0,
+    "model": null,
+    "output_json": "/fs04/ar57/wenyu/MultiAgent/minimal_memory_policy_probe/latest_llm_result.json",
+    "provider": "minimax",
+    "review_file": "/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2023/Baby_Products.jsonl.gz",
+    "seed": 11,
+    "sessions_per_user": 4,
+    "teacher_examples": 4,
+    "temperature": 0.0,
+    "train_ratio": 0.7,
+    "users": 8
+  },
+  "context_only_by_group": {
+    "stable": 1.0
+  },
+  "distilled_by_group": {
+    "stable": 1.0
+  },
+  "examples": [
+    {
+      "context_only_cache_info": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 150,
+        "input_tokens": 174,
+        "output_tokens": 1551
+      },
+      "context_only_llm_json": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B0166GGHVM",
+        "tool_vs_memory": "memory"
+      },
+      "context_only_raw": "{\"tool_vs_memory\":\"memory\",\"memory_write\":\"skip_write\",\"memory_compress\":\"skip_compress\",\"memory_forget\":\"keep\",\"recommend\":\"B0166GGHVM\"}",
+      "distilled_cache_info": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 965,
+        "input_tokens": 174,
+        "output_tokens": 471
+      },
+      "distilled_llm_json": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B0166GGHVM",
+        "tool_vs_memory": "memory"
+      },
+      "distilled_raw": "{\"tool_vs_memory\":\"memory\",\"memory_write\":\"skip_write\",\"memory_compress\":\"skip_compress\",\"memory_forget\":\"keep\",\"recommend\":\"B0166GGHVM\"}",
+      "session": {
+        "candidate_items": [
+          "B0166GGHVM",
+          "B00JS7XYWW",
+          "B00O6UCXUK",
+          "B014CC6EZ6",
+          "B00GUN3Z1W",
+          "B01GPEGRUG",
+          "B002X9A3QM",
+          "B0725XSWMF",
+          "B07M6FL9SK",
+          "B083K5FH6B"
+        ],
+        "current_topic_signal": "Baby Products",
+        "external_memory": {
+          "dominant_topic": "Baby Products",
+          "strength": 4
+        },
+        "history_topic_counts": {
+          "Baby Products": 4
+        },
+        "user_id": 5
+      },
+      "target_item": "B0166GGHVM",
+      "teacher": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B0166GGHVM",
+        "tool_vs_memory": "memory",
+        "trajectory": {
+          "memory_compress": {
+            "decision": "skip_compress"
+          },
+          "memory_forget": {
+            "decision": "keep",
+            "topic": ""
+          },
+          "memory_plan": {
+            "read_key": "user:5:dominant_topic",
+            "reason": "stable_memory_match",
+            "tool_vs_memory": "memory"
+          },
+          "memory_read": {
+            "strength": 4,
+            "topic": "Baby Products"
+          },
+          "memory_write": {
+            "decision": "skip_write",
+            "topic": ""
+          },
+          "recommend": "B0166GGHVM",
+          "tool_call": {
+            "name": "none",
+            "query_topic": ""
+          }
+        }
+      }
+    },
+    {
+      "context_only_cache_info": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 150,
+        "input_tokens": 135,
+        "output_tokens": 824
+      },
+      "context_only_llm_json": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B07FSDSH7S",
+        "tool_vs_memory": "memory"
+      },
+      "context_only_raw": "{\"tool_vs_memory\":\"memory\",\"memory_write\":\"skip_write\",\"memory_compress\":\"skip_compress\",\"memory_forget\":\"keep\",\"recommend\":\"B07FSDSH7S\"}",
+      "distilled_cache_info": {
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 965,
+        "input_tokens": 135,
+        "output_tokens": 370
+      },
+      "distilled_llm_json": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B07FSDSH7S",
+        "tool_vs_memory": "memory"
+      },
+      "distilled_raw": "{\"tool_vs_memory\":\"memory\",\"memory_write\":\"skip_write\",\"memory_compress\":\"skip_compress\",\"memory_forget\":\"keep\",\"recommend\":\"B07FSDSH7S\"}",
+      "session": {
+        "candidate_items": [
+          "B07FSDSH7S",
+          "B07CKNNTL1",
+          "B071VSTLZ5",
+          "B001FA0CQ6",
+          "B00CXRUJYU",
+          "B08C2GL1G5"
+        ],
+        "current_topic_signal": "Baby Products",
+        "external_memory": {
+          "dominant_topic": "Baby Products",
+          "strength": 4
+        },
+        "history_topic_counts": {
+          "Baby Products": 4
+        },
+        "user_id": 6
+      },
+      "target_item": "B07FSDSH7S",
+      "teacher": {
+        "memory_compress": "skip_compress",
+        "memory_forget": "keep",
+        "memory_write": "skip_write",
+        "recommend": "B07FSDSH7S",
+        "tool_vs_memory": "memory",
+        "trajectory": {
+          "memory_compress": {
+            "decision": "skip_compress"
+          },
+          "memory_forget": {
+            "decision": "keep",
+            "topic": ""
+          },
+          "memory_plan": {
+            "read_key": "user:6:dominant_topic",
+            "reason": "stable_memory_match",
+            "tool_vs_memory": "memory"
+          },
+          "memory_read": {
+            "strength": 4,
+            "topic": "Baby Products"
+          },
+          "memory_write": {
+            "decision": "skip_write",
+            "topic": ""
+          },
+          "recommend": "B07FSDSH7S",
+          "tool_call": {
+            "name": "none",
+            "query_topic": ""
+          }
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "context_only_compress_accuracy": 1.0,
+    "context_only_forget_accuracy": 1.0,
+    "context_only_llm_top1": 1.0,
+    "context_only_tool_vs_memory_accuracy": 1.0,
+    "context_only_write_accuracy": 1.0,
+    "distilled_compress_accuracy": 1.0,
+    "distilled_forget_accuracy": 1.0,
+    "distilled_gain_over_context_only": 0.0,
+    "distilled_llm_top1": 1.0,
+    "distilled_tool_vs_memory_accuracy": 1.0,
+    "distilled_write_accuracy": 1.0,
+    "teacher_top1": 1.0
+  },
+  "sizes": {
+    "eval": 2,
+    "train": 5
+  },
+  "teacher_policy_counts": {
+    "compress": 0,
+    "forget": 0,
+    "tool": 0,
+    "write": 0
+  }
+}
