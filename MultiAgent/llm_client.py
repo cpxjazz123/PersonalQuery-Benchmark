@@ -196,6 +196,69 @@ class MiniMaxAnthropicClient:
             api_key="sk-cp-jqg2XWIob99HfZTveS5CqjO1h8BAQguTCcHG0p_vZlQ_rNqJgQLqNMwJ7AHMMwRhogi2I8A7o9FZ-f1dR2jsVNfwUsdLzicgrXm9tM8bqodav3ZhtQ0Ig-Y"
         )
 
+    def _extract_message_text(self, message) -> tuple[str, str]:
+        thinking_parts: list[str] = []
+        text_parts: list[str] = []
+        for block in message.content:
+            if block.type == "thinking":
+                thinking_parts.append(block.thinking)
+            elif block.type == "text":
+                text_parts.append(block.text)
+        return "".join(thinking_parts).strip(), "".join(text_parts).strip()
+
+    def _stream_message(
+        self,
+        *,
+        messages,
+        max_tokens: int,
+        temperature: Optional[float],
+        max_retries: int,
+        system=None,
+        log_prefix: str,
+    ):
+        safe_max_tokens = max(128, int(max_tokens))
+        safe_temp = temperature if temperature is not None else 0.7
+        retry_count = 0
+        for attempt in range(max_retries):
+            try:
+                request_kwargs = {
+                    "model": self.model,
+                    "max_tokens": safe_max_tokens,
+                    "temperature": safe_temp,
+                    "messages": messages,
+                }
+                if system is not None:
+                    request_kwargs["system"] = system
+                with self.client.messages.stream(**request_kwargs) as stream:
+                    message = stream.get_final_message()
+
+                thinking_text, text_content = self._extract_message_text(message)
+                if not text_content:
+                    if attempt < max_retries - 1:
+                        wait_time = min(60, (2 ** attempt) * 3)
+                        print(f"{log_prefix} Empty response. Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                        retry_count += 1
+                        continue
+                    raise RuntimeError(f"{log_prefix} Empty response after {max_retries} retries")
+
+                if retry_count > 0:
+                    print(f"{log_prefix} Empty response retry succeeded after {retry_count} retries.")
+                return message, thinking_text, text_content
+            except Exception as e:
+                error_str = str(e)
+                retryable = any(code in error_str for code in ["429", "529", "500", "502", "503", "504", "520", "522", "530"])
+                if retryable:
+                    wait_time = min(60, (2 ** attempt) * 3)
+                    print(f"{log_prefix} Rate limited ({e}). Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    retry_count += 1
+                    continue
+                print(f"{log_prefix} Error calling API: {e}")
+                raise
+
+        raise RuntimeError(f"{log_prefix} failed after {max_retries} retries")
+
     def call_with_thinking(
         self,
         prompt: str,
@@ -208,65 +271,17 @@ class MiniMaxAnthropicClient:
         Returns:
             tuple: (thinking_text, text_content)
         """
-        import anthropic
-
         safe_prompt = prompt.strip() if isinstance(prompt, str) else str(prompt)
         if not safe_prompt:
             return "", ""
-
-        safe_max_tokens = max(128, int(max_tokens))
-        safe_temp = temperature if temperature is not None else 0.7
-
-        retry_count = 0
-        for attempt in range(max_retries):
-            try:
-                message = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=safe_max_tokens,
-                    temperature=safe_temp,
-                    messages=[
-                        {"role": "user", "content": safe_prompt}
-                    ]
-                )
-
-                thinking_text = ""
-                text_content = ""
-
-                for block in message.content:
-                    if block.type == "thinking":
-                        thinking_text = block.thinking
-                    elif block.type == "text":
-                        text_content = block.text
-
-                text_content = text_content.strip()
-                # 空响应也需要重试
-                if not text_content:
-                    if attempt < max_retries - 1:
-                        wait_time = min(60, (2 ** attempt) * 3)
-                        print(f"[MiniMax-Anthropic] Empty response. Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
-                        time.sleep(wait_time)
-                        retry_count += 1
-                        continue
-                    else:
-                        return "", ""
-                if retry_count > 0:
-                    print(f"[MiniMax-Anthropic] Empty response retry succeeded after {retry_count} retries.")
-                return thinking_text, text_content
-
-            except Exception as e:
-                error_str = str(e)
-                # 429/529/500/502/503/504/520/522/530 等错误都需要重试
-                retryable = any(code in error_str for code in ["429", "529", "500", "502", "503", "504", "520", "522", "530"])
-                if retryable:
-                    wait_time = min(60, (2 ** attempt) * 3)
-                    print(f"[MiniMax-Anthropic] Rate limited ({e}). Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    retry_count += 1
-                    continue
-                print(f"[MiniMax-Anthropic] Error calling API: {e}")
-                return "", ""
-
-        return "", ""
+        _, thinking_text, text_content = self._stream_message(
+            messages=[{"role": "user", "content": safe_prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            max_retries=max_retries,
+            log_prefix="[MiniMax-Anthropic]",
+        )
+        return thinking_text, text_content
 
     def call(
         self,
@@ -311,80 +326,31 @@ class MiniMaxAnthropicClient:
         Returns:
             tuple: (text_content, cache_read_input_tokens)
         """
-        import anthropic
-
         safe_system = system_base.strip() if isinstance(system_base, str) else str(system_base)
         safe_user = user_content.strip() if isinstance(user_content, str) else str(user_content)
         if not safe_system or not safe_user:
             return "", 0
+        message, _, text_content = self._stream_message(
+            messages=[{"role": "user", "content": safe_user}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            max_retries=max_retries,
+            system=[
+                {"type": "text", "text": safe_system, "cache_control": {"type": "ephemeral"}}
+            ],
+            log_prefix="[MiniMax-Cache]",
+        )
 
-        safe_max_tokens = max(128, int(max_tokens))
-        safe_temp = temperature if temperature is not None else 0.7
+        usage = getattr(message, "usage", None)
+        if usage is None:
+            raise RuntimeError("[MiniMax-Cache] missing usage on streamed message")
 
-        retry_count = 0
-        for attempt in range(max_retries):
-            try:
-                # 构建 messages
-                messages = [{"role": "user", "content": safe_user}]
-
-                # 始终使用 cache_control，让 MiniMax 自动管理缓存
-                message = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=safe_max_tokens,
-                    temperature=safe_temp,
-                    system=[
-                        {"type": "text", "text": safe_system, "cache_control": {"type": "ephemeral"}}
-                    ],
-                    messages=messages
-                )
-
-                text_content = ""
-                cache_read_input_tokens = 0
-                cache_creation_input_tokens = 0
-                input_tokens = 0
-                output_tokens = 0
-
-                for block in message.content:
-                    if block.type == "text":
-                        text_content = block.text
-                    elif block.type == "thinking":
-                        pass
-
-                # 提取所有 token 相关字段
-                if hasattr(message, 'usage') and message.usage:
-                    cache_read_input_tokens = getattr(message.usage, 'cache_read_input_tokens', 0)
-                    cache_creation_input_tokens = getattr(message.usage, 'cache_creation_input_tokens', 0)
-                    input_tokens = getattr(message.usage, 'input_tokens', 0)
-                    output_tokens = getattr(message.usage, 'output_tokens', 0)
-
-                text_content = text_content.strip()
-                if not text_content:
-                    if attempt < max_retries - 1:
-                        wait_time = min(60, (2 ** attempt) * 3)
-                        _log(f"[MiniMax-Cache] Empty response. Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
-                        time.sleep(wait_time)
-                        retry_count += 1
-                        continue
-                    else:
-                        return "", {"cache_creation_input_tokens": cache_creation_input_tokens, "cache_read_input_tokens": cache_read_input_tokens, "input_tokens": input_tokens, "output_tokens": output_tokens}
-
-                if retry_count > 0:
-                    _log(f"[MiniMax-Cache] Empty response retry succeeded after {retry_count} retries.")
-                return text_content, {"cache_creation_input_tokens": cache_creation_input_tokens, "cache_read_input_tokens": cache_read_input_tokens, "input_tokens": input_tokens, "output_tokens": output_tokens}
-
-            except Exception as e:
-                error_str = str(e)
-                retryable = any(code in error_str for code in ["429", "529", "500", "502", "503", "504", "520", "522", "530"])
-                if retryable:
-                    wait_time = min(60, (2 ** attempt) * 3)
-                    _log(f"[MiniMax-Cache] Rate limited ({e}). Retry {attempt + 1}/{max_retries}, waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    retry_count += 1
-                    continue
-                _log(f"[MiniMax-Cache] Error calling API: {e}")
-                return "", {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 0, "output_tokens": 0}
-
-        return "", {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "input_tokens": 0, "output_tokens": 0}
+        return text_content, {
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
+            "input_tokens": getattr(usage, "input_tokens", 0),
+            "output_tokens": getattr(usage, "output_tokens", 0),
+        }
 
 
 class MiniMaxIOAnthropicClient:

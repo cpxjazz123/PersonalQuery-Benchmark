@@ -30,6 +30,9 @@ OUTPUT_DIR = PROBE_DIR / "supervised_memory_policy"
 DATASET_JSONL = OUTPUT_DIR / "teacher_trajectories.jsonl"
 MODEL_JSON = OUTPUT_DIR / "small_policy_model.json"
 RESULT_JSON = OUTPUT_DIR / "small_policy_result.json"
+LLAMA_FACTORY_DIR = PROBE_DIR.parent / "Agent_Foundation_Models" / "LLaMA-Factory"
+LLAMA_FACTORY_SFT_JSON = LLAMA_FACTORY_DIR / "data" / "memory_policy_trajectory_sft.json"
+LLAMA_FACTORY_DATASET_NAME = "memory_policy_trajectory_sft"
 
 
 @dataclass(frozen=True)
@@ -219,6 +222,74 @@ def export_teacher_trajectories(sessions: list[Session], decisions: list[Teacher
             handle.write(json.dumps(supervised_record(session, decision), ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def sft_system_prompt() -> str:
+    return (
+        "You are a small student LLM learning trajectory distillation from a multi-agent "
+        "recommendation teacher. Given a user state, produce only the teacher's structured "
+        "memory-policy trajectory JSON. Do not explain, do not use markdown fences, and do "
+        "not emit nested JSON strings inside trajectory."
+    )
+
+
+def sft_instruction() -> str:
+    return (
+        "Predict the multi-agent memory trajectory for the recommendation request. "
+        "The output must be a JSON object with exactly these top-level keys: "
+        "tool_vs_memory, memory_write, memory_compress, memory_forget, recommend, trajectory. "
+        "The recommendation must be copied exactly from candidate_items. The trajectory value "
+        "must be a JSON object with exactly these keys: memory_plan, memory_read, tool_calls, "
+        "memory_write, memory_compress, memory_forget, recommend. The tool_calls value must be "
+        "a JSON array of executed tool-call objects. The other trajectory values must be short "
+        "plain JSON objects or strings, not nested JSON strings and not lists unless explicitly "
+        "required by tool_calls."
+    )
+
+
+def sft_input(session: Session) -> str:
+    return json.dumps(
+        {
+            "user_state": session_payload(session),
+            "valid_values": {
+                "tool_vs_memory": list(ACTION_NAMES),
+                "memory_write": list(WRITE_NAMES),
+                "memory_compress": list(COMPRESS_NAMES),
+                "memory_forget": list(FORGET_NAMES),
+            },
+        },
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
+def sft_output(decision: TeacherDecision) -> str:
+    return json.dumps(
+        teacher_payload(decision),
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
+def sft_record(session: Session, decision: TeacherDecision) -> dict[str, str]:
+    return {
+        "instruction": sft_instruction(),
+        "input": sft_input(session),
+        "output": sft_output(decision),
+        "system": sft_system_prompt(),
+    }
+
+
+def export_llamafactory_sft_dataset(sessions: list[Session], decisions: list[TeacherDecision], path: Path) -> None:
+    if len(sessions) != len(decisions):
+        raise ValueError("sessions and decisions length mismatch")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    records = [sft_record(session, decision) for session, decision in zip(sessions, decisions)]
+    if not records:
+        raise ValueError("SFT records cannot be empty")
+    path.write_text(json.dumps(records, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def add_feature(features: dict[int, float], key: str, value: float, size: int) -> None:
     idx = hash(key) % size
     features[idx] = features.get(idx, 0.0) + value
@@ -305,6 +376,7 @@ def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
     sessions = build_supervised_sessions(config)
     decisions = [teacher_policy(session) for session in sessions]
     export_teacher_trajectories(sessions, decisions, DATASET_JSONL)
+    export_llamafactory_sft_dataset(sessions, decisions, LLAMA_FACTORY_SFT_JSON)
 
     split = int(len(sessions) * config.train_ratio)
     if split <= 0 or split >= len(sessions):
@@ -358,6 +430,8 @@ def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
     return {
         "config": model_payload["config"],
         "dataset_jsonl": str(DATASET_JSONL),
+        "llamafactory_dataset_name": LLAMA_FACTORY_DATASET_NAME,
+        "llamafactory_sft_json": str(LLAMA_FACTORY_SFT_JSON),
         "model_json": str(MODEL_JSON),
         "sizes": {
             "total": len(sessions),

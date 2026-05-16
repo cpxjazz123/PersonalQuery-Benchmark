@@ -142,6 +142,28 @@ def topic_from_item(item: str) -> str:
     raise ValueError(f"Unknown item topic: {item}")
 
 
+def build_tool_call_trace(
+    *,
+    agent_name: str,
+    tool_name: str,
+    tool_args: dict[str, Any],
+    tool_result: dict[str, Any],
+    observation: str,
+    latency_ms: float | None = None,
+) -> dict[str, Any]:
+    trace = {
+        "agent": agent_name,
+        "tool_name": tool_name,
+        "tool_args": tool_args,
+        "tool_result": tool_result,
+        "observation": observation,
+        "status": "success",
+    }
+    if latency_ms is not None:
+        trace["latency_ms"] = latency_ms
+    return trace
+
+
 def choose_item(topic: str, rng: random.Random) -> str:
     if topic not in ITEMS_BY_TOPIC:
         raise ValueError(f"Unknown topic: {topic}")
@@ -220,6 +242,38 @@ def teacher_policy(session: Session) -> TeacherDecision:
     compress_action = 1 if history_total >= 10 and session.memory_strength >= 6 else 0
     forget_action = 1 if session.is_drift and session.memory_strength >= 6 and not memory_matches else 0
 
+    candidate_topics = {item: topic_from_item(item) for item in session.candidate_items}
+    current_matches = [item for item, topic in candidate_topics.items() if topic == session.current_topic]
+    memory_topic_matches = [item for item, topic in candidate_topics.items() if topic == session.memory_topic]
+    shortlist = current_matches if current_matches else (
+        memory_topic_matches if memory_topic_matches else list(session.candidate_items[:3])
+    )
+    tool_calls = []
+    if use_tool:
+        tool_calls.append(
+            build_tool_call_trace(
+                agent_name="MemoryAgent",
+                tool_name="lookup_candidate_topic_alignment",
+                tool_args={
+                    "candidate_items": list(session.candidate_items),
+                    "current_topic": session.current_topic,
+                    "memory_topic": session.memory_topic,
+                },
+                tool_result={
+                    "candidate_topics": candidate_topics,
+                    "current_topic_matches": current_matches,
+                    "memory_topic_matches": memory_topic_matches,
+                    "shortlist": shortlist,
+                    "topic_alignment": "current_topic" if current_matches else ("memory_topic" if memory_topic_matches else "none"),
+                    "memory_conflict": not memory_matches,
+                },
+                observation=(
+                    f"current_topic_matches={current_matches}; memory_topic_matches={memory_topic_matches}; "
+                    f"shortlist={shortlist}"
+                ),
+            )
+        )
+
     recommendation_topic = session.current_topic if use_tool else session.memory_topic
     recommendation = first_candidate_for_topic(session.candidate_items, recommendation_topic)
     trajectory = {
@@ -232,10 +286,7 @@ def teacher_policy(session: Session) -> TeacherDecision:
             "topic": session.memory_topic,
             "strength": session.memory_strength,
         },
-        "tool_call": {
-            "name": "collaborative_signal_translation" if use_tool else "none",
-            "query_topic": session.current_topic if use_tool else "",
-        },
+        "tool_calls_raw": tool_calls,
         "memory_write": {
             "decision": WRITE_NAMES[write_action],
             "topic": session.current_topic if write_action else "",
