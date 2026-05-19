@@ -76,7 +76,7 @@ Each dataset record includes:
 - `complexity_group`: syntax-depth group, one of `low`, `medium`, or `high`
 - `depth`: target syntactic depth used for query construction
 - `correct_query`: the correct personalized query used downstream
-- `attrs_used`: product attributes or writing-typo metadata used during query construction
+- `attrs_used`: product attributes used during query construction
 - `has_error_query`: whether a user-specific noisy query is available
 - `error_query`: the noisy query when available
 - `injected_errors`: structured description of injected syntax-depth typo anchors
@@ -92,10 +92,11 @@ Example record:
   "depth": 5,
   "correct_query": "I want Small KK BETO Ties for Baby lumber whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
   "attrs_used": {
-    "noise_type": "clause_boundary_error",
-    "correct_text": "lumber",
-    "noisy_text": "wood",
-    "anchor_replaced_text": "lumber"
+    "A1": "Ties",
+    "A2": "KK BETO",
+    "A3": "8.99",
+    "A4": "Small",
+    "A5": "Baby"
   },
   "has_error_query": true,
   "error_query": "I want Small KK BETO Ties for Baby wood whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
