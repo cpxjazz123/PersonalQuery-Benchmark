@@ -48,7 +48,7 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a user-product query dataset derived from the later stages of the pipeline, especially Stage 5, Stage 6, and Stage 7. Stage 6 provides the base clean queries, and Stage 7 can revise a clean query when an anchor must be inserted before personalized noisy injection.
+The current released dataset is a user-product query dataset derived from the syntax-depth pipeline. Stage 08 provides the correct-query retrieval records, and Stage 09 provides paired writing-typo records for robustness analysis.
 
 ### Included Categories
 
@@ -58,13 +58,13 @@ The current released dataset is a user-product query dataset derived from the la
 
 ### Dataset Files
 
-The dataset is stored under `dataset/` as three category-specific JSON files:
+The generated dataset is stored under `result/personal_query/11_query_dataset/`:
 
-- `dataset/Baby_Products_query.json`
-- `dataset/Grocery_and_Gourmet_Food_query.json`
-- `dataset/Pet_Supplies_query.json`
+- `result/personal_query/11_query_dataset/Baby_Products/data.jsonl`
+- `result/personal_query/11_query_dataset/Grocery_and_Gourmet_Food/data.jsonl`
+- `result/personal_query/11_query_dataset/Pet_Supplies/data.jsonl`
 
-Each file is a JSON array. Each record corresponds to one user-product pair and contains both query styles for that pair.
+Each file is JSONL. Each row corresponds to one user-product query instance.
 
 ### What Each Record Contains
 
@@ -73,66 +73,35 @@ Each dataset record includes:
 - `category`: product domain
 - `uuid`: user identifier
 - `asin`: target product identifier
-- `attrs_used`: shared product attributes used during query construction
-- `queries`: the paired query records for this user-product pair
-
-Each item in `queries` includes:
-
-- `query_category`: query style label, either `wide` or `deep`
-- `complexity_level`: complexity level of the generated query
-- `correct_query`: the final clean personalized query used downstream; this may be the original Stage 6 query or a Stage 7 revised query
-- `correct_word_count`: number of words in the final clean query
-- `idf`: average inverse document frequency score of the query tokens
+- `complexity_group`: syntax-depth group, one of `low`, `medium`, or `high`
+- `depth`: target syntactic depth used for query construction
+- `correct_query`: the correct personalized query used downstream
+- `attrs_used`: product attributes or writing-typo metadata used during query construction
 - `has_error_query`: whether a user-specific noisy query is available
 - `error_query`: the noisy query when available
-- `injected_errors`: structured description of injected user-specific errors
+- `injected_errors`: structured description of injected syntax-depth typo anchors
 
 Example record:
 
 ```json
 {
-  "category": "Grocery_and_Gourmet_Food",
-  "uuid": "AGU552MYZNZ7ENJ432YPOT7MISTA",
-  "asin": "B09WMP8TJ7",
+  "category": "Baby_Products",
+  "uuid": "AE23NZUELB4BYWLHKWJXAS73PTSQ",
+  "asin": "B08R5BZNSP",
+  "complexity_group": "medium",
+  "depth": 5,
+  "correct_query": "I want Small KK BETO Ties for Baby lumber whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
   "attrs_used": {
-    "A1": "Baking Syrups",
-    "A2": "ONETANG",
-    "A3": "7.99",
-    "A5": "Baking",
-    "A16": "Kosher Certified"
+    "noise_type": "clause_boundary_error",
+    "correct_text": "lumber",
+    "noisy_text": "wood",
+    "anchor_replaced_text": "lumber"
   },
-  "queries": [
+  "has_error_query": true,
+  "error_query": "I want Small KK BETO Ties for Baby wood whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
+  "injected_errors": [
     {
-      "query_category": "wide",
-      "complexity_level": 2,
-      "correct_query": "I need Baking Syrups from ONETANG priced at 7.99 for Baking which is Kosher Certified which is vanilla flavored, nothing overkill",
-      "correct_word_count": 21,
-      "idf": 4.447411123507031,
-      "has_error_query": true,
-      "error_query": "I need Baking Syrups from ONETANG priced at 7.99 for Baking which is Kosher Certified which is vanilla flavored, nothing over",
-      "injected_errors": [
-        {
-          "correct": "overkill",
-          "error": "over",
-          "error_type": "modifier_typo"
-        }
-      ]
-    },
-    {
-      "query_category": "deep",
-      "complexity_level": 2,
-      "correct_query": "I need Baking Syrups by ONETANG priced at 7.99 for Baking that has a rich caramel flavor with hints of licorice that works well as a vanilla extract substitute",
-      "correct_word_count": 29,
-      "idf": 4.176467214404339,
-      "has_error_query": true,
-      "error_query": "I need Baking Syrups by ONETANG priced at 7.99 for Baking that has a rich caramel flavor with hints of liquorish that works well as a vanilla extract substitute",
-      "injected_errors": [
-        {
-          "correct": "licorice",
-          "error": "liquorish",
-          "error_type": "clause_boundary_error"
-        }
-      ]
+      "target_token_depth": 5
     }
   ]
 }
