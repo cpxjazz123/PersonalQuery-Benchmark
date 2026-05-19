@@ -79,7 +79,7 @@ Each dataset record includes:
 - `attrs_used`: product attributes used during query construction
 - `has_error_query`: whether a user-specific noisy query is available
 - `error_query`: the noisy query when available
-- `injected_errors`: structured description of injected syntax-depth typo anchors
+- `injected_errors`: structured description of injected errors, including target token depth, error type, and replaced text
 
 Example record:
 
@@ -102,7 +102,11 @@ Example record:
   "error_query": "I want Small KK BETO Ties for Baby wood whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
   "injected_errors": [
     {
-      "target_token_depth": 5
+      "target_token_depth": 5,
+      "noise_type": "clause_boundary_error",
+      "correct_text": "lumber",
+      "noisy_text": "wood",
+      "anchor_replaced_text": "lumber"
     }
   ]
 }
