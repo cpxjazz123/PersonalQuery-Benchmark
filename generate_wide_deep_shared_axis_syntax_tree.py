@@ -233,20 +233,6 @@ def draw_guides(ax, max_level: int) -> None:
         ax.text(5.6, y(level), str(level), fontsize=14.5, family="serif", fontweight="bold", ha="center")
 
 
-def draw_panel_title(ax, x: float, title: str) -> None:
-    ax.text(
-        x,
-        y(-1.6),
-        title,
-        ha="center",
-        va="center",
-        fontsize=18.0,
-        family="serif",
-        fontweight="bold",
-        zorder=5,
-    )
-
-
 def draw_node(ax, node: Node) -> None:
     ax.text(
         node.x,
@@ -396,9 +382,6 @@ def main() -> None:
     ax.axis("off")
 
     draw_guides(ax, max_depth)
-    draw_panel_title(ax, 73, "(1) Wide expression")
-    draw_panel_title(ax, 208, "(2) Deep expression")
-
     for edge in wide_edges + deep_edges:
         draw_edge(ax, edge)
 
