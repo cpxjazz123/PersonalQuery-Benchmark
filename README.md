@@ -92,12 +92,14 @@ Example record:
   "cluster_index": 5,
   "correct_query": "I am looking for Unflavored Thickeners by Modernist Pantry, which are perfect for a Sign, and they are available at 19.99 when I order today.",
   "attrs_used": {
-    "A1": "Thickeners",
-    "A2": "Modernist Pantry",
-    "A3": "19.99",
-    "A5": "Sign"
+    "product_type": "Thickeners",
+    "brand": "Modernist Pantry",
+    "price": "19.99",
+    "use_case": "Sign",
+    "detailed": "Unflavored"
   }
 }
 ```
 
 This example shows how the released dataset now groups clean queries by learned query-style clusters instead of syntax-depth buckets. In this case, `cluster_index = 5` corresponds to a longer clause-bearing query style rather than a short attribute-list style.
+The released dataset now stores `attrs_used` directly with semantic attribute-type keys such as `product_type`, `brand`, `price`, and `use_case`.
