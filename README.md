@@ -48,7 +48,12 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a user-product query dataset derived from the syntax-depth pipeline. Stage 08 provides the correct-query retrieval records, and Stage 09 provides paired writing-typo records for robustness analysis.
+The current released dataset is a clean clustered user-product query dataset derived from the latest syntax-depth pipeline. It is built from:
+
+- Stage 06 clean personalized queries
+- Stage 12 `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
+
+The current released dataset does not include noisy or error-query variants.
 
 ### Included Categories
 
@@ -64,7 +69,7 @@ The generated dataset is stored under `result/personal_query/11_query_dataset/`:
 - `result/personal_query/11_query_dataset/Grocery_and_Gourmet_Food/data.jsonl`
 - `result/personal_query/11_query_dataset/Pet_Supplies/data.jsonl`
 
-Each file is JSONL. Each row corresponds to one user-product query instance.
+Each file is JSONL. Each row corresponds to one clean user-product query instance.
 
 ### What Each Record Contains
 
@@ -73,41 +78,26 @@ Each dataset record includes:
 - `category`: product domain
 - `uuid`: user identifier
 - `asin`: target product identifier
-- `complexity_group`: syntax-depth group, one of `low`, `medium`, or `high`
-- `depth`: target syntactic depth used for query construction
+- `cluster_index`: integer query-cluster index
 - `correct_query`: the correct personalized query used downstream
 - `attrs_used`: product attributes used during query construction
-- `has_error_query`: whether a user-specific noisy query is available
-- `error_query`: the noisy query when available
-- `injected_errors`: structured description of injected errors, including target token depth, error type, and replaced text
 
 Example record:
 
 ```json
 {
-  "category": "Baby_Products",
-  "uuid": "AE23NZUELB4BYWLHKWJXAS73PTSQ",
-  "asin": "B08R5BZNSP",
-  "complexity_group": "medium",
-  "depth": 5,
-  "correct_query": "I want Small KK BETO Ties for Baby lumber whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
+  "category": "Grocery_and_Gourmet_Food",
+  "uuid": "AE2AKPFMEUKYMZ3MDBALXTNSUBAA",
+  "asin": "B00FRLSRMA",
+  "cluster_index": 5,
+  "correct_query": "I am looking for Unflavored Thickeners by Modernist Pantry, which are perfect for a Sign, and they are available at 19.99 when I order today.",
   "attrs_used": {
-    "A1": "Ties",
-    "A2": "KK BETO",
-    "A3": "8.99",
-    "A4": "Small",
-    "A5": "Baby"
-  },
-  "has_error_query": true,
-  "error_query": "I want Small KK BETO Ties for Baby wood whne I dres them in matching outfits, because they stay in place, and if they are made of soft fabric, the price is 8.99.",
-  "injected_errors": [
-    {
-      "target_token_depth": 5,
-      "noise_type": "clause_boundary_error",
-      "correct_text": "lumber",
-      "noisy_text": "wood",
-      "anchor_replaced_text": "lumber"
-    }
-  ]
+    "A1": "Thickeners",
+    "A2": "Modernist Pantry",
+    "A3": "19.99",
+    "A5": "Sign"
+  }
 }
 ```
+
+This example shows how the released dataset now groups clean queries by learned query-style clusters instead of syntax-depth buckets. In this case, `cluster_index = 5` corresponds to a longer clause-bearing query style rather than a short attribute-list style.
