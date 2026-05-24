@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import signal
 import time
@@ -17,10 +16,15 @@ from llm_memory_policy_distillation_probe import (
     ACTION_NAMES,
     COMPRESS_NAMES,
     FORGET_NAMES,
+    PREFERENCE_TYPES,
+    preference_type_for_session,
+    preference_vector_for_type,
+    rank_candidates,
+    ranking_metrics,
     WRITE_NAMES,
     Session,
     TeacherDecision,
-    build_tool_call_trace,
+    build_candidate_alignment,
     create_llm_client,
     teacher_payload,
 )
@@ -56,7 +60,6 @@ class RealTeacherConfig:
     require_teacher_target_hit: bool = True
     sessions_per_user: int = 4
     max_candidate_items: int = 8
-    teacher_provider: str = "minimax"
     teacher_model: str | None = None
     max_tokens: int = 32768
     temperature: float = 0.0
@@ -77,39 +80,8 @@ def _agent_call_timeout_handler(signum, frame):
     raise AgentCallTimeoutError("real multi-agent teacher call timed out")
 
 
-def load_direct_llm_client_class(provider: str):
-    module_path = MULTIAGENT_DIR / "llm_client.py"
-    spec = importlib.util.spec_from_file_location("multiagent_llm_client_direct", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Failed to load llm_client module from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    providers = {
-        "zai": "ZAIAnthropicClient",
-        "vectorengine": "VectorEngineClient",
-        "qwen8b": "Qwen8bClient",
-    }
-    if provider not in providers:
-        raise ValueError(f"Unsupported direct teacher provider: {provider}")
-    class_name = providers[provider]
-    if not hasattr(module, class_name):
-        raise RuntimeError(f"llm_client.py does not define {class_name}")
-    return getattr(module, class_name)
-
-
-def create_real_teacher_client(provider: str, model: str | None):
-    if provider in ("minimax", "minimax_io"):
-        return create_llm_client(provider, model)
-
-    client_cls = load_direct_llm_client_class(provider)
-    if provider == "qwen8b":
-        if model is not None:
-            raise ValueError("qwen8b provider does not accept --teacher-model")
-        return client_cls()
-    if model is None:
-        return client_cls()
-    return client_cls(model=model)
+def create_real_teacher_client(model: str | None):
+    return create_llm_client(model)
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -133,11 +105,13 @@ def call_json_agent(
     signal.signal(signal.SIGALRM, _agent_call_timeout_handler)
     signal.setitimer(signal.ITIMER_REAL, config.call_timeout_seconds)
     try:
-        _, text = client.call_with_thinking(
-            prompt=prompt,
+        text, _ = client.call_with_cache(
+            system_base="You are a precise JSON-only assistant.",
+            user_content=prompt,
             max_tokens=config.max_tokens,
             temperature=config.temperature,
             max_retries=config.max_retries,
+            stream=True,
         )
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
@@ -174,66 +148,56 @@ def compact_agent_text(payload: dict[str, Any], keys: tuple[str, ...], context: 
     return compact_json(selected)
 
 
-def compact_tool_call_trace(tool_call: dict[str, Any], context: str) -> dict[str, Any]:
-    require_keys(tool_call, ("agent", "tool_name", "tool_args", "tool_result", "observation"), context)
-    compacted = {
-        "agent": tool_call["agent"],
-        "tool_name": tool_call["tool_name"],
-        "tool_args": tool_call["tool_args"],
-        "tool_result": tool_call["tool_result"],
-        "observation": tool_call["observation"],
-    }
-    if "status" in tool_call:
-        compacted["status"] = tool_call["status"]
-    if "latency_ms" in tool_call:
-        compacted["latency_ms"] = tool_call["latency_ms"]
-    return compacted
-
-
 def compact_teacher_payload(decision: TeacherDecision) -> dict[str, Any]:
     trajectory = require_mapping(decision.trajectory, "teacher trajectory")
     profile_agent = require_mapping(trajectory["profile_agent_raw"], "profile_agent_raw trajectory")
     memory_agent = require_mapping(trajectory["memory_agent_raw"], "memory_agent_raw trajectory")
-    tool_calls_raw = trajectory.get("tool_calls_raw", [])
-    if not isinstance(tool_calls_raw, list):
-        raise ValueError("tool_calls_raw trajectory must be a JSON array")
     recommendation_agent = require_mapping(trajectory["recommendation_agent_raw"], "recommendation_agent_raw trajectory")
     critic_agent = require_mapping(trajectory["critic_agent_raw"], "critic_agent_raw trajectory")
     require_keys(profile_agent, ("current_signal", "uncertainty"), "profile_agent trajectory")
     require_keys(memory_agent, ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget"), "memory_agent trajectory")
-    require_keys(recommendation_agent, ("recommend",), "recommendation_agent trajectory")
+    require_keys(
+        recommendation_agent,
+        ("preference_type", "ranking", "ranking_reason", "rejected_candidates"),
+        "recommendation_agent trajectory",
+    )
     require_keys(
         critic_agent,
-        ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "recommend"),
+        ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "preference_type", "ranking"),
         "critic_agent trajectory",
     )
+    if not isinstance(decision.preference_type, str) or not decision.preference_type:
+        raise ValueError("decision preference_type must be populated")
+    if not isinstance(decision.ranking, tuple) or not decision.ranking:
+        raise ValueError("decision ranking must be populated")
     return {
         "tool_vs_memory": ACTION_NAMES[decision.select_action],
         "memory_write": WRITE_NAMES[decision.write_action],
         "memory_compress": COMPRESS_NAMES[decision.compress_action],
         "memory_forget": FORGET_NAMES[decision.forget_action],
-        "recommend": decision.recommendation,
+        "preference_type": decision.preference_type,
+        "ranking": list(decision.ranking),
         "trajectory": {
             "profile_agent": (
                 f"ProfileAgent read current_signal={profile_agent['current_signal']} "
                 f"with uncertainty={profile_agent['uncertainty']}."
             ),
-            "tool_calls": [
-                compact_tool_call_trace(call, f"tool_calls_raw[{idx}]")
-                for idx, call in enumerate(tool_calls_raw)
-            ],
             "memory_agent": (
-                f"MemoryAgent set tool_vs_memory={memory_agent['tool_vs_memory']} and executed "
-                f"{len(tool_calls_raw)} tool call(s); memory_write={memory_agent['memory_write']}, "
+                f"MemoryAgent set tool_vs_memory={memory_agent['tool_vs_memory']}; "
+                f"memory_write={memory_agent['memory_write']}, "
                 f"memory_compress={memory_agent['memory_compress']}, "
                 f"memory_forget={memory_agent['memory_forget']}."
             ),
-            "recommendation_agent": "RecommendationAgent selected exactly one top-level recommend item from candidate_items.",
+            "recommendation_agent": (
+                f"RecommendationAgent selected preference_type={recommendation_agent['preference_type']} "
+                f"with top ranking item {recommendation_agent['ranking'][0]}."
+            ),
             "critic_agent": (
                 f"CriticAgent validated tool_vs_memory={critic_agent['tool_vs_memory']}, "
                 f"memory_write={critic_agent['memory_write']}, "
                 f"memory_compress={critic_agent['memory_compress']}, "
-                f"memory_forget={critic_agent['memory_forget']}, and the single recommend item."
+                f"memory_forget={critic_agent['memory_forget']}, preference_type={critic_agent['preference_type']}, "
+                f"and ranking top item {critic_agent['ranking'][0]}."
             ),
         },
     }
@@ -286,7 +250,7 @@ ProfileAgent output:
 {json.dumps(profile, ensure_ascii=False, indent=2, sort_keys=True)}
 
 Return JSON only with exactly these keys:
-tool_vs_memory, memory_write, memory_compress, memory_forget, read_key, write_topic, forget_topic, rationale.
+tool_vs_memory, memory_write, memory_compress, memory_forget, read_key, write_topic, forget_topic.
 
 Valid values:
 tool_vs_memory: {list(ACTION_NAMES)}
@@ -307,7 +271,6 @@ def build_recommendation_prompt(
     session: Session,
     profile: dict[str, Any],
     memory_plan: dict[str, Any],
-    tool_calls: list[dict[str, Any]],
 ) -> str:
     candidate_items_json = json.dumps(list(session.candidate_items), ensure_ascii=False)
     return f"""
@@ -322,15 +285,13 @@ ProfileAgent output:
 MemoryAgent output:
 {json.dumps(memory_plan, ensure_ascii=False, indent=2, sort_keys=True)}
 
-Tool call trace:
-{json.dumps(tool_calls, ensure_ascii=False, indent=2, sort_keys=True)}
-
 Return JSON only with exactly these keys:
-recommend, ranking_reason, rejected_candidates.
+preference_type, ranking, ranking_reason, rejected_candidates.
 
 Required JSON shape:
 {{
-  "recommend": "copy exactly one string from candidate_items",
+  "preference_type": "aligned | current_priority | memory_priority",
+  "ranking": ["candidate string", "candidate string"],
   "ranking_reason": "concise reason",
   "rejected_candidates": ["candidate string", "candidate string"]
 }}
@@ -339,10 +300,10 @@ Valid candidate_items:
 {candidate_items_json}
 
 Rules:
-- recommend must be exactly one string copied from candidate_items.
-- recommend must never be a JSON array.
-- recommend must never contain more than one item.
-- recommend must never be the full candidate_items list.
+- preference_type must be one of aligned, current_priority, memory_priority.
+- ranking must contain every candidate item exactly once.
+- ranking must never be a JSON array with duplicates or missing items.
+- ranking[0] must reflect the selected preference_type.
 - rejected_candidates must be a JSON array.
 - Every rejected_candidates item must be copied from candidate_items.
 - Do not add product titles, explanations, bullets, or markdown.
@@ -355,7 +316,6 @@ def build_critic_prompt(
     profile: dict[str, Any],
     memory_plan: dict[str, Any],
     recommendation: dict[str, Any],
-    tool_calls: list[dict[str, Any]],
 ) -> str:
     candidate_items_json = json.dumps(list(session.candidate_items), ensure_ascii=False)
     return f"""
@@ -373,58 +333,61 @@ MemoryAgent output:
 RecommendationAgent output:
 {json.dumps(recommendation, ensure_ascii=False, indent=2, sort_keys=True)}
 
-Tool call trace:
-{json.dumps(tool_calls, ensure_ascii=False, indent=2, sort_keys=True)}
+    Return JSON only with exactly these top-level keys:
+    tool_vs_memory, memory_write, memory_compress, memory_forget, preference_type, ranking, profile_agent, memory_agent, recommendation_agent, critic_agent.
 
-Return JSON only with exactly these top-level keys:
-tool_vs_memory, memory_write, memory_compress, memory_forget, recommend, trajectory.
+    Required JSON shape:
+    {{
+      "tool_vs_memory": "memory or tool",
+      "memory_write": "skip_write or write",
+      "memory_compress": "skip_compress or compress",
+      "memory_forget": "keep or forget",
+      "preference_type": "aligned | current_priority | memory_priority",
+      "ranking": ["candidate string", "candidate string"],
+      "profile_agent": "concise summary",
+      "memory_agent": "concise summary",
+      "recommendation_agent": "concise summary",
+      "critic_agent": "concise summary"
+    }}
 
-Required JSON shape:
-{{
-  "tool_vs_memory": "memory or tool",
-  "memory_write": "skip_write or write",
-  "memory_compress": "skip_compress or compress",
-  "memory_forget": "keep or forget",
-  "recommend": "copy exactly one string from candidate_items",
-  "trajectory": {{
-    "profile_agent": "concise summary",
-    "tool_calls": [],
-    "memory_agent": "concise summary",
-    "recommendation_agent": "concise summary",
-    "critic_agent": "concise summary"
-  }}
-}}
-
-Valid values:
-tool_vs_memory: {list(ACTION_NAMES)}
-memory_write: {list(WRITE_NAMES)}
-memory_compress: {list(COMPRESS_NAMES)}
-memory_forget: {list(FORGET_NAMES)}
-recommend: exactly one string copied from candidate_items
+    Valid values:
+    tool_vs_memory: {list(ACTION_NAMES)}
+    memory_write: {list(WRITE_NAMES)}
+    memory_compress: {list(COMPRESS_NAMES)}
+    memory_forget: {list(FORGET_NAMES)}
+    preference_type: {list(PREFERENCE_TYPES)}
+    ranking: every candidate item exactly once
 
 Valid candidate_items:
 {candidate_items_json}
 
-trajectory must be a JSON object with exactly these keys:
-profile_agent, tool_calls, memory_agent, recommendation_agent, critic_agent.
-
-Rules:
-- Preserve the MemoryAgent policy decisions unless they are invalid.
-- Select exactly one final recommendation string from candidate_items.
-- If RecommendationAgent proposed multiple items, output only one best candidate string in recommend.
-- recommend must never be a JSON array.
-- recommend must never contain more than one item.
-- recommend must never be the full candidate_items list.
+    Rules:
+    - Preserve the MemoryAgent policy decisions unless they are invalid.
+    - ranking must never be a JSON array with duplicates or missing items.
 - Do not add product titles, explanations, bullets, or markdown.
 - Do not explain outside JSON.
 - Do not use markdown fences.
 """.strip()
 
 
-def validate_final_teacher_payload(payload: dict[str, Any], session: Session) -> TeacherDecision:
+def validate_final_teacher_payload(
+    payload: dict[str, Any],
+    session: Session,
+) -> TeacherDecision:
     require_keys(
         payload,
-        ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "recommend", "trajectory"),
+        (
+            "tool_vs_memory",
+            "memory_write",
+            "memory_compress",
+            "memory_forget",
+            "preference_type",
+            "ranking",
+            "profile_agent",
+            "memory_agent",
+            "recommendation_agent",
+            "critic_agent",
+        ),
         "final teacher payload",
     )
 
@@ -432,10 +395,8 @@ def validate_final_teacher_payload(payload: dict[str, Any], session: Session) ->
     memory_write = str(payload["memory_write"])
     memory_compress = str(payload["memory_compress"])
     memory_forget = str(payload["memory_forget"])
-    if not isinstance(payload["recommend"], str):
-        raise ValueError(f"recommend must be a string, got {type(payload['recommend']).__name__}")
-    recommend = payload["recommend"]
-    trajectory = payload["trajectory"]
+    preference_type = str(payload["preference_type"])
+    ranking_raw = payload["ranking"]
 
     if tool_vs_memory not in ACTION_NAMES:
         raise ValueError(f"invalid tool_vs_memory: {tool_vs_memory}")
@@ -445,31 +406,39 @@ def validate_final_teacher_payload(payload: dict[str, Any], session: Session) ->
         raise ValueError(f"invalid memory_compress: {memory_compress}")
     if memory_forget not in FORGET_NAMES:
         raise ValueError(f"invalid memory_forget: {memory_forget}")
-    if recommend not in session.candidate_items:
-        raise ValueError(f"recommend is not in candidate_items: {recommend}")
-    if not isinstance(trajectory, dict):
-        raise ValueError("trajectory must be a JSON object")
-    require_keys(
-        trajectory,
-        ("profile_agent", "tool_calls", "memory_agent", "recommendation_agent", "critic_agent"),
-        "trajectory",
-    )
-    tool_calls = trajectory["tool_calls"]
-    if not isinstance(tool_calls, list):
-        raise ValueError("trajectory.tool_calls must be a JSON array")
-    if tool_vs_memory == "tool" and not tool_calls:
-        raise ValueError("tool_vs_memory=tool requires at least one executed tool call")
-    for index, tool_call in enumerate(tool_calls):
-        if not isinstance(tool_call, dict):
-            raise ValueError(f"trajectory.tool_calls[{index}] must be a JSON object")
-        require_keys(tool_call, ("agent", "tool_name", "tool_args", "tool_result", "observation"), f"trajectory.tool_calls[{index}]")
+    if preference_type not in PREFERENCE_TYPES:
+        raise ValueError(f"invalid preference_type: {preference_type}")
+    if not isinstance(ranking_raw, list):
+        raise ValueError("ranking must be a JSON array")
+    ranking = tuple(str(item) for item in ranking_raw)
+    if len(ranking) != len(session.candidate_items):
+        raise ValueError("ranking must contain every candidate item exactly once")
+    if Counter(ranking) != Counter(session.candidate_items):
+        raise ValueError("ranking items do not match candidate_items")
+    if preference_type in ("aligned", "current_priority") and ranking[0] not in session.current_topic_matches:
+        raise ValueError(f"ranking top item must come from current_topic_matches for {preference_type}: {ranking[0]}")
+    if preference_type == "memory_priority" and ranking[0] not in session.memory_topic_matches:
+        raise ValueError(f"ranking top item must come from memory_topic_matches for memory_priority: {ranking[0]}")
+    profile_agent = payload["profile_agent"]
+    memory_agent = payload["memory_agent"]
+    recommendation_agent = payload["recommendation_agent"]
+    critic_agent = payload["critic_agent"]
+    if not isinstance(profile_agent, str):
+        raise ValueError("profile_agent must be a string")
+    if not isinstance(memory_agent, str):
+        raise ValueError("memory_agent must be a string")
+    if not isinstance(recommendation_agent, str):
+        raise ValueError("recommendation_agent must be a string")
+    if not isinstance(critic_agent, str):
+        raise ValueError("critic_agent must be a string")
 
     normalized_trajectory = {
-        "profile_agent": trajectory["profile_agent"],
-        "tool_calls": trajectory["tool_calls"],
-        "memory_agent": trajectory["memory_agent"],
-        "recommendation_agent": trajectory["recommendation_agent"],
-        "critic_agent": trajectory["critic_agent"],
+        "profile_agent": profile_agent,
+        "memory_agent": memory_agent,
+        "recommendation_agent": recommendation_agent,
+        "critic_agent": critic_agent,
+        "preference_type": preference_type,
+        "ranking": list(ranking),
         "multiagent_teacher": True,
     }
 
@@ -478,8 +447,10 @@ def validate_final_teacher_payload(payload: dict[str, Any], session: Session) ->
         write_action=WRITE_NAMES.index(memory_write),
         compress_action=COMPRESS_NAMES.index(memory_compress),
         forget_action=FORGET_NAMES.index(memory_forget),
-        recommendation=recommend,
+        recommendation=ranking[0],
         trajectory=normalized_trajectory,
+        preference_type=preference_type,
+        ranking=ranking,
     )
 
 
@@ -503,33 +474,31 @@ def run_real_multiagent_teacher(
             "read_key",
             "write_topic",
             "forget_topic",
-            "rationale",
         ),
         "MemoryAgent",
     )
 
-    tool_calls_raw: list[dict[str, Any]] = []
-    if memory_plan["tool_vs_memory"] == "tool":
-        tool_calls_raw.append(execute_candidate_topic_tool(session, topic_lookup, profile, memory_plan))
-
     recommendation = call_json_agent(
         client,
         "RecommendationAgent",
-        build_recommendation_prompt(session, profile, memory_plan, tool_calls_raw),
+        build_recommendation_prompt(session, profile, memory_plan),
         config,
     )
-    require_keys(recommendation, ("recommend", "ranking_reason", "rejected_candidates"), "RecommendationAgent")
+    require_keys(
+        recommendation,
+        ("preference_type", "ranking", "ranking_reason", "rejected_candidates"),
+        "RecommendationAgent",
+    )
 
     final_payload = call_json_agent(
         client,
         "CriticAgent",
-        build_critic_prompt(session, profile, memory_plan, recommendation, tool_calls_raw),
+        build_critic_prompt(session, profile, memory_plan, recommendation),
         config,
     )
     decision = validate_final_teacher_payload(final_payload, session)
 
     decision.trajectory["profile_agent_raw"] = profile
-    decision.trajectory["tool_calls_raw"] = tool_calls_raw
     decision.trajectory["memory_agent_raw"] = memory_plan
     decision.trajectory["recommendation_agent_raw"] = recommendation
     decision.trajectory["critic_agent_raw"] = final_payload
@@ -537,46 +506,8 @@ def run_real_multiagent_teacher(
 
 
 def teacher_hits_target(session: Session, decision: TeacherDecision) -> bool:
-    return decision.recommendation == session.target_item
+    return decision.ranking[0] == session.target_item
 
-
-def execute_candidate_topic_tool(
-    session: Session,
-    topic_lookup: dict[str, str],
-    profile: dict[str, Any],
-    memory_plan: dict[str, Any],
-) -> dict[str, Any]:
-    start = time.perf_counter()
-    candidate_topics = {item: topic_lookup[item] for item in session.candidate_items}
-    current_matches = [item for item, topic in candidate_topics.items() if topic == session.current_topic]
-    memory_topic_matches = [item for item, topic in candidate_topics.items() if topic == session.memory_topic]
-    shortlist = current_matches if current_matches else (memory_topic_matches if memory_topic_matches else list(session.candidate_items[:3]))
-    elapsed_ms = round((time.perf_counter() - start) * 1000.0, 3)
-    return build_tool_call_trace(
-        agent_name="MemoryAgent",
-        tool_name="lookup_candidate_topic_alignment",
-        tool_args={
-            "candidate_items": list(session.candidate_items),
-            "current_topic": session.current_topic,
-            "memory_topic": session.memory_topic,
-            "memory_strength": session.memory_strength,
-            "profile_uncertainty": profile["uncertainty"],
-            "tool_vs_memory": memory_plan["tool_vs_memory"],
-        },
-        tool_result={
-            "candidate_topics": candidate_topics,
-            "current_topic_matches": current_matches,
-            "memory_topic_matches": memory_topic_matches,
-            "shortlist": shortlist,
-            "topic_alignment": "current_topic" if current_matches else ("memory_topic" if memory_topic_matches else "none"),
-            "memory_conflict": session.memory_topic != session.current_topic,
-        },
-        observation=(
-            f"current_topic_matches={current_matches}; memory_topic_matches={memory_topic_matches}; "
-            f"shortlist={shortlist}"
-        ),
-        latency_ms=elapsed_ms,
-    )
 
 
 def build_candidate_sessions(
@@ -633,9 +564,17 @@ def build_candidate_sessions(
                     ]
                 ]
             )
-        )
+        )[: config.max_candidate_items]
         if len(candidate_items) < 2:
             continue
+
+        candidate_topics = {item: topic_lookup[item] for item in candidate_items}
+        candidate_topics, current_topic_matches, memory_topic_matches, shortlist = build_candidate_alignment(
+            candidate_items,
+            candidate_topics,
+            current_topic,
+            memory_topic,
+        )
 
         sessions.append(
             Session(
@@ -643,8 +582,12 @@ def build_candidate_sessions(
                 history_topic_counts=dict(history_topic_counts),
                 current_topic=current_topic,
                 drift_topic=current_topic if current_topic != memory_topic else "",
-                candidate_items=candidate_items[: config.max_candidate_items],
-                target_item=target_review[1],
+                candidate_items=candidate_items,
+                candidate_topics=candidate_topics,
+                current_topic_matches=current_topic_matches,
+                memory_topic_matches=memory_topic_matches,
+                shortlist=shortlist,
+                target_item=current_topic_matches[0],
                 target_topic=current_topic,
                 is_drift=current_topic != memory_topic,
                 memory_topic=memory_topic,
@@ -684,6 +627,7 @@ def summarize_decisions(decisions: list[TeacherDecision]) -> dict[str, dict[str,
         "memory_write": dict(Counter(WRITE_NAMES[decision.write_action] for decision in decisions)),
         "memory_compress": dict(Counter(COMPRESS_NAMES[decision.compress_action] for decision in decisions)),
         "memory_forget": dict(Counter(FORGET_NAMES[decision.forget_action] for decision in decisions)),
+        "preference_type": dict(Counter(decision.preference_type for decision in decisions)),
     }
 
 
@@ -707,7 +651,7 @@ def filter_teacher_candidates(
         is_hit = teacher_hits_target(session, decision)
         print(
             f"[real-teacher] {split_name} attempt {attempt_index}/{len(candidate_sessions)} "
-            f"target_hit={is_hit} recommend={decision.recommendation} target={session.target_item}",
+            f"target_hit={is_hit} ranking_top={decision.ranking[0]} target={session.target_item}",
             flush=True,
         )
         if config.require_teacher_target_hit and not is_hit:
@@ -716,7 +660,7 @@ def filter_teacher_candidates(
                     {
                         "session": session_payload(session),
                         "target_item": session.target_item,
-                        "teacher_recommend": decision.recommendation,
+                        "teacher_ranking_top": decision.ranking[0],
                     }
                 )
             continue
@@ -740,8 +684,8 @@ def filter_teacher_candidates(
         "attempted": len(attempted_decisions),
         "kept": len(kept_sessions),
         "filtered_out": len(attempted_decisions) - len(kept_sessions),
-        "attempt_target_top1": attempted_hits / len(attempted_decisions),
-        "kept_target_top1": sum(
+        "attempt_rank_at_1": attempted_hits / len(attempted_decisions),
+        "kept_rank_at_1": sum(
             teacher_hits_target(session, decision)
             for session, decision in zip(kept_sessions, kept_decisions)
         )
@@ -765,7 +709,7 @@ def run_generation(config: RealTeacherConfig) -> dict[str, Any]:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     topic_lookup = load_topic_lookup(config.meta_file)
     train_candidate_sessions, eval_candidate_sessions = select_sessions(config, topic_lookup)
-    client = create_real_teacher_client(config.teacher_provider, config.teacher_model)
+    client = create_real_teacher_client(config.teacher_model)
 
     train_sessions, train_decisions, train_filter_stats = filter_teacher_candidates(
         client,
@@ -804,12 +748,16 @@ def run_generation(config: RealTeacherConfig) -> dict[str, Any]:
         },
         "teacher_filtering": {
             "enabled": config.require_teacher_target_hit,
-            "criterion": "teacher_recommendation_equals_target_item",
+            "criterion": "teacher_ranking_top_equals_target_item",
             "train": train_filter_stats,
             "eval": eval_filter_stats,
         },
         "train_label_distribution": summarize_decisions(train_decisions),
         "eval_label_distribution": summarize_decisions(eval_decisions),
+        "teacher_metrics": {
+            "train_rank_at_1": ranking_metrics(train_sessions, [decision.ranking for decision in train_decisions])["rank_at_1"],
+            "eval_rank_at_1": ranking_metrics(eval_sessions, [decision.ranking for decision in eval_decisions])["rank_at_1"],
+        },
         "examples": [
             {
                 "session": session_payload(session),
@@ -837,7 +785,6 @@ def parse_args() -> RealTeacherConfig:
     parser.add_argument("--disable-teacher-target-hit-filter", action="store_true")
     parser.add_argument("--sessions-per-user", type=int, default=RealTeacherConfig.sessions_per_user)
     parser.add_argument("--max-candidate-items", type=int, default=RealTeacherConfig.max_candidate_items)
-    parser.add_argument("--teacher-provider", default=RealTeacherConfig.teacher_provider)
     parser.add_argument("--teacher-model", default=RealTeacherConfig.teacher_model)
     parser.add_argument("--max-tokens", type=int, default=RealTeacherConfig.max_tokens)
     parser.add_argument("--temperature", type=float, default=RealTeacherConfig.temperature)
@@ -859,7 +806,6 @@ def parse_args() -> RealTeacherConfig:
         require_teacher_target_hit=not args.disable_teacher_target_hit_filter,
         sessions_per_user=args.sessions_per_user,
         max_candidate_items=args.max_candidate_items,
-        teacher_provider=args.teacher_provider,
         teacher_model=args.teacher_model,
         max_tokens=args.max_tokens,
         temperature=args.temperature,

@@ -15,6 +15,11 @@ from llm_memory_policy_distillation_probe import (
     ACTION_NAMES,
     COMPRESS_NAMES,
     FORGET_NAMES,
+    build_candidate_alignment,
+    PREFERENCE_TYPES,
+    preference_type_for_session,
+    rank_candidates,
+    ranking_metrics,
     WRITE_NAMES,
     ExperimentConfig,
     Session,
@@ -96,6 +101,67 @@ class BinaryLogisticModel:
         return {"weights": self.weights, "bias": self.bias}
 
 
+class MulticlassLogisticModel:
+    def __init__(self, feature_size: int, num_classes: int, learning_rate: float, epochs: int) -> None:
+        if feature_size <= 0:
+            raise ValueError("feature_size must be positive")
+        if num_classes <= 1:
+            raise ValueError("num_classes must be greater than 1")
+        if learning_rate <= 0:
+            raise ValueError("learning_rate must be positive")
+        if epochs <= 0:
+            raise ValueError("epochs must be positive")
+        self.weights = [[0.0 for _ in range(feature_size)] for _ in range(num_classes)]
+        self.bias = [0.0 for _ in range(num_classes)]
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+
+    def fit(self, rows: list[dict[int, float]], labels: list[int]) -> None:
+        if not rows:
+            raise ValueError("rows cannot be empty")
+        if len(rows) != len(labels):
+            raise ValueError("rows and labels length mismatch")
+        num_classes = len(self.weights)
+        expected_dim = len(self.weights[0])
+        for label in labels:
+            if label < 0 or label >= num_classes:
+                raise ValueError(f"invalid multiclass label: {label}")
+        for row in rows:
+            for idx in row:
+                if idx < 0 or idx >= expected_dim:
+                    raise ValueError(f"feature index out of range: {idx}")
+
+        for _ in range(self.epochs):
+            for features, label in zip(rows, labels):
+                probs = self.predict_proba(features)
+                for cls_idx in range(num_classes):
+                    error = probs[cls_idx] - (1.0 if cls_idx == label else 0.0)
+                    for idx, value in features.items():
+                        self.weights[cls_idx][idx] -= self.learning_rate * error * value
+                    self.bias[cls_idx] -= self.learning_rate * error
+
+    def predict(self, features: dict[int, float]) -> int:
+        probs = self.predict_proba(features)
+        return max(range(len(probs)), key=lambda idx: probs[idx])
+
+    def predict_proba(self, features: dict[int, float]) -> list[float]:
+        scores = []
+        for cls_weights, cls_bias in zip(self.weights, self.bias):
+            score = cls_bias
+            for idx, value in features.items():
+                score += cls_weights[idx] * value
+            scores.append(score)
+        max_score = max(scores)
+        exps = [math.exp(score - max_score) for score in scores]
+        total = sum(exps)
+        if total <= 0:
+            raise ValueError("softmax denominator must be positive")
+        return [value / total for value in exps]
+
+    def to_json(self) -> dict[str, Any]:
+        return {"weights": self.weights, "bias": self.bias}
+
+
 def open_gzip_text(path: Path):
     if path.suffix != ".gz":
         raise ValueError(f"Expected gzip file: {path}")
@@ -166,9 +232,17 @@ def build_supervised_sessions(config: TrainingConfig) -> list[Session]:
                     if str(review["asin"]) in topic_lookup
                 ]
             )
-        )
+        )[: config.max_candidate_items]
         if len(candidate_items) < 2:
             continue
+
+        candidate_topics = {item: topic_lookup[item] for item in candidate_items}
+        candidate_topics, current_topic_matches, memory_topic_matches, shortlist = build_candidate_alignment(
+            candidate_items,
+            candidate_topics,
+            current_topic,
+            memory_topic,
+        )
 
         sessions.append(
             Session(
@@ -176,8 +250,12 @@ def build_supervised_sessions(config: TrainingConfig) -> list[Session]:
                 history_topic_counts=dict(history_topic_counts),
                 current_topic=current_topic,
                 drift_topic=current_topic if current_topic != memory_topic else "",
-                candidate_items=candidate_items[: config.max_candidate_items],
-                target_item=str(target_review["asin"]),
+                candidate_items=candidate_items,
+                candidate_topics=candidate_topics,
+                current_topic_matches=current_topic_matches,
+                memory_topic_matches=memory_topic_matches,
+                shortlist=shortlist,
+                target_item=current_topic_matches[0],
                 target_topic=current_topic,
                 is_drift=current_topic != memory_topic,
                 memory_topic=memory_topic,
@@ -196,6 +274,10 @@ def session_payload(session: Session) -> dict[str, Any]:
         "history_topic_counts": session.history_topic_counts,
         "current_topic_signal": session.current_topic,
         "candidate_items": list(session.candidate_items),
+        "candidate_topics": session.candidate_topics,
+        "current_topic_matches": list(session.current_topic_matches),
+        "memory_topic_matches": list(session.memory_topic_matches),
+        "shortlist": list(session.shortlist),
         "external_memory": {
             "dominant_topic": session.memory_topic,
             "strength": session.memory_strength,
@@ -210,6 +292,8 @@ def supervised_record(session: Session, decision: TeacherDecision) -> dict[str, 
         "target_item": session.target_item,
         "target_topic": session.target_topic,
         "is_drift": session.is_drift,
+        "preference_type": decision.preference_type,
+        "ranking": list(decision.ranking),
     }
 
 
@@ -226,8 +310,9 @@ def sft_system_prompt() -> str:
     return (
         "You are a small student LLM learning trajectory distillation from a multi-agent "
         "recommendation teacher. Given a user state, produce only the teacher's structured "
-        "memory-policy trajectory JSON. Do not explain, do not use markdown fences, and do "
-        "not emit nested JSON strings inside trajectory."
+        "memory-policy trajectory JSON. The core target is the preference ranking. Do not "
+        "explain, do not use markdown fences, and do not emit nested JSON strings inside "
+        "trajectory."
     )
 
 
@@ -235,13 +320,40 @@ def sft_instruction() -> str:
     return (
         "Predict the multi-agent memory trajectory for the recommendation request. "
         "The output must be a JSON object with exactly these top-level keys: "
-        "tool_vs_memory, memory_write, memory_compress, memory_forget, recommend, trajectory. "
-        "The recommendation must be copied exactly from candidate_items. The trajectory value "
-        "must be a JSON object with exactly these keys: memory_plan, memory_read, tool_calls, "
-        "memory_write, memory_compress, memory_forget, recommend. The tool_calls value must be "
-        "a JSON array of executed tool-call objects. The other trajectory values must be short "
-        "plain JSON objects or strings, not nested JSON strings and not lists unless explicitly "
-        "required by tool_calls."
+        "tool_vs_memory, memory_write, memory_compress, memory_forget, preference_type, ranking, trajectory. "
+        "The ranking value must be an array containing every candidate item exactly once, ordered from most preferred to least preferred. "
+        "The input also contains candidate_topics, current_topic_matches, and memory_topic_matches. "
+        "Choose preference_type from aligned, current_priority, or memory_priority. "
+        "Use aligned when current_topic and memory_topic match. Use current_priority when the current topic should outrank memory. Use memory_priority when memory should outrank the current topic. "
+        "For tool_vs_memory, choose \"tool\" when current_topic_signal differs from external_memory.dominant_topic; otherwise choose \"memory\". "
+        "For memory_write, choose \"write\" when tool_vs_memory is \"tool\" or the current topic is sparse. "
+        "For memory_compress, choose \"compress\" only when the history is large and memory strength is high. "
+        "For memory_forget, choose \"forget\" only when the current topic conflicts with memory and memory strength is high. "
+        "The trajectory value must be a JSON object with exactly these keys: memory_plan, "
+        "memory_read, memory_write, memory_compress, memory_forget, preference, ranking. "
+        "The trajectory.memory_plan value must be a JSON object, not a string. "
+        "The trajectory.memory_read value must be a JSON object, not a string. "
+        "The trajectory.memory_write, trajectory.memory_compress, and trajectory.memory_forget "
+        "values must each be JSON objects, not strings. The trajectory.preference value must be a JSON object. "
+        "The trajectory.ranking value must be a JSON array of candidate items. Do not serialize any nested object as a JSON string. "
+        "Required output skeleton: "
+        '{'
+        '"tool_vs_memory":"tool", '
+        '"memory_write":"write", '
+        '"memory_compress":"compress", '
+        '"memory_forget":"keep", '
+        '"preference_type":"current_priority", '
+        '"ranking":["<candidate_item_1>", "<candidate_item_2>"], '
+        '"trajectory":{'
+        '"memory_plan":{}, '
+        '"memory_read":{}, '
+        '"memory_write":{}, '
+        '"memory_compress":{}, '
+        '"memory_forget":{}, '
+        '"preference":{}, '
+        '"ranking":["<candidate_item_1>", "<candidate_item_2>"]'
+        '}'
+        '}'
     )
 
 
@@ -254,6 +366,7 @@ def sft_input(session: Session) -> str:
                 "memory_write": list(WRITE_NAMES),
                 "memory_compress": list(COMPRESS_NAMES),
                 "memory_forget": list(FORGET_NAMES),
+                "preference_type": list(PREFERENCE_TYPES),
             },
         },
         ensure_ascii=False,
@@ -264,7 +377,15 @@ def sft_input(session: Session) -> str:
 
 def sft_output(decision: TeacherDecision) -> str:
     return json.dumps(
-        teacher_payload(decision),
+        {
+            "tool_vs_memory": ACTION_NAMES[decision.select_action],
+            "memory_write": WRITE_NAMES[decision.write_action],
+            "memory_compress": COMPRESS_NAMES[decision.compress_action],
+            "memory_forget": FORGET_NAMES[decision.forget_action],
+            "preference_type": decision.preference_type,
+            "ranking": list(decision.ranking),
+            "trajectory": decision.trajectory,
+        },
         ensure_ascii=False,
         indent=2,
         sort_keys=True,
@@ -327,10 +448,8 @@ def accuracy(predicted: list[int], labels: list[int]) -> float:
     return sum(1 for pred, label in zip(predicted, labels) if pred == label) / len(labels)
 
 
-def recommendation_accuracy(sessions: list[Session], predicted_items: list[str]) -> float:
-    if len(sessions) != len(predicted_items):
-        raise ValueError("sessions and predicted_items length mismatch")
-    return sum(1 for session, item in zip(sessions, predicted_items) if item == session.target_item) / len(sessions)
+def ranking_accuracy(sessions: list[Session], rankings: list[tuple[str, ...]]) -> float:
+    return ranking_metrics(sessions, rankings)["rank_at_1"]
 
 
 def fit_action_model(
@@ -346,30 +465,20 @@ def fit_action_model(
     return model
 
 
-def fit_candidate_ranker(
+def fit_preference_model(
     train_sessions: list[Session],
+    train_decisions: list[TeacherDecision],
     config: TrainingConfig,
-) -> BinaryLogisticModel:
-    model = BinaryLogisticModel(config.feature_hash_size, config.learning_rate, config.epochs)
-    rows: list[dict[int, float]] = []
-    labels: list[int] = []
-    for session in train_sessions:
-        for candidate in session.candidate_items:
-            rows.append(featurize_candidate(session, candidate, config.feature_hash_size))
-            labels.append(1 if candidate == session.target_item else 0)
+) -> MulticlassLogisticModel:
+    model = MulticlassLogisticModel(config.feature_hash_size, len(PREFERENCE_TYPES), config.learning_rate, config.epochs)
+    rows = [featurize_policy(session, config.feature_hash_size) for session in train_sessions]
+    labels = [PREFERENCE_TYPES.index(decision.preference_type) for decision in train_decisions]
     model.fit(rows, labels)
     return model
 
 
-def predict_recommendation(model: BinaryLogisticModel, session: Session, config: TrainingConfig) -> str:
-    if not session.candidate_items:
-        raise ValueError("candidate_items cannot be empty")
-    scored = [
-        (model.predict_proba(featurize_candidate(session, candidate, config.feature_hash_size)), candidate)
-        for candidate in session.candidate_items
-    ]
-    scored.sort(key=lambda item: item[0], reverse=True)
-    return scored[0][1]
+def predict_ranking(session: Session, preference_type: str) -> tuple[str, ...]:
+    return rank_candidates(session, preference_type)
 
 
 def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
@@ -391,38 +500,45 @@ def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
         "memory_write": fit_action_model(train_sessions, train_decisions, lambda d: d.write_action, config),
         "memory_compress": fit_action_model(train_sessions, train_decisions, lambda d: d.compress_action, config),
         "memory_forget": fit_action_model(train_sessions, train_decisions, lambda d: d.forget_action, config),
+        "preference_type": fit_preference_model(train_sessions, train_decisions, config),
     }
-    ranker = fit_candidate_ranker(train_sessions, config)
 
     test_features = [featurize_policy(session, config.feature_hash_size) for session in test_sessions]
-    predictions = {
-        name: [model.predict(features) for features in test_features]
-        for name, model in action_models.items()
-    }
-    labels = {
-        "tool_vs_memory": [decision.select_action for decision in test_decisions],
-        "memory_write": [decision.write_action for decision in test_decisions],
-        "memory_compress": [decision.compress_action for decision in test_decisions],
-        "memory_forget": [decision.forget_action for decision in test_decisions],
-    }
-    predicted_items = [predict_recommendation(ranker, session, config) for session in test_sessions]
+    predicted_preferences = [PREFERENCE_TYPES[action_models["preference_type"].predict(features)] for features in test_features]
+    predicted_rankings = [predict_ranking(session, pref) for session, pref in zip(test_sessions, predicted_preferences)]
 
     metrics = {
-        "tool_vs_memory_accuracy": accuracy(predictions["tool_vs_memory"], labels["tool_vs_memory"]),
-        "memory_write_accuracy": accuracy(predictions["memory_write"], labels["memory_write"]),
-        "memory_compress_accuracy": accuracy(predictions["memory_compress"], labels["memory_compress"]),
-        "memory_forget_accuracy": accuracy(predictions["memory_forget"], labels["memory_forget"]),
-        "recommendation_top1": recommendation_accuracy(test_sessions, predicted_items),
+        "tool_vs_memory_accuracy": accuracy(
+            [action_models["tool_vs_memory"].predict(features) for features in test_features],
+            [decision.select_action for decision in test_decisions],
+        ),
+        "memory_write_accuracy": accuracy(
+            [action_models["memory_write"].predict(features) for features in test_features],
+            [decision.write_action for decision in test_decisions],
+        ),
+        "memory_compress_accuracy": accuracy(
+            [action_models["memory_compress"].predict(features) for features in test_features],
+            [decision.compress_action for decision in test_decisions],
+        ),
+        "memory_forget_accuracy": accuracy(
+            [action_models["memory_forget"].predict(features) for features in test_features],
+            [decision.forget_action for decision in test_decisions],
+        ),
+        "preference_type_accuracy": accuracy(
+            [PREFERENCE_TYPES.index(pref) for pref in predicted_preferences],
+            [PREFERENCE_TYPES.index(decision.preference_type) for decision in test_decisions],
+        ),
+        **ranking_metrics(test_sessions, predicted_rankings),
     }
     model_payload = {
         "config": {key: str(value) if isinstance(value, Path) else value for key, value in asdict(config).items()},
         "action_models": {name: model.to_json() for name, model in action_models.items()},
-        "candidate_ranker": ranker.to_json(),
         "label_names": {
             "tool_vs_memory": list(ACTION_NAMES),
             "memory_write": list(WRITE_NAMES),
             "memory_compress": list(COMPRESS_NAMES),
             "memory_forget": list(FORGET_NAMES),
+            "preference_type": list(PREFERENCE_TYPES),
         },
     }
     MODEL_JSON.write_text(json.dumps(model_payload, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
@@ -444,6 +560,7 @@ def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
             "memory_write": dict(Counter(WRITE_NAMES[decision.write_action] for decision in decisions)),
             "memory_compress": dict(Counter(COMPRESS_NAMES[decision.compress_action] for decision in decisions)),
             "memory_forget": dict(Counter(FORGET_NAMES[decision.forget_action] for decision in decisions)),
+            "preference_type": dict(Counter(decision.preference_type for decision in decisions)),
             "drift": dict(Counter("drift" if session.is_drift else "stable" for session in sessions)),
         },
         "metrics": metrics,
@@ -451,17 +568,13 @@ def train_and_evaluate(config: TrainingConfig) -> dict[str, Any]:
             {
                 "input": session_payload(session),
                 "target_item": session.target_item,
-                "predicted_item": predicted_item,
                 "teacher": teacher_payload(decision),
-                "predicted_policy": {
-                    "tool_vs_memory": ACTION_NAMES[predictions["tool_vs_memory"][idx]],
-                    "memory_write": WRITE_NAMES[predictions["memory_write"][idx]],
-                    "memory_compress": COMPRESS_NAMES[predictions["memory_compress"][idx]],
-                    "memory_forget": FORGET_NAMES[predictions["memory_forget"][idx]],
-                },
+                "teacher_ranking": list(decision.ranking),
+                "predicted_ranking": list(predicted_ranking),
+                "predicted_preference_type": predicted_preferences[idx],
             }
-            for idx, (session, decision, predicted_item) in enumerate(
-                zip(test_sessions[:3], test_decisions[:3], predicted_items[:3])
+            for idx, (session, decision, predicted_ranking) in enumerate(
+                zip(test_sessions[:3], test_decisions[:3], predicted_rankings[:3])
             )
         ],
     }

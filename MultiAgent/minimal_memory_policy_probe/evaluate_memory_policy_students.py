@@ -4,38 +4,38 @@
 from __future__ import annotations
 
 import argparse
-import gc
 import json
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import torch
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
 from llm_memory_policy_distillation_probe import (
     ACTION_NAMES,
     COMPRESS_NAMES,
     FORGET_NAMES,
+    build_candidate_alignment,
+    PREFERENCE_TYPES,
+    preference_vector_for_type,
+    preference_type_for_session,
+    rank_candidates,
+    ranking_metrics,
     WRITE_NAMES,
     Session,
     TeacherDecision,
     create_llm_client,
     load_reviews,
     teacher_payload,
-    teacher_policy,
 )
 from supervised_memory_policy_training import (
-    LLAMA_FACTORY_DIR,
     TrainingConfig,
     featurize_policy,
     fit_action_model,
-    fit_candidate_ranker,
+    fit_preference_model,
     load_topic_lookup,
-    predict_recommendation,
+    predict_ranking,
     session_payload,
     sft_input,
     sft_instruction,
@@ -44,32 +44,28 @@ from supervised_memory_policy_training import (
 
 
 PROBE_DIR = Path(__file__).resolve().parent
-DEFAULT_ADAPTER_PATH = (
-    LLAMA_FACTORY_DIR / "saves" / "memory_policy_trajectory" / "qwen2.5-0.5b" / "lora" / "sft"
-)
 DEFAULT_OUTPUT_JSON = PROBE_DIR / "supervised_memory_policy" / "free_generation_eval_result.json"
 
 
 @dataclass(frozen=True)
 class EvalConfig:
-    model_name_or_path: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    adapter_path: Path = DEFAULT_ADAPTER_PATH
     output_json: Path = DEFAULT_OUTPUT_JSON
     train_users: int = 500
     eval_count: int = 20
     eval_offset: int = 500
     sessions_per_user: int = 4
     max_candidate_items: int = 8
-    max_new_tokens: int = 768
-    minimax_provider: str = "minimax"
     minimax_model: str | None = None
     minimax_max_tokens: int = 1024
     minimax_max_retries: int = 5
+    logistic_baseline_enabled: bool = True
 
 
 @dataclass(frozen=True)
 class ParsedPrediction:
     policy: tuple[int, int, int, int] | None
+    preference_type: str | None
+    ranking: tuple[str, ...] | None
     recommendation: str | None
     parsed_json: dict[str, Any] | None
     raw_text: str
@@ -130,10 +126,18 @@ def build_supervised_sessions_with_offset(
                     if str(review["asin"]) in topic_lookup
                 ]
             )
-        )
+        )[: config.max_candidate_items]
         eligible_index += 1
         if len(candidate_items) < 2:
             continue
+
+        candidate_topics = {item: topic_lookup[item] for item in candidate_items}
+        candidate_topics, current_topic_matches, memory_topic_matches, shortlist = build_candidate_alignment(
+            candidate_items,
+            candidate_topics,
+            current_topic,
+            memory_topic,
+        )
 
         sessions.append(
             Session(
@@ -141,8 +145,12 @@ def build_supervised_sessions_with_offset(
                 history_topic_counts=dict(history_topic_counts),
                 current_topic=current_topic,
                 drift_topic=current_topic if current_topic != memory_topic else "",
-                candidate_items=candidate_items[: config.max_candidate_items],
-                target_item=str(target_review["asin"]),
+                candidate_items=candidate_items,
+                candidate_topics=candidate_topics,
+                current_topic_matches=current_topic_matches,
+                memory_topic_matches=memory_topic_matches,
+                shortlist=shortlist,
+                target_item=current_topic_matches[0],
                 target_topic=current_topic,
                 is_drift=current_topic != memory_topic,
                 memory_topic=memory_topic,
@@ -170,7 +178,15 @@ def extract_json_object(text: str) -> dict[str, Any]:
 def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
     try:
         parsed = extract_json_object(text)
-        required = ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "recommend", "trajectory")
+        required = (
+            "tool_vs_memory",
+            "memory_write",
+            "memory_compress",
+            "memory_forget",
+            "preference_type",
+            "ranking",
+            "trajectory",
+        )
         missing = [key for key in required if key not in parsed]
         if missing:
             raise ValueError(f"missing required keys: {missing}")
@@ -179,7 +195,8 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
         memory_write = str(parsed["memory_write"])
         memory_compress = str(parsed["memory_compress"])
         memory_forget = str(parsed["memory_forget"])
-        recommendation = str(parsed["recommend"])
+        preference_type = str(parsed["preference_type"])
+        ranking_raw = parsed["ranking"]
 
         if tool_vs_memory not in ACTION_NAMES:
             raise ValueError(f"invalid tool_vs_memory: {tool_vs_memory}")
@@ -189,12 +206,23 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
             raise ValueError(f"invalid memory_compress: {memory_compress}")
         if memory_forget not in FORGET_NAMES:
             raise ValueError(f"invalid memory_forget: {memory_forget}")
-        if recommendation not in session.candidate_items:
-            raise ValueError(f"recommendation is not in candidate_items: {recommendation}")
+        if preference_type not in PREFERENCE_TYPES:
+            raise ValueError(f"invalid preference_type: {preference_type}")
+        if not isinstance(ranking_raw, list):
+            raise ValueError("ranking must be a JSON array")
+        ranking = tuple(str(item) for item in ranking_raw)
+        if len(ranking) != len(session.candidate_items):
+            raise ValueError("ranking must contain every candidate item exactly once")
+        if Counter(ranking) != Counter(session.candidate_items):
+            raise ValueError("ranking items do not match candidate_items")
+        if preference_type in ("aligned", "current_priority") and ranking[0] not in session.current_topic_matches:
+            raise ValueError(f"ranking top item must come from current_topic_matches for {preference_type}: {ranking[0]}")
+        if preference_type == "memory_priority" and ranking[0] not in session.memory_topic_matches:
+            raise ValueError(f"ranking top item must come from memory_topic_matches for memory_priority: {ranking[0]}")
         trajectory = parsed["trajectory"]
         if not isinstance(trajectory, dict):
             raise ValueError("trajectory must be a JSON object")
-        trajectory_required = ("memory_plan", "memory_read", "tool_calls", "memory_write", "memory_compress", "memory_forget", "recommend")
+        trajectory_required = ("memory_plan", "memory_read", "memory_write", "memory_compress", "memory_forget", "preference", "ranking")
         trajectory_missing = [key for key in trajectory_required if key not in trajectory]
         if trajectory_missing:
             raise ValueError(f"trajectory missing required keys: {trajectory_missing}")
@@ -202,27 +230,16 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
             raise ValueError("trajectory.memory_plan must be a JSON object")
         if not isinstance(trajectory["memory_read"], dict):
             raise ValueError("trajectory.memory_read must be a JSON object")
-        if not isinstance(trajectory["tool_calls"], list):
-            raise ValueError("trajectory.tool_calls must be a JSON array")
-        if tool_vs_memory == "tool" and not trajectory["tool_calls"]:
-            raise ValueError("tool_vs_memory=tool requires at least one executed tool call")
-        for index, tool_call in enumerate(trajectory["tool_calls"]):
-            if not isinstance(tool_call, dict):
-                raise ValueError(f"trajectory.tool_calls[{index}] must be a JSON object")
-            required_tool_call_keys = ("agent", "tool_name", "tool_args", "tool_result", "observation")
-            missing_tool_call_keys = [key for key in required_tool_call_keys if key not in tool_call]
-            if missing_tool_call_keys:
-                raise ValueError(
-                    f"trajectory.tool_calls[{index}] missing required keys: {missing_tool_call_keys}"
-                )
         if not isinstance(trajectory["memory_write"], dict):
             raise ValueError("trajectory.memory_write must be a JSON object")
         if not isinstance(trajectory["memory_compress"], dict):
             raise ValueError("trajectory.memory_compress must be a JSON object")
         if not isinstance(trajectory["memory_forget"], dict):
             raise ValueError("trajectory.memory_forget must be a JSON object")
-        if not isinstance(trajectory["recommend"], str):
-            raise ValueError("trajectory.recommend must be a string")
+        if not isinstance(trajectory["preference"], dict):
+            raise ValueError("trajectory.preference must be a JSON object")
+        if not isinstance(trajectory["ranking"], list):
+            raise ValueError("trajectory.ranking must be a JSON array")
 
         return ParsedPrediction(
             policy=(
@@ -231,7 +248,9 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
                 COMPRESS_NAMES.index(memory_compress),
                 FORGET_NAMES.index(memory_forget),
             ),
-            recommendation=recommendation,
+            preference_type=preference_type,
+            ranking=ranking,
+            recommendation=ranking[0],
             parsed_json=parsed,
             raw_text=text,
             parse_error=None,
@@ -239,6 +258,8 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
     except (json.JSONDecodeError, ValueError) as exc:
         return ParsedPrediction(
             policy=None,
+            preference_type=None,
+            ranking=None,
             recommendation=None,
             parsed_json=None,
             raw_text=text,
@@ -246,67 +267,68 @@ def parse_generated_policy(text: str, session: Session) -> ParsedPrediction:
         )
 
 
-def build_messages(session: Session) -> list[dict[str, str]]:
-    return [
-        {"role": "system", "content": sft_system_prompt()},
-        {"role": "user", "content": f"{sft_instruction()}\n{sft_input(session)}"},
-    ]
-
-
-def build_minimax_prompt(session: Session) -> str:
-    return "\n\n".join(
-        [
-            f"System:\n{sft_system_prompt()}",
-            f"User:\n{sft_instruction()}\n{sft_input(session)}",
-            "Assistant:",
-        ]
+def build_minimax_prompt_parts(session: Session) -> tuple[str, str]:
+    return (
+        "\n\n".join([sft_system_prompt(), sft_instruction()]),
+        f"Target input:\n{sft_input(session)}",
     )
 
 
-def generate_with_qwen(
-    model,
-    tokenizer,
-    session: Session,
-    max_new_tokens: int,
-) -> ParsedPrediction:
-    messages = build_messages(session)
-    input_ids = tokenizer.apply_chat_template(
-        messages,
-        add_generation_prompt=True,
-        return_tensors="pt",
-    ).to(model.device)
-    attention_mask = torch.ones_like(input_ids)
-    with torch.inference_mode():
-        generated = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-        )
-    new_tokens = generated[0, input_ids.shape[-1] :]
-    text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
-    return parse_generated_policy(text, session)
+def teacher_policy_real(session: Session, topic_lookup: dict[str, str]) -> TeacherDecision:
+    memory_matches = session.memory_topic == session.current_topic
+    history_total = sum(session.history_topic_counts.values())
+    topic_count = session.history_topic_counts.get(session.current_topic, 0)
+    recent_is_weak = topic_count <= 1
 
+    use_tool = (not memory_matches) or recent_is_weak
+    select_action = 1 if use_tool else 0
+    write_action = 1 if session.is_drift or topic_count <= 2 else 0
+    compress_action = 1 if history_total >= 10 and session.memory_strength >= 6 else 0
+    forget_action = 1 if session.is_drift and session.memory_strength >= 6 and not memory_matches else 0
 
-def load_qwen_base(model_name_or_path: str):
-    if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required for Qwen free-generation evaluation")
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name_or_path,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
-    ).to("cuda")
-    model.eval()
-    return tokenizer, model
+    if not session.current_topic_matches:
+        raise ValueError(f"No current topic matches for session {session.user_id}")
+    preference_type = preference_type_for_session(session)
+    ranking = rank_candidates(session, preference_type)
+    recommendation = ranking[0]
 
-
-def release_model(model) -> None:
-    del model
-    gc.collect()
-    torch.cuda.empty_cache()
+    trajectory = {
+        "memory_plan": {
+            "read_key": f"user:{session.user_id}:dominant_topic",
+            "tool_vs_memory": ACTION_NAMES[select_action],
+            "reason": "drift_or_sparse_signal" if use_tool else "stable_memory_match",
+        },
+        "preference": {
+            "type": preference_type,
+            "vector": list(preference_vector_for_type(preference_type)),
+        },
+        "memory_read": {
+            "topic": session.memory_topic,
+            "strength": session.memory_strength,
+        },
+        "memory_write": {
+            "decision": WRITE_NAMES[write_action],
+            "topic": session.current_topic if write_action else "",
+        },
+        "memory_compress": {
+            "decision": COMPRESS_NAMES[compress_action],
+        },
+        "memory_forget": {
+            "decision": FORGET_NAMES[forget_action],
+            "topic": session.memory_topic if forget_action else "",
+        },
+        "ranking": list(ranking),
+    }
+    return TeacherDecision(
+        select_action,
+        write_action,
+        compress_action,
+        forget_action,
+        recommendation,
+        trajectory,
+        preference_type=preference_type,
+        ranking=ranking,
+    )
 
 
 def teacher_policy_tuple(decision: TeacherDecision) -> tuple[int, int, int, int]:
@@ -318,6 +340,37 @@ def teacher_policy_tuple(decision: TeacherDecision) -> tuple[int, int, int, int]
     )
 
 
+def prediction_ranking_metrics(
+    sessions: list[Session],
+    predictions: list[ParsedPrediction],
+    ks: tuple[int, ...] = (1, 5, 10),
+) -> dict[str, float]:
+    if len(sessions) != len(predictions):
+        raise ValueError("sessions and predictions length mismatch")
+    if not sessions:
+        raise ValueError("sessions cannot be empty")
+    metrics: dict[str, float] = {f"rank_at_{k}": 0.0 for k in ks}
+    metrics["mrr"] = 0.0
+    for k in ks:
+        metrics[f"ndcg@{k}"] = 0.0
+
+    total = float(len(sessions))
+    for session, prediction in zip(sessions, predictions):
+        ranking = prediction.ranking
+        if ranking is None:
+            continue
+        position = ranking.index(session.target_item) + 1
+        metrics["mrr"] += 1.0 / position
+        for k in ks:
+            if position <= k:
+                metrics[f"rank_at_{k}"] += 1.0
+                metrics[f"ndcg@{k}"] += 1.0 / math.log2(position + 1)
+
+    for key in metrics:
+        metrics[key] /= total
+    return metrics
+
+
 def summarize_predictions(
     sessions: list[Session],
     decisions: list[TeacherDecision],
@@ -327,16 +380,13 @@ def summarize_predictions(
         raise ValueError("sessions, decisions, and predictions length mismatch")
 
     labels = [teacher_policy_tuple(decision) for decision in decisions]
+    teacher_rankings = [decision.ranking for decision in decisions]
     metrics: dict[str, Any] = {
         "json_parse_success_rate": sum(pred.parse_error is None for pred in predictions) / len(predictions),
-        "recommendation_top1": sum(
-            pred.recommendation == session.target_item for session, pred in zip(sessions, predictions)
-        )
-        / len(predictions),
-        "recommendation_teacher_match": sum(
-            pred.recommendation == decision.recommendation for decision, pred in zip(decisions, predictions)
-        )
-        / len(predictions),
+        **prediction_ranking_metrics(sessions, predictions),
+        "teacher_rank_at_1": ranking_metrics(sessions, teacher_rankings)["rank_at_1"],
+        "teacher_mrr": ranking_metrics(sessions, teacher_rankings)["mrr"],
+        "teacher_ndcg@5": ranking_metrics(sessions, teacher_rankings)["ndcg@5"],
         "exact_policy_accuracy": sum(pred.policy == label for pred, label in zip(predictions, labels)) / len(predictions),
         "tool_vs_memory_accuracy": sum(
             pred.policy is not None and pred.policy[0] == label[0] for pred, label in zip(predictions, labels)
@@ -352,6 +402,10 @@ def summarize_predictions(
         / len(predictions),
         "memory_forget_accuracy": sum(
             pred.policy is not None and pred.policy[3] == label[3] for pred, label in zip(predictions, labels)
+        )
+        / len(predictions),
+        "preference_type_accuracy": sum(
+            pred.preference_type == decision.preference_type for pred, decision in zip(predictions, decisions)
         )
         / len(predictions),
         "parse_errors": dict(Counter(pred.parse_error for pred in predictions if pred.parse_error is not None)),
@@ -371,7 +425,7 @@ def logistic_predictions(
         "memory_compress": fit_action_model(train_sessions, train_decisions, lambda d: d.compress_action, config),
         "memory_forget": fit_action_model(train_sessions, train_decisions, lambda d: d.forget_action, config),
     }
-    ranker = fit_candidate_ranker(train_sessions, config)
+    preference_model = fit_preference_model(train_sessions, train_decisions, config)
     predictions: list[ParsedPrediction] = []
     for session in eval_sessions:
         features = featurize_policy(session, config.feature_hash_size)
@@ -381,18 +435,22 @@ def logistic_predictions(
             action_models["memory_compress"].predict(features),
             action_models["memory_forget"].predict(features),
         )
-        recommendation = predict_recommendation(ranker, session, config)
+        preference_type = PREFERENCE_TYPES[preference_model.predict(features)]
+        ranking = predict_ranking(session, preference_type)
         parsed_json = {
             "tool_vs_memory": ACTION_NAMES[policy[0]],
             "memory_write": WRITE_NAMES[policy[1]],
             "memory_compress": COMPRESS_NAMES[policy[2]],
             "memory_forget": FORGET_NAMES[policy[3]],
-            "recommend": recommendation,
+            "preference_type": preference_type,
+            "ranking": list(ranking),
         }
         predictions.append(
             ParsedPrediction(
                 policy=policy,
-                recommendation=recommendation,
+                preference_type=preference_type,
+                ranking=ranking,
+                recommendation=ranking[0],
                 parsed_json=parsed_json,
                 raw_text=json.dumps(parsed_json, ensure_ascii=False, sort_keys=True),
                 parse_error=None,
@@ -403,38 +461,22 @@ def logistic_predictions(
 
 def minimax_predictions(
     sessions: list[Session],
-    provider: str,
     model: str | None,
     max_tokens: int,
     max_retries: int,
 ) -> list[ParsedPrediction]:
-    client = create_llm_client(provider, model)
+    client = create_llm_client(model)
     predictions: list[ParsedPrediction] = []
     for session in sessions:
-        _, text = client.call_with_thinking(
-            prompt=build_minimax_prompt(session),
+        system_base, user_content = build_minimax_prompt_parts(session)
+        text, _ = client.call_with_cache(
+            system_base=system_base,
+            user_content=user_content,
             max_tokens=max_tokens,
             temperature=0.0,
             max_retries=max_retries,
         )
         predictions.append(parse_generated_policy(text, session))
-    return predictions
-
-
-def qwen_predictions(
-    sessions: list[Session],
-    model_name_or_path: str,
-    adapter_path: Path | None,
-    max_new_tokens: int,
-) -> list[ParsedPrediction]:
-    tokenizer, model = load_qwen_base(model_name_or_path)
-    if adapter_path is not None:
-        if not adapter_path.is_dir():
-            raise FileNotFoundError(f"adapter path does not exist: {adapter_path}")
-        model = PeftModel.from_pretrained(model, adapter_path)
-        model.eval()
-    predictions = [generate_with_qwen(model, tokenizer, session, max_new_tokens) for session in sessions]
-    release_model(model)
     return predictions
 
 
@@ -456,7 +498,8 @@ def prediction_examples(
             pred = predictions[idx]
             row["models"][model_name] = {
                 "policy": list(pred.policy) if pred.policy is not None else None,
-                "recommendation": pred.recommendation,
+                "preference_type": pred.preference_type,
+                "ranking": list(pred.ranking) if pred.ranking is not None else None,
                 "parse_error": pred.parse_error,
                 "parsed_json": pred.parsed_json,
                 "raw_text": pred.raw_text[:1200],
@@ -471,37 +514,25 @@ def run_eval(config: EvalConfig) -> dict[str, Any]:
         sessions_per_user=config.sessions_per_user,
         max_candidate_items=config.max_candidate_items,
     )
+    topic_lookup = load_topic_lookup(train_config.meta_file)
     train_sessions = build_supervised_sessions_with_offset(train_config, offset=0, count=config.train_users)
-    train_decisions = [teacher_policy(session) for session in train_sessions]
+    train_decisions = [teacher_policy_real(session, topic_lookup) for session in train_sessions]
     eval_sessions = build_supervised_sessions_with_offset(
         train_config,
         offset=config.eval_offset,
         count=config.eval_count,
     )
-    eval_decisions = [teacher_policy(session) for session in eval_sessions]
+    eval_decisions = [teacher_policy_real(session, topic_lookup) for session in eval_sessions]
 
-    predictions_by_model = {
-        "qwen_lora_sft": qwen_predictions(
-            eval_sessions,
-            config.model_name_or_path,
-            config.adapter_path,
-            config.max_new_tokens,
-        ),
-        "qwen_base": qwen_predictions(
-            eval_sessions,
-            config.model_name_or_path,
-            None,
-            config.max_new_tokens,
-        ),
-        "minimax_prompt_only": minimax_predictions(
-            eval_sessions,
-            config.minimax_provider,
-            config.minimax_model,
-            config.minimax_max_tokens,
-            config.minimax_max_retries,
-        ),
-        "logistic_baseline": logistic_predictions(train_sessions, train_decisions, eval_sessions, train_config),
-    }
+    predictions_by_model: dict[str, list[ParsedPrediction]] = {}
+    predictions_by_model["minimax_prompt_only"] = minimax_predictions(
+        eval_sessions,
+        config.minimax_model,
+        config.minimax_max_tokens,
+        config.minimax_max_retries,
+    )
+    if config.logistic_baseline_enabled:
+        predictions_by_model["logistic_baseline"] = logistic_predictions(train_sessions, train_decisions, eval_sessions, train_config)
     metrics_by_model = {
         name: summarize_predictions(eval_sessions, eval_decisions, predictions)
         for name, predictions in predictions_by_model.items()
@@ -533,24 +564,16 @@ def parse_args() -> EvalConfig:
     parser.add_argument("--eval-count", type=int, default=20)
     parser.add_argument("--eval-offset", type=int, default=500)
     parser.add_argument("--train-users", type=int, default=500)
-    parser.add_argument("--max-new-tokens", type=int, default=768)
     parser.add_argument("--minimax-max-tokens", type=int, default=1024)
     parser.add_argument("--minimax-max-retries", type=int, default=5)
-    parser.add_argument("--minimax-provider", default="minimax")
     parser.add_argument("--minimax-model", default=None)
     parser.add_argument("--output-json", type=Path, default=DEFAULT_OUTPUT_JSON)
-    parser.add_argument("--adapter-path", type=Path, default=DEFAULT_ADAPTER_PATH)
-    parser.add_argument("--model-name-or-path", default="Qwen/Qwen2.5-0.5B-Instruct")
     args = parser.parse_args()
     return EvalConfig(
-        model_name_or_path=args.model_name_or_path,
-        adapter_path=args.adapter_path,
         output_json=args.output_json,
         train_users=args.train_users,
         eval_count=args.eval_count,
         eval_offset=args.eval_offset,
-        max_new_tokens=args.max_new_tokens,
-        minimax_provider=args.minimax_provider,
         minimax_model=args.minimax_model,
         minimax_max_tokens=args.minimax_max_tokens,
         minimax_max_retries=args.minimax_max_retries,

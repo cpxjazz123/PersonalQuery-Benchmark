@@ -13,6 +13,7 @@ from llm_memory_policy_distillation_probe import (
     ACTION_NAMES,
     COMPRESS_NAMES,
     FORGET_NAMES,
+    PREFERENCE_TYPES,
     WRITE_NAMES,
     Session,
     TeacherDecision,
@@ -46,7 +47,15 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def decision_from_label(label: dict[str, Any]) -> TeacherDecision:
-    required = ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "recommend", "trajectory")
+    required = (
+        "tool_vs_memory",
+        "memory_write",
+        "memory_compress",
+        "memory_forget",
+        "preference_type",
+        "ranking",
+        "trajectory",
+    )
     missing = [key for key in required if key not in label]
     if missing:
         raise ValueError(f"teacher label missing required keys: {missing}")
@@ -55,7 +64,8 @@ def decision_from_label(label: dict[str, Any]) -> TeacherDecision:
     memory_write = str(label["memory_write"])
     memory_compress = str(label["memory_compress"])
     memory_forget = str(label["memory_forget"])
-    recommendation = str(label["recommend"])
+    preference_type = str(label["preference_type"])
+    ranking_raw = label["ranking"]
     trajectory = label["trajectory"]
 
     if tool_vs_memory not in ACTION_NAMES:
@@ -66,6 +76,13 @@ def decision_from_label(label: dict[str, Any]) -> TeacherDecision:
         raise ValueError(f"invalid teacher memory_compress: {memory_compress}")
     if memory_forget not in FORGET_NAMES:
         raise ValueError(f"invalid teacher memory_forget: {memory_forget}")
+    if preference_type not in PREFERENCE_TYPES:
+        raise ValueError(f"invalid teacher preference_type: {preference_type}")
+    if not isinstance(ranking_raw, list):
+        raise ValueError("teacher ranking must be a JSON array")
+    ranking = tuple(str(item) for item in ranking_raw)
+    if not ranking:
+        raise ValueError("teacher ranking cannot be empty")
     if not isinstance(trajectory, dict):
         raise ValueError("teacher trajectory must be a JSON object")
 
@@ -74,8 +91,10 @@ def decision_from_label(label: dict[str, Any]) -> TeacherDecision:
         write_action=WRITE_NAMES.index(memory_write),
         compress_action=COMPRESS_NAMES.index(memory_compress),
         forget_action=FORGET_NAMES.index(memory_forget),
-        recommendation=recommendation,
+        recommendation=ranking[0],
         trajectory=trajectory,
+        preference_type=preference_type,
+        ranking=ranking,
     )
 
 
@@ -102,14 +121,22 @@ def session_from_record(record: dict[str, Any]) -> Session:
     candidate_items = tuple(str(item) for item in input_payload["candidate_items"])
     if not candidate_items:
         raise ValueError("candidate_items cannot be empty")
+    candidate_topics_raw = input_payload.get("candidate_topics")
+    current_topic_matches_raw = input_payload.get("current_topic_matches")
+    memory_topic_matches_raw = input_payload.get("memory_topic_matches")
+    shortlist_raw = input_payload.get("shortlist")
+    if not isinstance(candidate_topics_raw, dict):
+        raise ValueError("candidate_topics must be a JSON object")
+    if not isinstance(current_topic_matches_raw, list):
+        raise ValueError("current_topic_matches must be a JSON array")
+    if not isinstance(memory_topic_matches_raw, list):
+        raise ValueError("memory_topic_matches must be a JSON array")
+    if not isinstance(shortlist_raw, list):
+        raise ValueError("shortlist must be a JSON array")
 
     target_item = str(record["target_item"])
     if target_item not in candidate_items:
         raise ValueError(f"target_item is not in candidate_items: {target_item}")
-
-    recommendation = str(record["label"]["recommend"])
-    if recommendation not in candidate_items:
-        raise ValueError(f"teacher recommendation is not in candidate_items: {recommendation}")
 
     current_topic = str(input_payload["current_topic_signal"])
     is_drift = bool(record["is_drift"])
@@ -119,6 +146,10 @@ def session_from_record(record: dict[str, Any]) -> Session:
         current_topic=current_topic,
         drift_topic=current_topic if is_drift else "",
         candidate_items=candidate_items,
+        candidate_topics={str(key): str(value) for key, value in candidate_topics_raw.items()},
+        current_topic_matches=tuple(str(item) for item in current_topic_matches_raw),
+        memory_topic_matches=tuple(str(item) for item in memory_topic_matches_raw),
+        shortlist=tuple(str(item) for item in shortlist_raw),
         target_item=target_item,
         target_topic=str(record["target_topic"]),
         is_drift=is_drift,
@@ -142,6 +173,7 @@ def teacher_policy_distribution(decisions: list[TeacherDecision]) -> dict[str, d
         "memory_write": dict(Counter(WRITE_NAMES[decision.write_action] for decision in decisions)),
         "memory_compress": dict(Counter(COMPRESS_NAMES[decision.compress_action] for decision in decisions)),
         "memory_forget": dict(Counter(FORGET_NAMES[decision.forget_action] for decision in decisions)),
+        "preference_type": dict(Counter(decision.preference_type for decision in decisions)),
     }
 
 

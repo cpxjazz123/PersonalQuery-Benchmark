@@ -29,6 +29,7 @@ ACTION_NAMES = ("memory", "tool")
 WRITE_NAMES = ("skip_write", "write")
 COMPRESS_NAMES = ("skip_compress", "compress")
 FORGET_NAMES = ("keep", "forget")
+PREFERENCE_TYPES = ("aligned", "current_priority", "memory_priority")
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,10 @@ class Session:
     current_topic: str
     drift_topic: str
     candidate_items: tuple[str, ...]
+    candidate_topics: dict[str, str]
+    current_topic_matches: tuple[str, ...]
+    memory_topic_matches: tuple[str, ...]
+    shortlist: tuple[str, ...]
     target_item: str
     target_topic: str
     is_drift: bool
@@ -53,6 +58,9 @@ class TeacherDecision:
     forget_action: int
     recommendation: str
     trajectory: dict[str, object]
+    preference_type: str = ""
+    preference_vector: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    ranking: tuple[str, ...] = ()
 
 
 class LinearSoftmaxClassifier:
@@ -108,12 +116,14 @@ class MemoryPolicyStudent:
         self.write_model = LinearSoftmaxClassifier(num_features, 2, learning_rate, epochs)
         self.compress_model = LinearSoftmaxClassifier(num_features, 2, learning_rate, epochs)
         self.forget_model = LinearSoftmaxClassifier(num_features, 2, learning_rate, epochs)
+        self.preference_model = LinearSoftmaxClassifier(num_features, len(PREFERENCE_TYPES), learning_rate, epochs)
 
     def fit(self, features: list[list[float]], decisions: list[TeacherDecision]) -> None:
         self.select_model.fit(features, [decision.select_action for decision in decisions])
         self.write_model.fit(features, [decision.write_action for decision in decisions])
         self.compress_model.fit(features, [decision.compress_action for decision in decisions])
         self.forget_model.fit(features, [decision.forget_action for decision in decisions])
+        self.preference_model.fit(features, [PREFERENCE_TYPES.index(decision.preference_type) for decision in decisions])
 
     def predict(self, features: list[float]) -> tuple[int, int, int, int]:
         return (
@@ -122,6 +132,9 @@ class MemoryPolicyStudent:
             self.compress_model.predict(features),
             self.forget_model.predict(features),
         )
+
+    def predict_preference_type(self, features: list[float]) -> str:
+        return PREFERENCE_TYPES[self.preference_model.predict(features)]
 
 
 class StaticMemoryContextBaseline:
@@ -133,6 +146,13 @@ class StaticMemoryContextBaseline:
             select_action = 1
         return select_action, 0, 0, 0
 
+    def predict_preference_type(self, session: Session) -> str:
+        if session.current_topic == session.memory_topic:
+            return "aligned"
+        if session.memory_strength >= 6:
+            return "memory_priority"
+        return "current_priority"
+
 
 def topic_from_item(item: str) -> str:
     for topic in TOPICS:
@@ -142,26 +162,122 @@ def topic_from_item(item: str) -> str:
     raise ValueError(f"Unknown item topic: {item}")
 
 
-def build_tool_call_trace(
-    *,
-    agent_name: str,
-    tool_name: str,
-    tool_args: dict[str, Any],
-    tool_result: dict[str, Any],
-    observation: str,
-    latency_ms: float | None = None,
-) -> dict[str, Any]:
-    trace = {
-        "agent": agent_name,
-        "tool_name": tool_name,
-        "tool_args": tool_args,
-        "tool_result": tool_result,
-        "observation": observation,
-        "status": "success",
+def build_candidate_alignment(
+    candidate_items: Iterable[str],
+    candidate_topics: dict[str, str],
+    current_topic: str,
+    memory_topic: str,
+) -> tuple[dict[str, str], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    ordered_items = tuple(candidate_items)
+    resolved_topics = {item: candidate_topics[item] for item in ordered_items}
+    current_topic_matches = tuple(item for item in ordered_items if resolved_topics[item] == current_topic)
+    if not current_topic_matches:
+        raise ValueError(f"No candidate matches current_topic: {current_topic}")
+    memory_topic_matches = tuple(item for item in ordered_items if resolved_topics[item] == memory_topic)
+    shortlist = current_topic_matches
+    return resolved_topics, current_topic_matches, memory_topic_matches, shortlist
+
+
+def preference_type_for_session(session: Session) -> str:
+    if session.current_topic == session.memory_topic:
+        return "aligned"
+    if session.memory_topic_matches and session.is_drift and session.memory_strength >= 6:
+        return "memory_priority"
+    return "current_priority"
+
+
+def preference_vector_for_type(preference_type: str) -> tuple[float, float, float]:
+    if preference_type == "aligned":
+        return (1.0, 1.0, 0.0)
+    if preference_type == "current_priority":
+        return (2.0, 1.0, 0.0)
+    if preference_type == "memory_priority":
+        return (1.0, 2.0, 0.0)
+    raise ValueError(f"Invalid preference_type: {preference_type}")
+
+
+def rank_candidates(session: Session, preference_type: str) -> tuple[str, ...]:
+    if preference_type not in PREFERENCE_TYPES:
+        raise ValueError(f"Invalid preference_type: {preference_type}")
+    ordered_items = tuple(session.candidate_items)
+    preference_vector = preference_vector_for_type(preference_type)
+    current_matches = tuple(
+        item for item in ordered_items if session.candidate_topics[item] == session.current_topic
+    )
+    memory_matches = tuple(
+        item for item in ordered_items if session.candidate_topics[item] == session.memory_topic
+    )
+    scored: list[tuple[float, int, str]] = []
+    for index, item in enumerate(ordered_items):
+        is_current = 1.0 if item in current_matches else 0.0
+        is_memory = 1.0 if item in memory_matches else 0.0
+        score = (
+            preference_vector[0] * is_current
+            + preference_vector[1] * is_memory
+            + preference_vector[2]
+        )
+        scored.append((score, -index, item))
+    scored.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
+    ranking = tuple(item for _, _, item in scored)
+    if len(ranking) != len(ordered_items):
+        raise ValueError("ranking must contain every candidate exactly once")
+    return ranking
+
+
+def rank_at_k(ranking: tuple[str, ...], target_item: str, k: int) -> int:
+    if k <= 0:
+        raise ValueError("k must be positive")
+    try:
+        position = ranking.index(target_item) + 1
+    except ValueError as exc:
+        raise ValueError(f"target_item is not in ranking: {target_item}") from exc
+    return 1 if position <= k else 0
+
+
+def reciprocal_rank(ranking: tuple[str, ...], target_item: str) -> float:
+    try:
+        position = ranking.index(target_item) + 1
+    except ValueError as exc:
+        raise ValueError(f"target_item is not in ranking: {target_item}") from exc
+    return 1.0 / position
+
+
+def ndcg_at_k(ranking: tuple[str, ...], target_item: str, k: int) -> float:
+    if k <= 0:
+        raise ValueError("k must be positive")
+    try:
+        position = ranking.index(target_item) + 1
+    except ValueError as exc:
+        raise ValueError(f"target_item is not in ranking: {target_item}") from exc
+    if position > k:
+        return 0.0
+    return 1.0 / math.log2(position + 1)
+
+
+def ranking_metrics(
+    sessions: list[Session],
+    rankings: list[tuple[str, ...]],
+    ks: tuple[int, ...] = (1, 5, 10),
+) -> dict[str, float]:
+    if len(sessions) != len(rankings):
+        raise ValueError("sessions and rankings length mismatch")
+    if not sessions:
+        raise ValueError("sessions cannot be empty")
+    metrics: dict[str, float] = {
+        f"rank_at_{k}": 0.0 for k in ks
     }
-    if latency_ms is not None:
-        trace["latency_ms"] = latency_ms
-    return trace
+    metrics["mrr"] = 0.0
+    for k in ks:
+        metrics[f"ndcg@{k}"] = 0.0
+    for session, ranking in zip(sessions, rankings):
+        for k in ks:
+            metrics[f"rank_at_{k}"] += rank_at_k(ranking, session.target_item, k)
+            metrics[f"ndcg@{k}"] += ndcg_at_k(ranking, session.target_item, k)
+        metrics["mrr"] += reciprocal_rank(ranking, session.target_item)
+    total = float(len(sessions))
+    for key in metrics:
+        metrics[key] /= total
+    return metrics
 
 
 def choose_item(topic: str, rng: random.Random) -> str:
@@ -205,8 +321,26 @@ def generate_sessions(num_users: int, sessions_per_user: int, seed: int) -> list
             is_drift = rng.random() < drift_probability
             current_topic = rng.choice([topic for topic in TOPICS if topic != memory_topic]) if is_drift else memory_topic
             target_topic = current_topic
-            candidates = make_candidate_items(target_topic, rng, candidate_count=6)
-            target = next(item for item in candidates if topic_from_item(item) == target_topic)
+            candidates = [choose_item(target_topic, rng)]
+            if memory_topic != target_topic:
+                memory_candidate = choose_item(memory_topic, rng)
+                if memory_candidate not in candidates:
+                    candidates.append(memory_candidate)
+            other_topics = [topic for topic in TOPICS if topic not in (target_topic, memory_topic)]
+            while len(candidates) < 6:
+                topic = rng.choice(other_topics)
+                item = choose_item(topic, rng)
+                if item not in candidates:
+                    candidates.append(item)
+            rng.shuffle(candidates)
+            candidate_topics = {item: topic_from_item(item) for item in candidates}
+            candidate_topics, current_topic_matches, memory_topic_matches, shortlist = build_candidate_alignment(
+                candidates,
+                candidate_topics,
+                current_topic,
+                memory_topic,
+            )
+            target = current_topic_matches[0]
             sessions.append(
                 Session(
                     user_id=user_id,
@@ -214,6 +348,10 @@ def generate_sessions(num_users: int, sessions_per_user: int, seed: int) -> list
                     current_topic=current_topic,
                     drift_topic=current_topic if is_drift else "",
                     candidate_items=candidates,
+                    candidate_topics=candidate_topics,
+                    current_topic_matches=current_topic_matches,
+                    memory_topic_matches=memory_topic_matches,
+                    shortlist=shortlist,
                     target_item=target,
                     target_topic=target_topic,
                     is_drift=is_drift,
@@ -242,51 +380,25 @@ def teacher_policy(session: Session) -> TeacherDecision:
     compress_action = 1 if history_total >= 10 and session.memory_strength >= 6 else 0
     forget_action = 1 if session.is_drift and session.memory_strength >= 6 and not memory_matches else 0
 
-    candidate_topics = {item: topic_from_item(item) for item in session.candidate_items}
-    current_matches = [item for item, topic in candidate_topics.items() if topic == session.current_topic]
-    memory_topic_matches = [item for item, topic in candidate_topics.items() if topic == session.memory_topic]
-    shortlist = current_matches if current_matches else (
-        memory_topic_matches if memory_topic_matches else list(session.candidate_items[:3])
-    )
-    tool_calls = []
-    if use_tool:
-        tool_calls.append(
-            build_tool_call_trace(
-                agent_name="MemoryAgent",
-                tool_name="lookup_candidate_topic_alignment",
-                tool_args={
-                    "candidate_items": list(session.candidate_items),
-                    "current_topic": session.current_topic,
-                    "memory_topic": session.memory_topic,
-                },
-                tool_result={
-                    "candidate_topics": candidate_topics,
-                    "current_topic_matches": current_matches,
-                    "memory_topic_matches": memory_topic_matches,
-                    "shortlist": shortlist,
-                    "topic_alignment": "current_topic" if current_matches else ("memory_topic" if memory_topic_matches else "none"),
-                    "memory_conflict": not memory_matches,
-                },
-                observation=(
-                    f"current_topic_matches={current_matches}; memory_topic_matches={memory_topic_matches}; "
-                    f"shortlist={shortlist}"
-                ),
-            )
-        )
-
-    recommendation_topic = session.current_topic if use_tool else session.memory_topic
-    recommendation = first_candidate_for_topic(session.candidate_items, recommendation_topic)
+    if not session.current_topic_matches:
+        raise ValueError(f"No current topic matches for session {session.user_id}")
+    preference_type = preference_type_for_session(session)
+    ranking = rank_candidates(session, preference_type)
+    recommendation = ranking[0]
     trajectory = {
         "memory_plan": {
             "read_key": f"user:{session.user_id}:dominant_topic",
             "tool_vs_memory": ACTION_NAMES[select_action],
             "reason": "drift_or_sparse_signal" if use_tool else "stable_memory_match",
         },
+        "preference": {
+            "type": preference_type,
+            "vector": list(preference_vector_for_type(preference_type)),
+        },
         "memory_read": {
             "topic": session.memory_topic,
             "strength": session.memory_strength,
         },
-        "tool_calls_raw": tool_calls,
         "memory_write": {
             "decision": WRITE_NAMES[write_action],
             "topic": session.current_topic if write_action else "",
@@ -298,9 +410,19 @@ def teacher_policy(session: Session) -> TeacherDecision:
             "decision": FORGET_NAMES[forget_action],
             "topic": session.memory_topic if forget_action else "",
         },
-        "recommend": recommendation,
+        "ranking": list(ranking),
     }
-    return TeacherDecision(select_action, write_action, compress_action, forget_action, recommendation, trajectory)
+    return TeacherDecision(
+        select_action,
+        write_action,
+        compress_action,
+        forget_action,
+        recommendation,
+        trajectory,
+        preference_type,
+        preference_vector_for_type(preference_type),
+        ranking,
+    )
 
 
 def first_candidate_for_topic(candidates: Iterable[str], topic: str) -> str:
@@ -326,19 +448,14 @@ def featurize(session: Session) -> list[float]:
 
 
 def recommend_with_policy(session: Session, policy: tuple[int, int, int, int]) -> str:
-    select_action, write_action, _, forget_action = policy
+    select_action, _, _, _ = policy
     if select_action == 1:
-        topic = session.current_topic
-    elif write_action == 1:
-        topic = session.current_topic
-    elif forget_action == 1:
-        topic = session.current_topic
-    else:
-        topic = session.memory_topic
-    for item in session.candidate_items:
-        if topic_from_item(item) == topic:
-            return item
-    return f"missing_candidate_for_{topic}"
+        if not session.current_topic_matches:
+            raise ValueError(f"No current topic matches for session {session.user_id}")
+        return session.current_topic_matches[0]
+    if not session.memory_topic_matches:
+        raise ValueError(f"No memory topic matches for session {session.user_id}")
+    return session.memory_topic_matches[0]
 
 
 def top1_accuracy(sessions: list[Session], policies: list[tuple[int, int, int, int]]) -> float:
@@ -349,6 +466,24 @@ def top1_accuracy(sessions: list[Session], policies: list[tuple[int, int, int, i
         if recommend_with_policy(session, policy) == session.target_item:
             correct += 1
     return correct / len(sessions)
+
+
+def ranking_from_policy(session: Session, policy: tuple[int, int, int, int], preference_type: str) -> tuple[str, ...]:
+    if preference_type not in PREFERENCE_TYPES:
+        raise ValueError(f"Invalid preference_type: {preference_type}")
+    return rank_candidates(session, preference_type)
+
+
+def ranking_accuracy(sessions: list[Session], rankings: list[tuple[str, ...]]) -> float:
+    return ranking_metrics(sessions, rankings)["rank_at_1"]
+
+
+def accuracy(predicted: list[int], labels: list[int]) -> float:
+    if len(predicted) != len(labels):
+        raise ValueError("predicted and labels length mismatch")
+    if not labels:
+        raise ValueError("labels cannot be empty")
+    return sum(1 for pred, label in zip(predicted, labels) if pred == label) / len(labels)
 
 
 def action_accuracy(
@@ -395,6 +530,21 @@ def grouped_accuracy_by_drift(
     return result
 
 
+def grouped_ranking_metrics_by_drift(
+    sessions: list[Session],
+    rankings: list[tuple[str, ...]],
+) -> dict[str, dict[str, float]]:
+    groups: dict[str, list[tuple[Session, tuple[str, ...]]]] = defaultdict(list)
+    for session, ranking in zip(sessions, rankings):
+        groups["drift" if session.is_drift else "stable"].append((session, ranking))
+    result: dict[str, dict[str, float]] = {}
+    for name, rows in groups.items():
+        row_sessions = [row[0] for row in rows]
+        row_rankings = [row[1] for row in rows]
+        result[name] = ranking_metrics(row_sessions, row_rankings)
+    return result
+
+
 def run_experiment(args: argparse.Namespace) -> dict[str, object]:
     sessions = generate_sessions(args.users, args.sessions_per_user, args.seed)
     split = int(len(sessions) * args.train_ratio)
@@ -412,8 +562,18 @@ def run_experiment(args: argparse.Namespace) -> dict[str, object]:
     student.fit(train_features, train_decisions)
 
     student_policies = [student.predict(features) for features in test_features]
+    student_preference_types = [student.predict_preference_type(features) for features in test_features]
+    student_rankings = [
+        ranking_from_policy(session, policy, preference_type)
+        for session, policy, preference_type in zip(test_sessions, student_policies, student_preference_types)
+    ]
     baseline = StaticMemoryContextBaseline()
     baseline_policies = [baseline.predict(session) for session in test_sessions]
+    baseline_preference_types = [baseline.predict_preference_type(session) for session in test_sessions]
+    baseline_rankings = [
+        ranking_from_policy(session, policy, preference_type)
+        for session, policy, preference_type in zip(test_sessions, baseline_policies, baseline_preference_types)
+    ]
     teacher_policies = [
         (
             decision.select_action,
@@ -423,11 +583,16 @@ def run_experiment(args: argparse.Namespace) -> dict[str, object]:
         )
         for decision in test_decisions
     ]
+    teacher_rankings = [decision.ranking for decision in test_decisions]
 
     metrics = {
-        "teacher_top1": top1_accuracy(test_sessions, teacher_policies),
-        "student_top1": top1_accuracy(test_sessions, student_policies),
-        "context_only_top1": top1_accuracy(test_sessions, baseline_policies),
+        "teacher_rank_at_1": ranking_metrics(test_sessions, teacher_rankings)["rank_at_1"],
+        "student_rank_at_1": ranking_metrics(test_sessions, student_rankings)["rank_at_1"],
+        "context_only_rank_at_1": ranking_metrics(test_sessions, baseline_rankings)["rank_at_1"],
+        "student_mrr": ranking_metrics(test_sessions, student_rankings)["mrr"],
+        "context_only_mrr": ranking_metrics(test_sessions, baseline_rankings)["mrr"],
+        "student_ndcg@5": ranking_metrics(test_sessions, student_rankings)["ndcg@5"],
+        "context_only_ndcg@5": ranking_metrics(test_sessions, baseline_rankings)["ndcg@5"],
         "student_tool_vs_memory_accuracy": action_accuracy(student_policies, test_decisions, 0),
         "student_write_accuracy": action_accuracy(student_policies, test_decisions, 1),
         "student_compress_accuracy": action_accuracy(student_policies, test_decisions, 2),
@@ -436,12 +601,20 @@ def run_experiment(args: argparse.Namespace) -> dict[str, object]:
         "context_only_write_accuracy": action_accuracy(baseline_policies, test_decisions, 1),
         "context_only_compress_accuracy": action_accuracy(baseline_policies, test_decisions, 2),
         "context_only_forget_accuracy": action_accuracy(baseline_policies, test_decisions, 3),
+        "student_preference_type_accuracy": accuracy(
+            [PREFERENCE_TYPES.index(pref) for pref in student_preference_types],
+            [PREFERENCE_TYPES.index(decision.preference_type) for decision in test_decisions],
+        ),
+        "context_only_preference_type_accuracy": accuracy(
+            [PREFERENCE_TYPES.index(pref) for pref in baseline_preference_types],
+            [PREFERENCE_TYPES.index(decision.preference_type) for decision in test_decisions],
+        ),
     }
-    metrics["student_gain_over_context_only"] = metrics["student_top1"] - metrics["context_only_top1"]
+    metrics["student_gain_over_context_only"] = metrics["student_rank_at_1"] - metrics["context_only_rank_at_1"]
 
-    if metrics["student_top1"] < args.min_student_top1:
+    if metrics["student_rank_at_1"] < args.min_student_rank_at_1:
         raise AssertionError(
-            f"student_top1={metrics['student_top1']:.4f} below threshold {args.min_student_top1:.4f}"
+            f"student_rank_at_1={metrics['student_rank_at_1']:.4f} below threshold {args.min_student_rank_at_1:.4f}"
         )
     if metrics["student_gain_over_context_only"] < args.min_gain:
         raise AssertionError(
@@ -483,12 +656,12 @@ def run_experiment(args: argparse.Namespace) -> dict[str, object]:
         },
         "teacher_policy_counts": summarize_policy_counts(train_decisions + test_decisions),
         "metrics": metrics,
-        "student_by_group": grouped_accuracy_by_drift(test_sessions, student_policies),
-        "context_only_by_group": grouped_accuracy_by_drift(test_sessions, baseline_policies),
+        "student_by_group": grouped_ranking_metrics_by_drift(test_sessions, student_rankings),
+        "context_only_by_group": grouped_ranking_metrics_by_drift(test_sessions, baseline_rankings),
         "examples": examples,
         "claim": (
-            "The learned student internalizes memory-operation decisions and improves recommendation "
-            "accuracy over a context-only memory baseline on held-out synthetic sessions."
+            "The learned student internalizes memory-operation decisions, predicts preference types, "
+            "and improves ranking quality over a context-only memory baseline on held-out synthetic sessions."
         ),
     }
 
@@ -501,7 +674,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--learning-rate", type=float, default=0.08)
     parser.add_argument("--epochs", type=int, default=40)
-    parser.add_argument("--min-student-top1", type=float, default=0.75)
+    parser.add_argument("--min-student-rank-at-1", type=float, default=0.75)
     parser.add_argument("--min-gain", type=float, default=0.10)
     parser.add_argument("--min-policy-accuracy", type=float, default=0.75)
     parser.add_argument("--example-count", type=int, default=3)

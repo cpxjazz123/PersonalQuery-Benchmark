@@ -2,45 +2,53 @@
 """LLM probe for memory-policy distillation in recommendation.
 
 This script keeps the synthetic recommendation environment from the minimal
-probe, but replaces the linear student with a real LLM from ../llm_client.py.
-The "distilled" LLM receives teacher trajectories containing memory read,
-write, compress, forget, and tool-vs-memory decisions. The context-only LLM
-receives the same task state without teacher memory-policy trajectories.
+probe, but replaces the linear student with a real LLM from
+../PersoanlQuery/llm_client.py. The "distilled" LLM receives teacher
+trajectories containing memory read, write, compress, forget, and
+tool-vs-memory decisions. The context-only LLM receives the same task state
+without teacher memory-policy trajectories.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import gzip
 import re
 import sys
 from dataclasses import asdict, dataclass
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 PROBE_DIR = Path(__file__).resolve().parent
 MULTIAGENT_DIR = PROBE_DIR.parent
+ROOT_DIR = PROBE_DIR.parent.parent
 OUTPUT_JSON = PROBE_DIR / "latest_llm_result.json"
 if str(PROBE_DIR) not in sys.path:
     sys.path.insert(0, str(PROBE_DIR))
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from memory_policy_distillation_probe import (  # noqa: E402
     ACTION_NAMES,
     COMPRESS_NAMES,
     FORGET_NAMES,
-    build_tool_call_trace,
+    build_candidate_alignment,
+    PREFERENCE_TYPES,
+    preference_type_for_session,
+    preference_vector_for_type,
+    rank_candidates,
+    ranking_metrics,
     topic_from_item,
     WRITE_NAMES,
     Session,
     TeacherDecision,
 )
+from PersoanlQuery.llm_client import MiniMaxAnthropicClient  # noqa: E402
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    provider: str = "minimax"
     model: str | None = None
     review_file: Path = Path("/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2023/Baby_Products.jsonl.gz")
     meta_file: Path = Path("/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2023/meta_Baby_Products.jsonl.gz")
@@ -53,38 +61,25 @@ class ExperimentConfig:
     temperature: float = 0.0
     max_tokens: int = 2048
     max_retries: int = 5
-    min_distilled_top1: float = 0.0
+    min_distilled_rank_at_1: float = 0.0
     min_gain: float = -1.0
     min_policy_accuracy: float = 0.0
     example_count: int = 2
     output_json: Path = OUTPUT_JSON
 
 
-def load_llm_client_class(provider: str):
-    module_path = MULTIAGENT_DIR / "llm_client.py"
-    spec = importlib.util.spec_from_file_location("multiagent_llm_client", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Failed to load llm_client module from {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    providers = {
-        "minimax": "MiniMaxAnthropicClient",
-        "minimax_io": "MiniMaxIOAnthropicClient",
-    }
-    class_name = providers.get(provider)
-    if class_name is None:
-        raise ValueError(f"Unsupported provider: {provider}")
-    if not hasattr(module, class_name):
-        raise RuntimeError(f"llm_client.py does not define {class_name}")
-    return getattr(module, class_name)
+@dataclass(frozen=True)
+class ParsedPolicy:
+    policy: tuple[int, int, int, int]
+    preference_type: str
+    ranking: tuple[str, ...]
+    recommendation: str
 
 
-def create_llm_client(provider: str, model: str | None):
-    client_cls = load_llm_client_class(provider)
+def create_llm_client(model: str | None):
     if model is None:
-        return client_cls()
-    return client_cls(model=model)
+        return MiniMaxAnthropicClient()
+    return MiniMaxAnthropicClient(model=model)
 
 
 def session_payload(session: Session) -> dict[str, Any]:
@@ -93,6 +88,10 @@ def session_payload(session: Session) -> dict[str, Any]:
         "history_topic_counts": session.history_topic_counts,
         "current_topic_signal": session.current_topic,
         "candidate_items": session.candidate_items,
+        "candidate_topics": session.candidate_topics,
+        "current_topic_matches": list(session.current_topic_matches),
+        "memory_topic_matches": list(session.memory_topic_matches),
+        "shortlist": list(session.shortlist),
         "external_memory": {
             "dominant_topic": session.memory_topic,
             "strength": session.memory_strength,
@@ -164,49 +163,25 @@ def teacher_policy(session: Session) -> TeacherDecision:
     compress_action = 1 if history_total >= 10 and session.memory_strength >= 6 else 0
     forget_action = 1 if session.is_drift and session.memory_strength >= 6 and not memory_matches else 0
 
-    recommendation = session.target_item
-    candidate_topics = {item: topic_from_item(item) for item in session.candidate_items}
-    current_matches = [item for item, topic in candidate_topics.items() if topic == session.current_topic]
-    memory_topic_matches = [item for item, topic in candidate_topics.items() if topic == session.memory_topic]
-    shortlist = current_matches if current_matches else (
-        memory_topic_matches if memory_topic_matches else list(session.candidate_items[:3])
-    )
-    tool_calls = []
-    if use_tool:
-        tool_calls.append(
-            build_tool_call_trace(
-                agent_name="MemoryAgent",
-                tool_name="lookup_candidate_topic_alignment",
-                tool_args={
-                    "candidate_items": list(session.candidate_items),
-                    "current_topic": session.current_topic,
-                    "memory_topic": session.memory_topic,
-                },
-                tool_result={
-                    "candidate_topics": candidate_topics,
-                    "current_topic_matches": current_matches,
-                    "memory_topic_matches": memory_topic_matches,
-                    "shortlist": shortlist,
-                    "topic_alignment": "current_topic" if current_matches else ("memory_topic" if memory_topic_matches else "none"),
-                    "memory_conflict": not memory_matches,
-                },
-                observation=(
-                    f"current_topic_matches={current_matches}; memory_topic_matches={memory_topic_matches}; "
-                    f"shortlist={shortlist}"
-                ),
-            )
-        )
+    if not session.current_topic_matches:
+        raise ValueError(f"No current topic matches for session {session.user_id}")
+    preference_type = preference_type_for_session(session)
+    ranking = rank_candidates(session, preference_type)
+    recommendation = ranking[0]
     trajectory = {
         "memory_plan": {
             "read_key": f"user:{session.user_id}:dominant_topic",
             "tool_vs_memory": ACTION_NAMES[select_action],
             "reason": "drift_or_sparse_signal" if use_tool else "stable_memory_match",
         },
+        "preference": {
+            "type": preference_type,
+            "vector": list(preference_vector_for_type(preference_type)),
+        },
         "memory_read": {
             "topic": session.memory_topic,
             "strength": session.memory_strength,
         },
-        "tool_calls": tool_calls,
         "memory_write": {
             "decision": WRITE_NAMES[write_action],
             "topic": session.current_topic if write_action else "",
@@ -218,9 +193,18 @@ def teacher_policy(session: Session) -> TeacherDecision:
             "decision": FORGET_NAMES[forget_action],
             "topic": session.memory_topic if forget_action else "",
         },
-        "recommend": recommendation,
+        "ranking": list(ranking),
     }
-    return TeacherDecision(select_action, write_action, compress_action, forget_action, recommendation, trajectory)
+    return TeacherDecision(
+        select_action,
+        write_action,
+        compress_action,
+        forget_action,
+        recommendation,
+        trajectory,
+        preference_type=preference_type,
+        ranking=ranking,
+    )
 
 
 def build_real_sessions(config: ExperimentConfig) -> list[Session]:
@@ -269,6 +253,14 @@ def build_real_sessions(config: ExperimentConfig) -> list[Session]:
         if len(candidate_items) < 2:
             continue
 
+        candidate_topics = {item: meta_topic(meta_lookup[item]) for item in candidate_items}
+        candidate_topics, current_topic_matches, memory_topic_matches, shortlist = build_candidate_alignment(
+            candidate_items,
+            candidate_topics,
+            current_topic,
+            memory_topic,
+        )
+
         sessions.append(
             Session(
                 user_id=user_index,
@@ -276,7 +268,11 @@ def build_real_sessions(config: ExperimentConfig) -> list[Session]:
                 current_topic=current_topic,
                 drift_topic=current_topic if current_topic != memory_topic else "",
                 candidate_items=candidate_items,
-                target_item=str(target_review["asin"]),
+                candidate_topics=candidate_topics,
+                current_topic_matches=current_topic_matches,
+                memory_topic_matches=memory_topic_matches,
+                shortlist=shortlist,
+                target_item=current_topic_matches[0],
                 target_topic=current_topic,
                 is_drift=current_topic != memory_topic,
                 memory_topic=memory_topic,
@@ -294,7 +290,8 @@ def teacher_payload(decision: TeacherDecision) -> dict[str, Any]:
         "memory_write": WRITE_NAMES[decision.write_action],
         "memory_compress": COMPRESS_NAMES[decision.compress_action],
         "memory_forget": FORGET_NAMES[decision.forget_action],
-        "recommend": decision.recommendation,
+        "preference_type": decision.preference_type,
+        "ranking": list(decision.ranking),
         "trajectory": decision.trajectory,
     }
 
@@ -321,14 +318,21 @@ You are a recommendation model distilled from a multi-agent teacher.
 
 Task:
 Given a user state, output a JSON object with exactly these keys:
-tool_vs_memory, memory_write, memory_compress, memory_forget, recommend.
+tool_vs_memory, memory_write, memory_compress, memory_forget, preference_type, ranking.
 
 Valid values:
 tool_vs_memory: "memory" or "tool"
 memory_write: "skip_write" or "write"
 memory_compress: "skip_compress" or "compress"
 memory_forget: "keep" or "forget"
-recommend: one item copied exactly from candidate_items
+preference_type: one of {list(PREFERENCE_TYPES)}
+ranking: an array containing every candidate item exactly once
+
+The input contains candidate_topics, current_topic_matches, memory_topic_matches, and shortlist.
+Ranking must order the candidate items from most preferred to least preferred.
+When preference_type is "aligned", the first ranking item must be one of current_topic_matches.
+When preference_type is "current_priority", the first ranking item must be one of current_topic_matches.
+When preference_type is "memory_priority", the first ranking item must be one of memory_topic_matches.
 
 Learn the memory decision policy from these teacher trajectories.
 Do not explain. Return JSON only.
@@ -351,14 +355,21 @@ You are a recommendation model with access to external memory as context.
 
 Task:
 Given a user state, output a JSON object with exactly these keys:
-tool_vs_memory, memory_write, memory_compress, memory_forget, recommend.
+tool_vs_memory, memory_write, memory_compress, memory_forget, preference_type, ranking.
 
 Valid values:
 tool_vs_memory: "memory" or "tool"
 memory_write: "skip_write" or "write"
 memory_compress: "skip_compress" or "compress"
 memory_forget: "keep" or "forget"
-recommend: one item copied exactly from candidate_items
+preference_type: one of aligned, current_priority, memory_priority
+ranking: an array containing every candidate item exactly once
+
+The input contains candidate_topics, current_topic_matches, memory_topic_matches, and shortlist.
+Ranking must order the candidate items from most preferred to least preferred.
+When preference_type is "aligned", the first ranking item must be one of current_topic_matches.
+When preference_type is "current_priority", the first ranking item must be one of current_topic_matches.
+When preference_type is "memory_priority", the first ranking item must be one of memory_topic_matches.
 
 Use the provided external memory as context. Do not infer hidden labels.
 Do not explain. Return JSON only.
@@ -384,8 +395,15 @@ def extract_json_object(text: str) -> dict[str, Any]:
     return json.loads(raw[start : end + 1])
 
 
-def parse_policy(response: dict[str, Any], session: Session) -> tuple[int, int, int, int, str]:
-    required = ("tool_vs_memory", "memory_write", "memory_compress", "memory_forget", "recommend")
+def parse_policy(response: dict[str, Any], session: Session) -> ParsedPolicy:
+    required = (
+        "tool_vs_memory",
+        "memory_write",
+        "memory_compress",
+        "memory_forget",
+        "preference_type",
+        "ranking",
+    )
     missing = [key for key in required if key not in response]
     if missing:
         raise ValueError(f"LLM JSON missing required keys: {missing}")
@@ -394,7 +412,8 @@ def parse_policy(response: dict[str, Any], session: Session) -> tuple[int, int, 
     memory_write = str(response["memory_write"])
     memory_compress = str(response["memory_compress"])
     memory_forget = str(response["memory_forget"])
-    recommendation = str(response["recommend"])
+    preference_type = str(response["preference_type"])
+    ranking_raw = response["ranking"]
 
     if tool_vs_memory not in ACTION_NAMES:
         raise ValueError(f"Invalid tool_vs_memory: {tool_vs_memory}")
@@ -404,15 +423,36 @@ def parse_policy(response: dict[str, Any], session: Session) -> tuple[int, int, 
         raise ValueError(f"Invalid memory_compress: {memory_compress}")
     if memory_forget not in FORGET_NAMES:
         raise ValueError(f"Invalid memory_forget: {memory_forget}")
-    if recommendation not in session.candidate_items:
-        raise ValueError(f"Recommendation is not in candidate_items: {recommendation}")
+    if preference_type not in PREFERENCE_TYPES:
+        raise ValueError(f"Invalid preference_type: {preference_type}")
+    if not isinstance(ranking_raw, list):
+        raise ValueError("ranking must be a JSON array")
+    ranking = tuple(str(item) for item in ranking_raw)
+    if len(ranking) != len(session.candidate_items):
+        raise ValueError("ranking must contain every candidate item exactly once")
+    candidate_counter = Counter(session.candidate_items)
+    ranking_counter = Counter(ranking)
+    if ranking_counter != candidate_counter:
+        raise ValueError(
+            "ranking item counts do not match candidate_items: "
+            f"expected={dict(candidate_counter)}, actual={dict(ranking_counter)}"
+        )
+    if preference_type in ("aligned", "current_priority") and ranking[0] not in session.current_topic_matches:
+        raise ValueError(f"ranking top item must come from current_topic_matches for {preference_type}: {ranking[0]}")
+    if preference_type == "memory_priority" and ranking[0] not in session.memory_topic_matches:
+        raise ValueError(f"ranking top item must come from memory_topic_matches for memory_priority: {ranking[0]}")
 
-    return (
-        ACTION_NAMES.index(tool_vs_memory),
-        WRITE_NAMES.index(memory_write),
-        COMPRESS_NAMES.index(memory_compress),
-        FORGET_NAMES.index(memory_forget),
-        recommendation,
+    recommendation = ranking[0]
+    return ParsedPolicy(
+        policy=(
+            ACTION_NAMES.index(tool_vs_memory),
+            WRITE_NAMES.index(memory_write),
+            COMPRESS_NAMES.index(memory_compress),
+            FORGET_NAMES.index(memory_forget),
+        ),
+        preference_type=preference_type,
+        ranking=ranking,
+        recommendation=recommendation,
     )
 
 
@@ -459,25 +499,20 @@ def policy_tuple(policy_with_recommendation: tuple[int, int, int, int, str]) -> 
     return policy_with_recommendation[:4]
 
 
-def recommendation_accuracy(sessions: list[Session], predicted_items: list[str]) -> float:
-    if len(sessions) != len(predicted_items):
-        raise ValueError("sessions and predicted_items length mismatch")
-    return sum(1 for s, item in zip(sessions, predicted_items) if item == s.target_item) / len(sessions)
-
-
-def grouped_recommendation_accuracy_by_drift(
+def grouped_ranking_metrics_by_drift(
     sessions: list[Session],
-    predicted_items: list[str],
-) -> dict[str, float]:
-    if len(sessions) != len(predicted_items):
-        raise ValueError("sessions and predicted_items length mismatch")
-    groups: dict[str, list[tuple[Session, str]]] = defaultdict(list)
-    for session, predicted_item in zip(sessions, predicted_items):
-        groups["drift" if session.is_drift else "stable"].append((session, predicted_item))
-    result: dict[str, float] = {}
+    rankings: list[tuple[str, ...]],
+) -> dict[str, dict[str, float]]:
+    if len(sessions) != len(rankings):
+        raise ValueError("sessions and rankings length mismatch")
+    groups: dict[str, list[tuple[Session, tuple[str, ...]]]] = defaultdict(list)
+    for session, ranking in zip(sessions, rankings):
+        groups["drift" if session.is_drift else "stable"].append((session, ranking))
+    result: dict[str, dict[str, float]] = {}
     for name, rows in groups.items():
-        correct = sum(1 for session, predicted_item in rows if predicted_item == session.target_item)
-        result[name] = correct / len(rows)
+        group_sessions = [row[0] for row in rows]
+        group_rankings = [row[1] for row in rows]
+        result[name] = ranking_metrics(group_sessions, group_rankings)
     return result
 
 
@@ -523,12 +558,12 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
     train_decisions = [teacher_policy(session) for session in train_sessions]
     test_decisions = [teacher_policy(session) for session in test_sessions]
     examples = select_balanced_examples(train_sessions, train_decisions, config.teacher_examples)
-    client = create_llm_client(config.provider, config.model)
+    client = create_llm_client(config.model)
 
-    distilled_policies = []
-    distilled_items = []
-    context_only_policies = []
-    context_only_items = []
+    distilled_policies: list[tuple[int, int, int, int]] = []
+    distilled_rankings: list[tuple[str, ...]] = []
+    context_only_policies: list[tuple[int, int, int, int]] = []
+    context_only_rankings: list[tuple[str, ...]] = []
     raw_examples = []
     distilled_cache_infos = []
     context_only_cache_infos = []
@@ -555,10 +590,10 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
             config.max_retries,
         )
 
-        distilled_policies.append(policy_tuple(distilled_policy))
-        distilled_items.append(distilled_policy[4])
-        context_only_policies.append(policy_tuple(context_policy))
-        context_only_items.append(context_policy[4])
+        distilled_policies.append(distilled_policy.policy)
+        distilled_rankings.append(distilled_policy.ranking)
+        context_only_policies.append(context_policy.policy)
+        context_only_rankings.append(context_policy.ranking)
         distilled_cache_infos.append(distilled_cache_info)
         context_only_cache_infos.append(context_cache_info)
 
@@ -581,15 +616,21 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         (d.select_action, d.write_action, d.compress_action, d.forget_action)
         for d in test_decisions
     ]
-    teacher_items = [d.recommendation for d in test_decisions]
+    teacher_rankings = [d.ranking for d in test_decisions]
 
     metrics = {
-        "teacher_top1": recommendation_accuracy(test_sessions, teacher_items),
-        "distilled_llm_top1": recommendation_accuracy(test_sessions, distilled_items),
-        "context_only_llm_top1": recommendation_accuracy(test_sessions, context_only_items),
+        "teacher_rank_at_1": ranking_metrics(test_sessions, teacher_rankings)["rank_at_1"],
+        "distilled_llm_rank_at_1": ranking_metrics(test_sessions, distilled_rankings)["rank_at_1"],
+        "context_only_llm_rank_at_1": ranking_metrics(test_sessions, context_only_rankings)["rank_at_1"],
+        "distilled_llm_mrr": ranking_metrics(test_sessions, distilled_rankings)["mrr"],
+        "context_only_llm_mrr": ranking_metrics(test_sessions, context_only_rankings)["mrr"],
+        "distilled_llm_ndcg@5": ranking_metrics(test_sessions, distilled_rankings)["ndcg@5"],
+        "context_only_llm_ndcg@5": ranking_metrics(test_sessions, context_only_rankings)["ndcg@5"],
+        "distilled_llm_ndcg@10": ranking_metrics(test_sessions, distilled_rankings)["ndcg@10"],
+        "context_only_llm_ndcg@10": ranking_metrics(test_sessions, context_only_rankings)["ndcg@10"],
         "distilled_gain_over_context_only": (
-            recommendation_accuracy(test_sessions, distilled_items)
-            - recommendation_accuracy(test_sessions, context_only_items)
+            ranking_metrics(test_sessions, distilled_rankings)["rank_at_1"]
+            - ranking_metrics(test_sessions, context_only_rankings)["rank_at_1"]
         ),
         "distilled_tool_vs_memory_accuracy": action_accuracy(distilled_policies, test_decisions, 0),
         "distilled_write_accuracy": action_accuracy(distilled_policies, test_decisions, 1),
@@ -601,9 +642,9 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         "context_only_forget_accuracy": action_accuracy(context_only_policies, test_decisions, 3),
     }
 
-    if metrics["distilled_llm_top1"] < config.min_distilled_top1:
+    if metrics["distilled_llm_rank_at_1"] < config.min_distilled_rank_at_1:
         raise AssertionError(
-            f"distilled_llm_top1={metrics['distilled_llm_top1']:.4f} below {config.min_distilled_top1:.4f}"
+            f"distilled_llm_rank_at_1={metrics['distilled_llm_rank_at_1']:.4f} below {config.min_distilled_rank_at_1:.4f}"
         )
     if metrics["distilled_gain_over_context_only"] < config.min_gain:
         raise AssertionError(
@@ -624,8 +665,8 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         "config": config,
         "sizes": {"train": len(train_sessions), "eval": len(test_sessions)},
         "metrics": metrics,
-        "distilled_by_group": grouped_recommendation_accuracy_by_drift(test_sessions, distilled_items),
-        "context_only_by_group": grouped_recommendation_accuracy_by_drift(test_sessions, context_only_items),
+        "distilled_by_group": grouped_ranking_metrics_by_drift(test_sessions, distilled_rankings),
+        "context_only_by_group": grouped_ranking_metrics_by_drift(test_sessions, context_only_rankings),
         "cache_summary": {
             "distilled": summarize_cache_infos(distilled_cache_infos),
             "context_only": summarize_cache_infos(context_only_cache_infos),
@@ -639,8 +680,8 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         "examples": raw_examples,
         "claim": (
             "A real LLM using distilled teacher memory-policy trajectories should learn when to "
-            "read/write/compress/forget and when to use tools, outperforming a prompt that treats "
-            "memory only as static context."
+            "read/write/compress/forget and how to rank candidates by preference, outperforming "
+            "a prompt that treats memory only as static context."
         ),
     }
 
