@@ -8,7 +8,7 @@ if lsof -i :8788 >/dev/null 2>&1; then
 fi
 
 cd /fs04/ar57/wenyu/mimo2codex
-npm start
+npm start -- --model minimax
 echo ""
 echo "=========================================="
 echo "mimo2codex 已启动"
