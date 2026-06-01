@@ -80,8 +80,7 @@ Each dataset record includes:
 - `cluster_index`: integer query-cluster index
 - `correct_query`: the correct personalized query
 - `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
-- `attrs_used`: product attributes used during query construction
-- `error_type`: error type (e.g., `writing_error`) or `null` if no noise injected
+- `error_pattern`: the user's writing error pattern (object with `original` and `corrected` fields), or `null` if no noise injected
 
 ### Dataset Statistics
 
@@ -102,15 +101,11 @@ Each dataset record includes:
   "cluster_index": 0,
   "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-  "attrs_used": {
-    "product_type": "Food Storage",
-    "brand": "PandaEar",
-    "price": "19.98",
-    "appearance": "Small",
-    "use_case": "Storage"
-  },
-  "error_type": "writing_error"
+  "error_pattern": {
+    "original": "laying",
+    "corrected": "lying"
+  }
 }
 ```
 
-In this example, the user's writing error "laying" was used instead of "looking" to create a realistic noisy query variant for robustness testing.
+In this example, the user commonly writes "laying" instead of "lying". This personal writing error was detected in Stage 04 and used in Stage 07 to create a realistic noisy query variant for robustness testing.
