@@ -48,12 +48,11 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a clean clustered user-product query dataset derived from the latest syntax-depth pipeline. It is built from:
+The current released dataset is a clustered user-product query dataset with noisy query variants. It is built from:
 
-- Stage 06 clean personalized queries
-- Stage 12 `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
-
-The current released dataset does not include noisy or error-query variants.
+- Stage 06: clean personalized queries and `attrs_used`
+- Stage 07: noisy query variants with user-specific writing-error patterns
+- Stage 12: `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
 
 ### Included Categories
 
@@ -69,7 +68,7 @@ The generated dataset is stored under `result/personal_query/11_query_dataset/`:
 - `result/personal_query/11_query_dataset/Grocery_and_Gourmet_Food/data.jsonl`
 - `result/personal_query/11_query_dataset/Pet_Supplies/data.jsonl`
 
-Each file is JSONL. Each row corresponds to one clean user-product query instance.
+Each file is JSONL. Each row corresponds to one user-product query instance.
 
 ### What Each Record Contains
 
@@ -79,27 +78,39 @@ Each dataset record includes:
 - `uuid`: user identifier
 - `asin`: target product identifier
 - `cluster_index`: integer query-cluster index
-- `correct_query`: the correct personalized query used downstream
+- `correct_query`: the correct personalized query
+- `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
 - `attrs_used`: product attributes used during query construction
+- `error_type`: error type (e.g., `writing_error`) or `null` if no noise injected
 
-Example record:
+### Dataset Statistics
+
+| Category | Total | With Noisy | Without Noisy |
+|----------|-------|------------|--------------|
+| Baby_Products | 5,537 | 471 | 5,066 |
+| Grocery_and_Gourmet_Food | 6,803 | 594 | 6,209 |
+| Pet_Supplies | 17,112 | 1,262 | 15,850 |
+| **Total** | **29,452** | **2,327** | **27,125** |
+
+### Example Record (with noise injection)
 
 ```json
 {
-  "category": "Grocery_and_Gourmet_Food",
-  "uuid": "AE2AKPFMEUKYMZ3MDBALXTNSUBAA",
-  "asin": "B00FRLSRMA",
-  "cluster_index": 5,
-  "correct_query": "I am looking for Unflavored Thickeners by Modernist Pantry, which are perfect for a Sign, and they are available at 19.99 when I order today.",
+  "category": "Baby_Products",
+  "uuid": "AE27EZJGURITRHDXGP6RODDKD7PA",
+  "asin": "B0891R8DT2",
+  "cluster_index": 0,
+  "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
+  "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "attrs_used": {
-    "product_type": "Thickeners",
-    "brand": "Modernist Pantry",
-    "price": "19.99",
-    "use_case": "Sign",
-    "detailed": "Unflavored"
-  }
+    "product_type": "Food Storage",
+    "brand": "PandaEar",
+    "price": "19.98",
+    "appearance": "Small",
+    "use_case": "Storage"
+  },
+  "error_type": "writing_error"
 }
 ```
 
-This example shows how the released dataset now groups clean queries by learned query-style clusters instead of syntax-depth buckets. In this case, `cluster_index = 5` corresponds to a longer clause-bearing query style rather than a short attribute-list style.
-The released dataset now stores `attrs_used` directly with semantic attribute-type keys such as `product_type`, `brand`, `price`, and `use_case`.
+In this example, the user's writing error "laying" was used instead of "looking" to create a realistic noisy query variant for robustness testing.
