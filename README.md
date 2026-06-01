@@ -80,9 +80,9 @@ Each dataset record includes:
 - `cluster`: integer query-cluster index
 - `correct_query`: the correct personalized query
 - `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
-- `error_pattern`: the writing error injected into the query (object with `original` and `corrected` fields), or `null` if no noise injected
-  - `original`: the correct word from clean_query that was replaced
-  - `corrected`: the error word that replaced it in noisy_query
+- `error_pattern`: the writing error injected into the query (object with `correct_word` and `error_word` fields), or `null` if no noise injected
+  - `correct_word`: the correct word from clean_query that was replaced
+  - `error_word`: the error word that replaced it in noisy_query
 
 ### Dataset Statistics
 
@@ -104,8 +104,8 @@ Each dataset record includes:
   "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "error_pattern": {
-    "original": "looking",
-    "corrected": "laying"
+    "correct_word": "looking",
+    "error_word": "laying"
   }
 }
 ```
