@@ -80,7 +80,9 @@ Each dataset record includes:
 - `cluster_index`: integer query-cluster index
 - `correct_query`: the correct personalized query
 - `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
-- `error_pattern`: the user's writing error pattern (object with `original` and `corrected` fields), or `null` if no noise injected
+- `error_pattern`: the writing error injected into the query (object with `original` and `corrected` fields), or `null` if no noise injected
+  - `original`: the correct word from clean_query that was replaced
+  - `corrected`: the error word that replaced it in noisy_query
 
 ### Dataset Statistics
 
@@ -102,10 +104,10 @@ Each dataset record includes:
   "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "error_pattern": {
-    "original": "laying",
-    "corrected": "lying"
+    "original": "looking",
+    "corrected": "laying"
   }
 }
 ```
 
-In this example, the user commonly writes "laying" instead of "lying". This personal writing error was detected in Stage 04 and used in Stage 07 to create a realistic noisy query variant for robustness testing.
+In this example, the word "looking" in the clean query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in Stage 04.
