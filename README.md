@@ -77,7 +77,7 @@ Each dataset record includes:
 - `category`: product domain
 - `uuid`: user identifier
 - `asin`: target product identifier
-- `cluster_index`: integer query-cluster index
+- `cluster`: integer query-cluster index
 - `correct_query`: the correct personalized query
 - `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
 - `error_pattern`: the writing error injected into the query (object with `original` and `corrected` fields), or `null` if no noise injected
@@ -100,7 +100,7 @@ Each dataset record includes:
   "category": "Baby_Products",
   "uuid": "AE27EZJGURITRHDXGP6RODDKD7PA",
   "asin": "B0891R8DT2",
-  "cluster_index": 0,
+  "cluster": 0,
   "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
   "error_pattern": {
