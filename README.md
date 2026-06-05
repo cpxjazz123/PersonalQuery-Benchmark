@@ -42,11 +42,7 @@ Overall, the pipeline maps:
 
 ## Dataset Overview
 
-The current released dataset is a clustered user-product query dataset with noisy query variants. It is built from:
-
-- The clean-query generation stage: clean personalized queries and `attrs_used`
-- The noisy-query generation stage: noisy query variants with user-specific writing-error patterns
-- The complexity analysis stage: `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
+The current released dataset is a clustered user-product query dataset with noisy query variants.
 
 ### Included Categories
 
