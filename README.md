@@ -14,14 +14,6 @@ The pipeline first selects qualified users and collects their review history. Th
 
 The system extracts product attributes and user preferences from historical reviews. These preferences provide the semantic grounding for later query generation.
 
-**Stage 2: Query-set filtering**
-
-The extracted preferences are filtered so that only products and attributes that satisfy the required constraints are kept for query construction.
-
-**Stage 3: Persona description generation**
-
-This stage is intended to convert filtered preference signals into textual persona descriptions. In the current codebase, this stage is not the main operational focus of the released pipeline.
-
 **Stage 4: Writing-pattern analysis**
 
 The system analyzes user writing behavior, especially user-specific error patterns. These signals are later used to create realistic noisy query variants instead of generic synthetic noise.
@@ -62,36 +54,45 @@ The current released dataset is a clustered user-product query dataset with nois
 
 ### Dataset Files
 
-The generated dataset is stored under `result/personal_query/11_query_dataset/`:
+Three JSON files, one per category:
 
-- `result/personal_query/11_query_dataset/Baby_Products/data.jsonl`
-- `result/personal_query/11_query_dataset/Grocery_and_Gourmet_Food/data.jsonl`
-- `result/personal_query/11_query_dataset/Pet_Supplies/data.jsonl`
+- `Baby_Products_query.json`
+- `Grocery_and_Gourmet_Food_query.json`
+- `Pet_Supplies_query.json`
 
-Each file is JSONL. Each row corresponds to one user-product query instance.
+Each file is a JSON array of grouped records, where each grouped record corresponds to one user-product pair. A grouped record contains one query entry per cluster that the pair appears in.
 
 ### What Each Record Contains
 
-Each dataset record includes:
+Each grouped record has a fixed envelope:
 
 - `category`: product domain
 - `uuid`: user identifier
 - `asin`: target product identifier
+- `queries`: list of query entries (see below)
+
+Each query entry has a variable shape:
+
 - `cluster`: integer query-cluster index
 - `correct_query`: the correct personalized query
-- `noisy_query`: the noisy query variant (may be identical to `correct_query` if no error was injected)
-- `error_pattern`: the writing error injected into the query (object with `correct_word` and `error_word` fields), or `null` if no noise injected
-  - `correct_word`: the correct word from clean_query that was replaced
-  - `error_word`: the error word that replaced it in noisy_query
+
+If a writing error was injected for this entry, two additional fields are present:
+
+- `noisy_query`: the noisy query variant (always non-empty when present)
+- `error_pattern`: the writing error injected into the query (object with `correct_word` and `error_word` fields)
+  - `correct_word`: the correct word from `correct_query` that was replaced
+  - `error_word`: the error word that replaced it in `noisy_query`
+
+When no error was injected, the entry has only `cluster` and `correct_query`; the `noisy_query` and `error_pattern` fields are omitted. This is the dominant case: most user-product pairs in the dataset do not have a personalized noise variant.
 
 ### Dataset Statistics
 
-| Category | Total | With Noisy | Without Noisy |
-|----------|-------|------------|--------------|
-| Baby_Products | 5,537 | 471 | 5,066 |
-| Grocery_and_Gourmet_Food | 6,803 | 594 | 6,209 |
-| Pet_Supplies | 17,112 | 1,262 | 15,850 |
-| **Total** | **29,452** | **2,327** | **27,125** |
+| Category | Total | With Noise | Without Noise |
+|----------|-------|------------|---------------|
+| Baby_Products | 6,535 | 540 | 5,995 |
+| Grocery_and_Gourmet_Food | 6,141 | 536 | 5,605 |
+| Pet_Supplies | 13,933 | 1,166 | 12,767 |
+| **Total** | **26,609** | **2,242** | **24,367** |
 
 ### Example Record (with noise injection)
 
@@ -100,13 +101,17 @@ Each dataset record includes:
   "category": "Baby_Products",
   "uuid": "AE27EZJGURITRHDXGP6RODDKD7PA",
   "asin": "B0891R8DT2",
-  "cluster": 0,
-  "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-  "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-  "error_pattern": {
-    "correct_word": "looking",
-    "error_word": "laying"
-  }
+  "queries": [
+    {
+      "cluster": 0,
+      "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
+      "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
+      "error_pattern": {
+        "correct_word": "looking",
+        "error_word": "laying"
+      }
+    }
+  ]
 }
 ```
 
