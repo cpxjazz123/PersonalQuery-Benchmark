@@ -24,21 +24,21 @@ The system analyzes user writing behavior, especially user-specific error patter
 
 The pipeline estimates user-level linguistic complexity, including broad and deeper syntactic patterns. These complexity signals are used to control the style and complexity level of generated queries.
 
-**Personalized clean-query generation**
+**Personalized query generation**
 
-Given user preferences and complexity signals, the system generates personalized clean queries for target products. Each product can produce different query styles, including broader and deeper formulations.
+Given user preferences and complexity signals, the system generates personalized queries for target products. Each product can produce different query styles, including broader and deeper formulations.
 
 **Personalized noisy-query generation**
 
-The clean queries are transformed into noisy queries using user-specific writing-error patterns. This stage creates error-aware query variants for robustness analysis.
+These personalized queries are transformed into noisy queries using user-specific writing-error patterns. This stage creates error-aware query variants for robustness analysis.
 
 **Retrieval evaluation**
 
-The generated queries are evaluated with retrieval models to measure ranking quality and robustness. This stage supports comparison between clean queries and noisy queries under the same product-search setting.
+The generated queries are evaluated with retrieval models to measure ranking quality and robustness. This stage supports comparison between personalized queries and their noisy variants under the same product-search setting.
 
 Overall, the pipeline maps:
 
-`user reviews -> preferences -> linguistic profile -> clean queries -> noisy queries -> retrieval evaluation`
+`user reviews -> preferences -> linguistic profile -> personalized queries -> noisy queries -> retrieval evaluation`
 
 ## Dataset Overview
 
@@ -113,4 +113,4 @@ When no error was injected, the entry has only `cluster` and `correct_query`; th
 }
 ```
 
-In this example, the word "looking" in the clean query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
+In this example, the word "looking" in the personalized query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
