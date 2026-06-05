@@ -6,7 +6,7 @@ PersonalQuery is a personalized product-search pipeline built from user review h
 
 The pipeline is organized as a sequential personalized-query construction workflow.
 
-![Personalized Query Construction and Retrieval Evaluation Pipeline](image.png)
+<img src="image.png" width="640" alt="Personalized Query Construction and Retrieval Evaluation Pipeline">
 
 **User filtering and review preparation**
 
