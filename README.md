@@ -6,31 +6,31 @@ PersonalQuery is a personalized product-search pipeline built from user review h
 
 The pipeline is organized as a sequential personalized-query construction workflow.
 
-**Stage 0: User filtering and review preparation**
+**User filtering and review preparation**
 
 The pipeline first selects qualified users and collects their review history. This stage prepares the user-level review corpus that will be used in all later steps.
 
-**Stage 1: Preference extraction**
+**Preference extraction**
 
 The system extracts product attributes and user preferences from historical reviews. These preferences provide the semantic grounding for later query generation.
 
-**Stage 4: Writing-pattern analysis**
+**Writing-pattern analysis**
 
 The system analyzes user writing behavior, especially user-specific error patterns. These signals are later used to create realistic noisy query variants instead of generic synthetic noise.
 
-**Stage 5: Syntactic complexity analysis**
+**Syntactic complexity analysis**
 
 The pipeline estimates user-level linguistic complexity, including broad and deeper syntactic patterns. These complexity signals are used to control the style and complexity level of generated queries.
 
-**Stage 6: Personalized clean-query generation**
+**Personalized clean-query generation**
 
 Given user preferences and complexity signals, the system generates personalized clean queries for target products. Each product can produce different query styles, including broader and deeper formulations.
 
-**Stage 7: Personalized noisy-query generation**
+**Personalized noisy-query generation**
 
 The clean queries are transformed into noisy queries using user-specific writing-error patterns. This stage creates error-aware query variants for robustness analysis.
 
-**Stage 8: Retrieval evaluation**
+**Retrieval evaluation**
 
 The generated queries are evaluated with retrieval models to measure ranking quality and robustness. This stage supports comparison between clean queries and noisy queries under the same product-search setting.
 
@@ -42,9 +42,9 @@ Overall, the pipeline maps:
 
 The current released dataset is a clustered user-product query dataset with noisy query variants. It is built from:
 
-- Stage 06: clean personalized queries and `attrs_used`
-- Stage 07: noisy query variants with user-specific writing-error patterns
-- Stage 12: `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
+- The clean-query generation stage: clean personalized queries and `attrs_used`
+- The noisy-query generation stage: noisy query variants with user-specific writing-error patterns
+- The complexity analysis stage: `strict5550_query_gmm_user_profiles.jsonl` cluster assignments
 
 ### Included Categories
 
@@ -115,4 +115,4 @@ When no error was injected, the entry has only `cluster` and `correct_query`; th
 }
 ```
 
-In this example, the word "looking" in the clean query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in Stage 04.
+In this example, the word "looking" in the clean query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
