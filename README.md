@@ -228,6 +228,9 @@ python3 PersoanlQuery/paper_claims_audit.py --claim-by-id-prefix Sec2
 
 # Evidence coverage (expected_outputs × code_evidence buckets); audit-scope expansion planning; iter #152
 python3 PersoanlQuery/paper_claims_audit.py --evidence-coverage
+
+# Aggregate numeric statistics (max/mean abs_delta + max/mean rel_delta_pct + per-status vc counts); iter #155
+python3 PersoanlQuery/paper_claims_audit.py --audit-stats
 ```
 
 ### Pre-commit hook (optional, one-time setup)
