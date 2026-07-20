@@ -151,6 +151,7 @@ For the full per-claim audit (extracted values, expected values, absolute/relati
   - `<title>` + `<meta name='description'>` embed summary counts + ISO 8601 generated_at (iter #122) — so browser tab / bookmark / link-preview shows concrete audit state
   - "Sort by severity" toggle button (iter #133) — client-side JS reorders claims by `abs_delta` desc, complementing `--top N` CLI flag for shell triage
   - "Filter by status" click handler on status_summary_table rows (iter #136) — click any of the 7 status rows to filter the claims table to only that status; "Clear filter" button appears when filter active
+  - Severity-tier panel (iter #153) — HIGH/MEDIUM/LOW bucketing (HIGH = discrepant rel>20%) with anchor links to claim detail rows; mirror of `--severity-tier` CLI flag (iter #150)
 
 ### Re-run the audit
 
