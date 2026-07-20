@@ -217,6 +217,9 @@ python3 PersoanlQuery/paper_claims_audit.py --summary-by-section-and-status
 
 # Worst-claim-per-source-dir sorted desc — code-side erratum triage (counterpart to --worst-by-section); iter #149
 python3 PersoanlQuery/paper_claims_audit.py --worst-by-source-dir
+
+# HIGH/MEDIUM/LOW severity-tier bucketing (HIGH = discrepant rel>20%); executive triage view; iter #150
+python3 PersoanlQuery/paper_claims_audit.py --severity-tier
 ```
 
 ### Pre-commit hook (optional, one-time setup)
