@@ -190,6 +190,9 @@ python3 PersoanlQuery/paper_claims_audit.py --list-unverified
 
 # List just the 'partial' claims with id, section, and expected_outputs for audit-scope diagnosis; iter #140
 python3 PersoanlQuery/paper_claims_audit.py --list-partial
+
+# Print claims as RFC-4180 CSV (8 cols) sorted by severity for spreadsheet import (Excel / Sheets); iter #141
+python3 PersoanlQuery/paper_claims_audit.py --csv > audit.csv
 ```
 
 ### Pre-commit hook (optional, one-time setup)
