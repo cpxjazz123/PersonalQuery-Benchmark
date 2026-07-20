@@ -202,6 +202,9 @@ python3 PersoanlQuery/paper_claims_audit.py --list-discrepant
 
 # Group audit claims by source directory (Stage) with per-status breakdown (coverage-gap view); iter #144
 python3 PersoanlQuery/paper_claims_audit.py --count-by-codebase-dir
+
+# Show worst-claim-per-paper-section (max abs_delta per section) sorted desc — paper erratum triage; iter #145
+python3 PersoanlQuery/paper_claims_audit.py --worst-by-section
 ```
 
 ### Pre-commit hook (optional, one-time setup)
