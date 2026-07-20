@@ -193,6 +193,9 @@ python3 PersoanlQuery/paper_claims_audit.py --list-partial
 
 # Print claims as RFC-4180 CSV (8 cols) sorted by severity for spreadsheet import (Excel / Sheets); iter #141
 python3 PersoanlQuery/paper_claims_audit.py --csv > audit.csv
+
+# List just the 'verified' claims (evidence-backed set) with id, section, expected_outputs; iter #142
+python3 PersoanlQuery/paper_claims_audit.py --list-verified
 ```
 
 ### Pre-commit hook (optional, one-time setup)
