@@ -135,8 +135,18 @@ Every quantitative claim in the companion paper has been audited against the ope
 | **Total** | **17** | |
 
 For the full per-claim audit (extracted values, expected values, absolute/relative deltas), see:
-- `result/personal_query/iterations/paper_claims_audit.json` (machine-readable)
-- `result/personal_query/iterations/paper_claims_audit_dashboard.html` (self-contained HTML with color-coded status badges; iter #108/#109/#110)
+- `result/personal_query/iterations/paper_claims_audit.json` (machine-readable; iter #113 adds `generated_at` ISO 8601 timestamp)
+- `result/personal_query/iterations/paper_claims_audit_dashboard.html` (self-contained HTML; features):
+  - 7 color-coded status badges in summary header (iter #108)
+  - rel_delta displayed as percent (e.g. `11.56%`), not raw fraction (iter #109)
+  - per-claim value_check panel with severity color (value_match=green / value_mismatch=orange / degenerate=red, iter #110)
+  - provenance panels per claim listing `expected_outputs` globs and `code_evidence` script:function references (iter #112)
+  - matched_files list for degenerate claims (so reviewer sees exactly which files the selector tried; iter #115)
+  - HTML anchors per claim (`#claim-{id}`) + collapsible claims-index sidebar (iter #116) — enables deep-linking from paper footnotes
+  - per-section breakdown table (8 sections × 7 status cells) so reviewer can spot which paper section is flakiest (iter #117)
+  - inline status legend (iter #118) — 7 statuses each with color dot + label + one-line description
+  - generated_at timestamp in header (iter #113)
+  - audit_target + claim_id_filter rows (iter #104)
 
 ### Re-run the audit
 
@@ -149,6 +159,9 @@ python3 PersoanlQuery/paper_claims_audit.py --claim-id RQ3_Fleiss_Kappa_0.72 --v
 
 # Strict mode — exit 1 if any non-verified claim detected
 python3 PersoanlQuery/paper_claims_audit.py --strict --json-only
+
+# Diff current audit against a frozen baseline JSON — exit 1 if any per-claim flip (status change, value extracted drift, new/removed claim); iter #114
+python3 PersoanlQuery/paper_claims_audit.py --diff result/personal_query/iterations/paper_claims_audit.json --json-only
 ```
 
 ### Pre-commit hook (optional, one-time setup)
@@ -167,3 +180,12 @@ This installs `.git/hooks/pre-commit` → `PersoanlQuery/_run_audit_ci.sh`. Afte
 | iter #88 | Stage 6/9 query pool rebuild | 1.5–3 h GPU | 1 degenerate → verified |
 
 After either re-run, update `PersoanlQuery/_smoke_audit_regression.py` with the new expected values and re-commit the regenerated `paper_claims_audit.json` together.
+
+### Paper ↔ audit cross-references (iter #119)
+
+The companion paper's Table 1, 2, and 3 inline footnotes each name the corresponding audit claim IDs in backticks (e.g. `RQ3_Fleiss_Kappa_0.72`, `RQ4_GMM_Best_Prior`). Reviewer can:
+- **paper → audit JSON**: `grep RQ3_Fleiss_Kappa_0.72 result/personal_query/iterations/paper_claims_audit.json`
+- **paper → dashboard**: open `result/personal_query/iterations/paper_claims_audit_dashboard.html#claim-RQ3_Fleiss_Kappa_0.72` (browser native anchor)
+- **audit → paper**: each dashboard claim row shows its paper section (e.g. `§3.3 + Table 2`)
+
+This forms a closed 4-way loop: paper ↔ audit JSON ↔ dashboard anchors ↔ `--diff` CLI.
