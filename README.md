@@ -214,6 +214,9 @@ python3 PersoanlQuery/paper_claims_audit.py --summary-by-source-dir-and-status
 
 # 2D matrix paper section (rows) × audit status (columns) with counts + footer TOTAL; iter #148
 python3 PersoanlQuery/paper_claims_audit.py --summary-by-section-and-status
+
+# Worst-claim-per-source-dir sorted desc — code-side erratum triage (counterpart to --worst-by-section); iter #149
+python3 PersoanlQuery/paper_claims_audit.py --worst-by-source-dir
 ```
 
 ### Pre-commit hook (optional, one-time setup)
