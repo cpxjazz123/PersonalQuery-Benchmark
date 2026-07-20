@@ -211,6 +211,9 @@ python3 PersoanlQuery/paper_claims_audit.py --find-claim GMM
 
 # 2D matrix source dir (rows) × audit status (columns) with counts + footer TOTAL; iter #147
 python3 PersoanlQuery/paper_claims_audit.py --summary-by-source-dir-and-status
+
+# 2D matrix paper section (rows) × audit status (columns) with counts + footer TOTAL; iter #148
+python3 PersoanlQuery/paper_claims_audit.py --summary-by-section-and-status
 ```
 
 ### Pre-commit hook (optional, one-time setup)
