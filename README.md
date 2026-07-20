@@ -196,6 +196,9 @@ python3 PersoanlQuery/paper_claims_audit.py --csv > audit.csv
 
 # List just the 'verified' claims (evidence-backed set) with id, section, expected_outputs; iter #142
 python3 PersoanlQuery/paper_claims_audit.py --list-verified
+
+# List just the 'discrepant' claims (audit-mismatch) with id, section, max abs_delta, rel_delta_pct; iter #143
+python3 PersoanlQuery/paper_claims_audit.py --list-discrepant
 ```
 
 ### Pre-commit hook (optional, one-time setup)
