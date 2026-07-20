@@ -208,6 +208,9 @@ python3 PersoanlQuery/paper_claims_audit.py --worst-by-section
 
 # Substring search across id / section / reason / expected_outputs / code_evidence (case-insensitive); iter #146
 python3 PersoanlQuery/paper_claims_audit.py --find-claim GMM
+
+# 2D matrix source dir (rows) × audit status (columns) with counts + footer TOTAL; iter #147
+python3 PersoanlQuery/paper_claims_audit.py --summary-by-source-dir-and-status
 ```
 
 ### Pre-commit hook (optional, one-time setup)
