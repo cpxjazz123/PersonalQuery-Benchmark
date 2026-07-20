@@ -178,6 +178,9 @@ python3 PersoanlQuery/paper_claims_audit.py --by-section
 
 # Print relative age of the most recent audit JSON (exit 0 if <= 24h, exit 1 if stale); iter #135
 python3 PersoanlQuery/paper_claims_audit.py --audit-age
+
+# Print claims as markdown table (sorted by severity) for pasting into GitHub PR comments / Slack; iter #137
+python3 PersoanlQuery/paper_claims_audit.py --md-table | pbcopy
 ```
 
 ### Pre-commit hook (optional, one-time setup)
