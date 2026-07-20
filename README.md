@@ -205,6 +205,9 @@ python3 PersoanlQuery/paper_claims_audit.py --count-by-codebase-dir
 
 # Show worst-claim-per-paper-section (max abs_delta per section) sorted desc — paper erratum triage; iter #145
 python3 PersoanlQuery/paper_claims_audit.py --worst-by-section
+
+# Substring search across id / section / reason / expected_outputs / code_evidence (case-insensitive); iter #146
+python3 PersoanlQuery/paper_claims_audit.py --find-claim GMM
 ```
 
 ### Pre-commit hook (optional, one-time setup)
