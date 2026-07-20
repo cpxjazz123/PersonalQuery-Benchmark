@@ -114,3 +114,56 @@ When no error was injected, the entry has only `cluster` and `correct_query`; th
 ```
 
 In this example, the word "looking" in the personalized query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
+
+## Reproducibility Audit
+
+Every quantitative claim in the companion paper has been audited against the open-source release pipeline with both **file-existence** and **value-validation** checks. The audit catches silent flip of:
+- output paths between release and paper,
+- numerical values that drift from paper claims,
+- infrastructure claims without enumerated outputs.
+
+### Current Audit State (frozen 2026-07-21)
+
+| Status | Count | Meaning |
+|--------|-------|---------|
+| `verified_value_match` | 0 | file exists, values match paper |
+| `verified` | 6 | file exists, no numerical claim |
+| `discrepant` | 4 | file exists, values disagree with paper (11.6–78.4% relative delta) |
+| `degenerate` | 1 | file exists, selector returned no non-NaN values |
+| `partial` | 1 | code referenced, no specific outputs enumerated |
+| `unverified` | 5 | code referenced but no expected outputs produced (Stage 12 lineage gap) |
+| **Total** | **17** | |
+
+For the full per-claim audit (extracted values, expected values, absolute/relative deltas), see:
+- `result/personal_query/iterations/paper_claims_audit.json` (machine-readable)
+- `result/personal_query/iterations/paper_claims_audit_dashboard.html` (self-contained HTML with color-coded status badges; iter #108/#109/#110)
+
+### Re-run the audit
+
+```bash
+# Full audit + regression smoke test + dashboard regeneration (~2s)
+bash PersoanlQuery/_run_audit_ci.sh
+
+# Ad-hoc inspection of a single claim
+python3 PersoanlQuery/paper_claims_audit.py --claim-id RQ3_Fleiss_Kappa_0.72 --verbose
+
+# Strict mode — exit 1 if any non-verified claim detected
+python3 PersoanlQuery/paper_claims_audit.py --strict --json-only
+```
+
+### Pre-commit hook (optional, one-time setup)
+
+```bash
+bash PersoanlQuery/install_audit_precommit.sh
+```
+
+This installs `.git/hooks/pre-commit` → `PersoanlQuery/_run_audit_ci.sh`. After installation, every `git commit` automatically re-runs the audit and blocks the commit if any silent flip is detected. Bypass once with `git commit --no-verify`; uninstall with `rm .git/hooks/pre-commit`. See `PersoanlQuery/_AUDIT_CI_README.md` for details.
+
+### Re-execution cost (to flip non-verified → verified)
+
+| Backlog iter | Stage | Estimated time | Flips |
+|--------------|-------|----------------|-------|
+| iter #87 | Stage 12 + Stage 10 latent representations | 9–21 h GPU (SLURM) | 5 unverified → verified |
+| iter #88 | Stage 6/9 query pool rebuild | 1.5–3 h GPU | 1 degenerate → verified |
+
+After either re-run, update `PersoanlQuery/_smoke_audit_regression.py` with the new expected values and re-commit the regenerated `paper_claims_audit.json` together.
