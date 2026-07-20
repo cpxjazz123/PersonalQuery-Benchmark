@@ -171,6 +171,9 @@ python3 PersoanlQuery/paper_claims_audit.py --status-summary
 
 # Print top N discrepant claims sorted by abs_delta desc from the most recent audit JSON without re-running; iter #133
 python3 PersoanlQuery/paper_claims_audit.py --top 3
+
+# Print paper section × audit status count matrix from the most recent audit JSON without re-running; iter #134
+python3 PersoanlQuery/paper_claims_audit.py --by-section
 ```
 
 ### Pre-commit hook (optional, one-time setup)
