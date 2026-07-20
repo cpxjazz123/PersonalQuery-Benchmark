@@ -149,6 +149,7 @@ For the full per-claim audit (extracted values, expected values, absolute/relati
   - generated_at timestamp in header (iter #113)
   - audit_target + claim_id_filter rows (iter #104)
   - `<title>` + `<meta name='description'>` embed summary counts + ISO 8601 generated_at (iter #122) — so browser tab / bookmark / link-preview shows concrete audit state
+  - "Sort by severity" toggle button (iter #133) — client-side JS reorders claims by `abs_delta` desc, complementing `--top N` CLI flag for shell triage
 
 ### Re-run the audit
 
@@ -167,6 +168,9 @@ python3 PersoanlQuery/paper_claims_audit.py --diff result/personal_query/iterati
 
 # Print compact 1-line audit summary from the most recent audit JSON without re-running; iter #131
 python3 PersoanlQuery/paper_claims_audit.py --status-summary
+
+# Print top N discrepant claims sorted by abs_delta desc from the most recent audit JSON without re-running; iter #133
+python3 PersoanlQuery/paper_claims_audit.py --top 3
 ```
 
 ### Pre-commit hook (optional, one-time setup)
