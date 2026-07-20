@@ -181,6 +181,9 @@ python3 PersoanlQuery/paper_claims_audit.py --audit-age
 
 # Print claims as markdown table (sorted by severity) for pasting into GitHub PR comments / Slack; iter #137
 python3 PersoanlQuery/paper_claims_audit.py --md-table | pbcopy
+
+# List just the 'degenerate' claims with id, section, and matched_files for diagnosis; iter #138
+python3 PersoanlQuery/paper_claims_audit.py --list-degenerate
 ```
 
 ### Pre-commit hook (optional, one-time setup)
