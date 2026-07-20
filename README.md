@@ -220,6 +220,9 @@ python3 PersoanlQuery/paper_claims_audit.py --worst-by-source-dir
 
 # HIGH/MEDIUM/LOW severity-tier bucketing (HIGH = discrepant rel>20%); executive triage view; iter #150
 python3 PersoanlQuery/paper_claims_audit.py --severity-tier
+
+# List claims with id starting with PREFIX (case-insensitive); prefix-anchored complement to --find-claim; iter #151
+python3 PersoanlQuery/paper_claims_audit.py --claim-by-id-prefix Sec2
 ```
 
 ### Pre-commit hook (optional, one-time setup)
