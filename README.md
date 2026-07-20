@@ -147,6 +147,7 @@ For the full per-claim audit (extracted values, expected values, absolute/relati
   - inline status legend (iter #118) — 7 statuses each with color dot + label + one-line description
   - generated_at timestamp in header (iter #113)
   - audit_target + claim_id_filter rows (iter #104)
+  - `<title>` + `<meta name='description'>` embed summary counts + ISO 8601 generated_at (iter #122) — so browser tab / bookmark / link-preview shows concrete audit state
 
 ### Re-run the audit
 
