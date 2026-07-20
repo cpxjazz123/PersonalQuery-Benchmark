@@ -164,6 +164,9 @@ python3 PersoanlQuery/paper_claims_audit.py --strict --json-only
 
 # Diff current audit against a frozen baseline JSON — exit 1 if any per-claim flip (status change, value extracted drift, new/removed claim); iter #114
 python3 PersoanlQuery/paper_claims_audit.py --diff result/personal_query/iterations/paper_claims_audit.json --json-only
+
+# Print compact 1-line audit summary from the most recent audit JSON without re-running; iter #131
+python3 PersoanlQuery/paper_claims_audit.py --status-summary
 ```
 
 ### Pre-commit hook (optional, one-time setup)
