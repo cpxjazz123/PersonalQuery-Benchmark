@@ -223,6 +223,9 @@ python3 PersoanlQuery/paper_claims_audit.py --severity-tier
 
 # List claims with id starting with PREFIX (case-insensitive); prefix-anchored complement to --find-claim; iter #151
 python3 PersoanlQuery/paper_claims_audit.py --claim-by-id-prefix Sec2
+
+# Evidence coverage (expected_outputs × code_evidence buckets); audit-scope expansion planning; iter #152
+python3 PersoanlQuery/paper_claims_audit.py --evidence-coverage
 ```
 
 ### Pre-commit hook (optional, one-time setup)
