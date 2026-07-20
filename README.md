@@ -184,6 +184,9 @@ python3 PersoanlQuery/paper_claims_audit.py --md-table | pbcopy
 
 # List just the 'degenerate' claims with id, section, and matched_files for diagnosis; iter #138
 python3 PersoanlQuery/paper_claims_audit.py --list-degenerate
+
+# List just the 'unverified' claims with id, section, and code_evidence for iter #87 planning; iter #139
+python3 PersoanlQuery/paper_claims_audit.py --list-unverified
 ```
 
 ### Pre-commit hook (optional, one-time setup)
