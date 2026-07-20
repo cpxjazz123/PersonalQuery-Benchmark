@@ -136,6 +136,7 @@ Every quantitative claim in the companion paper has been audited against the ope
 
 For the full per-claim audit (extracted values, expected values, absolute/relative deltas), see:
 - `result/personal_query/iterations/paper_claims_audit.json` (machine-readable; iter #113 adds `generated_at` ISO 8601 timestamp)
+- `result/personal_query/iterations/paper_audit_id_mapping.json` (machine-readable paper ↔ audit claim ID index; iter #124 — for each audit ID, list every paper line that cites it; flags `unmapped_audit_ids` and `unmapped_paper_ids`)
 - `result/personal_query/iterations/paper_claims_audit_dashboard.html` (self-contained HTML; features):
   - 7 color-coded status badges in summary header (iter #108)
   - rel_delta displayed as percent (e.g. `11.56%`), not raw fraction (iter #109)
