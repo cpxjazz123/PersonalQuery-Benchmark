@@ -174,6 +174,9 @@ python3 PersoanlQuery/paper_claims_audit.py --top 3
 
 # Print paper section × audit status count matrix from the most recent audit JSON without re-running; iter #134
 python3 PersoanlQuery/paper_claims_audit.py --by-section
+
+# Print relative age of the most recent audit JSON (exit 0 if <= 24h, exit 1 if stale); iter #135
+python3 PersoanlQuery/paper_claims_audit.py --audit-age
 ```
 
 ### Pre-commit hook (optional, one-time setup)
