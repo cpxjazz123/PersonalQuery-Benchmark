@@ -187,6 +187,9 @@ python3 PersoanlQuery/paper_claims_audit.py --list-degenerate
 
 # List just the 'unverified' claims with id, section, and code_evidence for iter #87 planning; iter #139
 python3 PersoanlQuery/paper_claims_audit.py --list-unverified
+
+# List just the 'partial' claims with id, section, and expected_outputs for audit-scope diagnosis; iter #140
+python3 PersoanlQuery/paper_claims_audit.py --list-partial
 ```
 
 ### Pre-commit hook (optional, one-time setup)
