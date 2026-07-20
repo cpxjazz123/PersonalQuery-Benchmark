@@ -182,11 +182,11 @@ This installs `.git/hooks/pre-commit` → `PersoanlQuery/_run_audit_ci.sh`. Afte
 
 After either re-run, update `PersoanlQuery/_smoke_audit_regression.py` with the new expected values and re-commit the regenerated `paper_claims_audit.json` together.
 
-### Paper ↔ audit cross-references (iter #119)
+### Paper ↔ audit cross-references (iter #119, #123)
 
-The companion paper's Table 1, 2, and 3 inline footnotes each name the corresponding audit claim IDs in backticks (e.g. `RQ3_Fleiss_Kappa_0.72`, `RQ4_GMM_Best_Prior`). Reviewer can:
+The companion paper's Table 1, 2, and 3 inline footnotes each name the corresponding audit claim IDs in backticks (e.g. `RQ3_Fleiss_Kappa_0.72`, `RQ4_GMM_Best_Prior`). The §1 reproducibility-audit paragraph enumerates all six §2.2 infrastructure claim IDs (iter #123). Reviewer can:
 - **paper → audit JSON**: `grep RQ3_Fleiss_Kappa_0.72 result/personal_query/iterations/paper_claims_audit.json`
 - **paper → dashboard**: open `result/personal_query/iterations/paper_claims_audit_dashboard.html#claim-RQ3_Fleiss_Kappa_0.72` (browser native anchor)
 - **audit → paper**: each dashboard claim row shows its paper section (e.g. `§3.3 + Table 2`)
 
-This forms a closed 4-way loop: paper ↔ audit JSON ↔ dashboard anchors ↔ `--diff` CLI.
+This forms a closed 4-way loop: paper ↔ audit JSON ↔ dashboard anchors ↔ `--diff` CLI. All 17 audit IDs are covered either by inline Table 1/2/3 footnote backticks or by the §1 paragraph; regression test Case I (iter #123) freezes this coverage.
