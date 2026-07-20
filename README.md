@@ -199,6 +199,9 @@ python3 PersoanlQuery/paper_claims_audit.py --list-verified
 
 # List just the 'discrepant' claims (audit-mismatch) with id, section, max abs_delta, rel_delta_pct; iter #143
 python3 PersoanlQuery/paper_claims_audit.py --list-discrepant
+
+# Group audit claims by source directory (Stage) with per-status breakdown (coverage-gap view); iter #144
+python3 PersoanlQuery/paper_claims_audit.py --count-by-codebase-dir
 ```
 
 ### Pre-commit hook (optional, one-time setup)
