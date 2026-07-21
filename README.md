@@ -154,6 +154,7 @@ For the full per-claim audit (extracted values, expected values, absolute/relati
   - Severity-tier panel (iter #153) — HIGH/MEDIUM/LOW bucketing (HIGH = discrepant rel>20%) with anchor links to claim detail rows; mirror of `--severity-tier` CLI flag (iter #150)
   - Evidence-coverage panel (iter #154) — 4-bucket expected_outputs × code_evidence breakdown with anchor links; mirror of `--evidence-coverage` CLI flag (iter #152)
   - Audit-stats panel (iter #156) — max/mean/min abs_delta + rel_delta_pct + per-status vc count table with mean/max abs; 8th panel color (#e8f5e9 light green); mirror of `--audit-stats` CLI flag (iter #155)
+  - Stats-by-section panel (iter #159) — per-paper-section numeric statistics (max/mean abs + max/mean rel + claim count + vc count), 9th panel color (#fff8e1 light amber); mirror of `--stats-by-section` CLI flag (iter #157)
 
 ### Re-run the audit
 
