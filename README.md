@@ -155,6 +155,7 @@ For the full per-claim audit (extracted values, expected values, absolute/relati
   - Evidence-coverage panel (iter #154) — 4-bucket expected_outputs × code_evidence breakdown with anchor links; mirror of `--evidence-coverage` CLI flag (iter #152)
   - Audit-stats panel (iter #156) — max/mean/min abs_delta + rel_delta_pct + per-status vc count table with mean/max abs; 8th panel color (#e8f5e9 light green); mirror of `--audit-stats` CLI flag (iter #155)
   - Stats-by-section panel (iter #159) — per-paper-section numeric statistics (max/mean abs + max/mean rel + claim count + vc count), 9th panel color (#fff8e1 light amber); mirror of `--stats-by-section` CLI flag (iter #157)
+  - Stats-by-source-dir panel (iter #160) — per-source-dir numeric statistics (max/mean abs + max/mean rel + claim count + vc count), 10th panel color (#fce4ec light pink); mirror of `--stats-by-source-dir` CLI flag (iter #158)
 
 ### Re-run the audit
 
