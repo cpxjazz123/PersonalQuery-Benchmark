@@ -235,6 +235,9 @@ python3 PersoanlQuery/paper_claims_audit.py --audit-stats
 
 # Per-paper-section numeric statistics (extends iter #155 from global to per-section); iter #157
 python3 PersoanlQuery/paper_claims_audit.py --stats-by-section
+
+# Per-source-dir numeric statistics (mirror iter #157 for source-dir axis, uses iter #149 _primary_dir); iter #158
+python3 PersoanlQuery/paper_claims_audit.py --stats-by-source-dir
 ```
 
 ### Pre-commit hook (optional, one-time setup)
