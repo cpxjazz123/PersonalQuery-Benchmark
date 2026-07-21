@@ -232,6 +232,9 @@ python3 PersoanlQuery/paper_claims_audit.py --evidence-coverage
 
 # Aggregate numeric statistics (max/mean abs_delta + max/mean rel_delta_pct + per-status vc counts); iter #155
 python3 PersoanlQuery/paper_claims_audit.py --audit-stats
+
+# Per-paper-section numeric statistics (extends iter #155 from global to per-section); iter #157
+python3 PersoanlQuery/paper_claims_audit.py --stats-by-section
 ```
 
 ### Pre-commit hook (optional, one-time setup)
