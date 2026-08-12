@@ -7,7 +7,7 @@
     "scratch_result": "/home/wlia0047/ar57_scratch/wenyu/result/personal_query",
     "workspace": "/home/wlia0047/ar57/wenyu",
     "hf_models": "/home/wlia0047/ar57/wenyu/hf_models",
-    "amazon_reviews": "/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2023"
+    "amazon_reviews": "/home/wlia0047/ar57/wenyu/data/Amazon-Reviews-2018"
   },
   "categories": {
     "Arts_Crafts_and_Sewing": {
@@ -43,12 +43,12 @@
     "Baby_Products": {
       "name": "Baby_Products",
       "query_file": "{test_result}/06_query/Baby_Products/query.json",
-      "corpus_file": "{amazon_reviews}/meta_Baby_Products.jsonl.gz",
+      "corpus_file": "{amazon_reviews}/meta_Baby.jsonl.gz",
       "retriever_cache_dir": "{scratch_result}/08_retrieval/retriever_Baby_Products_cache",
       "query_cache_dir": "{scratch_result}/08_retrieval/query_cache_Baby_Products",
       "output_dir": "{test_result}/08_retrieval/Baby_Products",
       "metadata_cache_file": "{scratch_result}/08_retrieval/document_cache/Baby_Products_metadata_2023.pkl",
-      "raw_corpus_file": "{amazon_reviews}/meta_Baby_Products.jsonl.gz"
+      "raw_corpus_file": "{amazon_reviews}/meta_Baby.jsonl.gz"
     }
   },
   "global_paths": {
