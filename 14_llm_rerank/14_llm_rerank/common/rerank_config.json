@@ -2,8 +2,8 @@
   "_comment": "Stage 15 LLM 重排序配置文件。first-stage retriever 从 Stage 8 cache 加载（query embedding cache + retriever cache），second-stage 用 LLM 对 top-K 候选重排序。",
   "llm": {
     "client_module": "PersoanlQuery.llm_client",
-    "client_class": "MiniMaxAnthropicClient",
-    "model": "M2.5",
+    "client_class": "QwenLocalClient",
+    "model": "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct",
     "max_tokens": 2048,
     "temperature": 0.0,
     "max_retries": 350,

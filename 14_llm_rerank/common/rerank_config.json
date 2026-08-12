@@ -2,13 +2,13 @@
   "_comment": "Stage 15 LLM 重排序配置文件。first-stage retriever 从 Stage 8 cache 加载（query embedding cache + retriever cache），second-stage 用 LLM 对 top-K 候选重排序。",
   "llm": {
     "client_module": "PersoanlQuery.llm_client",
-    "client_class": "MiniMaxAnthropicClient",
-    "model": "M2.5",
+    "client_class": "QwenLocalClient",
+    "model": "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct",
     "max_tokens": 2048,
     "temperature": 0.0,
     "max_retries": 350,
     "retry_on_empty_response": false,
-    "available_rerankers": ["M2.5", "DeepSeek-v4"]
+    "available_rerankers": ["Qwen2-7B-Instruct"]
   },
   "rerank": {
     "_comment_first_stage": "iter #186: paper Table 1 lists 8 first-stage retrievers (BM25/SPLADE/BGE/E5/MiniLM/STAR/ANCE/ColBERTv2) + 1 LLM reranker (DeepSeek-v4 Reranker). DEFAULT_FIRST_STAGE_RETRIEVERS=['bge','e5'] chosen because dense retrievers have cached embeddings across all 3 domains.",

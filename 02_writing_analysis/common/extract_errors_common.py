@@ -15,7 +15,7 @@ import sys
 _PERSOANL_QUERY_ROOT = Path(__file__).resolve().parents[2]
 if str(_PERSOANL_QUERY_ROOT) not in sys.path:
     sys.path.insert(0, str(_PERSOANL_QUERY_ROOT))
-from llm_client import MiniMaxAnthropicClient, MiniMaxIOAnthropicClient
+from llm_client import QwenLocalClient
 from filelock import FileLock
 
 
@@ -123,7 +123,7 @@ def format_elapsed(start_time: float) -> str:
 class BatchErrorExtractor:
     """批量提取错误"""
     
-    def __init__(self, llm_client: MiniMaxAnthropicClient, base_system: str, user_template: str,
+    def __init__(self, llm_client: QwenLocalClient, base_system: str, user_template: str,
                  max_tokens: int = 256, max_retries: int = 3):
         self.llm_client = llm_client
         self.base_system = base_system
@@ -287,13 +287,10 @@ def extract_and_filter_errors(category: str, config: Dict = None) -> None:
     
     # 初始化
     log("Initializing LLM client...")
-    if use_minimaxio:
-        llm_client = MiniMaxIOAnthropicClient()
-        log("使用 MiniMaxIO API 客户端")
-    else:
-        llm_client = MiniMaxAnthropicClient()
-        log("使用 MiniMax API 客户端")
-    # llm_client = LLMClient()  # 已弃用
+    # 项目已下线 MiniMax 远程后端，统一使用本地 Qwen-7B/8B 推理；
+    # use_minimaxio 配置项保留但不再生效，仅记录一条说明。
+    llm_client = QwenLocalClient()
+    log("使用本地 Qwen 推理客户端")
     
     # 预热缓存：先调用一次建立 ephemeral cache
     log("预热 LLM 缓存...")
