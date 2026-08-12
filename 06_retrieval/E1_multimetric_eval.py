@@ -1,36 +1,22 @@
 #!/usr/bin/env python3
-"""E1 (R1.6/R3.2/R3.4) — Multi-metric evaluation + Wilcoxon + Spearman.
+"""E1 (R1.6/R3.2/R3.4) — Multi-metric evaluation + Wilcoxon + Spearman, full quantity.
 
-Closes issue #1 of the PersonalQuery-Benchmark paper-claims audit.
+Reads 09_noisy_retrieval per-query records (correct vs noisy), computes:
+- Per-retriever per-domain metrics (H@10, N@10, P@10=R@10, MR@10) on correct vs noisy
+- Paired Wilcoxon per (retriever, domain, metric)
+- Spearman rho (ΔH@10 across retrievers vs aggregate H@10) per domain
 
-Methodology:
-- 9 retrievers × 3 domains × correct/noisy queries
-- Metrics: Hit@10, nDCG@10, Recall@10, MRR@10
-- 3 random seeds (re-run with seed 42/123/2026; report mean ± std)
-- Paired Wilcoxon: correct vs noisy per (retriever, domain, query)
-- Spearman: ΔRange ranking vs Hit@10 ranking across retrievers
-
-Inputs:
-  /fs04/ar57/wenyu/PersoanlQuery/result/personal_query/08_retrieval/<cat>/retrieval_syntax_depth_summary.json
-  /fs04/ar57/wenyu/PersoanlQuery/result/personal_query/09_noisy_retrieval/<cat>/syntax_depth_correct_vs_noisy_results.json
-
-Outputs:
-  /home/wlia0047/hj82_scratch2/wenyu/RAG/E1_multimetric/
-  - per_retriever_per_domain.json (Hit@10, nDCG@10, Recall@10, MRR@10)
-  - wilcoxon.json (per (retriever, domain) p-value)
-  - spearman.json (ΔRange vs Hit@10 ρ across retrievers)
-  - summary.md (full table)
+Coverage: 3 domains × retrievers that have per-query records in 09_noisy_retrieval.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 from scipy.stats import wilcoxon, spearmanr
@@ -39,25 +25,14 @@ from scipy.stats import wilcoxon, spearmanr
 DEFAULT_RESULT = "/fs04/ar57/wenyu/PersoanlQuery/result/personal_query"
 DEFAULT_OUT = "/home/wlia0047/hj82_scratch2/wenyu/RAG"
 CATEGORIES = ["Baby_Products", "Grocery_and_Gourmet_Food", "Pet_Supplies"]
-RETRIEVERS_9 = ["bm25", "splade", "bge", "e5", "minilm", "star", "ance",
-                "colbertv2", "deepseek_v4_rerank"]
-METRICS = ["H@10", "N@10", "R@10", "MR@10"]
+METRICS = ["H@10", "N@10", "MR@10", "P@10"]
 
 
 def log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def load_08_summary(category: str, result_dir: str) -> Dict:
-    p = os.path.join(result_dir, "08_retrieval", category,
-                     "retrieval_syntax_depth_summary.json")
-    if not os.path.exists(p):
-        return {}
-    with open(p) as f:
-        return json.load(f)
-
-
-def load_09_noisy(category: str, result_dir: str) -> Dict:
+def load_09(category: str, result_dir: str) -> Dict:
     p = os.path.join(result_dir, "09_noisy_retrieval", category,
                      "syntax_depth_correct_vs_noisy_results.json")
     if not os.path.exists(p):
@@ -66,71 +41,77 @@ def load_09_noisy(category: str, result_dir: str) -> Dict:
         return json.load(f)
 
 
-def extract_metrics(summary: Dict) -> Dict[str, Dict[str, float]]:
-    """从 08_retrieval summary 提每个 retriever 的 4 个指标 (H@10, N@10, R@10, MR@10)."""
-    out: Dict[str, Dict[str, float]] = {}
-    by_cat_type = summary.get("results_by_category_and_type", {})
-    # 取 first (syntax_depth, correct)
-    key = "('syntax_depth', 'correct')"
-    for entry in by_cat_type.get(key, []):
-        retriever = entry.get("retriever")
-        m = entry.get("metrics", {})
-        out[retriever] = {
-            "H@10": m.get("H@10", 0.0),
-            "N@10": m.get("N@10", 0.0),
-            "R@10": m.get("P@10", 0.0),  # P@10 == R@10 in single-relevant setup
-            "MR@10": m.get("MR@10", 0.0),
-        }
+def extract_per_query(noise_data: Dict) -> Dict[str, Dict[str, List[float]]]:
+    """对每个 retriever, 提取 per-query H@10 (correct) 和 H@10 (noisy) 列表."""
+    out: Dict[str, Dict[str, List[float]]] = {}
+    correct_map = {r.get("retriever"): r for r in noise_data.get("raw_correct_results", [])}
+    noisy_map = {r.get("retriever"): r for r in noise_data.get("raw_noisy_results", [])}
+    common = set(correct_map) & set(noisy_map)
+    for r in common:
+        correct_records = correct_map[r].get("all_query_records", [])
+        noisy_records = noisy_map[r].get("all_query_records", [])
+        if len(correct_records) != len(noisy_records):
+            log(f"  WARN {r}: correct/noisy records mismatch ({len(correct_records)} vs {len(noisy_records)})")
+            continue
+        correct_metrics = {m: [] for m in METRICS}
+        noisy_metrics = {m: [] for m in METRICS}
+        for cr, nr in zip(correct_records, noisy_records):
+            cm = cr.get("metrics", {})
+            nm = nr.get("metrics", {})
+            for m in METRICS:
+                if m in cm:
+                    correct_metrics[m].append(float(cm[m]))
+                if m in nm:
+                    noisy_metrics[m].append(float(nm[m]))
+        out[r] = {**{f"{m}_correct": correct_metrics[m] for m in METRICS},
+                  **{f"{m}_noisy": noisy_metrics[m] for m in METRICS}}
     return out
 
 
-def extract_noisy_metrics(noisy: Dict) -> Dict[str, Dict[str, float]]:
-    """从 09_noisy retrieval 提每个 retriever 在 noisy 上的指标."""
+def compute_per_retriever_metrics(per_query: Dict[str, Dict[str, List[float]]]) -> Dict[str, Dict[str, float]]:
+    """对每个 retriever 算 correct/noisy 各 metric 的 mean."""
     out: Dict[str, Dict[str, float]] = {}
-    for entry in noisy.get("raw_correct_results", []):
-        retriever = entry.get("retriever")
-        m = entry.get("metrics", {})
-        out[retriever] = {
-            "H@10_noisy": m.get("H@10", 0.0),
-            "N@10_noisy": m.get("N@10", 0.0),
-            "R@10_noisy": m.get("P@10", 0.0),
-            "MR@10_noisy": m.get("MR@10", 0.0),
-        }
+    for r, d in per_query.items():
+        out[r] = {}
+        for k, vs in d.items():
+            out[r][k] = float(np.mean(vs)) if vs else 0.0
     return out
 
 
-def compute_wilcoxon(correct_metrics: Dict, noisy_metrics: Dict) -> Dict:
-    """配对 Wilcoxon: correct vs noisy H@10 per retriever."""
-    p_values: Dict[str, float] = {}
-    common = set(correct_metrics) & set(noisy_metrics)
-    for ret in common:
-        c = correct_metrics[ret].get("H@10", 0.0)
-        n = noisy_metrics[ret].get("H@10_noisy", 0.0)
-        # 单点对单点无法 Wilcoxon, 用 [c, n] vs [n, c] 反序近似
-        try:
-            _, p = wilcoxon([c, n], [n, c])
-            p_values[ret] = float(p)
-        except Exception:
-            p_values[ret] = 1.0
-    return p_values
+def compute_wilcoxon_per_retriever(per_query: Dict[str, Dict[str, List[float]]]) -> Dict[str, Dict[str, float]]:
+    """对每个 retriever + 每个 metric 做配对 Wilcoxon (correct vs noisy)."""
+    out: Dict[str, Dict[str, float]] = {}
+    for r, d in per_query.items():
+        out[r] = {}
+        for m in METRICS:
+            c = np.asarray(d.get(f"{m}_correct", []), dtype=np.float64)
+            n = np.asarray(d.get(f"{m}_noisy", []), dtype=np.float64)
+            if len(c) < 2 or len(c) != len(n):
+                out[r][m] = {"stat": float("nan"), "p": float("nan"), "n": int(len(c))}
+                continue
+            try:
+                stat, p = wilcoxon(c, n)
+                out[r][m] = {"stat": float(stat), "p": float(p), "n": int(len(c))}
+            except ValueError as e:
+                out[r][m] = {"stat": float("nan"), "p": float("nan"), "n": int(len(c)), "err": str(e)}
+    return out
 
 
-def compute_spearman(per_retriever: Dict[str, Dict[str, float]]) -> Dict:
-    """跨 retriever 算 ΔRange vs Hit@10 的 Spearman ρ."""
-    retrievers = list(per_retriever.keys())
+def compute_spearman_delta_vs_h10(metrics: Dict[str, Dict[str, float]]) -> Dict:
+    """跨 retriever 算 Spearman(ΔH@10, H@10_correct)."""
+    retrievers = list(metrics.keys())
     if len(retrievers) < 3:
         return {"rho": 0.0, "p": 1.0, "n": len(retrievers)}
-    delta_range = []
+    delta = []
     h10 = []
     for r in retrievers:
-        m = per_retriever[r]
-        # ΔRange proxy: H@10 (correct) - H@10 (noisy)
-        dr = m.get("H@10", 0.0) - m.get("H@10_noisy", 0.0)
-        delta_range.append(dr)
-        h10.append(m.get("H@10", 0.0))
-    if np.std(delta_range) < 1e-6 or np.std(h10) < 1e-6:
+        m = metrics[r]
+        dh = m.get("H@10_correct", 0.0) - m.get("H@10_noisy", 0.0)
+        delta.append(dh)
+        h10.append(m.get("H@10_correct", 0.0))
+    if np.std(delta) < 1e-6 or np.std(h10) < 1e-6:
         return {"rho": 0.0, "p": 1.0, "n": len(retrievers)}
-    rho, p = spearmanr(delta_range, h10)
+    rho, p = spearmanr(delta, h10)
     return {"rho": float(rho), "p": float(p), "n": len(retrievers)}
 
 
@@ -138,53 +119,52 @@ def run_e1(categories: List[str], result_dir: str, out_dir: str) -> Dict:
     e1_dir = os.path.join(out_dir, "E1_multimetric")
     os.makedirs(e1_dir, exist_ok=True)
     all_data: Dict[str, Dict] = {}
+    summary_rows: List[List[str]] = []
+
     for cat in categories:
-        log(f"  [E1] {cat}: loading 08 + 09 retrieval...")
-        s = load_08_summary(cat, result_dir)
-        n = load_09_noisy(cat, result_dir)
-        correct = extract_metrics(s)
-        noisy = extract_noisy_metrics(n)
-        # 合并 correct + noisy
-        merged: Dict[str, Dict[str, float]] = {}
-        for r, m in correct.items():
-            merged[r] = {**m, **noisy.get(r, {})}
-        # Wilcoxon per retriever
-        wil = compute_wilcoxon(correct, noisy)
-        # Spearman 跨 retriever
-        sp = compute_spearman(merged)
+        log(f"  [E1] {cat}: loading 09_noisy_retrieval...")
+        nd = load_09(cat, result_dir)
+        if not nd:
+            log(f"  [E1] {cat}: skip (no data)")
+            continue
+        per_query = extract_per_query(nd)
+        log(f"  [E1] {cat}: per-retriever per-query data for {sorted(per_query.keys())}")
+        metrics = compute_per_retriever_metrics(per_query)
+        wil = compute_wilcoxon_per_retriever(per_query)
+        sp = compute_spearman_delta_vs_h10(metrics)
         all_data[cat] = {
-            "per_retriever": merged,
-            "wilcoxon_p_per_retriever": wil,
-            "spearman_delta_range_vs_h10": sp,
+            "retrievers_covered": sorted(per_query.keys()),
+            "n_retrievers": len(per_query),
+            "per_retriever_metrics": metrics,
+            "wilcoxon_per_retriever": wil,
+            "spearman_delta_h10_vs_h10_correct": sp,
         }
         with open(os.path.join(e1_dir, f"{cat}_multimetric.json"), "w") as f:
             json.dump(all_data[cat], f, indent=2, default=str)
-    # summary markdown
-    md = ["# E1 — Multi-metric Evaluation + Wilcoxon + Spearman\n",
-          "Metrics: H@10 / N@10 / R@10 (P@10) / MR@10 per retriever\n",
-          "Sources: 08_retrieval (correct) + 09_noisy_retrieval (noisy)\n",
-          "\n## Per-retriever per-domain H@10 (correct vs noisy)\n",
-          "| Category | Retriever | H@10 | N@10 | R@10 | MR@10 | H@10_noisy | ΔH@10 |",
-          "|---|---|---|---|---|---|---|---|"]
+        for r, w in wil.items():
+            for m in METRICS:
+                d = w[m]
+                if "p" in d and not np.isnan(d["p"]):
+                    summary_rows.append([cat, r, m, str(d["n"]), f"{d['stat']:.4e}", f"{d['p']:.4e}"])
+
+    # write markdown summary
+    md = ["# E1 — Multi-metric Evaluation + Wilcoxon + Spearman (full quantity)\n",
+          "Inputs: 09_noisy_retrieval per-query records (correct vs noisy)\n",
+          "Method: paired Wilcoxon per (retriever, metric); Spearman across retrievers\n",
+          "\n## Per-domain retriever coverage\n",
+          "| Category | Retrievers | n |\n",
+          "|---|---|---|"]
     for cat, d in all_data.items():
-        for r, m in d["per_retriever"].items():
-            dh = m.get("H@10", 0.0) - m.get("H@10_noisy", 0.0)
-            md.append(
-                f"| {cat} | {r} | {m.get('H@10', 0):.4f} | {m.get('N@10', 0):.4f} | "
-                f"{m.get('R@10', 0):.4f} | {m.get('MR@10', 0):.4f} | "
-                f"{m.get('H@10_noisy', 0):.4f} | {dh:+.4f} |"
-            )
-    md += ["\n## Wilcoxon p (correct vs noisy, per retriever)\n",
-           "| Category | Retriever | p |",
-           "|---|---|---|"]
-    for cat, d in all_data.items():
-        for r, p in d["wilcoxon_p_per_retriever"].items():
-            md.append(f"| {cat} | {r} | {p:.4e} |")
-    md += ["\n## Spearman ρ (ΔH@10 vs H@10, across retrievers)\n",
-           "| Category | ρ | p | n_retrievers |",
+        md.append(f"| {cat} | {', '.join(d['retrievers_covered'])} | {d['n_retrievers']} |")
+    md += ["\n## Paired Wilcoxon (correct vs noisy) per (retriever, metric)\n",
+           "| Category | Retriever | Metric | n_pairs | stat | p |\n",
+           "|---|---|---|---|---|---|"]
+    md += [f"| {' | '.join(r)} |" for r in summary_rows]
+    md += ["\n## Spearman rho (ΔH@10 vs H@10_correct, across retrievers)\n",
+           "| Category | rho | p | n_retrievers |\n",
            "|---|---|---|---|"]
     for cat, d in all_data.items():
-        sp = d["spearman_delta_range_vs_h10"]
+        sp = d["spearman_delta_h10_vs_h10_correct"]
         md.append(f"| {cat} | {sp['rho']:.4f} | {sp['p']:.4e} | {sp['n']} |")
     summary_path = os.path.join(e1_dir, "summary.md")
     with open(summary_path, "w") as f:
@@ -199,7 +179,7 @@ def main() -> None:
     ap.add_argument("--out_dir", default=DEFAULT_OUT)
     ap.add_argument("--categories", nargs="+", default=CATEGORIES)
     args = ap.parse_args()
-    log("=== E1 multi-metric + Wilcoxon + Spearman ===")
+    log("=== E1 multi-metric + Wilcoxon + Spearman (full quantity) ===")
     run_e1(args.categories, args.result_dir, args.out_dir)
     log("=== done ===")
 
