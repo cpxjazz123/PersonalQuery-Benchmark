@@ -309,11 +309,7 @@ class DenseRetriever:
         model = self._get_model()
 
         with _model_inference_lock:
-            query_embedding = model.encode(
-                [query],
-                truncation=True,
-                max_length=512
-            )
+            query_embedding = model.encode([query])
 
         if isinstance(query_embedding, torch.Tensor):
             query_embedding = np.asarray(query_embedding.detach().tolist(), dtype=np.float32)
@@ -339,8 +335,6 @@ class DenseRetriever:
             embeddings = model.encode(
                 queries,
                 batch_size=batch_size,
-                truncation=True,
-                max_length=512,
                 show_progress_bar=False
             )
 
@@ -357,17 +351,13 @@ class DenseRetriever:
         model = self._get_model()
 
         with _model_inference_lock:
-            query_embedding = model.encode(
-                [query],
-                truncation=True,
-                max_length=512
-            )
-        
+            query_embedding = model.encode([query])
+
         if isinstance(query_embedding, np.ndarray):
             query_embedding = torch.from_numpy(query_embedding).float().to(self.device)
         else:
             query_embedding = query_embedding.to(self.device)
-        
+
         doc_embeddings = self.doc_embeddings
         
         from sentence_transformers import util
@@ -821,8 +811,6 @@ class BGERetriever:
             query_embedding = model.encode(
                 [query_with_prefix],
                 convert_to_tensor=True,
-                truncation=True,
-                max_length=512
             )[0]
 
         query_embedding = query_embedding.to(self.device)
@@ -2476,11 +2464,7 @@ class MiniLMRetriever:
         model = self._get_model()
 
         with _model_inference_lock:
-            query_embedding = model.encode(
-                [query],
-                truncation=True,
-                max_length=512
-            )
+            query_embedding = model.encode([query])
 
         if isinstance(query_embedding, np.ndarray):
             query_embedding = torch.from_numpy(query_embedding).float().to(self.device)
