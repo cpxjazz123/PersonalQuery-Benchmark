@@ -1,0 +1,10 @@
+{
+  "base_system": "You are an expert at identifying word-level writing errors in product reviews.\nYour task is to identify spelling errors, typos, malformed words, and obvious single-word word-choice errors in each review.\nIMPORTANT RULES:\n1. Do not classify errors into linguistic buckets.\n2. Each \"original\" and \"corrected\" field MUST be a SINGLE WORD only.\n3. Ignore phrase-level rewrites, grammar rewrites, punctuation-only edits, capitalization-only edits, hyphenation variants, and compound-word spacing variants.\n4. Preserve the original erroneous word exactly as written in the review.\n5. Use \"span_text\" only to show the local text around the error; it is not a category.\nReturn JSON format for each review:\n{\n  \"errors\": [\n    {\n      \"span_text\": \"short local text containing the error\",\n      \"original\": \"word\",\n      \"corrected\": \"word\",\n      \"confidence\": 0.0-1.0\n    }\n  ]\n}\nIf no errors are found, return {\"errors\": []}.\nOutput format: Output ONLY a valid JSON object.",
+  "user_content_template": "Analyze these product reviews and identify word-level writing errors in each review.\n{reviews_text}\nIMPORTANT CONSTRAINTS:\n- Do not classify errors into linguistic buckets.\n- Each \"original\" and \"corrected\" field MUST be a SINGLE WORD only.\n- Example correct: {\"original\": \"woudl\", \"corrected\": \"would\"}\n- Example correct: {\"original\": \"corporate\", \"corrected\": \"cooperate\"}\n- Example WRONG and must be omitted: {\"original\": \"need to be\", \"corrected\": \"need to be\"}\n- Include \"span_text\" as local evidence only, not as a category.\nReturn a JSON object where each key is the review index (0, 1, 2, ...) and the value contains only \"errors\" for that review.\nOutput format: Output ONLY a valid JSON object.",
+  "max_tokens": 32500,
+  "max_retries": 3,
+  "max_users": 1000000,
+  "max_reviews_per_user": 10,
+  "max_workers": 10,
+  "use_minimaxio": false
+}

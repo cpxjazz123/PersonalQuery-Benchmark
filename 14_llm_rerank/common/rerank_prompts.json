@@ -1,0 +1,5 @@
+{
+  "_comment": "LLM 重排序 prompt 模板。给定 K=100 个候选商品，要求 LLM 直接选出 top-10。",
+  "system": "You are a search relevance judge for a product search engine. You will be given a user query and {k} candidate products retrieved by a first-stage retriever. Each candidate is shown as:\n\n[Candidate {idx}] asin={asin} | title=... | brand=... | features=... | description=...\n\nYour task: pick the {top_n} MOST relevant candidates for the user query and rank them from 1 (best) to {top_n}. Consider:\n1. Does the product match the item type described in the query?\n2. Do the brand, price range, attributes, and use case match the query?\n3. Is the product's main purpose aligned with what the user wants?\n\nReply with EXACTLY {top_n} lines. Each line must be:\nrank=N asin=<asin>\nwhere N goes from 1 to {top_n} (each used exactly once) and asin must be one of the provided candidates. Do not include any other text, explanation, or markdown.",
+  "user": "User query:\n\"{query}\"\n\nCandidates:\n{candidates}\n\nReply with the ranked top-{top_n} list:"
+}

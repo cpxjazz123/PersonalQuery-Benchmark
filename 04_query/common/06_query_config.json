@@ -1,0 +1,31 @@
+{
+  "_comment": "06_query 路径配置文件",
+  "base_paths": {
+    "root": "/home/wlia0047/ar57/wenyu",
+    "result": "/home/wlia0047/ar57/wenyu/result/personal_query",
+    "test_result": "/home/wlia0047/ar57/wenyu/result/personal_query",
+    "workspace": "/home/wlia0047/ar57/wenyu"
+  },
+  "categories": {
+    "Arts_Crafts_and_Sewing": {
+      "name": "Arts_Crafts_and_Sewing",
+      "attr_density_profiles_file": "{test_result}/05_syntactic_analysis/Arts_Crafts_and_Sewing/attr_density_user_profiles.json",
+      "attr_values_file": "{test_result}/01_preference_extraction/Arts_Crafts_and_Sewing/attributes_Arts_Crafts_and_Sewing.json"
+    },
+    "Grocery_and_Gourmet_Food": {
+      "name": "Grocery_and_Gourmet_Food",
+      "attr_density_profiles_file": "{test_result}/05_syntactic_analysis/Grocery_and_Gourmet_Food/attr_density_user_profiles.json",
+      "attr_values_file": "{test_result}/01_preference_extraction/Grocery_and_Gourmet_Food/attributes_Grocery_and_Gourmet_Food.json"
+    },
+    "Pet_Supplies": {
+      "name": "Pet_Supplies",
+      "attr_density_profiles_file": "{test_result}/05_syntactic_analysis/Pet_Supplies/attr_density_user_profiles.json",
+      "attr_values_file": "{test_result}/01_preference_extraction/Pet_Supplies/attributes_Pet_Supplies.json"
+    },
+    "Baby_Products": {
+      "name": "Baby_Products",
+      "attr_density_profiles_file": "{test_result}/05_syntactic_analysis/Baby_Products/attr_density_user_profiles.json",
+      "attr_values_file": "{test_result}/01_preference_extraction/Baby_Products/attributes_Baby_Products.json"
+    }
+  }
+}
