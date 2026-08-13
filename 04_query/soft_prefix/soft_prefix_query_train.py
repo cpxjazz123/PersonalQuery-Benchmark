@@ -64,12 +64,16 @@ from content_validation import (  # noqa: E402
     StyleDatasetBuilder,
     build_attr_prompt,
 )
+from template_placeholder import (  # noqa: E402
+    build_attr_mapping_prompt,
+    parse_template,
+)
 
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 HIDDEN_DIM = 3584  # Qwen2-7B hidden dim
 SYSTEM_PROMPT = (
-    "You are a shopping query writer. You must use every listed product "
-    "attribute exactly once in a single short query sentence."
+    "You are a shopping query writer. You must produce a query TEMPLATE using "
+    "every placeholder listed in the product attributes exactly once."
 )
 
 
@@ -80,7 +84,7 @@ def log(msg: str) -> None:
 def build_messages(attrs_used: Dict[str, str]) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": build_attr_prompt(attrs_used)},
+        {"role": "user", "content": build_attr_mapping_prompt(attrs_used)},
     ]
 
 
@@ -154,7 +158,13 @@ class SoftPrefixModel(nn.Module):
         # (the exact bug fixed in issue #11 Phase 0).
         if hasattr(base_model, "active_peft_config") or "peft" in type(base_model).__module__:
             for name, p in base_model.named_parameters():
-                if "lora_" not in name and p.requires_grad:
+                if "lora_" in name:
+                    continue
+                if name.endswith("embed_tokens.weight") or name.endswith("lm_head.weight"):
+                    # E12: placeholder rows were explicitly unfrozen with a
+                    # grad mask; keep them trainable (not a double-freeze).
+                    continue
+                if p.requires_grad:
                     p.requires_grad = False
         else:
             for p in base_model.parameters():
@@ -247,9 +257,12 @@ def train(
     hidden_dim: int = 128,
     lora: bool = False,
     lora_r: int = 8,
+    gate_init: float = 1e-3,
     max_query_len: int = 80,
     device: str = "cuda:0",
     base_model_path: str = QWEN_PATH,
+    template_targets: bool = True,
+    add_placeholder_tokens: bool = True,
 ) -> Dict:
     log(f"=== E11 train {category} mode={mode} K={num_tokens} ===")
     out_dir = Path(out_dir)
@@ -285,8 +298,12 @@ def train(
     log(f"records={len(records)}")
 
     builder = StyleDatasetBuilder(category, profiles, scaler, seed=seed)
-    rows, skipped = builder.build_all(records, candidate_rows, retained_by_key)
-    log(f"data rows={len(rows)} skipped={len(skipped)} ({skipped[0]['reason'] if skipped else 'none'})")
+    rows, skipped = builder.build_all(
+        records, candidate_rows, retained_by_key,
+        all_content_valid=True, template_targets=template_targets,
+    )
+    skipped_reasons = sorted({s["reason"] for s in skipped})
+    log(f"data rows={len(rows)} skipped={len(skipped)} reasons={skipped_reasons}")
 
     split = make_user_split([r["user_id"] for r in rows], test_frac=test_frac, seed=seed)
     train_rows = [r for r in rows if r["user_id"] in set(split["train_users"])]
@@ -305,6 +322,18 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    if template_targets and add_placeholder_tokens:
+        # E12: register <A1>..<A5> (and the full A1..A18 set used by the data)
+        # as special tokens so each placeholder is ONE token id, stable across
+        # contexts (raw "<A1>" splits into <A/1/> and even merges into ">."
+        # tokens, which a frozen model cannot reliably emit).
+        from template_placeholder import PLACEHOLDER_BY_ATTR
+        existing = set(tokenizer.get_vocab().keys())
+        new_tokens = sorted(
+            {ph for ph in PLACEHOLDER_BY_ATTR.values()} - existing
+        )
+        tokenizer.add_special_tokens({"additional_special_tokens": new_tokens})
+        log(f"added {len(new_tokens)} placeholder special tokens: {new_tokens[:5]}...")
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_path,
         torch_dtype=torch.bfloat16,
@@ -314,6 +343,19 @@ def train(
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad = False
+    if template_targets and add_placeholder_tokens:
+        base_model.resize_token_embeddings(len(tokenizer))
+        # New embedding rows initialized at the vocab mean (sane prior); the
+        # rows are PERSISTED so inference can restore identical embeddings.
+        new_ids = sorted(tokenizer.convert_tokens_to_ids(new_tokens))
+        with torch.no_grad():
+            emb = base_model.get_input_embeddings()
+            # mean must be computed in float32: bf16 accumulation over ~150K
+            # rows collapses to near-zero (norm ~0.1), corrupting generation.
+            mean = emb.weight[:new_ids[0]].float().mean(dim=0)
+            for tid in new_ids:
+                emb.weight[tid].copy_(mean.to(emb.weight.dtype))
+        log(f"placeholder special-token embeddings initialized at vocab mean ({len(new_ids)} rows)")
 
     lora_adapter = None
     if lora:
@@ -338,8 +380,27 @@ def train(
         num_tokens=num_tokens,
         model_dim=HIDDEN_DIM,
         dtype=torch.bfloat16,
+        gate_init=gate_init,
     ).to(device)
     model = SoftPrefixModel(base_model, projector, device=device).to(device)
+
+    if template_targets and add_placeholder_tokens:
+        # E12: the LM-head rows for the new tokens are zero after resize and
+        # would stay zero (frozen) -> the model could never EMIT a placeholder
+        # at generation (logits ~0 regardless of hidden state). Unfreeze ONLY
+        # the new rows of the input embedding and the LM head via a gradient
+        # mask. IMPORTANT: this must happen AFTER get_peft_model(), which
+        # re-freezes all non-LoRA parameters.
+        emb_mod = base_model.get_input_embeddings()
+        head_mod = base_model.get_output_embeddings()
+        emb_mod.weight.requires_grad = True
+        head_mod.weight.requires_grad = True
+        mask = torch.zeros(emb_mod.weight.size(0), dtype=torch.bool, device=emb_mod.weight.device)
+        mask[new_ids] = True
+        for mod in (emb_mod, head_mod):
+            m = mask.to(mod.weight.device).unsqueeze(1)
+            mod.weight.register_hook(lambda grad, m=m: grad * m.to(grad.dtype))
+        log(f"unfroze {int(mask.sum())} new-row params in input embedding + LM head (grad-masked, after PEFT wrap)")
 
     # Trainable-parameter assertion (issue #11 acceptance): projector must be
     # trainable; LoRA params (if enabled) must also be trainable.
@@ -349,7 +410,9 @@ def train(
     if lora:
         assert n_base_train > 0, "LoRA enabled but no base/LoRA params trainable (double-freeze bug)"
     else:
-        assert n_base_train == 0, f"expected frozen base without LoRA, got {n_base_train} trainable"
+        # without LoRA only the E12 placeholder rows (embed + lm_head) may be
+        # trainable; the rest of the base must stay frozen.
+        assert n_base_train <= 2, f"expected only E12 placeholder rows trainable, got {n_base_train}"
     n_proj_params = model.projector.num_parameters()
     log(f"assert OK: projector trainable params={n_proj_params} ({n_proj} tensors), "
         f"base trainable={n_base_train}{' (LoRA)' if lora else ''}")
@@ -437,6 +500,17 @@ def train(
     ckpt = out_dir / "checkpoint"
     ckpt.mkdir(parents=True, exist_ok=True)
     torch.save(model.projector.state_dict(), ckpt / "projector.pt")
+    if template_targets and add_placeholder_tokens:
+        # E12: save the FINAL (post-training) special-token embedding rows so
+        # inference restores exactly what the model was trained with.
+        new_ids = sorted(tokenizer.convert_tokens_to_ids(new_tokens))
+        with torch.no_grad():
+            emb_final = model.base.get_input_embeddings().weight
+            torch.save(
+                {"token_ids": new_ids, "embeddings": emb_final[new_ids].detach().cpu()},
+                ckpt / "special_token_embeddings.pt",
+            )
+        log(f"saved post-training special-token embeddings ({len(new_ids)} rows)")
     tokenizer.save_pretrained(ckpt / "tokenizer")
     if lora_adapter is not None:
         lora_adapter.save_pretrained(ckpt / "lora_adapter")
@@ -471,7 +545,13 @@ def train(
         "n_train_rows": len(train_rows),
         "n_test_rows": len(test_rows),
         "n_skipped": len(skipped),
-        "skipped_reasons": sorted({s["reason"] for s in skipped}),
+        "skipped_reasons": skipped_reasons,
+        "template_targets": bool(template_targets),
+        "gate": {
+            "type": "scalar_alpha",
+            "init": gate_init,
+            "final": float(model.projector.alpha.detach().item()),
+        },
         "created_at": datetime.now().isoformat(),
     }
     with open(ckpt / "config.json", "w") as f:
@@ -529,8 +609,15 @@ def main() -> None:
     ap.add_argument("--hidden_dim", type=int, default=128)
     ap.add_argument("--lora", action="store_true", help="B6: shared LoRA + projector")
     ap.add_argument("--lora_r", type=int, default=8)
+    ap.add_argument("--gate_init", type=float, default=1e-3)
+    ap.add_argument("--no_template", action="store_true", help="disable E12 placeholder-template targets")
+    ap.add_argument("--placeholder_tokens", action="store_true", default=True,
+                    help="register <A1>..<A18> as special tokens (E12; default on)")
     args = ap.parse_args()
-    train(**vars(args))
+    args_dict = vars(args)
+    args_dict["template_targets"] = not args_dict.pop("no_template")
+    args_dict["add_placeholder_tokens"] = args_dict.pop("placeholder_tokens", True)
+    train(**args_dict)
 
 
 if __name__ == "__main__":

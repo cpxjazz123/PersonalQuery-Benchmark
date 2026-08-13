@@ -25,6 +25,9 @@ from common.attribute_helpers import (  # noqa: E402
 )
 
 from user_style_vectors import FEATURE_KEYS  # noqa: E402
+from template_placeholder import (  # noqa: E402
+    replace_attrs_with_placeholders,
+)
 
 
 def build_attr_prompt(attrs_used: Dict[str, str]) -> str:
@@ -38,6 +41,16 @@ def build_attr_prompt(attrs_used: Dict[str, str]) -> str:
         "Write one natural shopping query that uses every attribute exactly once."
     )
     return "\n".join(lines)
+
+
+def templateize_query(query: str, attrs_used: Dict[str, str]):
+    """E12: convert a content-valid query into a placeholder template.
+
+    Returns (template, None) or (None, reason). Values that cannot be
+    losslessly templated are skipped at data-build time (recorded), never
+    trained on in raw form.
+    """
+    return replace_attrs_with_placeholders(query, attrs_used)
 
 
 def content_valid(query: str, attrs_used: Dict[str, str]) -> bool:
@@ -94,8 +107,14 @@ class StyleDatasetBuilder:
         record: dict,
         candidates: List[dict],
         retained_query: Optional[str] = None,
+        template_targets: bool = True,
     ) -> Optional[dict]:
-        """Return data row or None (record skipped, logged via reason)."""
+        """Return data row or None (record skipped, logged via reason).
+
+        With ``template_targets=True`` (E12) every supervision target is the
+        placeholder template of a content-valid candidate; targets that
+        cannot be losslessly templated are skipped and the reason recorded.
+        """
         user_id = record["user_id"]
         asin = record["asin"]
         valid = []
@@ -141,17 +160,24 @@ class StyleDatasetBuilder:
                 if cand.get("query") == retained_query:
                     y_plus_index = canonical_valid.index(cand)
                     break
+        y_plus_template = y_plus_query
+        if template_targets:
+            y_plus_template, tpl_err = templateize_query(y_plus_query, attrs_used)
+            if y_plus_template is None:
+                return None  # recorded as skipped below (caller adds reason)
         return {
             "user_id": user_id,
             "asin": asin,
             "attrs_used": attrs_used,
-            "y_plus_query": y_plus_query,
+            "y_plus_query": y_plus_template if template_targets else y_plus_query,
+            "y_plus_raw_query": y_plus_query if template_targets else None,
             "y_plus_index": int(y_plus_index),
             "y_minus_query": y_minus_candidate["query"],
             "y_minus_index": int(canonical_valid.index(y_minus_candidate)),
             "y_plus_vades_dist": float(scored[0][0]),
             "y_minus_vades_dist": float(scored[-1][0]),
             "n_content_valid_candidates": len(canonical_valid),
+            "is_template_target": bool(template_targets),
         }
 
     def build_all(
@@ -160,6 +186,7 @@ class StyleDatasetBuilder:
         candidate_rows: List[dict],
         retained_by_key: Dict[Tuple[str, str], Optional[str]],
         all_content_valid: bool = True,
+        template_targets: bool = True,
     ) -> Tuple[List[dict], List[dict]]:
         """Build data rows for all records; returns (rows, skipped).
 
@@ -167,6 +194,8 @@ class StyleDatasetBuilder:
         record becomes an SFT target (10x data; distills the 10-candidate
         flow). The primary row (nearest to the user's VADES center, or the
         VADES-retained teacher when content-valid) is marked ``is_primary``.
+        With ``template_targets=True`` (E12) all targets are placeholder
+        templates; non-templatable targets are skipped with a recorded reason.
         """
         by_key: Dict[Tuple[str, str], List[dict]] = {}
         for cand in candidate_rows:
@@ -180,9 +209,9 @@ class StyleDatasetBuilder:
                 skipped.append({**rec, "reason": "no_candidate_features"})
                 continue
             retained = retained_by_key.get(key)
-            primary = self.build_record(rec, cands, retained_query=retained)
+            primary = self.build_record(rec, cands, retained_query=retained, template_targets=template_targets)
             if primary is None:
-                skipped.append({**rec, "reason": "no_content_valid_candidate"})
+                skipped.append({**rec, "reason": "no_templatable_y_plus"})
                 continue
             primary = dict(primary)
             primary["is_primary"] = True
@@ -196,11 +225,22 @@ class StyleDatasetBuilder:
                     dist = self.distance_to_user(cand, rec["user_id"])
                     if dist is None:
                         continue
+                    target = query
+                    if template_targets:
+                        target, tpl_err = templateize_query(query, attrs)
+                        if target is None:
+                            skipped.append({
+                                "user_id": rec["user_id"], "asin": rec["asin"],
+                                "candidate_query": query[:80],
+                                "reason": f"not_templatable: {tpl_err}",
+                            })
+                            continue
                     extra = {
                         "user_id": rec["user_id"],
                         "asin": rec["asin"],
                         "attrs_used": attrs,
-                        "y_plus_query": query,
+                        "y_plus_query": target,
+                        "y_plus_raw_query": query if template_targets else None,
                         "y_plus_index": int(cands.index(cand)),
                         "y_minus_query": primary["y_minus_query"],
                         "y_minus_index": primary["y_minus_index"],
@@ -208,6 +248,7 @@ class StyleDatasetBuilder:
                         "y_minus_vades_dist": primary["y_minus_vades_dist"],
                         "n_content_valid_candidates": primary["n_content_valid_candidates"],
                         "is_primary": False,
+                        "is_template_target": bool(template_targets),
                     }
                     rows.append(extra)
         return rows, skipped

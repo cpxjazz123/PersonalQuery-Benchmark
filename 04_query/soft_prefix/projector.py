@@ -18,6 +18,12 @@ class SoftPrefixProjector(nn.Module):
 
     Architecture: Linear(user_dim -> hidden_dim) -> GELU ->
                   Linear(hidden_dim -> K * d_model) -> LayerNorm(d_model)
+
+    E12 gate: prefix = alpha * LayerNorm(MLP(z_u)) with a learnable scalar
+    ``alpha`` initialized to a truly small value (1e-3). LayerNorm erases the
+    absolute scale of the MLP output, so without an explicit gate the "small
+    init stays close to no perturbation" assumption does not hold; alpha
+    starts near zero and grows only if conditioning helps.
     """
 
     def __init__(
@@ -27,6 +33,7 @@ class SoftPrefixProjector(nn.Module):
         num_tokens: int,
         model_dim: int,
         dtype: torch.dtype = torch.bfloat16,
+        gate_init: float = 1e-3,
     ):
         super().__init__()
         self.user_dim = user_dim
@@ -39,6 +46,9 @@ class SoftPrefixProjector(nn.Module):
             nn.Linear(hidden_dim, num_tokens * model_dim),
         )
         self.layernorm = nn.LayerNorm(model_dim)
+        # E12: explicit learnable gate with near-zero init (scalar, not
+        # sigmoid(0)=0.5 which is not a zero-ish init).
+        self.alpha = nn.Parameter(torch.tensor(float(gate_init)))
         for name, param in self.named_parameters():
             if param.ndim >= 2 and "layernorm" not in name:
                 nn.init.normal_(param, std=0.02)
@@ -50,7 +60,8 @@ class SoftPrefixProjector(nn.Module):
         """z: [B, user_dim] -> prefix embeddings [B, num_tokens, model_dim]."""
         out = self.mlp(z)  # [B, K * d_model]
         out = out.view(-1, self.num_tokens, self.model_dim)
-        return self.layernorm(out)
+        out = self.layernorm(out)
+        return self.alpha * out
 
     def num_parameters(self, trainable_only: bool = False) -> int:
         return sum(

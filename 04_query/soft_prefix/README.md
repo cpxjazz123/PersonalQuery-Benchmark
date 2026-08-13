@@ -109,3 +109,44 @@ $PY 04_query/soft_prefix/soft_prefix_query_eval.py \
 - 注意：该 venv 全局 pip target 指向 `~/.local`，装包需显式 `--target=` venv
   site-packages；spacy 的 Cython 扩展需 `--no-build-isolation` 编译以匹配
   numpy 1.26.4。
+
+## E12 — 占位符模板 + 确定性替换（数字/属性复制退化治理）
+
+核心：LLM 只生成带 `<A1>`-`<A5>`（special tokens）的 query 模板；最终 query 由
+程序将占位符替换为属性原值（逐字符保真）。数字/品牌/大小写永不经过 LLM 改写。
+
+- `template_placeholder.py` — 占位符替换/校验/回替（longest-match-first，
+  变体容忍匹配，guarded placeholder 计数），单元测试 `tests/`（11 项全过）。
+- 训练：`<A1>`-`<A18>` 注册为 special tokens（单 token 稳定编码）；新 embedding
+  + lm_head 行**在 PEFT wrap 之后**以梯度掩码解冻训练（PEFT 会重新冻结所有
+  非 LoRA 参数 —— 这是修复的关键）；训练结束后保存最终 embedding 行，
+  推理时恢复（训练/推理 embedding 必须一致）。
+- 生成：模板 → parse（恰好 5 个占位符各一次）→ 确定性替换 → 五属性校验 →
+  retry（≤3）→ 失败 fallback 到 B0 teacher；同 checkpoint 多向量模式
+  （vades/shuffled/zero/global_mean/none）+ 相同解码配置。
+- 批量解码：`--batch_size N`（默认 8），同步步进贪心解码，right-pad + 独立
+  position_ids/attention_mask，done 样本保持 EOS —— 约 9x 推理加速。
+
+### E12 结果（Baby_Products，n=205，同 checkpoint × 5 向量模式）
+
+内容完整性（gate=1e-3 模型）：
+
+| 指标 | B5 | B3 | zero | global_mean | B1 |
+|---|---:|---:|---:|---:|---:|
+| 5-attr exact | **100%** | 99.5% | **100%** | **100%** | **100%** |
+| numeric exact | **100%** | 100% | 100% | 100% | 100% |
+| brand exact | **100%** | 100% | 100% | 100% | 100% |
+| raw template valid | **100%** | 100% | 100% | 99.0% | 99.5% |
+| fallback | **0** | 0 | 0 | 2 | 1 |
+| digit anomaly | **0** | 0 | 0 | 0 | 0 |
+
+- **numeric corruption = 0，brand mutation = 0，最终 5-attr exact = 100%**
+  （验收标准达成）；`8.9.9.9.9999` 类退化彻底消失（构造性保证）。
+
+风格显著性（同 checkpoint，按 (user_id, asin) 配对）：B5 vs B3 p=0.85、
+vs zero p=0.59、vs global_mean p=0.16 —— **不显著**。gate=0.05 重训后仍不显著
+（p=0.45）且模板生成率下降（fallback 27%）。结论：模板约束（内容保真）与
+风格自由度存在内在 trade-off —— 模板任务把句法多样性压缩到固定句式，
+用户向量差异不足以在统计上区分。这是 E12 的主要科学发现，Phase 2 方向：
+更宽的模板空间（模板 + 自由语序）、或把风格注入移到模板内部结构（从句
+数量/语序由向量控制）。
