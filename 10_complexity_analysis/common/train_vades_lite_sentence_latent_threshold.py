@@ -25,7 +25,7 @@ from cluster_strict5550_query_gmm_and_attach_retrieval import run_query_gmm_pipe
 from extract_clause_features_single_query import extract_clause_features_from_doc, load_spacy_model  # noqa: E402
 
 
-REPO_ROOT = Path("/fs04/ar57/wenyu")
+REPO_ROOT = Path(os.environ.get("PQ_REPO_ROOT", "/fs04/ar57/wenyu/PersoanlQuery"))
 CATEGORY = os.environ.get("PQ_CATEGORY", "Baby_Products")
 INPUT_DIR = REPO_ROOT / "result" / "personal_query" / "12_complexity_analysis_clause_features" / CATEGORY
 REVIEW_SOURCE_FILE = (
@@ -2101,6 +2101,18 @@ def main() -> None:
     write_jsonl(SELECTED_RECORD_FILE, selected_rows)
     write_jsonl(REJECTED_RECORD_FILE, rejected_rows)
     QUERY_FILE.write_text(json.dumps(query_output_rows, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Save the feature scaler + feature names so downstream stages (e.g. E11
+    # soft-prefix style conditioning) can map raw clause features into the same
+    # standardized latent space used to train the VADES sentence encoder.
+    scaler_path = INPUT_DIR / f"{OUTPUT_TAG}_feature_scaler.json"
+    scaler_payload = {
+        "feature_names": feature_names,
+        "mean": dataset["scaler"].mean_.tolist(),
+        "scale": dataset["scaler"].scale_.tolist(),
+    }
+    scaler_path.write_text(json.dumps(scaler_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"特征 scaler 已保存: {scaler_path} ({len(feature_names)} 维)")
 
     summary = build_summary(
         user_ids=user_ids,

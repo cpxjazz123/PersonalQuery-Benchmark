@@ -1,0 +1,213 @@
+"""Content validation and y+/y- selection for E11 SFT data construction.
+
+Rules (issue #11):
+- prompt must contain the five product attributes explicitly;
+- supervision target must NOT be the fixed first candidate (queries[0]);
+- y+ = content-valid candidate closest to the user's VADES center;
+- y- = content-valid candidate farthest from the user's VADES center
+  (kept for the optional preference stage);
+- if the VADES-retained query is content-valid it is preferred as y+
+  (teacher distillation of the old rerank flow);
+- records without any content-valid candidate are skipped and recorded.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+
+REPO_ROOT = Path("/fs04/ar57/wenyu/PersoanlQuery")
+sys.path.insert(0, str(REPO_ROOT / "04_query"))
+from common.attribute_helpers import (  # noqa: E402
+    validate_query_uses_exactly_five_attrs,
+)
+
+from user_style_vectors import FEATURE_KEYS  # noqa: E402
+
+
+def build_attr_prompt(attrs_used: Dict[str, str]) -> str:
+    """Explicit five-attribute prompt shared by training and generation."""
+    lines = [
+        "Product attributes:",
+    ]
+    for key in sorted(attrs_used):
+        lines.append(f"- {key}: {attrs_used[key]}")
+    lines.append(
+        "Write one natural shopping query that uses every attribute exactly once."
+    )
+    return "\n".join(lines)
+
+
+def content_valid(query: str, attrs_used: Dict[str, str]) -> bool:
+    ok, _ = validate_query_uses_exactly_five_attrs(query, attrs_used)
+    return ok
+
+
+def _feature_vec(candidate: dict) -> np.ndarray:
+    feat = candidate.get("features", {})
+    return np.asarray(
+        [float(feat.get(k, 0.0)) for k in FEATURE_KEYS], dtype=np.float32
+    )
+
+
+class StyleDatasetBuilder:
+    """Builds (attrs, y+, y-) per record using VADES distances.
+
+    Distances are computed in the same standardized space the VADES sentence
+    encoder was trained in (scaler saved by the VADES training script).
+    """
+
+    def __init__(
+        self,
+        category: str,
+        vades_profiles: Dict[str, Dict[str, np.ndarray]],
+        scaler: dict,
+        seed: int = 42,
+    ):
+        self.category = category
+        self.profiles = vades_profiles
+        self.scaler = scaler
+        self.feature_names = list(scaler["feature_names"])
+        self.mean = np.asarray(scaler["mean"], dtype=np.float32)
+        self.scale = np.asarray(scaler["scale"], dtype=np.float32)
+        if len(self.feature_names) != len(FEATURE_KEYS) or self.feature_names != FEATURE_KEYS:
+            raise ValueError("scaler feature_names mismatch FEATURE_KEYS")
+        self.rng = np.random.default_rng(seed)
+
+    def _standardize(self, vec: np.ndarray) -> np.ndarray:
+        return (vec - self.mean) / np.maximum(self.scale, 1e-9)
+
+    def distance_to_user(self, candidate: dict, user_id: str) -> Optional[float]:
+        """Euclidean distance (standardized space) between candidate query
+        features and the user's VADES user_mu (same latent space)."""
+        profile = self.profiles.get(user_id)
+        if profile is None:
+            return None
+        mu = profile["user_mu"].astype(np.float32)
+        std_feat = self._standardize(_feature_vec(candidate))
+        return float(np.linalg.norm(std_feat - mu))
+
+    def build_record(
+        self,
+        record: dict,
+        candidates: List[dict],
+        retained_query: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Return data row or None (record skipped, logged via reason)."""
+        user_id = record["user_id"]
+        asin = record["asin"]
+        valid = []
+        for cand in candidates:
+            attrs_used = cand.get("attrs_used")
+            query = cand.get("query", "")
+            if not attrs_used or not query:
+                continue
+            if not content_valid(query, attrs_used):
+                continue
+            valid.append(cand)
+        if not valid:
+            return None
+        # Canonical five attributes: first content-valid candidate's attrs.
+        attrs_used = valid[0]["attrs_used"]
+        # Re-validate every candidate against the canonical attribute set so
+        # all distances are scored under the same prompt condition.
+        canonical_valid = [
+            c for c in candidates if content_valid(c.get("query", ""), attrs_used)
+        ]
+        if not canonical_valid:
+            return None
+
+        scored: List[Tuple[float, dict]] = []
+        for cand in canonical_valid:
+            dist = self.distance_to_user(cand, user_id)
+            if dist is None:
+                continue
+            scored.append((dist, cand))
+        if not scored:
+            return None
+        scored.sort(key=lambda t: t[0])
+
+        y_minus_candidate = scored[-1][1]
+        y_plus_candidate = scored[0][1]
+        y_plus_query = y_plus_candidate["query"]
+        y_plus_index = canonical_valid.index(y_plus_candidate)
+        # Prefer the VADES-retained query as the teacher target when it is
+        # content-valid under the canonical attributes.
+        if retained_query and content_valid(retained_query, attrs_used):
+            y_plus_query = retained_query
+            for cand in canonical_valid:
+                if cand.get("query") == retained_query:
+                    y_plus_index = canonical_valid.index(cand)
+                    break
+        return {
+            "user_id": user_id,
+            "asin": asin,
+            "attrs_used": attrs_used,
+            "y_plus_query": y_plus_query,
+            "y_plus_index": int(y_plus_index),
+            "y_minus_query": y_minus_candidate["query"],
+            "y_minus_index": int(canonical_valid.index(y_minus_candidate)),
+            "y_plus_vades_dist": float(scored[0][0]),
+            "y_minus_vades_dist": float(scored[-1][0]),
+            "n_content_valid_candidates": len(canonical_valid),
+        }
+
+    def build_all(
+        self,
+        records: List[dict],
+        candidate_rows: List[dict],
+        retained_by_key: Dict[Tuple[str, str], Optional[str]],
+        all_content_valid: bool = True,
+    ) -> Tuple[List[dict], List[dict]]:
+        """Build data rows for all records; returns (rows, skipped).
+
+        With ``all_content_valid=True`` every content-valid candidate of a
+        record becomes an SFT target (10x data; distills the 10-candidate
+        flow). The primary row (nearest to the user's VADES center, or the
+        VADES-retained teacher when content-valid) is marked ``is_primary``.
+        """
+        by_key: Dict[Tuple[str, str], List[dict]] = {}
+        for cand in candidate_rows:
+            by_key.setdefault((cand["user_id"], cand["asin"]), []).append(cand)
+        rows: List[dict] = []
+        skipped: List[dict] = []
+        for rec in records:
+            key = (rec["user_id"], rec["asin"])
+            cands = by_key.get(key, [])
+            if not cands:
+                skipped.append({**rec, "reason": "no_candidate_features"})
+                continue
+            retained = retained_by_key.get(key)
+            primary = self.build_record(rec, cands, retained_query=retained)
+            if primary is None:
+                skipped.append({**rec, "reason": "no_content_valid_candidate"})
+                continue
+            primary = dict(primary)
+            primary["is_primary"] = True
+            rows.append(primary)
+            if all_content_valid:
+                attrs = primary["attrs_used"]
+                for cand in cands:
+                    query = cand.get("query", "")
+                    if not content_valid(query, attrs):
+                        continue
+                    dist = self.distance_to_user(cand, rec["user_id"])
+                    if dist is None:
+                        continue
+                    extra = {
+                        "user_id": rec["user_id"],
+                        "asin": rec["asin"],
+                        "attrs_used": attrs,
+                        "y_plus_query": query,
+                        "y_plus_index": int(cands.index(cand)),
+                        "y_minus_query": primary["y_minus_query"],
+                        "y_minus_index": primary["y_minus_index"],
+                        "y_plus_vades_dist": float(dist),
+                        "y_minus_vades_dist": primary["y_minus_vades_dist"],
+                        "n_content_valid_candidates": primary["n_content_valid_candidates"],
+                        "is_primary": False,
+                    }
+                    rows.append(extra)
+        return rows, skipped
