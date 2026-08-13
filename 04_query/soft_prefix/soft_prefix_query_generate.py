@@ -176,7 +176,10 @@ class SoftPrefixGenerator(nn.Module):
                 pad_token_id, eos_token_id, repetition_penalty,
             )]
         if any(v is None for v in user_vecs_list) and self.num_tokens > 0:
-            raise ValueError("batch with prefix requires user_vec for every sample")
+            # vector_mode='none': those samples get NO prefix (like the
+            # single-sample path); others keep theirs. Per-sample handling
+            # below builds each row with/without prefix.
+            pass
         target_dtype = next(self.base.parameters()).dtype
         max_len = max(t.view(-1).size(0) for t in prompt_ids_list)
         emb = self.base.get_input_embeddings()
@@ -191,7 +194,8 @@ class SoftPrefixGenerator(nn.Module):
             if pad_n > 0:
                 pad_emb = emb(torch.full((pad_n,), pad_token_id, device=self.device)).to(target_dtype)
                 row_emb = torch.cat([row_emb, pad_emb], dim=0)
-            if self.num_tokens > 0:
+            use_prefix = self.num_tokens > 0 and vec is not None
+            if use_prefix:
                 z = torch.as_tensor(vec, dtype=torch.float32, device=self.device).unsqueeze(0)
                 prefix = self.projector(z.to(target_dtype)).squeeze(0)  # [K, D]
                 full_row = torch.cat([prefix, row_emb], dim=0)

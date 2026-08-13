@@ -78,6 +78,7 @@ class StyleDatasetBuilder:
         vades_profiles: Dict[str, Dict[str, np.ndarray]],
         scaler: dict,
         seed: int = 42,
+        latent_encoder=None,
     ):
         self.category = category
         self.profiles = vades_profiles
@@ -88,19 +89,24 @@ class StyleDatasetBuilder:
         if len(self.feature_names) != len(FEATURE_KEYS) or self.feature_names != FEATURE_KEYS:
             raise ValueError("scaler feature_names mismatch FEATURE_KEYS")
         self.rng = np.random.default_rng(seed)
-
-    def _standardize(self, vec: np.ndarray) -> np.ndarray:
-        return (vec - self.mean) / np.maximum(self.scale, 1e-9)
+        if latent_encoder is None:
+            # E13-A: default to the shared VADES latent encoder; the raw
+            # cross-space path must NOT be used for distance.
+            from vades_latent import VadesLatentEncoder
+            latent_encoder = VadesLatentEncoder(category)
+        self.latent_encoder = latent_encoder
 
     def distance_to_user(self, candidate: dict, user_id: str) -> Optional[float]:
-        """Euclidean distance (standardized space) between candidate query
-        features and the user's VADES user_mu (same latent space)."""
+        """VADES LATENT-space euclidean distance between the candidate query
+        and the user's user_mu (E13-A). Both live in the sentence-encoder
+        latent space, so the distance is meaningful (unlike the removed
+        standardized-raw-features vs user_mu path)."""
         profile = self.profiles.get(user_id)
         if profile is None:
             return None
         mu = profile["user_mu"].astype(np.float32)
-        std_feat = self._standardize(_feature_vec(candidate))
-        return float(np.linalg.norm(std_feat - mu))
+        cand_mu = self.latent_encoder.encode_feature_vec(_feature_vec(candidate))
+        return float(np.linalg.norm(cand_mu - mu))
 
     def build_record(
         self,
@@ -185,15 +191,22 @@ class StyleDatasetBuilder:
         records: List[dict],
         candidate_rows: List[dict],
         retained_by_key: Dict[Tuple[str, str], Optional[str]],
-        all_content_valid: bool = True,
+        supervision: str = "primary",
         template_targets: bool = True,
+        topk_temperature: float = 1.0,
     ) -> Tuple[List[dict], List[dict]]:
         """Build data rows for all records; returns (rows, skipped).
 
-        With ``all_content_valid=True`` every content-valid candidate of a
-        record becomes an SFT target (10x data; distills the 10-candidate
-        flow). The primary row (nearest to the user's VADES center, or the
-        VADES-retained teacher when content-valid) is marked ``is_primary``.
+        E13-B supervision strategies (I-B3):
+          primary        (default) each (user_id, asin) has exactly ONE SFT
+                         target: the content-valid candidate nearest the user
+                         in VADES latent space (or the retained teacher).
+          all_candidates every content-valid candidate is an equal-weight SFT
+                         target (the old #11/E12 behavior).
+          topk_weighted  every content-valid candidate is a target but each is
+                         weighted by softmax(-latent_distance / T) so the
+                         user-near candidates dominate.
+
         With ``template_targets=True`` (E12) all targets are placeholder
         templates; non-templatable targets are skipped with a recorded reason.
         """
@@ -215,9 +228,12 @@ class StyleDatasetBuilder:
                 continue
             primary = dict(primary)
             primary["is_primary"] = True
+            primary["weight"] = 1.0
             rows.append(primary)
-            if all_content_valid:
+            if supervision in ("all_candidates", "topk_weighted"):
                 attrs = primary["attrs_used"]
+                dists: List[Tuple[float, dict]] = []
+                extras = []
                 for cand in cands:
                     query = cand.get("query", "")
                     if not content_valid(query, attrs):
@@ -235,7 +251,7 @@ class StyleDatasetBuilder:
                                 "reason": f"not_templatable: {tpl_err}",
                             })
                             continue
-                    extra = {
+                    extras.append({
                         "user_id": rec["user_id"],
                         "asin": rec["asin"],
                         "attrs_used": attrs,
@@ -249,6 +265,16 @@ class StyleDatasetBuilder:
                         "n_content_valid_candidates": primary["n_content_valid_candidates"],
                         "is_primary": False,
                         "is_template_target": bool(template_targets),
-                    }
-                    rows.append(extra)
+                        "dist": float(dist),
+                    })
+                if supervision == "topk_weighted":
+                    d = np.asarray([e["dist"] for e in extras], dtype=np.float64)
+                    w = np.exp(-d / max(topk_temperature, 1e-9))
+                    w = w / w.sum()
+                    for e, wi in zip(extras, w):
+                        e["weight"] = float(wi)
+                else:
+                    for e in extras:
+                        e["weight"] = 1.0
+                rows.extend(extras)
         return rows, skipped

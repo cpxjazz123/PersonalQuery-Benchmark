@@ -224,11 +224,13 @@ class StyleQueryDataset(Dataset):
         # attrs_used key sets vary per record; serialize to avoid default
         # collate trying to merge dicts with mismatched keys.
         return {
+            "user_id": row["user_id"],
             "attrs_json": json.dumps(row["attrs_used"], ensure_ascii=False),
             "y_plus_query": row["y_plus_query"],
             "user_vec": np.zeros(self.provider.vector_dim, dtype=np.float32)
             if vec is None else vec,
             "has_vector": has_vector,
+            "weight": float(row.get("weight", 1.0)),
         }
 
 
@@ -263,6 +265,11 @@ def train(
     base_model_path: str = QWEN_PATH,
     template_targets: bool = True,
     add_placeholder_tokens: bool = True,
+    supervision: str = "primary",
+    topk_temperature: float = 1.0,
+    counterfactual: bool = False,
+    cf_margin: float = 0.2,
+    cf_lambda: float = 1.0,
 ) -> Dict:
     log(f"=== E11 train {category} mode={mode} K={num_tokens} ===")
     out_dir = Path(out_dir)
@@ -300,10 +307,19 @@ def train(
     builder = StyleDatasetBuilder(category, profiles, scaler, seed=seed)
     rows, skipped = builder.build_all(
         records, candidate_rows, retained_by_key,
-        all_content_valid=True, template_targets=template_targets,
+        supervision=supervision, template_targets=template_targets,
+        topk_temperature=topk_temperature,
     )
     skipped_reasons = sorted({s["reason"] for s in skipped})
-    log(f"data rows={len(rows)} skipped={len(skipped)} reasons={skipped_reasons}")
+    log(f"data rows={len(rows)} skipped={len(skipped)} reasons={skipped_reasons} "
+        f"supervision={supervision}")
+    if supervision == "primary":
+        # V-B1: exactly one primary positive per (user_id, asin).
+        keys = [(r["user_id"], r["asin"]) for r in rows]
+        dup = {k for k in keys if keys.count(k) > 1}
+        if dup:
+            raise ValueError(f"primary supervision produced duplicate (user,asin): {list(dup)[:5]}")
+        log("V-B1 ok: exactly one primary positive per (user_id, asin)")
 
     split = make_user_split([r["user_id"] for r in rows], test_frac=test_frac, seed=seed)
     train_rows = [r for r in rows if r["user_id"] in set(split["train_users"])]
@@ -317,6 +333,11 @@ def train(
 
     provider = UserVectorProvider(mode, profiles, [r["user_id"] for r in rows], seed=seed, e5_vecs=e5_vecs)
     log(f"vector provider: {provider.manifest()}")
+    cf_provider = None
+    if counterfactual:
+        # E13-C1: seeded shuffled vectors for the counterfactual ranking loss.
+        cf_provider = UserVectorProvider("shuffled", profiles, [r["user_id"] for r in rows], seed=seed + 1, e5_vecs=None)
+        log(f"counterfactual shuffled provider: {cf_provider.manifest()}")
 
     log(f"loading Qwen2-7B from {base_model_path} ...")
     tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
@@ -430,12 +451,16 @@ def train(
             user_vecs = torch.stack(
                 [torch.as_tensor(v, dtype=torch.float32) for v in batch["user_vec"]]
             )
+            weights = torch.tensor(
+                [float(w) for w in batch["weight"]], dtype=torch.float32
+            )
         else:
             attrs_list = [json.loads(r["attrs_json"]) for r in batch]
             y_plus_list = [r["y_plus_query"] for r in batch]
             user_vecs = torch.stack(
                 [torch.as_tensor(r["user_vec"], dtype=torch.float32) for r in batch]
             )
+            weights = torch.tensor([float(r["weight"]) for r in batch], dtype=torch.float32)
         enc = collate(
             [
                 encode_sft_example(tokenizer, attrs, target, max_query_len)
@@ -443,7 +468,52 @@ def train(
             ],
             tokenizer.pad_token_id,
         )
-        return {**enc, "user_vecs": user_vecs}
+        return {**enc, "user_vecs": user_vecs, "weights": weights}
+
+    def cf_loss(batch, batch_t, out) -> torch.Tensor:
+        """E13-C1 counterfactual ranking: the correct vector's NLL must be
+        lower than the shuffled vector's NLL (pre-registered margin)."""
+        cf_vecs = []
+        for r in batch["user_id"]:
+            v, _ = cf_provider.get(r)
+            cf_vecs.append(v if v is not None else np.zeros(provider.vector_dim, dtype=np.float32))
+        cf_t = torch.tensor(np.stack(cf_vecs), dtype=torch.float32, device=device)
+        out_cf = model(
+            input_ids=batch_t["input_ids"],
+            labels=batch_t["labels"],
+            attention_mask=batch_t["attention_mask"],
+            position_ids=batch_t["position_ids"],
+            user_vecs=cf_t,
+        )
+        loss_correct = compute_loss(batch_t, out)
+        loss_shuffled = compute_loss(batch_t, out_cf)
+        hinge = torch.relu(loss_correct - loss_shuffled + cf_margin)
+        return loss_correct + cf_lambda * hinge, loss_correct, loss_shuffled, hinge
+
+    def compute_loss(batch_t, out) -> torch.Tensor:
+        """Token-level CE with per-sample weights (E13-B). The model prepends
+        K soft-prefix tokens, so the effective labels include K leading -100s;
+        align logits and labels to the FULL (prefix+text) sequence."""
+        labels = batch_t["labels"]
+        if model.num_tokens > 0:
+            prefix_labels = torch.full(
+                (labels.size(0), model.num_tokens), -100,
+                dtype=labels.dtype, device=labels.device,
+            )
+            labels = torch.cat([prefix_labels, labels], dim=1)
+        logits = out.logits  # [B, K+T, V]
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        V = shift_logits.size(-1)
+        ce = torch.nn.functional.cross_entropy(
+            shift_logits.view(-1, V), shift_labels.view(-1),
+            reduction="none",
+        )
+        mask = (shift_labels.view(-1) != -100).float()
+        B = labels.size(0)
+        per_sample = (ce.view(B, -1) * mask.view(B, -1)).sum(dim=1) / mask.view(B, -1).sum(dim=1).clamp_min(1.0)
+        w = batch_t["weights"].to(per_sample.device)
+        return (per_sample * w).sum() / w.sum().clamp_min(1.0)
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=lr)
@@ -465,7 +535,10 @@ def train(
                 position_ids=batch_t["position_ids"],
                 user_vecs=batch_t["user_vecs"],
             )
-            loss = out.loss
+            if counterfactual:
+                loss, loss_c, loss_s, hinge = cf_loss(batch, batch_t, out)
+            else:
+                loss = compute_loss(batch_t, out)
             optimizer.zero_grad()
             if trainable_params and model.num_tokens > 0:
                 loss.backward()
@@ -475,7 +548,10 @@ def train(
             epoch_loss += float(loss.detach())
             step += 1
             if step % 20 == 0:
-                log(f"  step {step}/{total_steps} loss={float(loss.detach()):.4f}")
+                extra = ""
+                if counterfactual:
+                    extra = f" | correct={float(loss_c.detach()):.4f} shuffled={float(loss_s.detach()):.4f} hinge={float(hinge.detach()):.4f}"
+                log(f"  step {step}/{total_steps} loss={float(loss.detach()):.4f}{extra}")
         log(f"  epoch {epoch + 1}/{epochs} avg_loss={epoch_loss / max(len(dl), 1):.4f}")
 
     # Test-set evaluation (SFT loss on held-out users) at the end.
@@ -547,6 +623,11 @@ def train(
         "n_skipped": len(skipped),
         "skipped_reasons": skipped_reasons,
         "template_targets": bool(template_targets),
+        "supervision": supervision,
+        "topk_temperature": topk_temperature,
+        "counterfactual": bool(counterfactual),
+        "cf_margin": cf_margin,
+        "cf_lambda": cf_lambda,
         "gate": {
             "type": "scalar_alpha",
             "init": gate_init,
@@ -613,6 +694,12 @@ def main() -> None:
     ap.add_argument("--no_template", action="store_true", help="disable E12 placeholder-template targets")
     ap.add_argument("--placeholder_tokens", action="store_true", default=True,
                     help="register <A1>..<A18> as special tokens (E12; default on)")
+    ap.add_argument("--supervision", choices=["primary", "all_candidates", "topk_weighted"],
+                    default="primary", help="E13-B SFT supervision strategy")
+    ap.add_argument("--topk_temperature", type=float, default=1.0)
+    ap.add_argument("--counterfactual", action="store_true", help="E13-C1 counterfactual ranking loss")
+    ap.add_argument("--cf_margin", type=float, default=0.2)
+    ap.add_argument("--cf_lambda", type=float, default=1.0)
     args = ap.parse_args()
     args_dict = vars(args)
     args_dict["template_targets"] = not args_dict.pop("no_template")

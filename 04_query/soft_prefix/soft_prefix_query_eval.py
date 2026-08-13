@@ -13,7 +13,7 @@ Degeneration:
 - repeated-character / repeated-token / repeated 3-gram ratios
 - consecutive-digit/punctuation anomaly rate
 
-Style consistency (vs user VADES center, standardized clause-feature space):
+Style consistency (vs user VADES center, VADES LATENT space via shared encoder):
 - VADES distance of the final query to the target user's user_mu
 - in-95%-range z-score, syntactic feature stats
 
@@ -73,23 +73,17 @@ def extract_feature_vec(query: str, nlp) -> Optional[np.ndarray]:
     return vec
 
 
-def standardize(vec: np.ndarray, scaler: dict) -> np.ndarray:
-    mean = np.asarray(scaler["mean"], dtype=np.float32)
-    scale = np.asarray(scaler["scale"], dtype=np.float32)
-    return (vec - mean) / np.maximum(scale, 1e-9)
-
-
 def in_user_range_z(
-    std_vec: np.ndarray, mu: np.ndarray, logvar: np.ndarray
+    latent_mu: np.ndarray, mu: np.ndarray, logvar: np.ndarray
 ) -> Tuple[bool, float]:
     std = np.exp(0.5 * logvar)
     zero_mask = std < 1e-8
     if zero_mask.any():
-        z_zero = np.abs(std_vec - mu)[zero_mask] / 1.0
+        z_zero = np.abs(latent_mu - mu)[zero_mask] / 1.0
     else:
         z_zero = np.array([], dtype=np.float32)
     if (~zero_mask).any():
-        z_nz = np.abs((std_vec - mu) / np.maximum(std, 1e-9))[~zero_mask]
+        z_nz = np.abs((latent_mu - mu) / np.maximum(std, 1e-9))[~zero_mask]
     else:
         z_nz = np.array([], dtype=np.float32)
     z = np.concatenate([z_zero, z_nz])
@@ -174,6 +168,8 @@ def main() -> None:
 
     profiles = load_vades_profiles(args.category)
     scaler = load_feature_scaler(args.category)
+    from vades_latent import VadesLatentEncoder
+    latent_encoder = VadesLatentEncoder(args.category)
     with open(Path(args.checkpoint_dir) / "split_manifest.json") as f:
         split = json.load(f)
     test_users = set(split["test_users"])
@@ -237,11 +233,13 @@ def main() -> None:
             if profiles.get(uid) is not None:
                 vec = extract_feature_vec(final, nlp)
                 if vec is not None:
-                    std_vec = standardize(vec, scaler)
+                    # E13-A: distance in the VADES LATENT space (shared encoder),
+                    # not the removed standardized-raw-features vs user_mu path.
+                    cand_mu = latent_encoder.encode_feature_vec(vec)
                     mu = profiles[uid]["user_mu"].astype(np.float32)
                     lv = profiles[uid]["user_logvar"].astype(np.float32)
-                    dist = float(np.linalg.norm(std_vec - mu))
-                    in_range, mean_z = in_user_range_z(std_vec, mu, lv)
+                    dist = float(np.linalg.norm(cand_mu - mu))
+                    in_range, mean_z = in_user_range_z(cand_mu, mu, lv)
                     base["vades_dist"] = dist
                     base["in_user_95pct_range"] = in_range
                     base["mean_z"] = mean_z
