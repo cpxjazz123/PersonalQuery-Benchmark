@@ -75,13 +75,36 @@ SYSTEM_PROMPT = (
     "You are a shopping query writer. You must produce a query TEMPLATE using "
     "every placeholder listed in the product attributes exactly once."
 )
+EXEMPLAR_SYSTEM_PROMPT = (
+    "You are a shopping query writer. The user provides example sentences from "
+    "their own writing style. You must produce a query TEMPLATE that mimics the "
+    "sentence structure, connectors and phrasing of the examples, using every "
+    "placeholder listed in the product attributes exactly once."
+)
 
 
 def log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_messages(attrs_used: Dict[str, str]) -> List[Dict[str, str]]:
+def build_attr_prompt_with_exemplars(attrs_used: Dict[str, str], exemplars: List[str]) -> str:
+    """Attribute mapping + style exemplars (user's own review sentences)."""
+    lines = []
+    if exemplars:
+        lines.append("Style examples (mimic their sentence structure):")
+        for i, ex in enumerate(exemplars, 1):
+            lines.append(f"- Example {i}: {ex}")
+        lines.append("")
+    lines.append(build_attr_mapping_prompt(attrs_used))
+    return "\n".join(lines)
+
+
+def build_messages(attrs_used: Dict[str, str], exemplars: Optional[List[str]] = None) -> List[Dict[str, str]]:
+    if exemplars:
+        return [
+            {"role": "system", "content": EXEMPLAR_SYSTEM_PROMPT},
+            {"role": "user", "content": build_attr_prompt_with_exemplars(attrs_used, exemplars)},
+        ]
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": build_attr_mapping_prompt(attrs_used)},
@@ -89,7 +112,8 @@ def build_messages(attrs_used: Dict[str, str]) -> List[Dict[str, str]]:
 
 
 def encode_sft_example(
-    tokenizer, attrs_used: Dict[str, str], target_query: str, max_query_len: int = 80
+    tokenizer, attrs_used: Dict[str, str], target_query: str,
+    max_query_len: int = 80, exemplars: Optional[List[str]] = None,
 ) -> Dict[str, list]:
     """Encode (prompt, target) with the shared chat template.
 
@@ -99,7 +123,7 @@ def encode_sft_example(
     caller prepends the K soft-prefix embedding rows afterwards.
     """
     prompt_str = tokenizer.apply_chat_template(
-        build_messages(attrs_used), tokenize=False, add_generation_prompt=True
+        build_messages(attrs_used, exemplars), tokenize=False, add_generation_prompt=True
     )
     prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False)
     target_ids = tokenizer.encode(target_query, add_special_tokens=False)[:max_query_len]
@@ -211,9 +235,10 @@ class SoftPrefixModel(nn.Module):
 
 
 class StyleQueryDataset(Dataset):
-    def __init__(self, rows: List[dict], provider: UserVectorProvider):
+    def __init__(self, rows: List[dict], provider: UserVectorProvider, exemplar_provider=None):
         self.rows = rows
         self.provider = provider
+        self.exemplar_provider = exemplar_provider
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -223,9 +248,13 @@ class StyleQueryDataset(Dataset):
         vec, has_vector = self.provider.get(row["user_id"])
         # attrs_used key sets vary per record; serialize to avoid default
         # collate trying to merge dicts with mismatched keys.
+        exemplars = []
+        if self.exemplar_provider is not None:
+            exemplars = self.exemplar_provider.exemplars_for(row["user_id"])
         return {
             "user_id": row["user_id"],
             "attrs_json": json.dumps(row["attrs_used"], ensure_ascii=False),
+            "exemplars_json": json.dumps(exemplars, ensure_ascii=False),
             "y_plus_query": row["y_plus_query"],
             "user_vec": np.zeros(self.provider.vector_dim, dtype=np.float32)
             if vec is None else vec,
@@ -267,6 +296,7 @@ def train(
     add_placeholder_tokens: bool = True,
     supervision: str = "primary",
     topk_temperature: float = 1.0,
+    exemplar_k: int = 0,
     counterfactual: bool = False,
     cf_margin: float = 0.2,
     cf_lambda: float = 1.0,
@@ -333,6 +363,11 @@ def train(
 
     provider = UserVectorProvider(mode, profiles, [r["user_id"] for r in rows], seed=seed, e5_vecs=e5_vecs)
     log(f"vector provider: {provider.manifest()}")
+    exemplar_provider = None
+    if exemplar_k > 0:
+        from exemplars import ExemplarProvider
+        exemplar_provider = ExemplarProvider(category, k=exemplar_k, seed=seed)
+        log(f"exemplar provider: {exemplar_provider.manifest()}")
     cf_provider = None
     if counterfactual:
         # E13-C1: seeded shuffled vectors for the counterfactual ranking loss.
@@ -438,15 +473,16 @@ def train(
     log(f"assert OK: projector trainable params={n_proj_params} ({n_proj} tensors), "
         f"base trainable={n_base_train}{' (LoRA)' if lora else ''}")
 
-    ds = StyleQueryDataset(train_rows, provider)
+    ds = StyleQueryDataset(train_rows, provider, exemplar_provider)
     dl = DataLoader(ds, batch_size=batch_size, shuffle=True)
-    test_ds = StyleQueryDataset(test_rows, provider)
+    test_ds = StyleQueryDataset(test_rows, provider, exemplar_provider)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
     def encode_batch(batch) -> Dict[str, torch.Tensor]:
         if isinstance(batch, dict):
             # default collate deep-collates nested dicts; unpack per-sample.
             attrs_list = [json.loads(a) for a in batch["attrs_json"]]
+            exemplars_list = [json.loads(e) for e in batch.get("exemplars_json", [])]
             y_plus_list = batch["y_plus_query"]
             user_vecs = torch.stack(
                 [torch.as_tensor(v, dtype=torch.float32) for v in batch["user_vec"]]
@@ -456,6 +492,7 @@ def train(
             )
         else:
             attrs_list = [json.loads(r["attrs_json"]) for r in batch]
+            exemplars_list = [json.loads(r.get("exemplars_json", "[]")) for r in batch]
             y_plus_list = [r["y_plus_query"] for r in batch]
             user_vecs = torch.stack(
                 [torch.as_tensor(r["user_vec"], dtype=torch.float32) for r in batch]
@@ -463,8 +500,8 @@ def train(
             weights = torch.tensor([float(r["weight"]) for r in batch], dtype=torch.float32)
         enc = collate(
             [
-                encode_sft_example(tokenizer, attrs, target, max_query_len)
-                for attrs, target in zip(attrs_list, y_plus_list)
+                encode_sft_example(tokenizer, attrs, target, max_query_len, exemplars=exs)
+                for attrs, target, exs in zip(attrs_list, y_plus_list, exemplars_list)
             ],
             tokenizer.pad_token_id,
         )
@@ -625,6 +662,7 @@ def train(
         "template_targets": bool(template_targets),
         "supervision": supervision,
         "topk_temperature": topk_temperature,
+        "exemplar_k": int(exemplar_k),
         "counterfactual": bool(counterfactual),
         "cf_margin": cf_margin,
         "cf_lambda": cf_lambda,
@@ -697,6 +735,7 @@ def main() -> None:
     ap.add_argument("--supervision", choices=["primary", "all_candidates", "topk_weighted"],
                     default="primary", help="E13-B SFT supervision strategy")
     ap.add_argument("--topk_temperature", type=float, default=1.0)
+    ap.add_argument("--exemplar_k", type=int, default=0, help="E14: per-user review-sentence style exemplars (0=off)")
     ap.add_argument("--counterfactual", action="store_true", help="E13-C1 counterfactual ranking loss")
     ap.add_argument("--cf_margin", type=float, default=0.2)
     ap.add_argument("--cf_lambda", type=float, default=1.0)
