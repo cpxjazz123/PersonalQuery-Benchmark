@@ -36,9 +36,23 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM, get_cosine_schedule_with_warmup
 from peft import LoraConfig, get_peft_model, TaskType
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "04_query"))
+from common.attribute_helpers import (  # noqa: E402
+    validate_query_uses_exactly_five_attrs,
+)
+
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 HIDDEN_DIM = 3584  # Qwen2-7B hidden dim
 USER_DIM = 1024  # E5-large embedding dim
+
+
+def build_attr_prompt(attrs_used: Dict[str, str]) -> str:
+    """Explicit five-attribute prompt shared by training and generation."""
+    lines = ["Product attributes:"]
+    for key in sorted(attrs_used):
+        lines.append(f"- {key}: {attrs_used[key]}")
+    lines.append("Write one natural shopping query that uses every attribute exactly once.")
+    return "\n".join(lines)
 
 
 def log(msg: str) -> None:
@@ -46,23 +60,40 @@ def log(msg: str) -> None:
 
 
 def load_04_query(category: str, base: str) -> List[Dict]:
-    """Load (user_id, asin, query_text) tuples from 04_query output."""
+    """Load (user_id, asin, query_text) tuples from 04_query output.
+
+    The supervision target is NOT the fixed first candidate: the first
+    content-valid candidate (all 5 attribute values present exactly once) is
+    used instead, so list position is never learned as user style (issue #11).
+    """
     p = Path(base) / "result/personal_query/04_query" / category / "query_by_syntax_depth_no_depth_check_10.json"
     with open(p) as f:
         records = json.load(f)
     out = []
     for r in records:
-        # Each record has syntax_depth_queries (list of 10); use the first one
         queries = r.get("syntax_depth_queries", [])
         if not queries:
             continue
-        query_text = queries[0].get("query", "").strip()
+        query_text = None
+        for cand in queries:
+            cand_text = cand.get("query", "").strip()
+            attrs_used = cand.get("attrs_used")
+            if not cand_text or not attrs_used or len(attrs_used) < 5:
+                continue
+            try:
+                ok, _ = validate_query_uses_exactly_five_attrs(cand_text, attrs_used)
+            except Exception:
+                ok = False
+            if ok:
+                query_text = cand_text
+                break
         if not query_text:
             continue
         out.append({
             "user_id": r["user_id"],
             "asin": r["asin"],
             "query_text": query_text,
+            "attrs_used": attrs_used,
         })
     return out
 
@@ -102,19 +133,30 @@ def compute_user_style_vecs(
     for i, uid in enumerate(user_ids):
         reviews = user_reviews.get(uid, [])
         if not reviews:
-            # Fallback: random init
-            user_vecs[uid] = np.random.randn(USER_DIM).astype(np.float32)
+            # Cold-start: explicit zero vector + flag (never unseeded random).
+            user_vecs[uid] = np.zeros(USER_DIM, dtype=np.float32)
             continue
         embs = e5.encode(reviews[:32], batch_size=32, show_progress_bar=False, normalize_embeddings=True)
-        user_vecs[uid] = embs.mean(axis=0).astype(np.float32)
+        # Re-normalize AFTER mean aggregation (issue #11): mean of unit vectors
+        # is not unit; train/generate must share this exact preprocessing.
+        user_vecs[uid] = l2_normalize(embs.mean(axis=0)).astype(np.float32)
         if (i + 1) % 100 == 0:
             log(f"  encoded {i + 1}/{len(user_ids)} users")
-    log(f"  computed {len(user_vecs)} user style vectors")
+    n_cold = sum(1 for v in user_vecs.values() if np.linalg.norm(v) == 0.0)
+    log(f"  computed {len(user_vecs)} user style vectors ({n_cold} cold-start zero vectors)")
     return user_vecs
 
 
+def l2_normalize(vec: np.ndarray) -> np.ndarray:
+    vec = np.asarray(vec, dtype=np.float32)
+    norm = float(np.linalg.norm(vec))
+    if norm > 1e-12:
+        return vec / norm
+    return np.zeros_like(vec)
+
+
 class StyleDataset(Dataset):
-    """Per sample: user_style_vec, asin prompt, gold query text."""
+    """Per sample: user_style_vec, five-attribute prompt, gold query text."""
 
     def __init__(
         self,
@@ -134,8 +176,9 @@ class StyleDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict:
         r = self.records[idx]
         vec = self.user_vecs.get(r["user_id"], np.zeros(USER_DIM, dtype=np.float32))
-        # Build asin prompt (short)
-        prompt = f"Generate a shopping query for ASIN {r['asin']}."
+        # Explicit five-attribute prompt (issue #11): ASIN alone is not
+        # interpretable by the model.
+        prompt = build_attr_prompt(r["attrs_used"])
         # Encode prompt + query
         prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
         query_ids = self.tokenizer.encode(r["query_text"], add_special_tokens=False)[: self.max_query_len]
@@ -145,6 +188,7 @@ class StyleDataset(Dataset):
         return {
             "input_ids": input_ids,
             "labels": labels,
+            "attention_mask": [1] * len(input_ids),
             "user_vec": vec,
         }
 
@@ -153,6 +197,7 @@ def collate(batch, pad_token_id: int):
     max_len = max(len(s["input_ids"]) for s in batch)
     input_ids = []
     labels = []
+    attention_masks = []
     user_vecs = []
     for s in batch:
         ids = s["input_ids"]
@@ -160,10 +205,13 @@ def collate(batch, pad_token_id: int):
         pad_n = max_len - len(ids)
         input_ids.append(ids + [pad_token_id] * pad_n)
         labels.append(lbls + [-100] * pad_n)
+        # Explicit mask: padding tokens (incl. padding EOS) are NEVER valid.
+        attention_masks.append(s["attention_mask"] + [0] * pad_n)
         user_vecs.append(s["user_vec"])
     return {
         "input_ids": torch.tensor(input_ids, dtype=torch.long),
         "labels": torch.tensor(labels, dtype=torch.long),
+        "attention_mask": torch.tensor(attention_masks, dtype=torch.long),
         "user_vecs": torch.tensor(np.stack(user_vecs), dtype=torch.float32),
     }
 
@@ -180,11 +228,19 @@ class StyleInjectedModel(nn.Module):
         # Match base model dtype
         target_dtype = next(self.base.parameters()).dtype
         self.style_proj = self.style_proj.to(target_dtype)
-        # Freeze base; PEFT handles LoRA on attention
-        for p in self.base.parameters():
-            p.requires_grad = False
+        # Freeze the base WITHOUT double-freezing LoRA adapters: get_peft_model()
+        # marks LoRA params trainable; a blanket requires_grad=False pass here
+        # would re-freeze them (issue #11 Phase 0 bug). Only non-LoRA params are
+        # frozen.
+        if hasattr(base_model, "active_peft_config") or "peft" in type(base_model).__module__:
+            for name, p in base_model.named_parameters():
+                if "lora_" not in name and p.requires_grad:
+                    p.requires_grad = False
+        else:
+            for p in base_model.parameters():
+                p.requires_grad = False
 
-    def forward(self, input_ids: torch.Tensor, user_vecs: torch.Tensor, labels: torch.Tensor = None):
+    def forward(self, input_ids: torch.Tensor, user_vecs: torch.Tensor, attention_mask: torch.Tensor = None, labels: torch.Tensor = None):
         # Embed input tokens via PEFT-compatible interface
         embed_fn = self.base.get_input_embeddings()
         inputs_embeds = embed_fn(input_ids)
@@ -198,8 +254,13 @@ class StyleInjectedModel(nn.Module):
         if labels is not None:
             prefix_labels = torch.full((labels.size(0), 1), -100, dtype=labels.dtype, device=labels.device)
             labels = torch.cat([prefix_labels, labels], dim=1)
-        # Adjust attention_mask (all 1s for prefix)
-        attention_mask = torch.ones(inputs_embeds.shape[:2], dtype=torch.long, device=inputs_embeds.device)
+        # Explicit attention mask: prefix + real tokens = 1, padding = 0
+        # (padding EOS must never count as valid tokens).
+        if attention_mask is None:
+            attention_mask = torch.ones(inputs_embeds.shape[:2], dtype=torch.long, device=inputs_embeds.device)
+        else:
+            prefix_mask = torch.ones((attention_mask.size(0), 1), dtype=attention_mask.dtype, device=attention_mask.device)
+            attention_mask = torch.cat([prefix_mask, attention_mask], dim=1)
         out = self.base(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
@@ -252,6 +313,15 @@ def train_category(
     base_model.print_trainable_parameters()
     model = StyleInjectedModel(base_model).to("cuda:0")
 
+    # Trainable-parameter assertion (issue #11): projector must be trainable
+    # and LoRA must NOT have been double-frozen by StyleInjectedModel.
+    assert any(p.requires_grad for p in model.style_proj.parameters()), "style projector must be trainable"
+    n_lora_train = sum(1 for p in model.base.parameters() if p.requires_grad)
+    assert n_lora_train > 0, "LoRA params must be trainable (double-freeze bug)"
+    n_proj = sum(p.numel() for p in model.style_proj.parameters() if p.requires_grad)
+    n_lora_params = sum(p.numel() for p in model.base.parameters() if p.requires_grad)
+    log(f"assert OK: projector trainable={n_proj} params, LoRA trainable={n_lora_params} params ({n_lora_train} tensors)")
+
     log("building dataset/dataloader...")
     ds = StyleDataset(records, user_vecs, tokenizer)
     dl = DataLoader(
@@ -280,6 +350,7 @@ def train_category(
             out = model(
                 input_ids=batch["input_ids"],
                 user_vecs=batch["user_vecs"],
+                attention_mask=batch["attention_mask"],
                 labels=batch["labels"],
             )
             loss = out.loss

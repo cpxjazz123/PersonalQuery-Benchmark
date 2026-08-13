@@ -88,10 +88,13 @@ def load_model(model_dir: Path):
     return model, tokenizer, user_vecs
 
 
-def generate_query(model, tokenizer, user_vec: np.ndarray, asin: str, max_new_tokens: int = 32) -> str:
-    prompt = f"Generate a shopping query for ASIN {asin}."
+def generate_query(model, tokenizer, user_vec: np.ndarray, asin: str, attrs_used: Dict[str, str], max_new_tokens: int = 32) -> str:
+    # Five-attribute prompt shared with training (issue #11): identical prompt
+    # text and identical L2-normalization of the user vector.
+    prompt = build_attr_prompt(attrs_used)
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to("cuda:0")
-    user_vecs_t = torch.tensor(user_vec, dtype=torch.float32).unsqueeze(0).to("cuda:0")
+    user_vec_t = l2_normalize(np.asarray(user_vec, dtype=np.float32))
+    user_vecs_t = torch.tensor(user_vec_t, dtype=torch.float32).unsqueeze(0).to("cuda:0")
     with torch.no_grad():
         # Manually call base to use inputs_embeds
         embed_fn = model.base.get_input_embeddings()
@@ -112,6 +115,23 @@ def generate_query(model, tokenizer, user_vec: np.ndarray, asin: str, max_new_to
     return text.strip()
 
 
+def build_attr_prompt(attrs_used: Dict[str, str]) -> str:
+    """Must match style_embed_query_train.build_attr_prompt exactly."""
+    lines = ["Product attributes:"]
+    for key in sorted(attrs_used):
+        lines.append(f"- {key}: {attrs_used[key]}")
+    lines.append("Write one natural shopping query that uses every attribute exactly once.")
+    return "\n".join(lines)
+
+
+def l2_normalize(vec: np.ndarray) -> np.ndarray:
+    vec = np.asarray(vec, dtype=np.float32)
+    norm = float(np.linalg.norm(vec))
+    if norm > 1e-12:
+        return vec / norm
+    return np.zeros_like(vec)
+
+
 def generate_for_records(
     model, tokenizer, user_vecs: Dict[str, np.ndarray], records: List[Dict]
 ) -> List[Dict]:
@@ -122,7 +142,7 @@ def generate_for_records(
             out.append({**r, "generated_query": None})
             continue
         try:
-            q = generate_query(model, tokenizer, user_vecs[uid], r["asin"])
+            q = generate_query(model, tokenizer, user_vecs[uid], r["asin"], r.get("attrs_used"))
         except Exception as e:
             log(f"  [{i}] {uid} {r['asin']}: error {e}")
             q = None
