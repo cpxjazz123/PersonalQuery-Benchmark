@@ -157,7 +157,7 @@ def main() -> None:
     for p in base.parameters():
         p.requires_grad = False
     projector = SoftPrefixProjector(cfg["user_dim"], 128, cfg["num_tokens"], cfg["model_dim"],
-                                    dtype=torch.bfloat16).to("cuda:0")
+                                    dtype=torch.bfloat16, gate_init=cfg.get("gate_init", 1e-3)).to("cuda:0")
     projector.load_state_dict(torch.load(ckpt / "projector.pt", map_location="cuda:0"))
     vocab_size = base.get_output_embeddings().weight.size(0)
     copy_head = CopyAwareHead(cfg["model_dim"], vocab_size, dtype=torch.bfloat16).to("cuda:0")

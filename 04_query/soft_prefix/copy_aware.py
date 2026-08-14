@@ -123,13 +123,16 @@ class CopyAwareHead(nn.Module):
         row_inf = (~torch.isfinite(safe)).all(dim=-1, keepdim=True)
         safe = torch.where(row_inf, torch.zeros_like(safe), safe)
         attn = torch.softmax(safe, dim=-1)               # [B, T, S]
-        # scatter copy mass to vocabulary positions (per (b,t) via index_add_)
+        # scatter copy mass to vocabulary positions — fully vectorized:
+        # [B*T, S] attn scattered into [B*T, V] by source token id (single
+        # kernel; no per-(b,t) Python loop).
         B, T, S = attn.shape
-        copy_logits = torch.zeros(B, T, self.vocab_size, device=hidden.device, dtype=hidden.dtype)
-        src_ids_l = src_ids.long()
-        for b in range(B):
-            for t in range(T):
-                copy_logits[b, t].index_add_(0, src_ids_l[b], attn[b, t])
+        BT = B * T
+        flat_attn = attn.reshape(BT, S)
+        flat_src = src_ids.unsqueeze(1).expand(B, T, S).reshape(BT, S).long()
+        copy_flat = torch.zeros(BT, self.vocab_size, device=hidden.device, dtype=hidden.dtype)
+        copy_flat.scatter_add_(1, flat_src, flat_attn)
+        copy_logits = copy_flat.reshape(B, T, self.vocab_size)
         p_copy = torch.sigmoid(self.gate(hidden))        # [B, T, 1]
         return p_copy, copy_logits
 

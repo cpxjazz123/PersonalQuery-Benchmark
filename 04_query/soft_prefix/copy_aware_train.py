@@ -47,7 +47,7 @@ from copy_aware import (  # noqa: E402
 )
 
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
-HIDDEN_DIM = 3584
+HIDDEN_DIM = 3584  # overridden by the loaded model's config.hidden_size
 SYSTEM_PROMPT = (
     "You are a shopping query writer. Write one short natural shopping query "
     "that mentions every listed attribute of the product."
@@ -263,6 +263,7 @@ def F_cross_entropy(logits, targets, ignore_index=-100):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--category", default="Baby_Products")
+    ap.add_argument("--base_model", default=QWEN_PATH)
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--num_tokens", type=int, default=4)
     ap.add_argument("--epochs", type=int, default=3)
@@ -273,6 +274,7 @@ def main() -> None:
     ap.add_argument("--lora", action="store_true")
     ap.add_argument("--lora_r", type=int, default=8)
     ap.add_argument("--copy_lambda", type=float, default=0.5)
+    ap.add_argument("--gate_init", type=float, default=1e-3, help="soft-prefix gate alpha init (E14: style strength)")
     ap.add_argument("--max_records", type=int, default=0)
     args = ap.parse_args()
 
@@ -296,12 +298,10 @@ def main() -> None:
                     break
         if not attrs:
             continue
-        chosen = 0
         for cand in candidates:
             q = cand.get("query", "")
-            if q and chosen < 3:
+            if q:
                 rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
-                chosen += 1
     if args.max_records:
         rows = rows[: args.max_records]
     log(f"copy-aware rows: {len(rows)}")
@@ -319,12 +319,12 @@ def main() -> None:
     provider = UserVectorProvider("vades", profiles, [r["user_id"] for r in rows], seed=args.seed)
 
     log("loading Qwen2-7B ...")
-    tokenizer = AutoTokenizer.from_pretrained(QWEN_PATH, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    base = AutoModelForCausalLM.from_pretrained(QWEN_PATH, torch_dtype=torch.bfloat16, device_map="cuda:0", trust_remote_code=True)
-    for p in base.parameters():
-        p.requires_grad = False
+    base = AutoModelForCausalLM.from_pretrained(args.base_model, torch_dtype=torch.bfloat16, device_map="cuda:0", trust_remote_code=True)
+    HIDDEN_DIM = base.config.hidden_size
+    log(f"base model: {args.base_model} hidden_dim={HIDDEN_DIM} vocab={base.config.vocab_size}")
     if args.lora:
         from peft import LoraConfig, get_peft_model
         base = get_peft_model(base, LoraConfig(task_type="CAUSAL_LM", r=args.lora_r, lora_alpha=2 * args.lora_r,
@@ -334,7 +334,9 @@ def main() -> None:
         log("LoRA disabled (copy-aware baseline: projector only)")
 
     projector = SoftPrefixProjector(user_dim=provider.vector_dim, hidden_dim=128, num_tokens=args.num_tokens,
-                                    model_dim=HIDDEN_DIM, dtype=torch.bfloat16).to("cuda:0")
+                                    model_dim=HIDDEN_DIM, dtype=torch.bfloat16,
+                                    gate_init=args.gate_init).to("cuda:0")
+    log(f"gate_init={args.gate_init}")
     vocab_size = base.get_output_embeddings().weight.size(0)
     copy_head = CopyAwareHead(HIDDEN_DIM, vocab_size, dtype=torch.bfloat16).to("cuda:0")
     log(f"copy head vocab_size={vocab_size}")
@@ -388,7 +390,7 @@ def main() -> None:
             "category": args.category, "num_tokens": args.num_tokens, "epochs": args.epochs,
             "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed,
             "test_frac": args.test_frac, "lora": args.lora, "lora_r": args.lora_r,
-            "copy_lambda": args.copy_lambda, "base_model_path": QWEN_PATH,
+            "copy_lambda": args.copy_lambda, "gate_init": args.gate_init, "base_model_path": args.base_model,
             "user_dim": provider.vector_dim, "model_dim": HIDDEN_DIM,
             "n_train_rows": len(train_rows), "n_test_rows": len(test_rows),
             "vector_encoder": "VADES-lite diagonal 20d user_mu (statistics only)",
