@@ -251,11 +251,17 @@ class StyleQueryDataset(Dataset):
         exemplars = []
         if self.exemplar_provider is not None:
             exemplars = self.exemplar_provider.exemplars_for(row["user_id"])
+        y_target = row["y_plus_query"]
+        if self.exemplar_provider is not None and getattr(self.exemplar_provider, "target_skeleton", False):
+            # E14b: SFT target = the user's OWN bridged skeleton (genre-aligned,
+            # product-agnostic) instead of the candidate template — the model
+            # learns "write this product in my style" with a consistent target.
+            y_target = self.exemplar_provider.user_skeleton(row["user_id"]) or y_target
         return {
             "user_id": row["user_id"],
             "attrs_json": json.dumps(row["attrs_used"], ensure_ascii=False),
             "exemplars_json": json.dumps(exemplars, ensure_ascii=False),
-            "y_plus_query": row["y_plus_query"],
+            "y_plus_query": y_target,
             "user_vec": np.zeros(self.provider.vector_dim, dtype=np.float32)
             if vec is None else vec,
             "has_vector": has_vector,
@@ -296,6 +302,7 @@ def train(
     add_placeholder_tokens: bool = True,
     supervision: str = "primary",
     topk_temperature: float = 1.0,
+    dataset_path: str = "",
     exemplar_k: int = 0,
     counterfactual: bool = False,
     cf_margin: float = 0.2,
@@ -312,44 +319,96 @@ def train(
 
     profiles = load_vades_profiles(category)
     scaler = load_feature_scaler(category)
-    candidate_rows = load_candidate_feature_rows(category)
-    log(f"vades profiles={len(profiles)} candidates={len(candidate_rows)}")
+    if dataset_path:
+        # E14 multi-product mode: direct (user, product, attrs) dataset from
+        # the user's real review history (e14_multiproduct/*.json). No
+        # synthetic candidates; supervision target = the user's genre-bridged
+        # skeleton (via exemplar provider).
+        with open(dataset_path) as f:
+            records = json.load(f)
+        candidate_rows = []
+        retained_by_key = {}
+        log(f"E14 dataset mode: {len(records)} records from {dataset_path}")
+    else:
+        candidate_rows = load_candidate_feature_rows(category)
+        log(f"vades profiles={len(profiles)} candidates={len(candidate_rows)}")
 
-    records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / category / "query_by_syntax_depth_no_depth_check_10.json"
-    with open(records_p) as f:
-        records = json.load(f)
-    retained_p = REPO_ROOT / "result" / "personal_query" / "06_query" / category / "query_by_syntax_depth_vades_lite_sentence_user_distribution_train10_holdout10.json"
-    retained_by_key: Dict[tuple, Optional[str]] = {}
-    if retained_p.exists():
-        with open(retained_p) as f:
-            for rec in json.load(f):
-                retained_by_key[(rec["user_id"], rec["asin"])] = rec.get("syntax_depth_query", {}).get("query")
-    if not candidate_rows:
-        # Candidate feature file missing for this category: build it from the
-        # 04_query 10-candidate records (spacy clause features).
-        log("candidate feature file missing -> building from 04_query records...")
-        from build_candidate_features import build_candidate_features_file
-        candidate_rows = build_candidate_features_file(category, records)
+        records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / category / "query_by_syntax_depth_no_depth_check_10.json"
+        with open(records_p) as f:
+            records = json.load(f)
+        retained_p = REPO_ROOT / "result" / "personal_query" / "06_query" / category / "query_by_syntax_depth_vades_lite_sentence_user_distribution_train10_holdout10.json"
+        retained_by_key: Dict[tuple, Optional[str]] = {}
+        if retained_p.exists():
+            with open(retained_p) as f:
+                for rec in json.load(f):
+                    retained_by_key[(rec["user_id"], rec["asin"])] = rec.get("syntax_depth_query", {}).get("query")
+        if not candidate_rows:
+            # Candidate feature file missing for this category: build it from the
+            # 04_query 10-candidate records (spacy clause features).
+            log("candidate feature file missing -> building from 04_query records...")
+            from build_candidate_features import build_candidate_features_file
+            candidate_rows = build_candidate_features_file(category, records)
     if max_records:
         records = records[:max_records]
     log(f"records={len(records)}")
 
-    builder = StyleDatasetBuilder(category, profiles, scaler, seed=seed)
-    rows, skipped = builder.build_all(
-        records, candidate_rows, retained_by_key,
-        supervision=supervision, template_targets=template_targets,
-        topk_temperature=topk_temperature,
-    )
-    skipped_reasons = sorted({s["reason"] for s in skipped})
-    log(f"data rows={len(rows)} skipped={len(skipped)} reasons={skipped_reasons} "
-        f"supervision={supervision}")
-    if supervision == "primary":
-        # V-B1: exactly one primary positive per (user_id, asin).
-        keys = [(r["user_id"], r["asin"]) for r in rows]
-        dup = {k for k in keys if keys.count(k) > 1}
-        if dup:
-            raise ValueError(f"primary supervision produced duplicate (user,asin): {list(dup)[:5]}")
-        log("V-B1 ok: exactly one primary positive per (user_id, asin)")
+    if dataset_path:
+        # E14: build rows directly (no VADES candidate selection needed).
+        # Supervision target = the user's STATISTIC-driven skeleton
+        # (comment statistics only; no review sentences are used).
+        sk_path = Path(dataset_path).with_name("user_stats_skeletons.jsonl")
+        sk_map = {}
+        if sk_path.exists():
+            for line in open(sk_path):
+                r = json.loads(line)
+                sk_map[r["user_id"]] = r["skeleton"]
+            log(f"loaded {len(sk_map)} statistic skeletons from {sk_path}")
+        rows = []
+        skipped = []
+        for i, rec in enumerate(records):
+            attrs = rec["attrs"]
+            if not attrs or len(attrs) < 5:
+                skipped.append({**rec, "reason": "attrs_incomplete"})
+                continue
+            skeleton = sk_map.get(rec["user_id"])
+            if not skeleton:
+                skipped.append({**rec, "reason": "no_stat_skeleton"})
+                continue
+            row = {
+                "user_id": rec["user_id"],
+                "asin": rec["asin"],
+                "attrs_used": attrs,
+                "y_plus_query": skeleton,
+                "y_plus_raw_query": None,
+                "y_plus_index": -1,
+                "y_minus_query": None,
+                "y_minus_index": -1,
+                "y_plus_vades_dist": 0.0,
+                "y_minus_vades_dist": 0.0,
+                "n_content_valid_candidates": 0,
+                "is_primary": True,
+                "is_template_target": True,
+                "weight": 1.0,
+            }
+            rows.append(row)
+        log(f"E14 rows={len(rows)} skipped={len(skipped)}")
+    else:
+        builder = StyleDatasetBuilder(category, profiles, scaler, seed=seed)
+        rows, skipped = builder.build_all(
+            records, candidate_rows, retained_by_key,
+            supervision=supervision, template_targets=template_targets,
+            topk_temperature=topk_temperature,
+        )
+        skipped_reasons = sorted({s["reason"] for s in skipped})
+        log(f"data rows={len(rows)} skipped={len(skipped)} reasons={skipped_reasons} "
+            f"supervision={supervision}")
+        if supervision == "primary":
+            # V-B1: exactly one primary positive per (user_id, asin).
+            keys = [(r["user_id"], r["asin"]) for r in rows]
+            dup = {k for k in keys if keys.count(k) > 1}
+            if dup:
+                raise ValueError(f"primary supervision produced duplicate (user,asin): {list(dup)[:5]}")
+            log("V-B1 ok: exactly one primary positive per (user_id, asin)")
 
     split = make_user_split([r["user_id"] for r in rows], test_frac=test_frac, seed=seed)
     train_rows = [r for r in rows if r["user_id"] in set(split["train_users"])]
@@ -364,10 +423,11 @@ def train(
     provider = UserVectorProvider(mode, profiles, [r["user_id"] for r in rows], seed=seed, e5_vecs=e5_vecs)
     log(f"vector provider: {provider.manifest()}")
     exemplar_provider = None
-    if exemplar_k > 0:
+    if exemplar_k > 0 and not dataset_path:
         from exemplars import ExemplarProvider
         exemplar_provider = ExemplarProvider(category, k=exemplar_k, seed=seed)
-        log(f"exemplar provider: {exemplar_provider.manifest()}")
+        exemplar_provider.target_skeleton = True
+        log(f"exemplar provider (skeleton-target): {exemplar_provider.manifest()}")
     cf_provider = None
     if counterfactual:
         # E13-C1: seeded shuffled vectors for the counterfactual ranking loss.
@@ -736,6 +796,7 @@ def main() -> None:
                     default="primary", help="E13-B SFT supervision strategy")
     ap.add_argument("--topk_temperature", type=float, default=1.0)
     ap.add_argument("--exemplar_k", type=int, default=0, help="E14: per-user review-sentence style exemplars (0=off)")
+    ap.add_argument("--dataset_path", default="", help="E14: multi-product dataset json (user_id, asin, attrs)")
     ap.add_argument("--counterfactual", action="store_true", help="E13-C1 counterfactual ranking loss")
     ap.add_argument("--cf_margin", type=float, default=0.2)
     ap.add_argument("--cf_lambda", type=float, default=1.0)

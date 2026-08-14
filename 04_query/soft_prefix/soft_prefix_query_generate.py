@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -219,7 +220,7 @@ class SoftPrefixGenerator(nn.Module):
         generated: List[List[int]] = [[] for _ in range(bsz)]
         done = [False] * bsz
         next_token_emb = full  # first step uses the full embedding sequence
-        for _ in range(max_new_tokens):
+        for step in range(max_new_tokens):
             out = self.base(
                 inputs_embeds=next_token_emb if past is None else None,
                 input_ids=None if past is None else next_ids,
@@ -229,7 +230,15 @@ class SoftPrefixGenerator(nn.Module):
                 past_key_values=past,
             )
             past = out.past_key_values
-            next_logits = out.logits[:, -1]  # [B, V]
+            if past is None:
+                # First step with right-padding: the last COLUMN is a padded
+                # position for shorter samples; its logits are meaningless.
+                # Predict from each row's LAST VALID position.
+                last_valid = attention_mask.sum(dim=1) - 1  # [B]
+                next_logits = out.logits[torch.arange(bsz, device=out.logits.device), last_valid]  # [B, V]
+            else:
+                # KV-cache steps output logits ONLY for the new token column.
+                next_logits = out.logits[:, -1]  # [B, V]
             if repetition_penalty != 1.0:
                 for b in range(bsz):
                     for tid in set(generated[b]):
@@ -299,6 +308,22 @@ def load_checkpoint(ckpt_dir: Path, device: str):
     projector.load_state_dict(state)
     model = SoftPrefixGenerator(base, projector, device=device).to(device)
     return model, tokenizer, config
+
+
+def clean_raw_template(text: str) -> str:
+    """Strip chat-template echo the model may emit before/after the query
+    template (<|im_start|>/<|im_end|>, 'assistant', 'Human:', leading newlines).
+    The bridged-skeleton training makes the model occasionally echo the
+    assistant prompt marker before generating."""
+    t = text or ""
+    for tok_ in ("<|im_start|>", "<|im_end|>", "<|endoftext|>"):
+        t = t.replace(tok_, " ")
+    t = t.strip()
+    for prefix in ("assistant", "Assistant", "Human:", "human:", "AI:", "ai:"):
+        if t.lower().startswith(prefix.lower()):
+            t = t[len(prefix):].strip()
+    t = t.strip("\n ").strip()
+    return t
 
 
 def teacher_query_for(rec: dict, retained_by_key, nearest_by_key, attrs_by_key):
@@ -396,6 +421,17 @@ def main() -> None:
         log(f"provider[{vector_mode}]: {providers[vector_mode].manifest()}")
 
     for vector_mode in vector_modes:
+            uid0 = records[1]["user_id"]
+            attrs0 = attrs_by_key.get((records[1]["user_id"], records[1]["asin"]))
+            ex0 = exemplar_provider.exemplars_for(uid0) if exemplar_provider else None
+            ps0 = tokenizer.apply_chat_template(build_messages(attrs0, ex0), tokenize=False, add_generation_prompt=True)
+            ids0 = tokenizer.encode(ps0, add_special_tokens=False, return_tensors="pt").to(args.device)
+            vec0 = providers[vector_mode].get(uid0)[0]
+            out0 = model.generate(ids0, vec0, max_new_tokens=64, pad_token_id=tokenizer.pad_token_id,
+                                  eos_token_id=tokenizer.eos_token_id, repetition_penalty=1.0)
+            print(f"DBG_SINGLE {uid0[:14]}: {clean_raw_template(tokenizer.decode(out0, skip_special_tokens=False))[:70]!r}", flush=True)
+
+    for vector_mode in vector_modes:
         jobs = []  # (rec, attrs, prompt_ids, user_vec, has_vector)
         no_attrs = []
         for i, rec in enumerate(records):
@@ -432,7 +468,7 @@ def main() -> None:
                 for j, out in zip(chunk, outs):
                     rec, attrs, _, vec, has_vector, _ = j
                     # placeholder special tokens (<A1>..) must NOT be skipped in decode
-                    raw_template = tokenizer.decode(out, skip_special_tokens=False).strip()
+                    raw_template = clean_raw_template(tokenizer.decode(out, skip_special_tokens=False))
                     required = {PLACEHOLDER_BY_ATTR[k] for k in attrs if k in PLACEHOLDER_BY_ATTR}
                     parsed = parse_template(raw_template, required=required)
                     failure_reason = None

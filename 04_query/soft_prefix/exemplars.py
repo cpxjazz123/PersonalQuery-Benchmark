@@ -39,9 +39,10 @@ class ExemplarProvider:
     """Per-user style exemplars (review sentences nearest the user's VADES
     center in latent space). Cached per category."""
 
-    def __init__(self, category: str, k: int = 3, seed: int = 42):
+    def __init__(self, category: str, k: int = 3, seed: int = 42, distinctive: bool = True):
         self.category = category
         self.k = k
+        self.distinctive = distinctive
         self.rng = np.random.default_rng(seed)
         sentences_p = CLAUSE_DIR / category / f"{TAG}_sentences.jsonl"
         if not sentences_p.exists():
@@ -52,35 +53,63 @@ class ExemplarProvider:
             self.sentences_by_user.setdefault(row["user_id"], []).append(row)
         self.profiles = load_vades_profiles(category)
         self.latent_encoder = VadesLatentEncoder(category)
+        self._global_dist: Dict[str, float] = {}
+        if distinctive:
+            from genre_bridge import build_global_skeleton_distribution
+            all_sentences = [r["sentence_text"] for ss in self.sentences_by_user.values() for r in ss]
+            self._global_dist = build_global_skeleton_distribution(all_sentences)
         self._cache: Dict[Tuple[str, int], List[str]] = {}
 
     def exemplars_for(self, user_id: str, k: Optional[int] = None) -> List[str]:
-        """Top-k review sentences nearest the user's VADES center (latent)."""
+        """Style exemplars for a user.
+
+        distinctive=True: the user's sentences whose genre-bridged skeleton is
+        rarest globally (maximizes cross-user distinguishability).
+        distinctive=False: sentences nearest the user's VADES center (latent).
+        """
         k = k or self.k
         key = (user_id, k)
         if key in self._cache:
             return self._cache[key]
-        profile = self.profiles.get(user_id)
-        sentences = self.sentences_by_user.get(user_id, [])
-        if profile is None or not sentences:
+        sentences = [r["sentence_text"] for r in self.sentences_by_user.get(user_id, [])]
+        if not sentences:
             self._cache[key] = []
             return []
-        mu = profile["user_mu"].astype(np.float32)
-        scored: List[Tuple[float, str]] = []
-        for s in sentences:
-            feats = np.asarray([float(s["features"][fk]) for fk in FEATURE_KEYS], dtype=np.float32)
-            s_mu = self.latent_encoder.encode_feature_vec(feats)
-            scored.append((float(np.linalg.norm(s_mu - mu)), s["sentence_text"]))
-        scored.sort(key=lambda t: t[0])
-        out = [text for _, text in scored[:k]]
+        if self.distinctive:
+            from genre_bridge import select_distinctive_sentences
+            out = select_distinctive_sentences(sentences, self._global_dist, k=k)
+        else:
+            profile = self.profiles.get(user_id)
+            if profile is None:
+                self._cache[key] = []
+                return []
+            mu = profile["user_mu"].astype(np.float32)
+            scored = []
+            for r in self.sentences_by_user[user_id]:
+                feats = np.asarray([float(r["features"][fk]) for fk in FEATURE_KEYS], dtype=np.float32)
+                s_mu = self.latent_encoder.encode_feature_vec(feats)
+                scored.append((float(np.linalg.norm(s_mu - mu)), r["sentence_text"]))
+            scored.sort(key=lambda t: t[0])
+            out = [t for _, t in scored[:k]]
         self._cache[key] = out
         return out
+
+    def user_skeleton(self, user_id: str) -> Optional[str]:
+        """The user's own bridged query skeleton (most distinctive exemplar).
+        Product-agnostic: contains only the five placeholders."""
+        exs = self.exemplars_for(user_id, k=1)
+        if not exs:
+            return None
+        from genre_bridge import bridge_review_to_query_skeleton
+        return bridge_review_to_query_skeleton(exs[0])
 
     def manifest(self) -> dict:
         return {
             "category": self.category,
             "k": self.k,
+            "distinctive": self.distinctive,
             "n_users_with_sentences": len(self.sentences_by_user),
             "n_users_with_profiles": len(self.profiles),
-            "selection": "VADES latent distance to user_mu (shared encoder)",
+            "selection": ("genre-bridged distinctive skeleton" if self.distinctive
+                          else "VADES latent distance to user_mu (shared encoder)"),
         }
