@@ -112,10 +112,10 @@ def build_pairs() -> list:
         # three modifier_density variants
         mod_pairs = [
             (base, f"I'm looking for {v2} {v1} that are {v3}, {v4}-friendly, very durable, extremely practical and perfectly suited, at {v5}."),
-            (f"I want to buy {v2} {v1} at {v5}.",
-             f"I want to buy {v2} {v1}, which is remarkably {v3}, wonderfully {v4}-suited and incredibly reliable, at {v5}."),
-            (f"Please show me {v2} {v1} at {v5}.",
-             f"Please show me {v2} {v1}, highly {v3}, genuinely {v4}-oriented, extremely well-made and superbly finished, at {v5}."),
+            (f"I want to buy {v2} {v1} that are {v3} for {v4} at {v5}.",
+             f"I want to buy {v2} {v1} that are {v3} for {v4} at {v5}, which is remarkably durable, wonderfully practical and incredibly reliable."),
+            (f"Please show me {v2} {v1} that are {v3} for {v4} at {v5}.",
+             f"Please show me {v2} {v1} that are {v3} for {v4} at {v5}, highly durable, genuinely practical, extremely well-made and superbly finished."),
         ]
         for neg, pos in mod_pairs:
             pairs.append({"axis": "modifier_density", "negative": neg, "positive": pos,
