@@ -313,8 +313,8 @@ def load_checkpoint(ckpt_dir: Path, device: str):
 def clean_raw_template(text: str) -> str:
     """Strip chat-template echo the model may emit before/after the query
     template (<|im_start|>/<|im_end|>, 'assistant', 'Human:', leading newlines).
-    The bridged-skeleton training makes the model occasionally echo the
-    assistant prompt marker before generating."""
+    The model occasionally echoes the assistant prompt marker before
+    generating."""
     t = text or ""
     for tok_ in ("<|im_start|>", "<|im_end|>", "<|endoftext|>"):
         t = t.replace(tok_, " ")
@@ -379,11 +379,7 @@ def main() -> None:
     with open(ckpt_dir / "vector_manifest.json") as f:
         vector_manifest = json.load(f)
     profiles = load_vades_profiles(args.category)
-    exemplar_provider = None
-    if config.get("exemplar_k", 0) > 0:
-        from exemplars import ExemplarProvider
-        exemplar_provider = ExemplarProvider(args.category, k=config["exemplar_k"])
-        log(f"exemplar provider: {exemplar_provider.manifest()}")
+
 
     # B0 teacher lookup (VADES-retained / nearest content-valid candidate).
     retained_by_key: Dict[tuple, Optional[str]] = {}
@@ -421,17 +417,6 @@ def main() -> None:
         log(f"provider[{vector_mode}]: {providers[vector_mode].manifest()}")
 
     for vector_mode in vector_modes:
-            uid0 = records[1]["user_id"]
-            attrs0 = attrs_by_key.get((records[1]["user_id"], records[1]["asin"]))
-            ex0 = exemplar_provider.exemplars_for(uid0) if exemplar_provider else None
-            ps0 = tokenizer.apply_chat_template(build_messages(attrs0, ex0), tokenize=False, add_generation_prompt=True)
-            ids0 = tokenizer.encode(ps0, add_special_tokens=False, return_tensors="pt").to(args.device)
-            vec0 = providers[vector_mode].get(uid0)[0]
-            out0 = model.generate(ids0, vec0, max_new_tokens=64, pad_token_id=tokenizer.pad_token_id,
-                                  eos_token_id=tokenizer.eos_token_id, repetition_penalty=1.0)
-            print(f"DBG_SINGLE {uid0[:14]}: {clean_raw_template(tokenizer.decode(out0, skip_special_tokens=False))[:70]!r}", flush=True)
-
-    for vector_mode in vector_modes:
         jobs = []  # (rec, attrs, prompt_ids, user_vec, has_vector)
         no_attrs = []
         for i, rec in enumerate(records):
@@ -440,13 +425,12 @@ def main() -> None:
             if not attrs:
                 no_attrs.append({**rec, "vector_mode": vector_mode, "final_query": None, "error": "no attrs"})
                 continue
-            exemplars = exemplar_provider.exemplars_for(uid) if exemplar_provider else None
             prompt_str = tokenizer.apply_chat_template(
-                build_messages(attrs, exemplars), tokenize=False, add_generation_prompt=True
+                build_messages(attrs), tokenize=False, add_generation_prompt=True
             )
             prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False, return_tensors="pt").to(args.device)
             vec, has_vector = providers[vector_mode].get(uid)
-            jobs.append((rec, attrs, prompt_ids, vec, has_vector, exemplars))
+            jobs.append((rec, attrs, prompt_ids, vec, has_vector))
         results.extend(no_attrs)
 
         mode_out = []
@@ -466,7 +450,7 @@ def main() -> None:
                     repetition_penalty=args.repetition_penalty,
                 )
                 for j, out in zip(chunk, outs):
-                    rec, attrs, _, vec, has_vector, _ = j
+                    rec, attrs, _, vec, has_vector = j
                     # placeholder special tokens (<A1>..) must NOT be skipped in decode
                     raw_template = clean_raw_template(tokenizer.decode(out, skip_special_tokens=False))
                     required = {PLACEHOLDER_BY_ATTR[k] for k in attrs if k in PLACEHOLDER_BY_ATTR}
@@ -486,7 +470,7 @@ def main() -> None:
                             failure_reason = "final query failed five-attr validation"
                             final_query = None
                     if final_query is None:
-                        next_pending.append((j[0], j[1], j[2], j[3], j[4], j[5], raw_template, failure_reason))
+                        next_pending.append((j[0], j[1], j[2], j[3], j[4], raw_template, failure_reason))
                         continue
                     mode_out.append(
                         {
@@ -505,15 +489,15 @@ def main() -> None:
                     )
                     if len(mode_out) % 20 == 0:
                         log(f"  [{vector_mode}] {len(mode_out)}/{len(jobs)} done")
-            pending = [(j[0], j[1], j[2], j[3], j[4], j[5]) for j in next_pending]
+            pending = [(j[0], j[1], j[2], j[3], j[4]) for j in next_pending]
             if pending:
                 log(f"  [{vector_mode}] round {round_no}: {len(pending)} pending retry")
 
         # fallback for records that never produced a valid template
         for j in pending:
             rec, attrs, _, vec, has_vector = j[:5]
-            failure_reason = j[6] if len(j) > 6 else "no valid template"
-            raw_template = j[7] if len(j) > 7 else None
+            failure_reason = j[5] if len(j) > 5 else "no valid template"
+            raw_template = j[6] if len(j) > 6 else None
             final_query = teacher_query_for(rec, retained_by_key, nearest_by_key, attrs_by_key)
             fallback = True
             if final_query is None:
