@@ -45,3 +45,9 @@
    - 不需要把 paper Fleiss κ=0.72 / Spearman=0.81 / MAE=0.89 与 release 值做对比
    - 不需要针对 agreement_metrics.py / 02_writing_analysis/ 下的 LLM-human eval scripts 做优化
    - 这部分数据是 reviewer pilot 抽样，开放源码里仅复现 Cohen κ/Spearman 在 3×50 subset 上的小规模 pilot，不需要对齐到 paper 的 120-query 全量
+
+9. **禁止使用传入参数运行脚本**：
+   - 所有脚本运行参数（数据路径、模型路径、epochs、batch_size、seed、category、out_dir 等）一律**硬编码到脚本内**（模块级常量或脚本内默认值），不允许通过命令行参数（argparse/sys.argv）传参运行
+   - 运行方式统一为：`python script.py`（无参数），或 `python script.py --help` 查看硬编码配置
+   - 已存在的 argparse 参数可保留（作为配置覆盖后备），但**实际执行必须依赖硬编码默认值**，不允许在运行命令里传参数
+   - 分片/并行等场景同样不允许传参：在脚本内用硬编码的 offset/limit 或按数据分片逻辑实现
