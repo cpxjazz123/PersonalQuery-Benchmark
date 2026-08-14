@@ -131,6 +131,10 @@ def compute_max_branching(child_map):
 
 
 def extract_clause_features_from_doc(doc, query_text: str) -> dict:
+    if hasattr(doc, "as_doc") and not hasattr(doc, "is_sent"):
+        # Span -> standalone Doc so token.i is renumbered 0..n-1 and
+        # doc[node_i] lookups stay in range (E14 sentence-level features).
+        doc = doc.as_doc()
     if not query_text.strip():
         raise ValueError("query text is empty")
 

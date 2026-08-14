@@ -37,6 +37,10 @@ from copy_aware import (  # noqa: E402
     attr_token_spans,
     mixed_logits,
 )
+from opener_stats import (  # noqa: E402
+    build_opener_stats_for_users,
+    get_opener_stats,
+)
 from copy_aware_train import build_messages  # noqa: E402
 
 
@@ -139,6 +143,7 @@ def main() -> None:
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--max_new_tokens", type=int, default=48)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--records_path", default="", help="evaluation record list json (user_id, asin, attrs)")
     ap.add_argument("--vector_mode", default="vades")
     args = ap.parse_args()
 
@@ -165,14 +170,26 @@ def main() -> None:
     model = CopyAwareGenerator(base, projector, copy_head, device="cuda:0")
     log(f"loaded checkpoint: K={cfg['num_tokens']} mode={args.vector_mode}")
 
-    records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
-    with open(records_p) as f:
-        records = json.load(f)
+    if args.records_path:
+        with open(args.records_path) as f:
+            raw = json.load(f)
+        records = []
+        for r in raw:
+            records.append({"user_id": r["user_id"], "asin": r["asin"],
+                            "attrs_used": r["attrs"]})
+        log(f"records from {args.records_path}: {len(records)}")
+    else:
+        records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
+        with open(records_p) as f:
+            records = json.load(f)
     if args.limit:
         records = records[: args.limit]
 
     profiles = load_vades_profiles(args.category)
     provider = UserVectorProvider(args.vector_mode, profiles, [r["user_id"] for r in records], seed=42)
+    opener_cache = build_opener_stats_for_users(args.category, [r["user_id"] for r in records])
+    if cfg["user_dim"] > provider.vector_dim:
+        log(f"user_dim={cfg['user_dim']} (VADES {provider.vector_dim} + opener stats)")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +207,12 @@ def main() -> None:
             continue
         prompt_str = tokenizer.apply_chat_template(build_messages(attrs), tokenize=False, add_generation_prompt=True)
         vec, has_vector = provider.get(uid)
+        if vec is not None and cfg["user_dim"] > provider.vector_dim:
+            mu = np.asarray(vec, dtype=np.float32)
+            n = float(np.linalg.norm(mu))
+            if n > 1e-12:
+                mu = mu / n
+            vec = np.concatenate([mu, get_opener_stats(args.category, uid, opener_cache)]).astype(np.float32)
         q = model.generate(prompt_str, vec, attrs, tokenizer, args.max_new_tokens, tokenizer.eos_token_id)
         results.append({"user_id": uid, "asin": asin, "generated_query": q, "vector_mode": args.vector_mode,
                         "has_vector": bool(has_vector)})

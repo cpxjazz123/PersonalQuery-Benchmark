@@ -45,6 +45,10 @@ from copy_aware import (  # noqa: E402
     attr_token_spans,
     mixed_logits,
 )
+from opener_stats import (  # noqa: E402
+    build_opener_stats_for_users,
+    get_opener_stats,
+)
 
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 HIDDEN_DIM = 3584  # overridden by the loaded model's config.hidden_size
@@ -101,11 +105,13 @@ def copy_pointer_targets(target_ids: List[int], attr_positions: List[int], n_src
 
 
 class CopyDataset(Dataset):
-    def __init__(self, rows, provider, tokenizer, max_query_len=80):
+    def __init__(self, rows, provider, tokenizer, max_query_len=80, opener_cache=None, category=None):
         self.rows = rows
         self.provider = provider
         self.tokenizer = tokenizer
         self.max_query_len = max_query_len
+        self.opener_cache = opener_cache
+        self.category = category
 
     def __len__(self):
         return len(self.rows)
@@ -114,6 +120,12 @@ class CopyDataset(Dataset):
         row = self.rows[idx]
         attrs = row["attrs_used"]
         vec, has_vector = self.provider.get(row["user_id"])
+        if self.opener_cache is not None and vec is not None:
+            mu = np.asarray(vec, dtype=np.float32)
+            n = float(np.linalg.norm(mu))
+            if n > 1e-12:
+                mu = mu / n
+            vec = np.concatenate([mu, get_opener_stats(self.category, row["user_id"], self.opener_cache)]).astype(np.float32)
         prompt_str = self.tokenizer.apply_chat_template(
             build_messages(attrs), tokenize=False, add_generation_prompt=True
         )
@@ -264,6 +276,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--category", default="Baby_Products")
     ap.add_argument("--base_model", default=QWEN_PATH)
+    ap.add_argument("--dataset_path", default="", help="multi-product dataset json (user_id, asin, attrs)")
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--num_tokens", type=int, default=4)
     ap.add_argument("--epochs", type=int, default=3)
@@ -283,25 +296,26 @@ def main() -> None:
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
-    with open(records_p) as f:
-        records = json.load(f)
-    # each record -> up to 3 content-valid candidates as natural query targets
-    rows = []
-    for rec in records:
-        attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
-        candidates = rec.get("syntax_depth_queries", [])
-        if not attrs:
+    if args.dataset_path:
+        raise ValueError("multi-product dataset has no natural query targets; train on the 04_query candidates (copy-aware) and use the dataset only for evaluation generation")
+        records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
+        with open(records_p) as f:
+            records = json.load(f)
+        rows = []
+        for rec in records:
+            attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
+            candidates = rec.get("syntax_depth_queries", [])
+            if not attrs:
+                for cand in candidates:
+                    if cand.get("attrs_used"):
+                        attrs = cand["attrs_used"]
+                        break
+            if not attrs:
+                continue
             for cand in candidates:
-                if cand.get("attrs_used"):
-                    attrs = cand["attrs_used"]
-                    break
-        if not attrs:
-            continue
-        for cand in candidates:
-            q = cand.get("query", "")
-            if q:
-                rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
+                q = cand.get("query", "")
+                if q:
+                    rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
     if args.max_records:
         rows = rows[: args.max_records]
     log(f"copy-aware rows: {len(rows)}")
@@ -317,6 +331,9 @@ def main() -> None:
     log(f"train rows={len(train_rows)} test rows={len(test_rows)} users={len(split_ids)}")
 
     provider = UserVectorProvider("vades", profiles, [r["user_id"] for r in rows], seed=args.seed)
+    opener_cache = build_opener_stats_for_users(args.category, [r["user_id"] for r in rows])
+    USER_VEC_DIM = provider.vector_dim + len(get_opener_stats(args.category, next(iter(opener_cache)), opener_cache)) if opener_cache else provider.vector_dim
+    log(f"user condition dim = {USER_VEC_DIM} (VADES {provider.vector_dim} + opener stats)")
 
     log("loading Qwen2-7B ...")
     tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
@@ -333,7 +350,7 @@ def main() -> None:
     else:
         log("LoRA disabled (copy-aware baseline: projector only)")
 
-    projector = SoftPrefixProjector(user_dim=provider.vector_dim, hidden_dim=128, num_tokens=args.num_tokens,
+    projector = SoftPrefixProjector(user_dim=USER_VEC_DIM, hidden_dim=128, num_tokens=args.num_tokens,
                                     model_dim=HIDDEN_DIM, dtype=torch.bfloat16,
                                     gate_init=args.gate_init).to("cuda:0")
     log(f"gate_init={args.gate_init}")
@@ -349,7 +366,7 @@ def main() -> None:
     assert any(p.requires_grad for p in model.copy_head.parameters()), "copy head must be trainable"
     log("assert OK: projector + copy head trainable")
 
-    ds = CopyDataset(train_rows, provider, tokenizer)
+    ds = CopyDataset(train_rows, provider, tokenizer, opener_cache=opener_cache, category=args.category)
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, collate_fn=lambda b: collate(b, tokenizer.pad_token_id))
     trainable = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(trainable, lr=args.lr)
@@ -391,7 +408,7 @@ def main() -> None:
             "batch_size": args.batch_size, "lr": args.lr, "seed": args.seed,
             "test_frac": args.test_frac, "lora": args.lora, "lora_r": args.lora_r,
             "copy_lambda": args.copy_lambda, "gate_init": args.gate_init, "base_model_path": args.base_model,
-            "user_dim": provider.vector_dim, "model_dim": HIDDEN_DIM,
+            "user_dim": USER_VEC_DIM, "model_dim": HIDDEN_DIM,
             "n_train_rows": len(train_rows), "n_test_rows": len(test_rows),
             "vector_encoder": "VADES-lite diagonal 20d user_mu (statistics only)",
         }, f, indent=2)
