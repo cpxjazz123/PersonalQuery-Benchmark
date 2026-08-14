@@ -27,11 +27,11 @@ BASE_MODEL = "/fs04/scratch2/ar57/wenyu/hf_home/hub/models--Qwen--Qwen2.5-1.5B-I
 E15_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/RAG/e15")
 MAX_NEW = 32
 ALPHAS = [0.0, 3.0, -3.0]
-SELECTED = {  # dev-selected layers (from layer_sweep.json)
+SELECTED = {  # dev-selected layers (from layer_sweep.json, 3-method sweep)
     "opener": ("mean_diff", 0),
-    "coordination": ("mean_diff", 24),
-    "subordination": ("mean_diff", 8),
-    "modifier_density": ("mean_diff", 16),
+    "coordination": ("logistic", 8),
+    "subordination": ("pca", 0),
+    "modifier_density": ("logistic", 27),
 }
 SESOI = 0.3
 N_BOOT = 2000
@@ -56,17 +56,17 @@ def main() -> None:
         test_pairs = [p for p in pairs if p["axis"] == axis and p["split"] == "test"]
         log(f"{axis}: test pairs={len(test_pairs)} (L{L}, {method})")
         per_alpha = {a: [] for a in ALPHAS}
-        for p in test_pairs:
-            attrs = p["attrs"]
-            prompt = build_attr_prompt_lines(attrs) + "\n"
-            for alpha in ALPHAS:
-                ctrl = ActivationController(model, L, direction, alpha)
-                ids = tok.encode(prompt, add_special_tokens=False, return_tensors="pt").to("cuda:0")
-                with torch.no_grad():
-                    out = model.generate(input_ids=ids, max_new_tokens=MAX_NEW, do_sample=False,
-                                         pad_token_id=tok.pad_token_id, eos_token_id=tok.eos_token_id)
-                ctrl.remove()
-                q = tok.decode(out[0][ids.size(1):], skip_special_tokens=True)
+        # BATCHED generation: all test pairs at once per alpha (same layer
+        # direction applies to every sample; transformer generate handles B).
+        prompts = [build_attr_prompt_lines(p["attrs"]) + "\n" for p in test_pairs]
+        for alpha in ALPHAS:
+            ctrl = ActivationController(model, L, direction, alpha)
+            enc = tok(prompts, add_special_tokens=False, padding=True, return_tensors="pt").to("cuda:0")
+            with torch.no_grad():
+                out = model.generate(**enc, max_new_tokens=MAX_NEW, do_sample=False,
+                                     pad_token_id=tok.pad_token_id, eos_token_id=tok.eos_token_id)
+            ctrl.remove()
+            for i, q in enumerate(tok.batch_decode(out[:, enc["input_ids"].size(1):], skip_special_tokens=True)):
                 per_alpha[alpha].append(target_feature(q, axis))
         feats = {a: np.asarray(v, dtype=np.float64) for a, v in per_alpha.items()}
         diff = feats[3.0] - feats[-3.0]
