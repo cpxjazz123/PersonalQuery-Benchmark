@@ -1,0 +1,20 @@
+{
+  "representation": "sentence-END token (last token before EOS) hidden state",
+  "layer_mapping": "hidden_states[L+1] == model.layers[L] output (verified)",
+  "intervention": "hook on model.layers[L] adding alpha*direction ONLY at seq_len > prompt_len, last position (generated tokens)",
+  "directions": [
+    "mean_diff",
+    "logistic",
+    "pca"
+  ],
+  "n_layers": 28,
+  "model": "/fs04/scratch2/ar57/wenyu/hf_home/hub/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "checks": {
+    "a_layer_mapping": true,
+    "b_end_representation": true,
+    "c_alpha0_equals_off": true,
+    "d_prompt_untouched": true,
+    "e_intervention_active": true
+  },
+  "hash": "0b0860a80bc4e4a76dce77d2f5782ef2cef9a6eaba3249c8e5c452e677bff4dd"
+}

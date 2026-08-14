@@ -52,9 +52,12 @@ class GenOnlyController:
         def hook(module, args, output):
             h = output[0]
             seq = h.size(1)
-            if seq > self.prompt_len:
-                # cache steps: only the new token; first generated step may
-                # include prompt+1 token — intervene only on the last position.
+            if seq < self.prompt_len:
+                # KV-cache steps feed ONLY the new token (seq_len == 1 <
+                # prompt_len): this is a generated-token step -> intervene on
+                # its (last) position. Prefill step has seq == prompt_len and
+                # is left untouched. (E16 bugfix: the previous `> prompt_len`
+                # condition never fired under KV cache.)
                 self.intervention_calls += 1
                 h = h.clone()
                 h[:, -1, :] = h[:, -1, :] + self.alpha * self.direction
@@ -128,6 +131,24 @@ def check_c_alpha0(model, tok) -> bool:
     return ok
 
 
+def check_e_intervention_active(model, tok) -> bool:
+    """Hard activation check: alpha!=0 must fire the hook and change output."""
+    prompt = "Write a short shopping query for a blue tie."
+    ids = tok.encode(prompt, add_special_tokens=False, return_tensors="pt").to("cuda:0")
+    d = np.full(1536, 0.8, dtype=np.float32)
+    ctrl = GenOnlyController(model, 8, d, 5.0, ids.size(1))
+    with torch.no_grad():
+        out = model.generate(input_ids=ids, max_new_tokens=16, do_sample=False,
+                             pad_token_id=tok.pad_token_id, eos_token_id=tok.eos_token_id)
+    ctrl.remove()
+    fired = ctrl.intervention_calls > 0
+    gen = tok.decode(out[0][ids.size(1):], skip_special_tokens=True)
+    ok = fired and len(gen.strip()) > 0
+    log(f"check-e intervention active: calls={ctrl.intervention_calls} -> "
+        f"{'PASS' if ok else 'FAIL'}")
+    return ok
+
+
 def check_d_prompt_untouched(model, tok) -> bool:
     """Prompt-phase hidden states identical with hook on/off (gen-only hook)."""
     ids = tok.encode("Write a short shopping query for a blue tie.", add_special_tokens=False,
@@ -156,6 +177,7 @@ def main() -> None:
         "b_end_representation": check_b_end_representation(model, tok),
         "c_alpha0_equals_off": check_c_alpha0(model, tok),
         "d_prompt_untouched": check_d_prompt_untouched(model, tok),
+        "e_intervention_active": check_e_intervention_active(model, tok),
     }
     contract = {
         "representation": "sentence-END token (last token before EOS) hidden state",

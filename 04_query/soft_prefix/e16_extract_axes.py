@@ -89,6 +89,10 @@ def main() -> None:
             pca = PCA(n_components=1)
             pca.fit(dL)
             v = pca.components_[0].astype(np.float32)
+            d_mean = dL.mean(axis=0)
+            # fix sign using train data: align with mean-diff direction
+            if float(np.dot(v, d_mean)) < 0:
+                v = -v
             directions[axis][f"pca_L{L}"] = v / max(float(np.linalg.norm(v)), 1e-9)
         fit_metrics[axis] = {"n_train_pairs": len(ax_idx)}
         log(f"  fitted {axis}: {len(ax_idx)} train pairs")

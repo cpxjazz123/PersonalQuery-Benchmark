@@ -1,0 +1,53 @@
+{
+  "model": "Qwen2.5-1.5B-Instruct (989aa7980e4cf806f80c7fef2b1adb7bc71aa306)",
+  "axes": [
+    "opener",
+    "coordination",
+    "subordination",
+    "modifier_density"
+  ],
+  "representation": "sentence-END token hidden state (activation_contract.json)",
+  "layer_mapping": "hidden_states[L+1] == layers[L]",
+  "direction_methods": [
+    "mean_diff",
+    "logistic",
+    "pca"
+  ],
+  "intervention": "GenOnlyController: alpha*direction at generated tokens only",
+  "alpha_grid": [
+    0.0,
+    1.0,
+    3.0,
+    -1.0,
+    -3.0
+  ],
+  "primary_metric": "standardized effect of axis feature (alpha=+3 vs -3, paired by item)",
+  "sesoi": 0.3,
+  "alpha_level": 0.05,
+  "multiple_comparison": "bonferroni_across_4_axes",
+  "seed": 42,
+  "min_dev_items_per_axis": 30,
+  "min_test2_items_per_axis": 40,
+  "contaminated_excluded_from_test2": true,
+  "split_counts": {
+    "train": 1466,
+    "dev": 191,
+    "test2": 234
+  },
+  "dev_items": 16,
+  "test2_items": 21,
+  "per_axis_dev": {
+    "opener": 32,
+    "coordination": 48,
+    "subordination": 48,
+    "modifier_density": 42
+  },
+  "per_axis_test2": {
+    "opener": 42,
+    "coordination": 63,
+    "subordination": 63,
+    "modifier_density": 56
+  },
+  "family_leakage_across_splits": 9,
+  "created_at": "2026-08-15T00:28:36.158140"
+}

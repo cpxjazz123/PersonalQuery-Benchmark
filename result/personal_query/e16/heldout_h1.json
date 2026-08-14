@@ -1,0 +1,128 @@
+{
+  "results": {
+    "opener": {
+      "layer": 0,
+      "method": "mean_diff",
+      "n_test2": 42,
+      "d_raw": 0.0,
+      "d_std": 0.0,
+      "sesoi_std": 0.3,
+      "reached_sesoi": false,
+      "direction_correct": false,
+      "ci_item_clustered": [
+        0.0,
+        0.0
+      ],
+      "ci_crosses_zero": false,
+      "monotonic": true,
+      "feature_means_by_alpha": {
+        "3.0": 0.0,
+        "1.0": 0.0,
+        "0.0": 0.0,
+        "-1.0": 0.0,
+        "-3.0": 0.0
+      },
+      "intervention_calls_gt0": true
+    },
+    "coordination": {
+      "layer": 20,
+      "method": "pca",
+      "n_test2": 63,
+      "d_raw": 0.19047619047619047,
+      "d_std": 0.13592553320611692,
+      "sesoi_std": 0.3,
+      "reached_sesoi": false,
+      "direction_correct": true,
+      "ci_item_clustered": [
+        -0.38095238095238093,
+        0.8571428571428571
+      ],
+      "ci_crosses_zero": true,
+      "monotonic": false,
+      "feature_means_by_alpha": {
+        "3.0": 1.9524,
+        "1.0": 1.6667,
+        "0.0": 2.1429,
+        "-1.0": 2.3333,
+        "-3.0": 1.7619
+      },
+      "intervention_calls_gt0": true
+    },
+    "subordination": {
+      "layer": 4,
+      "method": "mean_diff",
+      "n_test2": 63,
+      "d_raw": 0.047619047619047616,
+      "d_std": 0.12700012700019053,
+      "sesoi_std": 0.3,
+      "reached_sesoi": false,
+      "direction_correct": true,
+      "ci_item_clustered": [
+        -0.09523809523809523,
+        0.19047619047619047
+      ],
+      "ci_crosses_zero": true,
+      "monotonic": false,
+      "feature_means_by_alpha": {
+        "3.0": 0.1429,
+        "1.0": 0.3333,
+        "0.0": 0.2381,
+        "-1.0": 0.2381,
+        "-3.0": 0.0952
+      },
+      "intervention_calls_gt0": true
+    },
+    "modifier_density": {
+      "layer": 0,
+      "method": "logistic",
+      "n_test2": 56,
+      "d_raw": 0.025281595142871174,
+      "d_std": 0.4176031175380058,
+      "sesoi_std": 0.3,
+      "reached_sesoi": true,
+      "direction_correct": true,
+      "ci_item_clustered": [
+        0.0016644140794556336,
+        0.05000752487626984
+      ],
+      "ci_crosses_zero": false,
+      "monotonic": false,
+      "feature_means_by_alpha": {
+        "3.0": 0.1265,
+        "1.0": 0.1166,
+        "0.0": 0.1192,
+        "-1.0": 0.1136,
+        "-3.0": 0.1012
+      },
+      "intervention_calls_gt0": true
+    }
+  },
+  "selected": {
+    "opener": {
+      "method": "mean_diff",
+      "layer": 0,
+      "z": 0.0,
+      "d": 0.0
+    },
+    "coordination": {
+      "method": "pca",
+      "layer": 20,
+      "z": 0.6534102628035481,
+      "d": 0.9375
+    },
+    "subordination": {
+      "method": "mean_diff",
+      "layer": 4,
+      "z": 0.8980265101338746,
+      "d": 0.625
+    },
+    "modifier_density": {
+      "method": "logistic",
+      "layer": 0,
+      "z": 0.7170996639170362,
+      "d": 0.04536176753393758
+    }
+  },
+  "bonferroni_alpha": 0.0125,
+  "passed_axes": []
+}
