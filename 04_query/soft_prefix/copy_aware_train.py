@@ -38,6 +38,9 @@ from user_style_vectors import (  # noqa: E402
     UserVectorProvider,
     load_vades_profiles,
 )
+from user_stat_vector import (  # noqa: E402
+    build_user_stat_vectors,
+)
 from projector import SoftPrefixProjector  # noqa: E402
 from copy_aware import (  # noqa: E402
     CopyAwareHead,
@@ -45,10 +48,7 @@ from copy_aware import (  # noqa: E402
     attr_token_spans,
     mixed_logits,
 )
-from opener_stats import (  # noqa: E402
-    build_opener_stats_for_users,
-    get_opener_stats,
-)
+from user_stat_vector import STAT_DIM  # noqa: E402
 
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 HIDDEN_DIM = 3584  # overridden by the loaded model's config.hidden_size
@@ -105,12 +105,12 @@ def copy_pointer_targets(target_ids: List[int], attr_positions: List[int], n_src
 
 
 class CopyDataset(Dataset):
-    def __init__(self, rows, provider, tokenizer, max_query_len=80, opener_cache=None, category=None):
+    def __init__(self, rows, provider, tokenizer, max_query_len=80, stat_vectors=None, category=None):
         self.rows = rows
         self.provider = provider
         self.tokenizer = tokenizer
         self.max_query_len = max_query_len
-        self.opener_cache = opener_cache
+        self.stat_vectors = stat_vectors
         self.category = category
 
     def __len__(self):
@@ -120,12 +120,10 @@ class CopyDataset(Dataset):
         row = self.rows[idx]
         attrs = row["attrs_used"]
         vec, has_vector = self.provider.get(row["user_id"])
-        if self.opener_cache is not None and vec is not None:
-            mu = np.asarray(vec, dtype=np.float32)
-            n = float(np.linalg.norm(mu))
-            if n > 1e-12:
-                mu = mu / n
-            vec = np.concatenate([mu, get_opener_stats(self.category, row["user_id"], self.opener_cache)]).astype(np.float32)
+        if self.stat_vectors is not None:
+            sv = self.stat_vectors.get(row["user_id"])
+            if sv is not None:
+                vec = sv
         prompt_str = self.tokenizer.apply_chat_template(
             build_messages(attrs), tokenize=False, add_generation_prompt=True
         )
@@ -298,24 +296,35 @@ def main() -> None:
 
     if args.dataset_path:
         raise ValueError("multi-product dataset has no natural query targets; train on the 04_query candidates (copy-aware) and use the dataset only for evaluation generation")
-        records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
-        with open(records_p) as f:
-            records = json.load(f)
-        rows = []
-        for rec in records:
-            attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
-            candidates = rec.get("syntax_depth_queries", [])
-            if not attrs:
-                for cand in candidates:
-                    if cand.get("attrs_used"):
-                        attrs = cand["attrs_used"]
-                        break
-            if not attrs:
-                continue
+    records_p = REPO_ROOT / "result" / "personal_query" / "04_query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
+    with open(records_p) as f:
+        records = json.load(f)
+    rows = []
+    for rec in records:
+        attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
+        candidates = rec.get("syntax_depth_queries", [])
+        if not attrs:
             for cand in candidates:
-                q = cand.get("query", "")
-                if q:
-                    rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
+                if cand.get("attrs_used"):
+                    attrs = cand["attrs_used"]
+                    break
+        if not attrs:
+            continue
+        for cand in candidates:
+            q = cand.get("query", "")
+            if q:
+                rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
+    # E14 direction 1: merge syntactically diversified targets (richer
+    # adverbs/clauses/coordination/modifiers) into the training set.
+    diverse_path = REPO_ROOT / "result" / "personal_query" / "e14_syntax_diverse_targets.jsonl"
+    if diverse_path.exists():
+        n0 = len(rows)
+        with open(diverse_path) as f:
+            for line in f:
+                r = json.loads(line)
+                rows.append({"user_id": r["user_id"], "asin": r["asin"],
+                             "attrs_used": r["attrs_used"], "y_plus_query": r["y_plus_query"]})
+        log(f"merged {len(rows) - n0} syntactically diverse targets")
     if args.max_records:
         rows = rows[: args.max_records]
     log(f"copy-aware rows: {len(rows)}")
@@ -331,9 +340,9 @@ def main() -> None:
     log(f"train rows={len(train_rows)} test rows={len(test_rows)} users={len(split_ids)}")
 
     provider = UserVectorProvider("vades", profiles, [r["user_id"] for r in rows], seed=args.seed)
-    opener_cache = build_opener_stats_for_users(args.category, [r["user_id"] for r in rows])
-    USER_VEC_DIM = provider.vector_dim + len(get_opener_stats(args.category, next(iter(opener_cache)), opener_cache)) if opener_cache else provider.vector_dim
-    log(f"user condition dim = {USER_VEC_DIM} (VADES {provider.vector_dim} + opener stats)")
+    stat_vectors = build_user_stat_vectors(args.category, [r["user_id"] for r in rows])
+    USER_VEC_DIM = STAT_DIM
+    log(f"user condition dim = {USER_VEC_DIM} (30-dim statistic vectors, {len(stat_vectors)} users)")
 
     log("loading Qwen2-7B ...")
     tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
@@ -366,7 +375,7 @@ def main() -> None:
     assert any(p.requires_grad for p in model.copy_head.parameters()), "copy head must be trainable"
     log("assert OK: projector + copy head trainable")
 
-    ds = CopyDataset(train_rows, provider, tokenizer, opener_cache=opener_cache, category=args.category)
+    ds = CopyDataset(train_rows, provider, tokenizer, stat_vectors=stat_vectors, category=args.category)
     dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True, collate_fn=lambda b: collate(b, tokenizer.pad_token_id))
     trainable = [p for p in model.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(trainable, lr=args.lr)
