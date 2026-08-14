@@ -61,7 +61,8 @@ class CopyAwareGenerator(nn.Module):
 
     @torch.no_grad()
     def generate(self, prompt_str: str, user_vec: Optional[np.ndarray], attrs: Dict[str, str],
-                 tokenizer, max_new_tokens: int, eos_token_id: int) -> str:
+                 tokenizer, max_new_tokens: int, eos_token_id: int,
+                 do_sample: bool = False, temperature: float = 0.9, top_k: int = 20) -> str:
         target_dtype = next(self.base.parameters()).dtype
         prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False, return_tensors="pt").to(self.device)
         spans = attr_token_spans(prompt_str, attrs, tokenizer)
@@ -103,8 +104,17 @@ class CopyAwareGenerator(nn.Module):
         p_copy, copy_logits = self.copy_head(gen_hidden, src_hidden, src_attr_mask.unsqueeze(0), prompt_ids)
         mixed = mixed_logits(gen_logits.unsqueeze(1), p_copy, copy_logits)[0, 0]
 
+        def _sample(m):
+            if do_sample:
+                m = m / max(temperature, 1e-4)
+                if top_k > 0:
+                    v = torch.topk(m, min(top_k, m.size(-1))).values[-1]
+                    m = m.clone(); m[m < v] = float("-inf")
+                return int(torch.multinomial(m.softmax(dim=-1), 1).item())
+            return int(torch.argmax(m))
+
         generated = []
-        next_id = int(torch.argmax(mixed))
+        next_id = _sample(mixed)
         generated.append(next_id)
         past = out.past_key_values
         attention_mask = torch.cat([attention_mask, torch.ones((1, 1), dtype=attention_mask.dtype, device=self.device)], dim=1)
@@ -126,7 +136,7 @@ class CopyAwareGenerator(nn.Module):
             gen_hidden = out.hidden_states[-1][:, -1:, :]
             p_copy, copy_logits = self.copy_head(gen_hidden, src_hidden, src_attr_mask.unsqueeze(0), prompt_ids)
             mixed = mixed_logits(gen_logits.unsqueeze(1), p_copy, copy_logits)[0, 0]
-            next_id = int(torch.argmax(mixed))
+            next_id = _sample(mixed)
             generated.append(next_id)
             next_ids = torch.tensor([[next_id]], dtype=torch.long, device=self.device)
             attention_mask = torch.cat([attention_mask, torch.ones((1, 1), dtype=attention_mask.dtype, device=self.device)], dim=1)
@@ -144,6 +154,9 @@ class CopyAwareGenerator(nn.Module):
         tokenizer,
         max_new_tokens: int,
         eos_token_id: int,
+        do_sample: bool = False,
+        temperature: float = 0.9,
+        top_k: int = 20,
     ) -> List[str]:
         """Batched stepwise decoding over the mixed distribution.
 
@@ -232,7 +245,14 @@ class CopyAwareGenerator(nn.Module):
             self._src_hidden = src_hidden
             p_copy, copy_logits = self.copy_head(gen_hidden, src_hidden, src_mask_t, src_ids_t)
             mixed = mixed_logits(gen_logits.unsqueeze(1), p_copy, copy_logits)[:, 0]
-            next_ids = torch.argmax(mixed, dim=-1)
+            if do_sample:
+                m = mixed / max(temperature, 1e-4)
+                if top_k > 0:
+                    v = torch.topk(m, min(top_k, m.size(-1)), dim=-1).values[:, -1].unsqueeze(1)
+                    m = torch.where(m < v, torch.full_like(m, float("-inf")), m)
+                next_ids = torch.multinomial(m.softmax(dim=-1), 1).squeeze(1)
+            else:
+                next_ids = torch.argmax(mixed, dim=-1)
             for b in range(bsz):
                 if done[b]:
                     next_ids[b] = eos_token_id
