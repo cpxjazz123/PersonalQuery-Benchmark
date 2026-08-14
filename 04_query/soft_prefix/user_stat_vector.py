@@ -36,7 +36,11 @@ FEATURES20 = [
     "advmod_count", "nmod_count", "compound_count", "modifier_density",
     "coordination_count", "max_branching_factor",
 ]
-STAT_DIM = len(FEATURES20) + len(OPENER_CLASSES)  # 30
+# Style-strength channels: raw per-sentence counts of the user-distinguishing
+# dimensions (advmod/coordination/advcl/amod) are added EXPLICITLY so the
+# projector can read style intensity without normalization compressing it.
+STYLE_CHANNELS = ["advmod_count", "coordination_count", "advcl_count", "amod_count"]
+STAT_DIM = len(FEATURES20) + len(OPENER_CLASSES) + len(STYLE_CHANNELS)  # 34
 
 
 def load_user_reviews(category: str, user_id: str) -> List[str]:
@@ -66,19 +70,24 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
     is ~3 min for 900 users). Cache is keyed by nothing but user_id; delete
     the file to recompute.
     """
+    cached_vectors: Dict[str, np.ndarray] = {}
     if use_cache and CACHE_PATH.exists():
         import json as _json
         cached = _json.load(open(CACHE_PATH))
         if cached.get("dim") == STAT_DIM:
-            got = {u: np.asarray(v, dtype=np.float32) for u, v in cached["vectors"].items()}
-            missing = [u for u in user_ids if u not in got]
+            cached_vectors = {u: np.asarray(v, dtype=np.float32) for u, v in cached["vectors"].items()}
+            missing = [u for u in user_ids if u not in cached_vectors]
             if not missing:
-                return got
+                return cached_vectors
     nlp = load_spacy_model()
+    # only recompute users missing from the cache, then MERGE (never clobber)
+    need_ids = [u for u in user_ids if u not in cached_vectors]
+    if not need_ids:
+        return {u: cached_vectors[u] for u in user_ids}
     # single read of the review file, indexed by user
     p = REPO_ROOT / "result" / "personal_query" / "01_preference_extraction" / category / "stage1_filtered_users_reviews.json"
     data = json.load(open(p))
-    target = set(user_ids)
+    target = set(need_ids)
     texts_by_user: Dict[str, List[str]] = defaultdict(list)
     for u in data["users"]:
         if u["user_id"] not in target:
@@ -92,7 +101,7 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
     # overhead); paragraphs split into sentences; features per sentence via
     # Span.as_doc().
     flat: List[tuple] = []
-    for uid in user_ids:
+    for uid in need_ids:
         for t in texts_by_user.get(uid, [])[: max_sentences * 3]:
             flat.append((uid, t))
     out: Dict[str, np.ndarray] = {}
@@ -117,7 +126,7 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
             opener_buf[uid][OPENER_CLASSES.index(opener_class_of(toks[0].text))] += 1
             n_open_buf[uid] += 1
             counters[uid] += 1
-    for uid in user_ids:
+    for uid in need_ids:
         if not buffers[uid]:
             continue
         fmean = np.mean(buffers[uid], axis=0)
@@ -127,11 +136,14 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
         ohist = opener_buf[uid]
         if n_open_buf[uid] > 0:
             ohist = ohist / n_open_buf[uid]
-        out[uid] = np.concatenate([fmean, ohist]).astype(np.float32)
+        style = np.asarray([np.mean([b[FEATURES20.index(c)] for b in buffers[uid]]) for c in STYLE_CHANNELS], dtype=np.float32)
+        style = np.clip(style / 3.0, 0.0, 3.0)  # cap at 3 clauses/sentence
+        out[uid] = np.concatenate([fmean, ohist, style]).astype(np.float32)
+    merged = {**cached_vectors, **out}
     if use_cache:
         import json as _json
         CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _json.dump({"n_users": len(out), "dim": STAT_DIM,
-                    "vectors": {u: v.tolist() for u, v in out.items()}},
+        _json.dump({"n_users": len(merged), "dim": STAT_DIM,
+                    "vectors": {u: v.tolist() for u, v in merged.items()}},
                    open(CACHE_PATH, "w"))
-    return out
+    return {u: merged[u] for u in user_ids}

@@ -187,7 +187,7 @@ class CopyAwareGenerator(nn.Module):
         ids_t = torch.stack([torch.tensor(e["input_ids"] + [pad_id] * (max_p - len(e["input_ids"])), dtype=torch.long, device=self.device) for e in encs])
         text_emb = emb(ids_t).to(target_dtype)
         if self.num_tokens > 0:
-            z = torch.stack([torch.as_tensor(v if v is not None else np.zeros(30, dtype=np.float32), dtype=torch.float32, device=self.device) for v in user_vecs])
+            z = torch.stack([torch.as_tensor(v if v is not None else np.zeros(34, dtype=np.float32), dtype=torch.float32, device=self.device) for v in user_vecs])
             prefix = self.projector(z.to(target_dtype))
             full = torch.cat([prefix, text_emb], dim=1)
             position_ids = torch.tensor(positions, dtype=torch.long, device=self.device)
@@ -254,7 +254,7 @@ def main() -> None:
     ap.add_argument("--checkpoint_dir", required=True)
     ap.add_argument("--category", default="Baby_Products")
     ap.add_argument("--out_dir", required=True)
-    ap.add_argument("--max_new_tokens", type=int, default=48)
+    ap.add_argument("--max_new_tokens", type=int, default=96)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--offset", type=int, default=0)
     ap.add_argument("--records_path", default="", help="evaluation record list json (user_id, asin, attrs)")
@@ -304,7 +304,7 @@ def main() -> None:
     profiles = load_vades_profiles(args.category)
     provider = UserVectorProvider(args.vector_mode, profiles, [r["user_id"] for r in records], seed=42)
     stat_vectors = build_user_stat_vectors(args.category, [r["user_id"] for r in records])
-    log(f"user condition: 30-dim statistic vectors ({len(stat_vectors)} users cached)")
+    log(f"user condition: {cfg.get('user_dim', 30)}-dim statistic vectors ({len(stat_vectors)} users cached)")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
