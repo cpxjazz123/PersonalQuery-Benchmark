@@ -38,3 +38,6 @@ __query_cache__/
 # Distribution artefacts
 *.pdf
 !PersonalQuery-Benchmark*.pdf
+# Local runtime state
+.opencode/
+data/

@@ -1,0 +1,109 @@
+{
+ "question": "min per-user review words for significant style-vector stability",
+ "protocol": "E17 Step-1 split-half stability (20 feats + 10 openers, alternating halves, window = first T words; user-clustered bootstrap 95% CI lower > 0 and label-permutation p < 0.01)",
+ "data": "/home/wlia0047/ar57/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl.gz",
+ "seed": 42,
+ "pool_size": 500,
+ "cap_words": 3000,
+ "results": [
+  {
+   "T": 200,
+   "n_users": 498,
+   "mean_delta_z": 0.2203,
+   "ci95": [
+    0.1813,
+    0.2636
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 300,
+   "n_users": 500,
+   "mean_delta_z": 0.2694,
+   "ci95": [
+    0.2257,
+    0.3159
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 500,
+   "n_users": 500,
+   "mean_delta_z": 0.3364,
+   "ci95": [
+    0.2927,
+    0.3767
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 800,
+   "n_users": 500,
+   "mean_delta_z": 0.4447,
+   "ci95": [
+    0.4018,
+    0.4937
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 1200,
+   "n_users": 500,
+   "mean_delta_z": 0.5396,
+   "ci95": [
+    0.4917,
+    0.5941
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 2000,
+   "n_users": 500,
+   "mean_delta_z": 0.6716,
+   "ci95": [
+    0.6225,
+    0.7209
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 3000,
+   "n_users": 500,
+   "mean_delta_z": 0.7872,
+   "ci95": [
+    0.7379,
+    0.8372
+   ],
+   "p": 0.001,
+   "passed": true
+  },
+  {
+   "T": 5000,
+   "n_users": 500,
+   "mean_delta_z": 0.8063,
+   "ci95": [
+    0.7558,
+    0.8588
+   ],
+   "p": 0.001,
+   "passed": true
+  }
+ ],
+ "min_passed": {
+  "T": 200,
+  "n_users": 498,
+  "mean_delta_z": 0.2203,
+  "ci95": [
+   0.1813,
+   0.2636
+  ],
+  "p": 0.001,
+  "passed": true
+ }
+}
