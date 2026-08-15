@@ -1,0 +1,65 @@
+{
+ "version": "e22_t2_v1",
+ "seed": 2222,
+ "n_pairs_total": 1200,
+ "n_pairs_train": 797,
+ "n_pairs_dev": 219,
+ "n_pairs_test": 184,
+ "n_skipped_content_mismatch": 2,
+ "n_skipped_same_dist": 0,
+ "templates": [
+  "Find me a {A1} {A4} in {A2}, made of {A3}, under {A5}.",
+  "Can you show me the {A1} {A4} which is {A2}, {A3}, and costs {A5}?",
+  "I want a {A1} {A4} with {A2} and {A3}, for {A5}.",
+  "For my baby, I need a {A1} {A4} that is {A2}, made of {A3}, and priced at {A5}.",
+  "The {A1} {A4} should be {A2}, {A3}, and no more than {A5}.",
+  "There is a {A1} {A4} of {A2}, built with {A3}, at {A5}.",
+  "If you have a {A1} {A4} in {A2} made from {A3}, I will pay {A5}.",
+  "Please show me something {A2} made of {A3}: a {A1} {A4} for {A5}.",
+  "It is the {A1} {A4} from {A2} with {A3} that I want, at {A5}.",
+  "What {A1} {A4} should I buy in {A2}, with {A3}, under {A5}?",
+  "Not just any {A4}: I need a {A1} {A4} in {A2} made of {A3} for {A5}.",
+  "The {A1} {A4} \u2014 {A2}, {A3} \u2014 must not exceed {A5}."
+ ],
+ "encoder": {
+  "type": "sklearn.MLPRegressor",
+  "hidden_layer_sizes": [
+   64,
+   32
+  ],
+  "input_dim": 7,
+  "output_dim": 7,
+  "input": "content-neutralized 7-dim Query-compatible features",
+  "sha256": "9ea8087b6c8268ad908bf69970a69d3ca7a358cd00693219d87d267f5f1f8873",
+  "test_agg_l2": 1.9545308440468516,
+  "mean_baseline_agg_l2": 2.3740129313408427,
+  "agg_err_ratio_pre_registered": 0.82330252638638,
+  "agg_imp_95ci_low": 0.26805609284158094,
+  "agg_imp_95ci_high": 0.5737122194812331
+ },
+ "sanity_check": {
+  "n_products": 200,
+  "content_swap_l2": 0.0,
+  "content_swap_l2_median": 0.0,
+  "syntax_swap_l2": 2.84734853392765,
+  "n_pairs_compared": 0,
+  "sanity_pass": true
+ },
+ "leakage_audit": {
+  "content_only_test_l2": 3.1590042513894288,
+  "content_vs_syntax_ratio": 1.6162468149383193,
+  "content_leak_pass": true,
+  "token_swap_l2_mean": 0.11827869148629601,
+  "token_swap_l2_max": 1.7761595664756555,
+  "token_swap_pass": true
+ },
+ "gates": {
+  "bootstrap_ci_lower_gt_0": true,
+  "perm_p_two_lt_0.01": true,
+  "pre_registered_agg_ratio_le_0.9_and_ci_gt_0": true,
+  "test_pairs_min_100": true,
+  "sanity_pass": true,
+  "leakage_pass": true
+ },
+ "all_gates_pass": true
+}

@@ -1,0 +1,57 @@
+{
+ "version": "e22_t2_syntax_encoder_bridge_v1",
+ "seed": 2222,
+ "n_pairs_total": 1200,
+ "n_pairs_train": 797,
+ "n_pairs_dev": 219,
+ "n_pairs_test": 184,
+ "encoder": {
+  "type": "sklearn.MLPRegressor",
+  "hidden_layer_sizes": [
+   64,
+   32
+  ],
+  "input_dim": 7,
+  "output_dim": 7,
+  "sha256": "9ea8087b6c8268ad908bf69970a69d3ca7a358cd00693219d87d267f5f1f8873"
+ },
+ "test_metrics": {
+  "err_chosen_mean": 1.9265,
+  "err_rejected_mean": 3.3178,
+  "delta_mean": 1.3913,
+  "user_bootstrap_95ci_low": 0.855,
+  "user_bootstrap_95ci_high": 1.4249,
+  "perm_p_two": 0.0001,
+  "agg_encoder_l2": 1.9545,
+  "agg_mean_baseline_l2": 2.374,
+  "agg_err_ratio_pre_registered": 0.8233,
+  "agg_imp_95ci_low": 0.2681,
+  "agg_imp_95ci_high": 0.5737
+ },
+ "sanity_check": {
+  "n_products": 200,
+  "content_swap_l2": 0.0,
+  "content_swap_l2_median": 0.0,
+  "syntax_swap_l2": 2.84734853392765,
+  "n_pairs_compared": 0,
+  "sanity_pass": true
+ },
+ "leakage_audit": {
+  "content_only_test_l2": 3.1590042513894288,
+  "content_vs_syntax_ratio": 1.6162468149383193,
+  "content_leak_pass": true,
+  "token_swap_l2_mean": 0.11827869148629601,
+  "token_swap_l2_max": 1.7761595664756555,
+  "token_swap_pass": true
+ },
+ "gates": {
+  "bootstrap_ci_lower_gt_0": true,
+  "perm_p_two_lt_0.01": true,
+  "pre_registered_agg_ratio_le_0.9_and_ci_gt_0": true,
+  "test_pairs_min_100": true,
+  "sanity_pass": true,
+  "leakage_pass": true
+ },
+ "all_gates_pass": true,
+ "runtime_sec": 130.3
+}
