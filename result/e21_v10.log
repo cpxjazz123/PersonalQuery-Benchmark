@@ -1,0 +1,123 @@
+users scanned: 3386206 (t=51.9s)
+word>=100 candidates: 20000
+users with >= 2 products: 14691
+  active spaCy pipes: ['tok2vec', 'tagger', 'parser']
+  parsing 71801 reviews for 14691 users (via parse_sentences_to_features)
+  cache loaded: 298151 sentences from per_sentence_features.jsonl.gz
+  total sentences: 299775 (unique: 279767)
+  cache hits: 281462/299775, to parse: 18313 unique
+    parsed 5120/18313 (t=12.3s)
+    parsed 10240/18313 (t=24.7s)
+    parsed 15104/18313 (t=36.8s)
+  cache saved: 298151 entries
+users parsed: 14682 (t=199.9s)
+  eligible for L=3_N=15 (>=L=3 & >=30 sents): 1890
+  eligible for L=3_N=20 (>=L=3 & >=40 sents): 998
+  eligible for L=4_N=15 (>=L=4 & >=30 sents): 1776
+  eligible for L=4_N=20 (>=L=4 & >=40 sents): 940
+  eligible for L=5_N=15 (>=L=5 & >=30 sents): 1629
+  eligible for L=5_N=18 (>=L=5 & >=36 sents): 1108
+  eligible for L=5_N=22 (>=L=5 & >=44 sents): 725
+  eligible for L=5_N=25 (>=L=5 & >=50 sents): 563
+  eligible for L=5_N=30 (>=L=5 & >=60 sents): 374
+  eligible for L=6_N=20 (>=L=6 & >=40 sents): 800
+  eligible for L=7_N=20 (>=L=7 & >=40 sents): 712
+  eligible for L=8_N=20 (>=L=8 & >=40 sents): 646
+  L=3_N=15 dev=945 test=945
+  L=3_N=20 dev=499 test=499
+  L=4_N=15 dev=888 test=888
+  L=4_N=20 dev=470 test=470
+  L=5_N=15 dev=814 test=815
+  L=5_N=18 dev=554 test=554
+  L=5_N=22 dev=362 test=363
+  L=5_N=25 dev=281 test=282
+  L=5_N=30 dev=187 test=187
+  L=6_N=20 dev=400 test=400
+  L=7_N=20 dev=356 test=356
+  L=8_N=20 dev=323 test=323
+
+=== Cell L=3_N=15: dev=945 test=945 ===
+  dev AUC=0.6974+-0.0076  d=0.6960  seed_pass=1.00  delta=0.05850
+      perm: 9999 iterations on 1890 halves (dim=318)
+      perm done (t=16.3s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.6891  d=0.6666  seed_pass=1.00
+
+=== Cell L=3_N=20: dev=499 test=499 ===
+  dev AUC=0.7264+-0.0099  d=0.8124  seed_pass=1.00  delta=0.06233
+      perm: 9999 iterations on 998 halves (dim=318)
+      perm done (t=8.5s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7380  d=0.8485  seed_pass=1.00
+
+=== Cell L=4_N=15: dev=888 test=888 ===
+  dev AUC=0.6898+-0.0088  d=0.6671  seed_pass=1.00  delta=0.05406
+      perm: 9999 iterations on 1776 halves (dim=318)
+      perm done (t=15.3s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.6982  d=0.7005  seed_pass=1.00
+
+=== Cell L=4_N=20: dev=470 test=470 ===
+  dev AUC=0.7303+-0.0126  d=0.8234  seed_pass=1.00  delta=0.06023
+      perm: 9999 iterations on 940 halves (dim=318)
+      perm done (t=8.0s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7260  d=0.8129  seed_pass=1.00
+
+=== Cell L=5_N=15: dev=814 test=815 ===
+  dev AUC=0.6853+-0.0126  d=0.6490  seed_pass=1.00  delta=0.05071
+      perm: 9999 iterations on 1628 halves (dim=318)
+      perm done (t=13.9s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7028  d=0.7182  seed_pass=1.00
+
+=== Cell L=5_N=18: dev=554 test=554 ===
+  dev AUC=0.7199+-0.0116  d=0.7883  seed_pass=1.00  delta=0.05649
+      perm: 9999 iterations on 1108 halves (dim=318)
+      perm done (t=9.5s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7148  d=0.7669  seed_pass=1.00
+
+=== Cell L=5_N=22: dev=362 test=363 ===
+  dev AUC=0.7371+-0.0139  d=0.8603  seed_pass=1.00  delta=0.05749
+      perm: 9999 iterations on 724 halves (dim=318)
+      perm done (t=6.2s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7382  d=0.8545  seed_pass=1.00
+
+=== Cell L=5_N=25: dev=281 test=282 ===
+  dev AUC=0.7544+-0.0124  d=0.9392  seed_pass=1.00  delta=0.05868
+      perm: 9999 iterations on 562 halves (dim=318)
+      perm done (t=4.8s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7461  d=0.8888  seed_pass=1.00
+
+=== Cell L=5_N=30: dev=187 test=187 ===
+  dev AUC=0.7707+-0.0156  d=0.9837  seed_pass=1.00  delta=0.06348
+      perm: 9999 iterations on 374 halves (dim=318)
+      perm done (t=3.3s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7848  d=1.0662  seed_pass=1.00
+
+=== Cell L=6_N=20: dev=400 test=400 ===
+  dev AUC=0.7185+-0.0158  d=0.7813  seed_pass=1.00  delta=0.04952
+      perm: 9999 iterations on 800 halves (dim=318)
+      perm done (t=6.9s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7357  d=0.8506  seed_pass=1.00
+
+=== Cell L=7_N=20: dev=356 test=356 ===
+  dev AUC=0.7262+-0.0134  d=0.8003  seed_pass=1.00  delta=0.05238
+      perm: 9999 iterations on 712 halves (dim=318)
+      perm done (t=6.0s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7368  d=0.8583  seed_pass=1.00
+
+=== Cell L=8_N=20: dev=323 test=323 ===
+  dev AUC=0.7338+-0.0144  d=0.8477  seed_pass=1.00  delta=0.05268
+      perm: 9999 iterations on 646 halves (dim=318)
+      perm done (t=5.5s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.7424  d=0.8799  seed_pass=1.00
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_v10_results.json (t=2086.9s)
+best_cell: (3, 15)
