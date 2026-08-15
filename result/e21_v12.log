@@ -1,0 +1,77 @@
+  prior v9: 1626 eligible users loaded from e21_v9_eligible_users.json
+  prior v10: 1626 eligible users loaded from e21_v10_eligible_users.json
+  prior v11: 1633 eligible users loaded from e21_v11_eligible_users.json
+  total prior eligible users to exclude: 3209
+users scanned: 3386206 (t=53.4s)
+word>=100 candidates: 20000 → after exclusion of 3209 prior users: 19885
+users with >= 2 products: 14654
+  active spaCy pipes: ['tok2vec', 'tagger', 'parser']
+  parsing 70102 reviews for 14654 users (via parse_corpus_with_reviews)
+  cache loaded: 578163 sentences from per_sentence_features.jsonl.gz
+  total sentences: 288783 (unique: 272822)
+  cache hits: 33040/288783, to parse: 255743 unique
+    parsed 5120/255743 (t=7.6s)
+    parsed 10240/255743 (t=14.0s)
+    parsed 15104/255743 (t=20.1s)
+    parsed 20224/255743 (t=26.4s)
+    parsed 25088/255743 (t=32.1s)
+    parsed 30208/255743 (t=38.1s)
+    parsed 35072/255743 (t=43.9s)
+    parsed 40192/255743 (t=50.6s)
+    parsed 45056/255743 (t=56.5s)
+    parsed 50176/255743 (t=62.6s)
+    parsed 55040/255743 (t=68.5s)
+    parsed 60160/255743 (t=74.6s)
+    parsed 65024/255743 (t=80.9s)
+    parsed 70144/255743 (t=87.3s)
+    parsed 75008/255743 (t=93.2s)
+    parsed 80128/255743 (t=99.4s)
+    parsed 85248/255743 (t=105.4s)
+    parsed 90112/255743 (t=111.4s)
+    parsed 95232/255743 (t=117.7s)
+    parsed 100096/255743 (t=123.8s)
+    parsed 105216/255743 (t=129.9s)
+    parsed 110080/255743 (t=136.0s)
+    parsed 115200/255743 (t=142.2s)
+    parsed 120064/255743 (t=148.9s)
+    parsed 125184/255743 (t=155.3s)
+    parsed 130048/255743 (t=161.1s)
+    parsed 135168/255743 (t=167.3s)
+    parsed 140032/255743 (t=173.3s)
+    parsed 145152/255743 (t=179.3s)
+    parsed 150016/255743 (t=185.3s)
+    parsed 155136/255743 (t=191.9s)
+    parsed 160000/255743 (t=197.9s)
+    parsed 165120/255743 (t=204.4s)
+    parsed 170240/255743 (t=211.4s)
+    parsed 175104/255743 (t=217.4s)
+    parsed 180224/255743 (t=223.8s)
+    parsed 185088/255743 (t=229.8s)
+    parsed 190208/255743 (t=236.4s)
+    parsed 195072/255743 (t=242.6s)
+    parsed 200192/255743 (t=249.3s)
+    parsed 205056/255743 (t=255.2s)
+    parsed 210176/255743 (t=261.6s)
+    parsed 215040/255743 (t=267.6s)
+    parsed 220160/255743 (t=274.2s)
+    parsed 225024/255743 (t=281.0s)
+    parsed 230144/255743 (t=287.5s)
+    parsed 235008/255743 (t=293.7s)
+    parsed 240128/255743 (t=300.4s)
+    parsed 245248/255743 (t=307.1s)
+    parsed 250112/255743 (t=313.7s)
+    parsed 255232/255743 (t=320.5s)
+  cache saved: 849614 entries
+users parsed: 14646 (t=578.7s)
+  eligible for L=5_N=15 (>=L=5 & >=30 sents & >=2 reviews): 1606
+  L=5_N=15 dev=803 test=803
+
+=== Cell L=5_N=15: dev=803 test=803 ===
+  dev AUC=0.6751+-0.0109  d=0.6059  seed_pass=1.00  delta=0.04918
+      perm: 9999 iterations on 1346 halves (dim=318)
+      perm done (t=11.9s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.6640  d=0.5623  seed_pass=0.93
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_v12_results.json (t=766.1s)
+best_cell: [5, 15]
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_v12_eligible_users.json
