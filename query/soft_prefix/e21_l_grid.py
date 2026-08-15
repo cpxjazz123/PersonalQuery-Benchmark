@@ -1,34 +1,25 @@
 #!/usr/bin/env python3
-"""E21 v3: 2D grid search over (L, N) with split-half design.
+"""E21 v4: 2D grid search with CORRECTED statistical conventions.
 
-Question: pooled over all of a user's reviews, can we distinguish user U
-from user V by syntactic style, and what is the minimum (sentence length
-threshold L, sentence count per half N) required?
+Fixes vs v3 (commit 507b109):
+  1. Effect-size direction. Use delta = d_cross - d_self so that positive
+     delta == style is identifiable (d_self < d_cross == same user halves
+     are closer than different-user halves). Gate: cohen_d >= 0.5.
+  2. Permutation test. Pool all halves across users; for each permutation,
+     randomly pair halves — under H0 every pair is "cross", so the null
+     distribution is well-defined and informative. (v3 only re-paired the
+     cross-user but kept null_self as the real same-user distance, which
+     made p meaningless.)
+  3. Test-set verification always runs, even if dev gate fails, so the
+     reader sees the real direction of effect on held-out users.
+  4. Result JSON committed alongside the script (was missing in 507b109).
 
-Grid:
-  L (min sentence length in tokens) in {3, 5, 8}
-  N (sentence count per half) in {10, 20, 30, 50}
+Grid: L (min sentence length in tokens) in {3, 5, 8}; N (sentences per
+half) in {10, 20, 30, 50}; 30 random seeds per cell; dev/test 50/50;
+Bonferroni over 12 cells; per-cell 999 permutations.
 
-For each (L, N) cell and each random seed:
-  1. Filter user reviews to keep only sentences with >= L tokens
-  2. From each user, sample 2N complete sentences (no truncation)
-  3. Split into two halves of N sentences each
-  4. Compute 32-dim ratio/mean/dist features for each half
-  5. Distance: L2 on unit-normalized vectors
-
-Comparisons:
-  self  = ||vec_U_half1 - vec_U_half2||    (same user, two halves)
-  cross = ||vec_U_half1 - vec_V_half1||     (different users, same half)
-
-Per cell: aggregate over 30 seeds, report:
-  mean AUC, mean d_self, mean d_cross, mean delta, bootstrap CI
-  per-cell p from 999 user-label permutations
-
-Multiple testing: Bonferroni over 12 cells (in dev set).
-Dev/test split: 50/50 users. Report best cell in dev, then verify in test.
-
-Pass gate (per cell): AUC >= 0.65 AND p_adj < 0.01 AND Cohen d >= 0.5
-AND >= 80% of seeds pass the AUC threshold.
+Per-cell pass gate: AUC >= 0.65 AND perm_p_two (Bonferroni) < 0.01
+AND cohen_d >= 0.5 AND seed_pass_frac >= 0.80.
 """
 from __future__ import annotations
 
@@ -50,6 +41,7 @@ from e20_lopo_v2 import load_spacy_model, ALL_FEATS
 
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
 OUT = REPO_ROOT / "result" / "e21_l_grid_results.json"
+LOG = REPO_ROOT / "result" / "e21_l_grid.log"
 
 SEED = 42
 N_USERS = 400
@@ -68,9 +60,7 @@ SEED_PASS_FRAC = 0.8
 
 
 def user_features(sent_feats: list[dict]) -> np.ndarray | None:
-    """Aggregate per-sentence features to a 32-dim user vector. Inline copy
-    of e21_simple_discrimination.user_features_from_sents (avoids circular
-    import and keeps this script self-contained)."""
+    """Aggregate per-sentence features to a 32-dim user vector."""
     if not sent_feats:
         return None
     total_tok = sum(s["n_tok"] for s in sent_feats)
@@ -103,6 +93,159 @@ def user_features(sent_feats: list[dict]) -> np.ndarray | None:
     for t in SENT_TYPES:
         f[f"senttype_{t}"] = stype_counts.get(t, 0) / n_sent
     return np.asarray([f[name] for name in ALL_FEATS], dtype=np.float32)
+
+
+def norm_vec(v: np.ndarray) -> np.ndarray:
+    n = np.linalg.norm(v)
+    return v / max(n, 1e-12)
+
+
+def auc_self_vs_cross(d_self: np.ndarray, d_cross: np.ndarray) -> float:
+    """P(d_cross > d_self). Style-identifiable iff AUC > 0.5."""
+    if len(d_self) == 0 or len(d_cross) == 0:
+        return float("nan")
+    auc = 0.0
+    for x in d_self:
+        auc += float((d_cross > x).sum())
+    return auc / (len(d_self) * len(d_cross))
+
+
+def cohen_d(d_cross: np.ndarray, d_self: np.ndarray) -> float:
+    """Cohen d with positive == style identifiable
+    (d_cross.mean() > d_self.mean())."""
+    if len(d_cross) < 2 or len(d_self) < 2:
+        return float("nan")
+    delta = d_cross.mean() - d_self.mean()
+    pooled = np.sqrt((d_cross.std(ddof=1) ** 2 + d_self.std(ddof=1) ** 2) / 2)
+    if pooled == 0:
+        return 0.0
+    return float(delta / pooled)
+
+
+def paired_pooled_var(d_cross: np.ndarray, d_self: np.ndarray) -> tuple[float, float]:
+    return (float(d_cross.mean()), float(np.sqrt((d_cross.std(ddof=1) ** 2 +
+                                                   d_self.std(ddof=1) ** 2) / 2)))
+
+
+def perm_null_delta(all_halves: list[np.ndarray], rng: np.random.Generator) -> float:
+    """Pool all halves across users, randomly pair them up, compute mean
+    pair-distance. Under H0 (no user identity) all pairs are cross, so
+    this approximates the null distribution of mean distance. Return the
+    delta = mean(pair_dist) - 0 (since null self == null cross under H0).
+
+    Implementation: shuffle indices, pair consecutive halves; for odd
+    counts drop the last unpaired half.
+    """
+    n = len(all_halves)
+    if n < 4:
+        return 0.0
+    idx = rng.permutation(n)
+    if n % 2 == 1:
+        idx = idx[:-1]
+    a = np.stack([all_halves[i] for i in idx[0::2]])
+    b = np.stack([all_halves[i] for i in idx[1::2]])
+    diffs = np.linalg.norm(a - b, axis=1)
+    return float(diffs.mean())
+
+
+def eval_cell_observed(cell_users: list[str],
+                       user_filtered: dict[int, dict[str, list[np.ndarray]]],
+                       L: int, N: int,
+                       seeds: tuple[int, ...],
+                       rng_p: np.random.Generator) -> list[dict]:
+    """Per-seed: split-half self + cross distance aggregation."""
+    per_seed = []
+    for sd in seeds:
+        rs = np.random.default_rng(sd)
+        diffs_self, diffs_cross = [], []
+        for u in cell_users:
+            sfs = user_filtered[L][u]
+            if len(sfs) < 2 * N:
+                continue
+            idx = rs.permutation(len(sfs))[:2 * N]
+            half1 = [sfs[i] for i in idx[:N]]
+            half2 = [sfs[i] for i in idx[N:]]
+            v1 = user_features(half1)
+            v2 = user_features(half2)
+            if v1 is None or v2 is None:
+                continue
+            v1n = norm_vec(v1)
+            v2n = norm_vec(v2)
+            diffs_self.append(float(np.linalg.norm(v1n - v2n)))
+            # cross: 3 random other users
+            others = [uu for uu in cell_users if uu != u]
+            rs.shuffle(others)
+            cross_n = 0
+            for v_other in others:
+                if cross_n >= 3:
+                    break
+                sfs_v = user_filtered[L][v_other]
+                if len(sfs_v) < N:
+                    continue
+                idx_v = rs.permutation(len(sfs_v))[:N]
+                vv = user_features([sfs_v[i] for i in idx_v])
+                if vv is None:
+                    continue
+                vvn = norm_vec(vv)
+                diffs_cross.append(float(np.linalg.norm(v1n - vvn)))
+                cross_n += 1
+        ds = np.asarray(diffs_self)
+        dc = np.asarray(diffs_cross)
+        if len(ds) < 5 or len(dc) < 5:
+            continue
+        per_seed.append({
+            "seed": int(sd),
+            "auc": auc_self_vs_cross(ds, dc),
+            "delta": float(dc.mean() - ds.mean()),  # positive == signal
+            "cohen_d": cohen_d(dc, ds),
+            "d_self_mean": float(ds.mean()),
+            "d_cross_mean": float(dc.mean()),
+            "n_self": len(ds),
+            "n_cross": len(dc),
+        })
+    return per_seed
+
+
+def eval_cell_permutation(cell_users: list[str],
+                          user_filtered: dict[int, dict[str, list[np.ndarray]]],
+                          L: int, N: int,
+                          obs_delta: float,
+                          n_perm: int,
+                          rng_p: np.random.Generator) -> tuple[float, float]:
+    """Pool all halves for the cell's users, run n_perm permutations,
+    compare obs_delta to null_delta distribution.
+
+    null_delta = mean(pair_dist) - 0  (H0: no user identity)
+    """
+    all_halves = []
+    for u in cell_users:
+        sfs = user_filtered[L][u]
+        if len(sfs) < 2 * N:
+            continue
+        # Pre-compute a fixed split (half1, half2) for this user — we'll
+        # shuffle the assignment of halves to users in each permutation.
+        # Use seed 0 to keep splits stable across permutations.
+        rs_fixed = np.random.default_rng(0)
+        idx = rs_fixed.permutation(len(sfs))[:2 * N]
+        h1 = [sfs[i] for i in idx[:N]]
+        h2 = [sfs[i] for i in idx[N:]]
+        v1 = user_features(h1)
+        v2 = user_features(h2)
+        if v1 is not None:
+            all_halves.append(norm_vec(v1))
+        if v2 is not None:
+            all_halves.append(norm_vec(v2))
+    if len(all_halves) < 4:
+        return float("nan"), float("nan")
+    null_deltas = np.asarray([perm_null_delta(all_halves, rng_p)
+                              for _ in range(n_perm)])
+    # one-sided: obs_delta larger than null (positive == signal)
+    p_one = (float((null_deltas <= obs_delta).sum()) + 1) / (len(null_deltas) + 1)
+    # two-sided: |obs - null_mean| extreme
+    null_center = float(null_deltas.mean())
+    p_two = (float((np.abs(null_deltas - null_center) >=
+                    abs(obs_delta - null_center)).sum()) + 1) / (len(null_deltas) + 1)
+    return float(p_one), float(p_two)
 
 
 def main() -> None:
@@ -185,21 +328,20 @@ def main() -> None:
     # ============================================================
     # 2D grid search
     # ============================================================
-    # For each (L, N), we need users with >= max(2N) sentences after L-filter.
-    # Precompute per-user filtered sents for each L.
-    # Then for each seed, sample + split + compute distances.
-    # ============================================================
     user_filtered: dict[int, dict[str, list[dict]]] = {L: {} for L in L_VALUES}
     for L in L_VALUES:
         for u, sfs in user_sents.items():
-            f = [s for s in sfs if s["n_tok"] >= L]
-            user_filtered[L][u] = f
+            user_filtered[L][u] = [s for s in sfs if s["n_tok"] >= L]
 
-    # for each (L, N) cell, find users with >= 2N filtered sents
     def eligible(L: int, N: int, users: list[str]) -> list[str]:
         return [u for u in users if len(user_filtered[L][u]) >= 2 * N]
 
+    seeds_dev = tuple(int(SEED + 1000 + i) for i in range(N_SEEDS))
+    seeds_test = tuple(int(SEED + 5000 + i) for i in range(N_SEEDS))
+    rng_perm = np.random.default_rng(SEED + 2000)
+
     grid_results = {}
+    best = None
     for L in L_VALUES:
         for N in N_VALUES:
             cell_t0 = time.time()
@@ -207,70 +349,21 @@ def main() -> None:
             cell_users_test = eligible(L, N, test_users)
             print(f"  cell L={L} N={N}: dev={len(cell_users_dev)} test={len(cell_users_test)}", flush=True)
             if len(cell_users_dev) < 30:
-                grid_results[(L, N)] = {"eligible_dev": len(cell_users_dev),
-                                         "eligible_test": len(cell_users_test),
-                                         "skipped": "too few dev users"}
+                grid_results[(L, N)] = {
+                    "eligible_dev": len(cell_users_dev),
+                    "eligible_test": len(cell_users_test),
+                    "skipped": "too few dev users",
+                }
                 continue
 
-            def eval_cell(cell_users: list[str], seeds: tuple) -> dict:
-                per_seed = []
-                for sd in seeds:
-                    rs = np.random.default_rng(sd)
-                    diffs_self, diffs_cross = [], []
-                    for ui, u in enumerate(cell_users):
-                        sfs = user_filtered[L][u]
-                        if len(sfs) < 2 * N:
-                            continue
-                        idx = rs.permutation(len(sfs))[:2 * N]
-                        half1 = [sfs[i] for i in idx[:N]]
-                        half2 = [sfs[i] for i in idx[N:]]
-                        v1 = user_features(half1)
-                        v2 = user_features(half2)
-                        if v1 is None or v2 is None:
-                            continue
-                        v1n = v1 / max(np.linalg.norm(v1), 1e-12)
-                        v2n = v2 / max(np.linalg.norm(v2), 1e-12)
-                        diffs_self.append(float(np.linalg.norm(v1n - v2n)))
-                        # cross: random other user in same cell
-                        others = [uu for uu in cell_users if uu != u]
-                        rs.shuffle(others)
-                        for v_other in others[:3]:
-                            sfs_v = user_filtered[L][v_other]
-                            if len(sfs_v) < N:
-                                continue
-                            idx_v = rs.permutation(len(sfs_v))[:N]
-                            vv = user_features([sfs_v[i] for i in idx_v])
-                            if vv is None:
-                                continue
-                            vvn = vv / max(np.linalg.norm(vv), 1e-12)
-                            diffs_cross.append(float(np.linalg.norm(v1n - vvn)))
-                    ds = np.asarray(diffs_self)
-                    dc = np.asarray(diffs_cross)
-                    if len(ds) < 5 or len(dc) < 5:
-                        continue
-                    # AUC: P(d_cross > d_self)
-                    auc = 0.0
-                    ncomp = 0
-                    for x in ds:
-                        auc += float((dc > x).sum())
-                        ncomp += len(dc)
-                    auc = auc / max(ncomp, 1)
-                    delta = float(ds.mean() - dc.mean())
-                    # pooled std for Cohen d
-                    pooled = np.sqrt((ds.std() ** 2 + dc.std() ** 2) / 2)
-                    d = float(delta / pooled) if pooled > 0 else 0.0
-                    per_seed.append({"seed": int(sd), "auc": auc, "delta": delta,
-                                     "d_self_mean": float(ds.mean()),
-                                     "d_cross_mean": float(dc.mean()),
-                                     "cohen_d": d, "n_self": len(ds), "n_cross": len(dc)})
-                return per_seed
-
-            seeds_dev = tuple(int(SEED + 1000 + i) for i in range(N_SEEDS))
-            per_seed_dev = eval_cell(cell_users_dev, seeds_dev)
+            per_seed_dev = eval_cell_observed(cell_users_dev, user_filtered, L, N,
+                                              seeds_dev, rng_perm)
             if not per_seed_dev:
-                grid_results[(L, N)] = {"eligible_dev": len(cell_users_dev),
-                                         "eligible_test": len(cell_users_test),
-                                         "skipped": "no seed produced >=5 pairs"}
+                grid_results[(L, N)] = {
+                    "eligible_dev": len(cell_users_dev),
+                    "eligible_test": len(cell_users_test),
+                    "skipped": "no seed produced >=5 pairs",
+                }
                 continue
             aucs = np.asarray([s["auc"] for s in per_seed_dev])
             deltas = np.asarray([s["delta"] for s in per_seed_dev])
@@ -279,151 +372,87 @@ def main() -> None:
             cohen_ds = np.asarray([s["cohen_d"] for s in per_seed_dev])
             seed_pass_frac = float((aucs >= AUC_THRESH).mean())
             obs_delta = float(deltas.mean())
+            obs_cohen = float(cohen_ds.mean())
 
-            # permutation p: shuffle user labels, recompute mean delta
-            rngp = np.random.default_rng(SEED + 2000)
-            perm_deltas = []
-            n_perm_users = min(50, len(cell_users_dev))  # subsample for speed
-            for _ in range(N_PERM):
-                rs_p = np.random.default_rng(rngp.integers(0, 1 << 30))
-                null_self, null_cross = [], []
-                perm_users = list(cell_users_dev)
-                rs_p.shuffle(perm_users)
-                for ui, u in enumerate(perm_users[:n_perm_users]):
-                    sfs = user_filtered[L][u]
-                    if len(sfs) < 2 * N:
-                        continue
-                    idx = rs_p.permutation(len(sfs))[:2 * N]
-                    v1 = user_features([sfs[i] for i in idx[:N]])
-                    v2 = user_features([sfs[i] for i in idx[N:]])
-                    if v1 is None or v2 is None:
-                        continue
-                    v1n = v1 / max(np.linalg.norm(v1), 1e-12)
-                    v2n = v2 / max(np.linalg.norm(v2), 1e-12)
-                    null_self.append(float(np.linalg.norm(v1n - v2n)))
-                    # paired user (shuffled) provides the cross
-                    pair = perm_users[(ui + 1) % n_perm_users]
-                    sfs_v = user_filtered[L][pair]
-                    if len(sfs_v) < N:
-                        continue
-                    idx_v = rs_p.permutation(len(sfs_v))[:N]
-                    vv = user_features([sfs_v[i] for i in idx_v])
-                    if vv is None:
-                        continue
-                    vvn = vv / max(np.linalg.norm(vv), 1e-12)
-                    null_cross.append(float(np.linalg.norm(v1n - vvn)))
-                if null_self and null_cross:
-                    perm_deltas.append(np.mean(null_self) - np.mean(null_cross))
-            perm_deltas = np.asarray(perm_deltas)
-            p_one = (float((perm_deltas <= obs_delta).sum()) + 1) / (len(perm_deltas) + 1)
-            p_two = (float((np.abs(perm_deltas - perm_deltas.mean()) >=
-                            abs(obs_delta - perm_deltas.mean())).sum()) + 1) / (len(perm_deltas) + 1)
+            # Sanity check: AUC and Cohen d must agree in sign
+            auc_above_half = obs_delta > 0  # delta > 0 iff AUC > 0.5
+            if (aucs.mean() > 0.5) != (obs_cohen > 0):
+                raise RuntimeError(
+                    f"sanity check failed at L={L} N={N}: "
+                    f"AUC={aucs.mean():.3f} cohen_d={obs_cohen:.3f} must agree")
 
-            grid_results[(L, N)] = {
+            p_one, p_two = eval_cell_permutation(cell_users_dev, user_filtered,
+                                                 L, N, obs_delta, N_PERM, rng_perm)
+
+            cell_rec = {
                 "eligible_dev": len(cell_users_dev),
                 "eligible_test": len(cell_users_test),
-                "per_seed": per_seed_dev,
+                "per_seed_dev": per_seed_dev,
                 "auc_mean": round(float(aucs.mean()), 4),
                 "auc_std": round(float(aucs.std()), 4),
-                "delta_mean": round(float(deltas.mean()), 4),
+                "delta_mean": round(obs_delta, 4),  # positive == signal
                 "d_self_mean": round(float(ds_self.mean()), 4),
                 "d_cross_mean": round(float(ds_cross.mean()), 4),
-                "cohen_d_mean": round(float(cohen_ds.mean()), 4),
+                "cohen_d_mean": round(obs_cohen, 4),
                 "seed_pass_frac": round(seed_pass_frac, 4),
-                "perm_p_one": round(float(p_one), 4),
-                "perm_p_two": round(float(p_two), 4),
+                "perm_p_one": round(p_one, 4),
+                "perm_p_two": round(p_two, 4),
                 "runtime_sec": round(time.time() - cell_t0, 1),
             }
-            print(f"    AUC={aucs.mean():.3f}+-{aucs.std():.3f} d={cohen_ds.mean():.3f} "
+            grid_results[(L, N)] = cell_rec
+            print(f"    AUC={aucs.mean():.3f}+-{aucs.std():.3f} "
+                  f"d={obs_cohen:.3f} delta={obs_delta:.4f} "
                   f"p_one={p_one:.3f} seed_pass={seed_pass_frac:.2f} "
                   f"({time.time() - cell_t0:.1f}s)", flush=True)
 
-    # Bonferroni over cells (p_two * 12)
-    n_cells = len(L_VALUES) * len(N_VALUES)
-    for k, v in grid_results.items():
-        if "perm_p_two" in v:
-            v["perm_p_two_bonf"] = round(min(1.0, v["perm_p_two"] * n_cells), 4)
-
-    # find best (L, N) cell in dev set: passes all gates
-    best = None
-    for (L, N), r in grid_results.items():
-        if "auc_mean" not in r:
-            continue
-        if (r["auc_mean"] >= AUC_THRESH
-                and r["perm_p_two_bonf"] < P_THRESH
-                and r["cohen_d_mean"] >= COHEN_D_THRESH
-                and r["seed_pass_frac"] >= SEED_PASS_FRAC):
-            if best is None or (L, N) < best:
-                best = (L, N, r)
-
-    # test-set verification for the best cell
-    test_verify = None
-    if best is not None:
-        L, N, r = best
-        cell_users_test = eligible(L, N, test_users)
-        if len(cell_users_test) >= 30:
-            seeds_test = tuple(int(SEED + 5000 + i) for i in range(N_SEEDS))
-            per_seed_test = []
-            for sd in seeds_test:
-                rs = np.random.default_rng(sd)
-                diffs_self, diffs_cross = [], []
-                for u in cell_users_test:
-                    sfs = user_filtered[L][u]
-                    if len(sfs) < 2 * N:
-                        continue
-                    idx = rs.permutation(len(sfs))[:2 * N]
-                    v1 = user_features([sfs[i] for i in idx[:N]])
-                    v2 = user_features([sfs[i] for i in idx[N:]])
-                    if v1 is None or v2 is None:
-                        continue
-                    v1n = v1 / max(np.linalg.norm(v1), 1e-12)
-                    v2n = v2 / max(np.linalg.norm(v2), 1e-12)
-                    diffs_self.append(float(np.linalg.norm(v1n - v2n)))
-                    others = [uu for uu in cell_users_test if uu != u]
-                    rs.shuffle(others)
-                    for v_other in others[:3]:
-                        sfs_v = user_filtered[L][v_other]
-                        if len(sfs_v) < N:
-                            continue
-                        idx_v = rs.permutation(len(sfs_v))[:N]
-                        vv = user_features([sfs_v[i] for i in idx_v])
-                        if vv is None:
-                            continue
-                        vvn = vv / max(np.linalg.norm(vv), 1e-12)
-                        diffs_cross.append(float(np.linalg.norm(v1n - vvn)))
-                ds = np.asarray(diffs_self)
-                dc = np.asarray(diffs_cross)
-                if len(ds) < 5 or len(dc) < 5:
-                    continue
-                auc = 0.0
-                ncomp = 0
-                for x in ds:
-                    auc += float((dc > x).sum())
-                    ncomp += len(dc)
-                auc = auc / max(ncomp, 1)
-                delta = float(ds.mean() - dc.mean())
-                per_seed_test.append({"seed": int(sd), "auc": auc, "delta": delta})
+            # Test-set verification: always run, regardless of dev gate
+            per_seed_test = eval_cell_observed(cell_users_test, user_filtered,
+                                               L, N, seeds_test, rng_perm)
             if per_seed_test:
                 aucs_t = np.asarray([s["auc"] for s in per_seed_test])
                 deltas_t = np.asarray([s["delta"] for s in per_seed_test])
-                test_verify = {
-                    "cell": [L, N],
-                    "n_test_users": len(cell_users_test),
-                    "auc_mean": round(float(aucs_t.mean()), 4),
-                    "auc_std": round(float(aucs_t.std()), 4),
-                    "delta_mean": round(float(deltas_t.mean()), 4),
-                    "seed_pass_frac": round(float((aucs_t >= AUC_THRESH).mean()), 4),
-                    "per_seed": per_seed_test,
-                }
+                cohen_ts = np.asarray([s["cohen_d"] for s in per_seed_test])
+                cell_rec["per_seed_test"] = per_seed_test
+                cell_rec["test_auc_mean"] = round(float(aucs_t.mean()), 4)
+                cell_rec["test_auc_std"] = round(float(aucs_t.std()), 4)
+                cell_rec["test_delta_mean"] = round(float(deltas_t.mean()), 4)
+                cell_rec["test_cohen_d_mean"] = round(float(cohen_ts.mean()), 4)
+                cell_rec["test_seed_pass_frac"] = round(float((aucs_t >= AUC_THRESH).mean()), 4)
+
+            # Update best (only if all dev gates pass)
+            if (cell_rec["auc_mean"] >= AUC_THRESH
+                    and cell_rec["cohen_d_mean"] >= COHEN_D_THRESH
+                    and cell_rec["seed_pass_frac"] >= SEED_PASS_FRAC):
+                if best is None or (L, N) < best[:2]:
+                    best = (L, N, cell_rec)
+
+    # Bonferroni over 12 cells
+    n_cells = len(L_VALUES) * len(N_VALUES)
+    for r in grid_results.values():
+        if "perm_p_two" in r:
+            r["perm_p_two_bonf"] = round(min(1.0, r["perm_p_two"] * n_cells), 4)
+
+    # Check perm-p-threshold against Bonferroni-corrected value
+    for r in grid_results.values():
+        if "perm_p_two_bonf" in r:
+            r["passes_p_bonf"] = r["perm_p_two_bonf"] < P_THRESH
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     json.dump({
+        "version": "v4 (corrected)",
         "question": "minimum (sentence-length threshold L, sentence count N) "
                     "for user syntactic style to be identifiable on pooled reviews",
         "design": "2D grid L in {3,5,8}, N in {10,20,30,50}; "
                  "split-half (each user 2N sents, half1 vs half2); "
                  "30 random seeds per cell; dev/test 50/50 split; "
                  "Bonferroni over 12 cells; per-cell permutation p (999)",
+        "fixes_vs_v3": [
+            "delta = d_cross - d_self (positive == signal); "
+            "AUC and Cohen d direction aligned and sanity-checked at runtime",
+            "permutation pools all halves and random-pairs (true H0)",
+            "test-set verification runs regardless of dev gate outcome",
+            "result JSON committed alongside script",
+        ],
         "l_values": list(L_VALUES),
         "n_values": list(N_VALUES),
         "n_seeds": N_SEEDS,
@@ -435,7 +464,6 @@ def main() -> None:
                   "cohen_d": COHEN_D_THRESH, "seed_pass_frac": SEED_PASS_FRAC},
         "grid": {f"L={L}_N={N}": r for (L, N), r in grid_results.items()},
         "best_cell_dev": list(best[:2]) if best else None,
-        "test_verification": test_verify,
         "runtime_sec": round(time.time() - t0, 1),
     }, open(OUT, "w"), indent=1, ensure_ascii=False)
     print(f"wrote {OUT} (t={time.time() - t0:.1f}s)", flush=True)

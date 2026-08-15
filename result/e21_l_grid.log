@@ -1,0 +1,24 @@
+users scanned: 3386206 (t=42.8s)
+word>=200 candidates: 1600
+users with >= 3 products: 1131
+users parsed: 1131 (t=192.1s)
+using 400 users
+dev users: 200, test users: 200
+  cell L=3 N=10: dev=141 test=144
+    AUC=0.605+-0.020 d=0.372 delta=0.0195 p_one=0.001 seed_pass=0.00 (1.2s)
+  cell L=3 N=20: dev=43 test=46
+    AUC=0.668+-0.035 d=0.621 delta=0.0296 p_one=0.001 seed_pass=0.70 (0.4s)
+  cell L=3 N=30: dev=22 test=12
+  cell L=3 N=50: dev=5 test=4
+  cell L=5 N=10: dev=133 test=124
+    AUC=0.587+-0.026 d=0.292 delta=0.0143 p_one=0.001 seed_pass=0.00 (1.1s)
+  cell L=5 N=20: dev=35 test=33
+    AUC=0.590+-0.042 d=0.272 delta=0.0107 p_one=0.001 seed_pass=0.07 (0.3s)
+  cell L=5 N=30: dev=18 test=10
+  cell L=5 N=50: dev=5 test=4
+  cell L=8 N=10: dev=101 test=92
+    AUC=0.577+-0.028 d=0.251 delta=0.0123 p_one=0.001 seed_pass=0.00 (0.9s)
+  cell L=8 N=20: dev=29 test=20
+  cell L=8 N=30: dev=13 test=9
+  cell L=8 N=50: dev=4 test=4
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_l_grid_results.json (t=199.5s)
