@@ -1,0 +1,356 @@
+{
+ "version": "e17-step5",
+ "n_total": 1196,
+ "n_empty": 0,
+ "n_pairs_three_cond": 299,
+ "per_condition": {
+  "correct": {
+   "n_rows": 299,
+   "five_attr_exact_rate": 0.07692307692307693,
+   "numeric_exact_rate": 0.8595317725752508,
+   "brand_exact_rate": 0.26755852842809363,
+   "parse_fail_rate": 0.0,
+   "per_attr_match": {
+    "A1": 0.7424749163879598,
+    "A2": 0.6521739130434783,
+    "A3": 0.8595317725752508,
+    "A4": 0.3612040133779264,
+    "A5": 0.6722408026755853
+   }
+  },
+  "shuffled": {
+   "n_rows": 299,
+   "five_attr_exact_rate": 0.18394648829431437,
+   "numeric_exact_rate": 0.8494983277591973,
+   "brand_exact_rate": 0.2608695652173913,
+   "parse_fail_rate": 0.0,
+   "per_attr_match": {
+    "A1": 0.7391304347826086,
+    "A2": 0.5418060200668896,
+    "A3": 0.8494983277591973,
+    "A4": 0.5953177257525084,
+    "A5": 0.6688963210702341
+   }
+  },
+  "global_mean": {
+   "n_rows": 299,
+   "five_attr_exact_rate": 0.033444816053511704,
+   "numeric_exact_rate": 0.8528428093645485,
+   "brand_exact_rate": 0.2508361204013378,
+   "parse_fail_rate": 0.0,
+   "per_attr_match": {
+    "A1": 0.7357859531772575,
+    "A2": 0.8294314381270903,
+    "A3": 0.8528428093645485,
+    "A4": 0.13377926421404682,
+    "A5": 0.6789297658862876
+   }
+  },
+  "zero": {
+   "n_rows": 299,
+   "five_attr_exact_rate": 0.5551839464882943,
+   "numeric_exact_rate": 0.9331103678929766,
+   "brand_exact_rate": 0.9431438127090301,
+   "parse_fail_rate": 0.0,
+   "per_attr_match": {
+    "A1": 0.8361204013377926,
+    "A2": 0.9431438127090301,
+    "A3": 0.9331103678929766,
+    "A4": 0.6956521739130435,
+    "A5": 0.6254180602006689
+   }
+  }
+ },
+ "product_string_consistency": {
+  "identical_patterns": 15,
+  "n_pairs": 299,
+  "rate": 0.05016722408026756,
+  "mismatches_sample": [
+   {
+    "user_id": "AFQEKYW7LEZOXFFOJHRGRY4NQ37A",
+    "asin": "B07S76GZG1",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AFQEKYW7LEZOXFFOJHRGRY4NQ37A",
+    "asin": "B07KPKZBLH",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AFQEKYW7LEZOXFFOJHRGRY4NQ37A",
+    "asin": "B07SWYBNG2",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AGEQRBANWEFCXNDWJI7QFFHPCSRQ",
+    "asin": "B0BN6MLV6R",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": false
+     },
+     "shuffled": {
+      "A1": false,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": false
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": false
+     }
+    }
+   },
+   {
+    "user_id": "AGEQRBANWEFCXNDWJI7QFFHPCSRQ",
+    "asin": "B0BMPJQ8R8",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": false,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AGEQRBANWEFCXNDWJI7QFFHPCSRQ",
+    "asin": "B0BL31PLMW",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": false,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AGT7BG52RFMRLK5GDQX2RG7GOLHA",
+    "asin": "B081YHYD4G",
+    "match": {
+     "correct": {
+      "A1": false,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": false,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": false,
+      "A2": true,
+      "A3": false,
+      "A4": false,
+      "A5": false
+     }
+    }
+   },
+   {
+    "user_id": "AGT7BG52RFMRLK5GDQX2RG7GOLHA",
+    "asin": "B0725JZ9KQ",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AGT7BG52RFMRLK5GDQX2RG7GOLHA",
+    "asin": "B06Y281FK3",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": false,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   },
+   {
+    "user_id": "AGXZUKRVKYV7AAU7PF5N5KM25HFA",
+    "asin": "B094J1HZNN",
+    "match": {
+     "correct": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "shuffled": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": false,
+      "A5": true
+     },
+     "zero": {
+      "A1": true,
+      "A2": true,
+      "A3": true,
+      "A4": true,
+      "A5": true
+     }
+    }
+   }
+  ]
+ },
+ "injection_off_baseline": {
+  "five_attr_exact_rate": 0.13043478260869565,
+  "boot95_ci": [
+   0.09364548494983277,
+   0.16722408026755853
+  ]
+ },
+ "check5_pass": false,
+ "thresholds": {
+  "five_attr_exact_min": 0.99,
+  "numeric_exact_min": 0.99,
+  "brand_exact_min": 1.0,
+  "consistency_min": 1.0,
+  "correct_within_baseline_ci": true
+ }
+}

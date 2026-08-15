@@ -1,0 +1,61 @@
+{
+ "version": "e17-decision",
+ "checks": {
+  "Check-1": {
+   "GO": true,
+   "n_users": 400,
+   "vector_hash": "f46e2b505331677fa64318c74d967a06567734bc317e573cbdd0e52911530c92",
+   "boot95_CI": [
+    0.2192,
+    0.321
+   ],
+   "permutation_p": 0.001,
+   "leakage_guard": {
+    "train_users_excluded": true,
+    "n_train_users": 900,
+    "train_asins_excluded_from_profile": true,
+    "n_train_asins": 1360,
+    "audit_groups_not_in_profile": true,
+    "target_query_features_not_used": true
+   }
+  },
+  "Check-2": {
+   "GO": true,
+   "spec_match": true,
+   "mechanism_active": true,
+   "output_effect": true
+  },
+  "Check-3": {
+   "GO": true,
+   "baseline_hit": 0.8102564102564103,
+   "shuffled_hit": 0.617948717948718,
+   "alpha_zero_hit": 0.0
+  },
+  "Check-4": {
+   "GO": false,
+   "n_test_users": 100,
+   "n_pairs_complete": 299,
+   "auc": 0.493255033557047,
+   "swap_rate": 1.0,
+   "monotonicity_dims_ok": 2
+  },
+  "Check-5": {
+   "GO": false,
+   "per_condition_five_attr": {
+    "correct": 0.07692307692307693,
+    "shuffled": 0.18394648829431437,
+    "global_mean": 0.033444816053511704,
+    "zero": 0.5551839464882943
+   },
+   "consistency_rate": 0.05016722408026756
+  },
+  "Check-6": {
+   "GO": true,
+   "artifacts_present": 13,
+   "artifacts_missing": 0,
+   "preregister_present": true
+  }
+ },
+ "decision": "NO-GO",
+ "all_go": false
+}

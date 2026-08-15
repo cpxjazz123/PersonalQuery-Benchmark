@@ -1,0 +1,87 @@
+{
+ "epochs": [
+  {
+   "epoch": 1,
+   "lm": 1.2312881097560975,
+   "syn": 0.7564024390243902,
+   "align": 0.5741520579268292,
+   "cf": 0.0033442055306783535,
+   "dev_hit_frac": 0.47073170731707314
+  },
+  {
+   "epoch": 2,
+   "lm": 0.93515625,
+   "syn": 0.6930926067073171,
+   "align": 0.3834127286585366,
+   "cf": 0.0,
+   "dev_hit_frac": 0.5
+  },
+  {
+   "epoch": 3,
+   "lm": 0.8569169207317073,
+   "syn": 0.6574980945121951,
+   "align": 0.3616330030487805,
+   "cf": 0.0,
+   "dev_hit_frac": 0.4878048780487805
+  },
+  {
+   "epoch": 4,
+   "lm": 0.7935213414634147,
+   "syn": 0.6321646341463415,
+   "align": 0.3591844512195122,
+   "cf": 0.0,
+   "dev_hit_frac": 0.5317073170731708
+  },
+  {
+   "epoch": 5,
+   "lm": 0.7499618902439025,
+   "syn": 0.6071741615853659,
+   "align": 0.3708079268292683,
+   "cf": 0.0,
+   "dev_hit_frac": 0.48292682926829267
+  },
+  {
+   "epoch": 6,
+   "lm": 0.6990663109756098,
+   "syn": 0.5964176829268293,
+   "align": 0.3658393673780488,
+   "cf": 0.0,
+   "dev_hit_frac": 0.5097560975609756
+  },
+  {
+   "epoch": 7,
+   "lm": 0.65390625,
+   "syn": 0.5801733993902439,
+   "align": 0.37178925304878047,
+   "cf": 0.0,
+   "dev_hit_frac": 0.5317073170731708
+  },
+  {
+   "epoch": 8,
+   "lm": 0.6092892530487805,
+   "syn": 0.5707126524390244,
+   "align": 0.3682593368902439,
+   "cf": 0.0,
+   "dev_hit_frac": 0.5146341463414634
+  }
+ ],
+ "best_epoch": 4,
+ "best_dev_hit_frac": 0.5317073170731708,
+ "meta": {
+  "seed": 42,
+  "epochs": 8,
+  "batch": 8,
+  "lr": 0.0003,
+  "lora_r": 8,
+  "num_tokens": 4,
+  "gate_init": 0.05,
+  "copy_lambda": 0.5,
+  "lambda_syn": 1.0,
+  "lambda_align": 1.0,
+  "lambda_cf": 0.5,
+  "cf_margin": 0.05,
+  "base": "/fs04/scratch2/ar57/wenyu/hf_home/hub/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "ckpt_dir": "/home/wlia0047/hj82_scratch2/wenyu/RAG/e17_ckpt",
+  "dev_rule": "fraction of dev samples with correct-vector syntax distance < shuffled-vector distance (>0.5 baseline)"
+ }
+}

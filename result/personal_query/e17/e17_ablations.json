@@ -1,0 +1,20 @@
+{
+ "version": "e17-step3-ablation",
+ "available": true,
+ "checkpoint_dir": "/home/wlia0047/hj82_scratch2/wenyu/RAG/e17_ckpt",
+ "use_syntax_head": true,
+ "ablation_A_correct": {
+  "dev_hit_frac": 0.8102564102564103,
+  "n": 390
+ },
+ "ablation_B_shuffled_z": {
+  "dev_hit_frac": 0.617948717948718,
+  "n": 390,
+  "interpretation": "fraction where shuffled z leads to worse alignment than a different shuffle; lower is better"
+ },
+ "ablation_C_alpha_zero_injection_cut": {
+  "dev_hit_frac": 0.0,
+  "gain_A_minus_C": 0.8102564102564103
+ },
+ "check3_pass": true
+}
