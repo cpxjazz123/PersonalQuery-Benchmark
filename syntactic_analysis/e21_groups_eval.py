@@ -30,11 +30,16 @@ sys.path.insert(0, str(REPO_ROOT / "query" / "soft_prefix"))
 sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
 
 from e20_lopo_v2 import ALL_FEATS, load_spacy_model
+from extract_syntactic_features import ALL_FEATS_V2, user_features_v2
 from parse_sentences_to_features import parse_corpus
 
+# v9: use 318-dim features (vs v1/v8's 32-dim)
+ALL_FEATS = ALL_FEATS_V2
+USER_FEATS_FN = user_features_v2
+
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
-OUT = REPO_ROOT / "result" / "e21_groups_results.json"
-LOG = REPO_ROOT / "result" / "e21_groups.log"
+OUT = REPO_ROOT / "result" / "e21_v9_results.json"
+LOG = REPO_ROOT / "result" / "e21_v9.log"
 CACHE_PATH = REPO_ROOT / "result" / "cache" / "per_sentence_features.jsonl.gz"
 
 SEED = 43
@@ -53,38 +58,8 @@ TEST_MIN_USERS = 150
 
 
 def user_features(sent_feats: list[dict]) -> np.ndarray | None:
-    if not sent_feats:
-        return None
-    total_tok = sum(s["n_tok"] for s in sent_feats)
-    n_sent = len(sent_feats)
-    if total_tok == 0 or n_sent == 0:
-        return None
-    f = {}
-    f["clause_rate"] = sum(s["n_clause"] for s in sent_feats) / total_tok
-    f["acl_rate"] = sum(s["acl"] for s in sent_feats) / total_tok
-    f["advcl_rate"] = sum(s["advcl"] for s in sent_feats) / total_tok
-    f["ccomp_rate"] = sum(s["ccomp"] for s in sent_feats) / total_tok
-    f["xcomp_rate"] = sum(s["xcomp"] for s in sent_feats) / total_tok
-    f["relcl_rate"] = sum(s["relcl"] for s in sent_feats) / total_tok
-    f["modifier_density"] = sum(s["n_mod"] for s in sent_feats) / total_tok
-    f["coordination_density"] = sum(s["n_coord"] for s in sent_feats) / total_tok
-    f["mean_dep_distance"] = float(np.mean([s["mean_dist"] for s in sent_feats]))
-    f["depth_variance"] = float(np.mean([s["depth_var"] for s in sent_feats]))
-    f["median_dep_depth"] = float(np.median([s["max_depth"] for s in sent_feats]))
-    f["passive_rate"] = sum(1 for s in sent_feats if s["has_passive"]) / n_sent
-    f["interrogative_rate"] = sum(1 for s in sent_feats if s["is_interrog"]) / n_sent
-    f["conditional_rate"] = sum(1 for s in sent_feats if s["has_cond"]) / n_sent
-    from collections import Counter
-    OPENER_POSES = ("NOUN", "VERB", "ADJ", "ADV", "PRON", "DET", "ADP", "CONJ",
-                    "AUX", "NUM", "INTJ", "PART", "PUNCT", "X", "SYM")
-    SENT_TYPES = ("simple", "conjunctive", "complex")
-    opener_counts = Counter(s["opener"] for s in sent_feats)
-    for p in OPENER_POSES:
-        f[f"opener_{p}"] = opener_counts.get(p, 0) / n_sent
-    stype_counts = Counter(s["stype"] for s in sent_feats)
-    for t in SENT_TYPES:
-        f[f"senttype_{t}"] = stype_counts.get(t, 0) / n_sent
-    return np.asarray([f[name] for name in ALL_FEATS], dtype=np.float32)
+    """v9: 318-dim syntactic features (see extract_syntactic_features)."""
+    return USER_FEATS_FN(sent_feats)
 
 
 def norm_vec(v: np.ndarray) -> np.ndarray:
@@ -112,6 +87,7 @@ def cohen_d(d_cross: np.ndarray, d_self: np.ndarray) -> float:
 
 
 def perm_null_delta(all_halves: list[np.ndarray], rng: np.random.Generator) -> float:
+    """Legacy: single permutation. Use perm_null_deltas_batched instead."""
     n = len(all_halves)
     if n < 4:
         return 0.0
@@ -124,6 +100,45 @@ def perm_null_delta(all_halves: list[np.ndarray], rng: np.random.Generator) -> f
     return float(diffs.mean())
 
 
+def perm_null_deltas_batched(all_halves: list[np.ndarray],
+                              n_perm: int,
+                              rng: np.random.Generator,
+                              batch_size: int = 128,
+                              log_every_batches: int = 16) -> np.ndarray:
+    """Vectorized permutation null distribution. Returns [n_perm] array.
+
+    Optimizations vs loop:
+      - Pre-stack all halves into [M, D] once
+      - Generate `batch_size` random permutations per batch via argsort
+      - Single fancy-index + numpy L2 per batch (faster than 128 Python loops)
+      - Memory: [batch_n, M/2, D] ≈ 333 MB per tensor at batch_n=128, D=318
+    """
+    X = np.stack(all_halves)  # [M, D]
+    M, D = X.shape
+    if M < 4:
+        return np.zeros(n_perm, dtype=np.float32)
+    M2 = M - (M % 2)
+    half = M2 // 2
+
+    null_deltas = np.empty(n_perm, dtype=np.float32)
+    for batch_start in range(0, n_perm, batch_size):
+        batch_end = min(batch_start + batch_size, n_perm)
+        batch_n = batch_end - batch_start
+        # Random permutation per perm in batch: argsort of random keys
+        keys = rng.random((batch_n, M))
+        all_idx = np.argsort(keys, axis=1)[:, :M2]  # [batch_n, M2]
+        a_idx = all_idx[:, 0::2]  # [batch_n, half]
+        b_idx = all_idx[:, 1::2]
+        a = X[a_idx]  # [batch_n, half, D]
+        b = X[b_idx]
+        diffs = np.linalg.norm(a - b, axis=2)  # [batch_n, half]
+        null_deltas[batch_start:batch_end] = diffs.mean(axis=1)
+        batch_idx = batch_start // batch_size
+        if batch_idx % log_every_batches == 0:
+            print(f"      perm {batch_end}/{n_perm}", flush=True)
+    return null_deltas
+
+
 def eval_cell(cell_users: list[str],
               user_sents_L: dict[int, dict[str, list[dict]]],
               L: int,
@@ -132,7 +147,9 @@ def eval_cell(cell_users: list[str],
     per_seed = []
     for sd in seeds:
         rs = np.random.default_rng(sd)
-        diffs_self, diffs_cross = [], []
+        # Pass 1: collect per-user (v1n, v2n, others_n_pairs) — defer L2
+        # user_rows[i] = (v1n, v2n, list_of_vvn)
+        user_rows: list[tuple[np.ndarray, np.ndarray, list[np.ndarray]]] = []
         for u in cell_users:
             sfs = user_sents_L[L][u]
             if len(sfs) < 2 * N:
@@ -146,12 +163,11 @@ def eval_cell(cell_users: list[str],
                 continue
             v1n = norm_vec(v1)
             v2n = norm_vec(v2)
-            diffs_self.append(float(np.linalg.norm(v1n - v2n)))
             others = [uu for uu in cell_users if uu != u]
             rs.shuffle(others)
-            cross_n = 0
+            vvns: list[np.ndarray] = []
             for v_other in others:
-                if cross_n >= 3:
+                if len(vvns) >= 3:
                     break
                 sfs_v = user_sents_L[L][v_other]
                 if len(sfs_v) < N:
@@ -160,11 +176,25 @@ def eval_cell(cell_users: list[str],
                 vv = user_features([sfs_v[i] for i in idx_v])
                 if vv is None:
                     continue
-                vvn = norm_vec(vv)
-                diffs_cross.append(float(np.linalg.norm(v1n - vvn)))
-                cross_n += 1
-        ds = np.asarray(diffs_self)
-        dc = np.asarray(diffs_cross)
+                vvns.append(norm_vec(vv))
+            user_rows.append((v1n, v2n, vvns))
+
+        if not user_rows:
+            continue
+        # Pass 2: vectorized L2 — stack v1n/v2n then matrix diff + norm
+        V1 = np.stack([r[0] for r in user_rows])  # [U, D]
+        V2 = np.stack([r[1] for r in user_rows])  # [U, D]
+        diffs_self = np.linalg.norm(V1 - V2, axis=1)  # [U]
+        diffs_cross: list[float] = []
+        for u_idx, (_, _, vvns) in enumerate(user_rows):
+            v1n = user_rows[u_idx][0]
+            if not vvns:
+                continue
+            VV = np.stack(vvns)  # [k, D]
+            cs = np.linalg.norm(VV - v1n[None, :], axis=1)  # [k]
+            diffs_cross.extend(cs.tolist())
+        ds = diffs_self.astype(np.float64)
+        dc = np.asarray(diffs_cross, dtype=np.float64)
         if len(ds) < 5 or len(dc) < 5:
             continue
         per_seed.append({
@@ -204,8 +234,12 @@ def eval_permutation(cell_users: list[str],
             all_halves.append(norm_vec(v2))
     if len(all_halves) < 4:
         return float("nan"), float("nan")
+    print(f"      perm: {n_perm} iterations on {len(all_halves)} halves "
+          f"(dim={all_halves[0].shape[0]})", flush=True)
+    t_p = time.time()
     null_deltas = np.asarray([perm_null_delta(all_halves, rng_p)
                               for _ in range(n_perm)])
+    print(f"      perm done (t={time.time() - t_p:.1f}s)", flush=True)
     p_one = (float((null_deltas <= obs_delta).sum()) + 1) / (len(null_deltas) + 1)
     null_center = float(null_deltas.mean())
     p_two = (float((np.abs(null_deltas - null_center) >=

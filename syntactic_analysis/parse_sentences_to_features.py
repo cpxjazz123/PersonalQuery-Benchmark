@@ -35,9 +35,9 @@ sys.path.insert(0, str(REPO_ROOT / "query" / "soft_prefix"))
 sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
 
 from extract_clause_features_single_query import load_spacy_model  # noqa: E402
-from e20_lopo_v2 import per_sentence_features  # noqa: E402
+from extract_syntactic_features import per_sentence_features_v2  # noqa: E402
 
-CACHE_META_VERSION = "v1"
+CACHE_META_VERSION = "v2"  # v2: 318-dim features (vs v1's 32-dim)
 
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
 
@@ -114,7 +114,7 @@ def parse_miss_sentences(miss_sents: list[str],
         batch = miss_sents[i:i + batch_size]
         for doc in nlp.pipe(batch, batch_size=batch_size):
             for sent in doc.sents:
-                sf = per_sentence_features(sent)
+                sf = per_sentence_features_v2(sent)
                 if sf is not None:
                     out[sent_key(sent.text)] = sf
         n_done = min(i + batch_size, len(miss_sents))
