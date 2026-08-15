@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E21 v4: 2D grid search with CORRECTED statistical conventions.
+"""E21 v5: 2D grid search with enlarged user pool + corrected stats (v4).
 
 Fixes vs v3 (commit 507b109):
   1. Effect-size direction. Use delta = d_cross - d_self so that positive
@@ -7,12 +7,16 @@ Fixes vs v3 (commit 507b109):
      are closer than different-user halves). Gate: cohen_d >= 0.5.
   2. Permutation test. Pool all halves across users; for each permutation,
      randomly pair halves — under H0 every pair is "cross", so the null
-     distribution is well-defined and informative. (v3 only re-paired the
-     cross-user but kept null_self as the real same-user distance, which
-     made p meaningless.)
-  3. Test-set verification always runs, even if dev gate fails, so the
-     reader sees the real direction of effect on held-out users.
-  4. Result JSON committed alongside the script (was missing in 507b109).
+     distribution is well-defined and informative.
+  3. Test-set verification always runs, even if dev gate fails.
+  4. Result JSON committed alongside the script.
+
+v5 vs v4 (commit 55e2bba):
+  - N_USERS: 400 -> 1500  (enlarge eligible pool)
+  - MIN_WORDS: 200 -> 100  (accept more users)
+  - MIN_ASINS: 3 -> 2     (accept more users)
+  Goal: lift (L=3, N=20) dev users from 43 to >= 300 so that
+  seed_pass_frac and test-set effect size become statistically stable.
 
 Grid: L (min sentence length in tokens) in {3, 5, 8}; N (sentences per
 half) in {10, 20, 30, 50}; 30 random seeds per cell; dev/test 50/50;
@@ -44,9 +48,9 @@ OUT = REPO_ROOT / "result" / "e21_l_grid_results.json"
 LOG = REPO_ROOT / "result" / "e21_l_grid.log"
 
 SEED = 42
-N_USERS = 400
-MIN_WORDS = 200
-MIN_ASINS = 3
+N_USERS = 1500           # v5: 400 -> 1500 to enlarge eligible pool
+MIN_WORDS = 100          # v5: 200 -> 100 to widen candidates
+MIN_ASINS = 2            # v5: 3 -> 2 to widen candidates
 # 2D grid
 L_VALUES = (3, 5, 8)
 N_VALUES = (10, 20, 30, 50)
@@ -291,19 +295,37 @@ def main() -> None:
             del reviews[u]
     print(f"users with >= {MIN_ASINS} products: {len(reviews)}", flush=True)
 
-    # spaCy parse + per-sentence features
+    # spaCy parse + per-sentence features (CLAUDE.md rule 11c: batch via nlp.pipe)
     nlp = load_spacy_model()
     user_sents: dict[str, list[dict]] = {}
+    # Flatten all texts in stable order, batched by user
+    user_texts: list[tuple[str, str]] = []  # (user_id, text)
     for u, revs in reviews.items():
-        sfs = []
         for _, t in revs:
-            doc = nlp(t)
+            user_texts.append((u, t))
+    print(f"  parsing {len(user_texts)} reviews for {len(reviews)} users...", flush=True)
+    BATCH = 128
+    user_text_iter = iter(user_texts)
+    batch_pairs = []
+    parsed = 0
+    while True:
+        batch_pairs = []
+        try:
+            for _ in range(BATCH):
+                batch_pairs.append(next(user_text_iter))
+        except StopIteration:
+            pass
+        if not batch_pairs:
+            break
+        texts = [t for _, t in batch_pairs]
+        for (u, _), doc in zip(batch_pairs, nlp.pipe(texts, batch_size=BATCH)):
             for sent in doc.sents:
                 sf = per_sentence_features(sent)
                 if sf is not None:
-                    sfs.append(sf)
-        if sfs:
-            user_sents[u] = sfs
+                    user_sents.setdefault(u, []).append(sf)
+        parsed += len(batch_pairs)
+        if parsed % 1000 < BATCH:
+            print(f"    parsed {parsed}/{len(user_texts)} (t={time.time() - t0:.1f}s)", flush=True)
     print(f"users parsed: {len(user_sents)} (t={time.time() - t0:.1f}s)", flush=True)
 
     # sub-sample to N_USERS
@@ -439,7 +461,7 @@ def main() -> None:
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     json.dump({
-        "version": "v4 (corrected)",
+        "version": "v5 (enlarged pool + corrected stats)",
         "question": "minimum (sentence-length threshold L, sentence count N) "
                     "for user syntactic style to be identifiable on pooled reviews",
         "design": "2D grid L in {3,5,8}, N in {10,20,30,50}; "

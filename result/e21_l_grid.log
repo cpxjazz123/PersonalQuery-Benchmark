@@ -1,24 +1,48 @@
-users scanned: 3386206 (t=42.8s)
-word>=200 candidates: 1600
-users with >= 3 products: 1131
-users parsed: 1131 (t=192.1s)
-using 400 users
-dev users: 200, test users: 200
-  cell L=3 N=10: dev=141 test=144
-    AUC=0.605+-0.020 d=0.372 delta=0.0195 p_one=0.001 seed_pass=0.00 (1.2s)
-  cell L=3 N=20: dev=43 test=46
-    AUC=0.668+-0.035 d=0.621 delta=0.0296 p_one=0.001 seed_pass=0.70 (0.4s)
-  cell L=3 N=30: dev=22 test=12
-  cell L=3 N=50: dev=5 test=4
-  cell L=5 N=10: dev=133 test=124
-    AUC=0.587+-0.026 d=0.292 delta=0.0143 p_one=0.001 seed_pass=0.00 (1.1s)
-  cell L=5 N=20: dev=35 test=33
-    AUC=0.590+-0.042 d=0.272 delta=0.0107 p_one=0.001 seed_pass=0.07 (0.3s)
-  cell L=5 N=30: dev=18 test=10
-  cell L=5 N=50: dev=5 test=4
-  cell L=8 N=10: dev=101 test=92
-    AUC=0.577+-0.028 d=0.251 delta=0.0123 p_one=0.001 seed_pass=0.00 (0.9s)
-  cell L=8 N=20: dev=29 test=20
-  cell L=8 N=30: dev=13 test=9
-  cell L=8 N=50: dev=4 test=4
-wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_l_grid_results.json (t=199.5s)
+users scanned: 3386206 (t=42.5s)
+word>=100 candidates: 6000
+users with >= 2 products: 4453
+  parsing 22183 reviews for 4453 users...
+    parsed 1024/22183 (t=85.3s)
+    parsed 2048/22183 (t=94.8s)
+    parsed 3072/22183 (t=111.5s)
+    parsed 4096/22183 (t=122.2s)
+    parsed 5120/22183 (t=131.4s)
+    parsed 6016/22183 (t=138.4s)
+    parsed 7040/22183 (t=149.7s)
+    parsed 8064/22183 (t=159.4s)
+    parsed 9088/22183 (t=168.3s)
+    parsed 10112/22183 (t=178.3s)
+    parsed 11008/22183 (t=187.0s)
+    parsed 12032/22183 (t=196.5s)
+    parsed 13056/22183 (t=205.6s)
+    parsed 14080/22183 (t=214.8s)
+    parsed 15104/22183 (t=225.6s)
+    parsed 16000/22183 (t=234.6s)
+    parsed 17024/22183 (t=243.9s)
+    parsed 18048/22183 (t=253.1s)
+    parsed 19072/22183 (t=263.6s)
+    parsed 20096/22183 (t=273.0s)
+    parsed 21120/22183 (t=284.1s)
+    parsed 22016/22183 (t=293.5s)
+users parsed: 4453 (t=295.5s)
+using 1500 users
+dev users: 750, test users: 750
+  cell L=3 N=10: dev=243 test=227
+    AUC=0.585+-0.015 d=0.292 delta=0.0154 p_one=0.001 seed_pass=0.00 (2.3s)
+  cell L=3 N=20: dev=72 test=57
+    AUC=0.631+-0.026 d=0.467 delta=0.0183 p_one=0.001 seed_pass=0.20 (0.7s)
+  cell L=3 N=30: dev=28 test=22
+  cell L=3 N=50: dev=8 test=9
+  cell L=5 N=10: dev=213 test=191
+    AUC=0.576+-0.022 d=0.259 delta=0.0126 p_one=0.001 seed_pass=0.00 (2.0s)
+  cell L=5 N=20: dev=60 test=45
+    AUC=0.638+-0.033 d=0.498 delta=0.0186 p_one=0.001 seed_pass=0.33 (0.6s)
+  cell L=5 N=30: dev=23 test=20
+  cell L=5 N=50: dev=7 test=8
+  cell L=8 N=10: dev=146 test=132
+    AUC=0.573+-0.026 d=0.247 delta=0.0116 p_one=0.001 seed_pass=0.00 (1.3s)
+  cell L=8 N=20: dev=39 test=28
+    AUC=0.620+-0.055 d=0.427 delta=0.0149 p_one=0.001 seed_pass=0.33 (0.4s)
+  cell L=8 N=30: dev=14 test=12
+  cell L=8 N=50: dev=6 test=5
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_l_grid_results.json (t=308.7s)
