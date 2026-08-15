@@ -40,12 +40,6 @@
    - 将对比反思结论和优化落地写入 `iterations/iter_<NN>_*.md` 的 §B（参考文献后），格式：**"论文 [N] 发现 → PQB 现状 → 改进方案 → 落地验证"**
    - CLAUDE.md 本条规则在每次迭代时显式执行，不依赖记忆
 
-8. **不需要分析人工评估部分的数据**：
-   - §3.3 LLM-human eval (Fleiss κ / Spearman / MAE) 不需要分析
-   - 不需要把 paper Fleiss κ=0.72 / Spearman=0.81 / MAE=0.89 与 release 值做对比
-   - 不需要针对 agreement_metrics.py / 02_writing_analysis/ 下的 LLM-human eval scripts 做优化
-   - 这部分数据是 reviewer pilot 抽样，开放源码里仅复现 Cohen κ/Spearman 在 3×50 subset 上的小规模 pilot，不需要对齐到 paper 的 120-query 全量
-
 9. **禁止使用传入参数运行脚本**：
    - 所有脚本运行参数（数据路径、模型路径、epochs、batch_size、seed、category、out_dir 等）一律**硬编码到脚本内**（模块级常量或脚本内默认值），不允许通过命令行参数（argparse/sys.argv）传参运行
    - 运行方式统一为：`python script.py`（无参数），或 `python script.py --help` 查看硬编码配置
