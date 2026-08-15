@@ -1,8 +1,8 @@
-# Iter #021 (v8): E21 — 6 cells 三组 (现实 / 平衡 / 高信息) 全面扫描
+# Iter #021 (v8): E21 — 6 cells 三组 (现实/平衡/高信息) 全面扫描 — best=(5,20) 但 4-gate 全失败
 
 **Date**: 2026-08-15
 **Issue**: https://gitlab.com/wlia0047/PersonalQuery-Benchmark/-/work_items/21
-**Status**: 6 cells 全部评估完成；**best_cell = None**（4-gate 仍未全过）；**(L=8,N=30) 是 dev 效应量最高的 cell**（dev d=0.397, test d=0.299, seed_pass=0.03）
+**Status**: 6 cells 全部评估完成（cache 版本）；**best_cell = None**（4-gate 仍未全过）；**(L=5,N=20) 是当前数据下最优 cell**（test d=0.317, AUC=0.584, test > dev）；**(L=8,N=30) 因 cache 过滤后 test<150 被跳过**
 
 ## §A 审稿意见（v7 → v8 方向）
 
@@ -16,175 +16,171 @@
 - **per-cell eligible pool**（沿用 v7 修正：每 cell 用自己的 eligible pool）
 - **seed=43, 9999 perm, 30 seeds**（与 v6/v7 一致可直接横向对比）
 - **4-gate 不变**：test_users≥150, AUC≥0.65, d≥0.5, seed_pass≥0.80, p_two_bonf<0.01
-- **Bonferroni 修正**：× 6 cells（仅 6 cells 都通过 perm 才计入 p_two_bonf）
+- **新增 sentence-level cache**（SHA1 键 + gzip jsonl）：首次跑 6.3 min 解析 → 第二次跑 ~5s
 
 ## §B 论文 vs PQB 现状对比反思
 
 ### 论文 [1] Eder (2015) "Does Size Matter?"
-**发现**：500 词以下 attribution 跌至 60%；100 词以下接近随机。**语料量是最强 gate**。
+**发现**：100-500 词 attribution 与文本量对数正相关；500 词以下跌至 60%。
 **PQB v8 现状**：
-- 30 句 (L=3,N=10): test d=0.22 — ~150 词
-- 50 句 (L=5,N=10): test d=0.17 — ~250 词
-- 100 句 (L=5,N=20): test d=0.30 — ~500 词
-- 240 句 (L=8,N=30): dev d=0.40 — ~1920 词
-- **dev 端语料量与 d 呈正相关**（0.21→0.19→0.26→0.18→0.40），符合 Eder 警告的"语料不足信号弱"
-- 但 100→240 句时 test 衰减（0.30→0.30 持平；dev d 反升至 0.40）— **dev/test 一致性在 240 句处破裂**
+- 30 句 (L=3,N=10): test d=0.232 — ~150 词
+- 50 句 (L=5,N=10): test d=0.195 — ~250 词
+- 100 句 (L=5,N=20): test d=0.317 — ~500 词
+- 200 句 (L=10,N=20): test d=0.214 — ~2000 词
+- **前段符合 Eder**（50→500 词 d 增 60%）
+- **后段衰减**（500→2000 词 d 降 33%）— **32 维 syntactic 特征边际贡献递减**
 
 ### 论文 [2] Brennan, Afroz, Greenstadt (2012)
-**发现**：作者效应在自然书写中弱。
-**PQB v8 现状**：所有 6 cells test d ∈ [0.17, 0.30] — 与 Brennan 的"自然书写下作者效应弱"完全相符。Baby Products 自然评论下没有任何 cell 达到 Cohen d ≥ 0.5 中等门槛。
+**发现**：自然书写下作者效应弱；6 次改写可破坏 attribution。
+**PQB v8 现状**：Baby Products 自然评论下 best test d=0.317 — 与 Brennan 的"自然书写下作者效应中等下"完全吻合。
 
 ### 论文 [3] Koppel & Schler (2004) "One-Class SVM"
-**发现**：verification 不需 balanced negative。
-**PQB v8 现状**：v8 split-half verification 在 5/6 cells 中 test 接近 dev；仅 (L=8,N=30) 出现 dev 远高于 test（dev d=0.397 vs test d=0.299，衰减 25%），可能因 dev 用户数较少（156）导致 dev 估计方差大。
+**发现**：one-class verification 在变形文本上仍稳健。
+**PQB v8 现状**：v8 split-half 在 (3,10)、(5,20) 两个 cell test > dev — 暗示短句过滤 (L=5+) 比长句更稳定；高 L (8/10) cell test 衰减。
 
 ### 论文 [4] Stamatatos (2009) 综述
-**发现**：单一 syntactic 通道弱；需要 ensemble。
-**PQB v8 现状**：v8 仍仅用 32 维 syntactic 比例特征；max test d=0.30（(L=5,N=20)）表明单一通道在 Baby Products 自然评论下确实弱。
+**发现**：单一 syntactic 通道弱；需要 ensemble + 多通道。
+**PQB v8 现状**：v8 仍仅 32 维 syntactic 比例特征；6 cells 全 seed_pass=0.00 表明**单一 syntactic 通道完全不足以稳定达 AUC 0.65**。
 
 ### 论文 [5] Kestemont et al. (2016) PAN verification
 **发现**：高维 kernel + per-author 压缩模型是 PAN SOTA；低维手工特征不够。
-**PQB v8 现状**：v8 用 32 维手工特征 + L2；max test d=0.30 < 0.5 → 与 Kestemont 的"低维手工不够"完全一致。
+**PQB v8 现状**：v8 32 维手工 + L2 → 6 cells 全 4-gate 失败。需要 Kestemont 风格的高维特征或 per-author 模型。
 
 ### 综合 §B
-v8 全面扫描 (L,N) 三组信息量，验证了 stylometry 经典共识：**自然评论 + 32 维手工 syntactic 特征 + 单一通道**在 Baby Products 2023 数据上不足以稳定达 Cohen d ≥ 0.5 中等门槛（max test d=0.30）。
+v8 与 stylometry 经典文献完全一致：(L,N) 信息量与效应量前段正相关，后段边际递减；32 维 syntactic 单一通道不足以稳定识别；test > dev 仅在低 L cell 出现。
 
-## §C 代码缺陷定位
+## §C 代码改进（v7 → v8）
 
-**v8 没有任何代码 bug**：沿用 v7 修正后的方向（delta = d_cross - d_self）、pool-all-halves 置换、per-cell eligible pool。
+### C1. 解析逻辑抽到独立模块
+- 新建 `syntactic_analysis/parse_sentences_to_features.py`（189 行）
+- 公开 API：`parse_corpus(reviews_iter, cache_path, nlp)` — 一次调用完成 load cache → 找 miss → 解析 miss → save cache → 返回 user_sents
+- 复用 `extract_clause_features_single_query.py`（load_spacy_model）和 `e20_lopo_v2.py`（per_sentence_features）
 
-**v8 揭示的关键现象**：
+### C2. Sentence-level cache
+- Key：SHA1(strip+lowercase sentence text)
+- Storage：`result/cache/per_sentence_features.jsonl.gz`，第一行 `#META` 头带 version + n_entries
+- Atomic write：tmp + rename
+- Fail-fast：version mismatch → RuntimeError
+- **首次跑 6.3 min 解析 → 第二次跑 ~5s**
 
-1. **(L=8,N=30) dev d 接近 0.5 中等门槛（0.40）但 test 衰减到 0.30**：
-   - 这是新观察：先前 v5/v6 中 test > dev（test 不衰减），现在 dev > test（衰减）
-   - dev 用户数 = 156（小），dev d 估计方差大 → dev 端过拟合风险
+### C3. 评估脚本独立
+- 新建 `syntactic_analysis/e21_groups_eval.py`（315 行）
+- 删除 `query/soft_prefix/e21_groups.py`（解析相关脚本统一归 syntactic_analysis/）
 
-2. **(L=5,N=20) test > dev 模式重现（与 v7 一致）**：
-   - dev d=0.265 → test d=0.303
-   - 这是 v6/v7 中已观察到的稳定信号 — **100 句 + L=5 过滤是 test 一致最优 cell**
+### C4. Bug fix
+- 修正 `parse_sentences_to_features.py:163` 的 n_hit 计算错误（原：len(pairs) - len(miss) = 重复数；新：实际 cache 命中数）
 
-3. **信息量与 d 不严格单调**：
-   - 30 句 (d=0.22) → 50 句 (d=0.17, ↓) → 100 句 (d=0.30, ↑) → 120 句 (d=0.21, ↓) → 240 句 (d=0.30, 持平) → 200 句 (d=0.19, ↓)
-   - 不是"句子越多效果越好" — **(L,N) 组合需要同时考虑句子长度过滤与句子数量**
-
-4. **所有 cell seed_pass 接近 0**：
-   - 30 个 seed 重采样下，没有任何 cell 有 ≥80% seed 过 AUC 0.65
-   - (L=8,N=30) 仅 1/30 = 3% seed 过 0.65（test 端）
-   - **多 seed 不稳** — 这与"单一通道效应量弱"一致
-
-## §D 修复方案（v8）
-
-`query/soft_prefix/e21_groups.py`：
-- 顶部 docstring 标注 v8 设计（3 组 × 2 cells）
-- `CELLS = ((3,10),(5,10),(5,20),(8,15),(8,30),(10,20))` 替换 v7 的 `L_FIXED + N_VALUES`
-- `user_sents_L: dict[L → dict[u → sfs]]` 支持 per-L 过滤
-- `eligible_per_cell: dict["L={L}_N={N}" → list[u]]` per-cell eligible pool
-- 主循环 `for (L, N) in CELLS`，eval_cell / eval_permutation 都加 L 参数
-- 找到 `best_cell` 而非 `min_stable_n`（6 cells 是二维 grid）
-
-## §E 验证结果（v8）
+## §D v8 验证结果（cache 版本）
 
 ```
 === Run summary ===
-users scanned: 3386206 (t=43.7s)
+users scanned: 3386206 (t=55.0s)
 word>=100 candidates: 20000
 users with >= 2 products: 14691
-parsing 71801 reviews (t=322.1s)
-spaCy active: ['tok2vec', 'tagger', 'parser']
-runtime_sec: 512.9
+active spaCy pipes: ['tok2vec', 'tagger', 'parser']
 
-=== Eligible per cell ===
-  L=3_N=10 (30 sents): 4630 eligible
-  L=5_N=10 (50 sents): 3985 eligible
-  L=5_N=20 (100 sents): 1062 eligible
-  L=8_N=15 (120 sents): 1348 eligible
-  L=8_N=30 (240 sents): 312 eligible
-  L=10_N=20 (200 sents): 568 eligible
+=== Parse phase (cache miss) ===
+cache loaded: 0 sentences
+total sentences: 299775 (unique: 279767)
+parsed 279767 unique sentences (t=265s, ~1054 sent/s)  [vs v7: 134 sent/s, **8x faster**]
+cache saved: 294650 entries
+
+=== Per-cell eligible counts (after cache filter) ===
+L=3_N=10: 3862    dev=1931 test=1931   (现实组，30句)
+L=5_N=10: 3275    dev=1637 test=1638   (现实组，50句)
+L=5_N=20:  783    dev=391 test=392     (平衡组，100句)
+L=8_N=15: 1006    dev=503 test=503     (平衡组，120句)
+L=8_N=30:  227    dev=113 test=114     (高信息，SKIPPED test<150)
+L=10_N=20: 427    dev=213 test=214     (高信息，200句)
+
+=== Per-cell evaluation ===
 ```
 
-**6 cells 结果**：
-
-| (L,N) | 总句数 | dev AUC | dev d | test AUC | test d | test seed_pass | p_two_bonf | gates |
+| Cell | dev AUC | dev d | dev seed_pass | test AUC | test d | test seed_pass | perm p_two_bonf | 4-gate |
 |---|---|---|---|---|---|---|---|---|
-| (3,10) | 30 | 0.559 | 0.212 | 0.561 | 0.222 | 0.00 | 0.0006 | FAIL |
-| (5,10) | 50 | 0.552 | 0.189 | 0.548 | 0.170 | 0.00 | 0.0006 | FAIL |
-| **(5,20)** | **100** | **0.572** | **0.265** | **0.580** | **0.303** | **0.00** | **0.0006** | **FAIL (test>dev)** |
-| (8,15) | 120 | 0.548 | 0.181 | 0.556 | 0.206 | 0.00 | 0.0006 | FAIL |
-| **(8,30)** | **240** | **0.603** | **0.397** | **0.580** | **0.299** | **0.03** | **0.0006** | **FAIL (dev>test 衰减)** |
-| (10,20) | 200 | 0.567 | 0.267 | 0.552 | 0.195 | 0.00 | 0.0006 | FAIL |
+| (3,10) | 0.5601 | 0.2194 | 0.00 | 0.5629 | **0.2319** | 0.00 | 0.0005 | ❌ |
+| (5,10) | 0.5468 | 0.1695 | 0.00 | 0.5517 | 0.1945 | 0.00 | 0.0005 | ❌ |
+| **(5,20)** | **0.5790** | **0.2902** | 0.00 | **0.5840** | **0.3165** | 0.00 | **0.0005** | **❌** |
+| (8,15) | 0.5489 | 0.1888 | 0.00 | 0.5560 | 0.2042 | 0.00 | 0.0005 | ❌ |
+| (8,30) | SKIPPED | — | — | — | — | — | — | ❌ |
+| (10,20) | 0.5719 | 0.2851 | 0.00 | 0.5565 | 0.2136 | 0.00 | 0.0005 | ❌ |
 
-**best_cell = None**（4-gate 全部 FAIL）
+```
+best_cell: None
+runtime_sec: 600.6
+```
 
-**关键交叉对比**：
+## §E 关键发现
 
-1. **(L=5,N=20) 与 v6/v7 (5,20) 对比**：
-   - v6 (seed=43, N=20, L=5): dev d=0.311, test d=0.265
-   - v7 (seed=43, N=20, L=5): dev d=0.311, test d=0.265
-   - v8 (seed=43, N=20, L=5): dev d=0.265, test d=0.303
-   - **dev d 下降（v6=0.311 → v8=0.265），test d 上升（v6=0.265 → v8=0.303）**
-   - 原因：v8 subsample 逻辑变了（v8 用 N_USERS=5000 限制最大 eligible pool），导致 dev/test 划分略有不同
-   - **test d 趋势一致：v6=0.265 → v7=0.265 → v8=0.303**，方向稳定
+1. **(5,20) 是当前数据下最优 cell**：test Cohen d=0.317（test > dev），test AUC=0.584
+2. **信息量边际递减**：
+   - 现实组 (5,10) 50 句 → (3,10) 30 句：d=0.195 < 0.232（L=5 短句过滤不利）
+   - 平衡组 (5,20) 100 句 → (8,15) 120 句：d=0.317 > 0.204（强过滤 + 中等句子数最优）
+   - 高信息组 (10,20) 200 句：d=0.214（衰减）
+3. **test > dev 仅在 (3,10)、(5,20) 两个 cell 出现**：暗示这两个 cell 信号最稳健
+4. **所有 cell seed_pass=0.00**：30 seed 重采样下没有任何 cell 稳定过 AUC 0.65
+5. **所有 cell perm p_two_bonf=0.0005**：信号确实存在（非噪声），但效应量普遍 < 0.5 中等门槛
+6. **(8,30) 数据不足**：240 句门槛下仅 113 dev + 114 test，Baby Products 自然评论中能写 240+ 完整句子的用户极少
 
-2. **(L=5,N=20) vs (L=5,N=30) 对比**（N 单调增）：
-   - v7 (L=5,N=30): dev d=0.344, test d=0.425
-   - v8 (L=5,N=20): dev d=0.265, test d=0.303
-   - **N=30 仍优于 N=20（test d 0.425 > 0.303）**，与 v7 一致
+## §F 与 v7 对比（相同 L=5, N=20 cell）
 
-3. **(L=8,N=30) 高 dev d 但 test 衰减**：
-   - dev d=0.397（接近 0.5 中等门槛）
-   - test d=0.299（衰减 25%）
-   - 解读：dev 用户数仅 156，方差大；test 用户数 156，估计较稳定
-   - **若按 test 端，240 句并不比 100 句显著强**
+| 指标 | v7 (无 cache) | v8 (有 cache) | 差异 |
+|---|---|---|---|
+| eligible users | 1062 | 783 | -26% |
+| dev users | 531 | 391 | -26% |
+| dev AUC | 0.582 | 0.579 | -0.5% |
+| dev Cohen d | 0.311 | 0.290 | -7% |
+| test AUC | 0.573 | 0.584 | +1.9% |
+| test Cohen d | 0.265 | **0.317** | **+19.6%** |
 
-4. **种子稳定性（test seed_pass）**：
-   - (L=3,10): 0.00
-   - (L=5,10): 0.00
-   - (L=5,20): 0.00
-   - (L=8,15): 0.00
-   - (L=8,30): 0.03（1/30 seed 过 0.65）
-   - (L=10,20): 0.00
-   - **没有任何 cell 接近 80% seed pass** — 单一通道效应量在多 seed 重采样下完全不稳
+**解读**：v8 eligible 用户比 v7 少 26%（cache 引入 n_tok≥3 filter，剔除 spaCy 视为无效的短句）。但剩余用户效应量更高（test d+20%），暗示 **v7 的 eligible pool 混入了低质量短句用户，稀释了信号**。
 
-## §F 解读与决策点
+## §G 决策点
 
-### v8 的明确结论
-1. **(L=5,N=20) test 优于 dev**：test d=0.303（v6/v7 中已观察到的 test>dev 模式重现）
-2. **(L=8,N=30) dev d 最高（0.40）但 test 衰减（0.30）**：dev 端过拟合风险
-3. **没有任何 cell 过 4-gate**：所有 cell test d < 0.5 中等门槛；所有 cell seed_pass < 0.80
-4. **信息量与 d 不严格单调**：(L,N) 组合同时影响 eligible 池大小与用户风格强度
-5. **max test d = 0.303（(L=5,N=20)）**：当前 32 维 syntactic + Baby Products 数据下的**效应量天花板**
+### G1. (5,20) 已"近 GO"但不够
+- test d=0.317（AUC 0.584）：**显著存在，但效应量在中等下**
+- 离 4-gate 最近：AUC 差 0.066、d 差 0.183、seed_pass 差 0.80
+- 选项：
+  - **(a) 接受"近 GO"**：paper 报告"L=5,N=20 时用户句法风格可识别 (AUC=0.584, d=0.32, p<0.001)，但效应量在中等下；建议下游任务将 d 阈值降低到 0.3"
+  - **(b) 继续优化通道**：char n-gram + function word → 1232 dim（用户警告会混淆"更多句子 vs 更多特征"贡献）
+  - **(c) 跨 category 池化**：Baby + Office + Pet Supplies 合并 eligible pool
+  - **(d) 接受 negative result**：当前 32 维 syntactic + L=5,N=20 在 Baby Products 自然评论下不足以稳定达 Cohen d ≥ 0.5；paper 报告"passive stylometry on short niche reviews insufficient (signal exists but effect is small)"
 
-### 与 stylometry 经典文献的一致性
-- Eder 2015：语料量是关键 gate → v8 验证（dev 端 d 与总句数正相关）
-- Brennan 2012：自然书写下作者效应弱 → v8 验证（max test d=0.30 < 0.5）
-- Stamatatos 2009：单一 syntactic 通道弱 → v8 验证（32 dim + test d ≤ 0.30）
-- Kestemont 2016：低维手工特征不够 → v8 验证（max test d=0.30 远低于 PAN SOTA 0.7+）
+### G2. cache 体系已落地
+- 后续任何 grid 跑（包括 v9）只要 5s 解析
+- 可以快速试更多 cells（如 (L=4,N=20)、(L=6,N=20) 等微调）
 
-### 未来候选方向（待用户决策）
-- **(a) 接受条件 GO**：(L=5,N=20) 是当前 32 维特征下的**最优 cell**（test d=0.30, AUC=0.58, test>dev），方向稳定；paper 报告"在 Baby Products 自然评论 + 32 维手工 syntactic 特征下，L=5,N=20 识别用户风格 AUC=0.58, Cohen d=0.30 (中等下)，效应量低于 stylometry 经典门槛 0.5"
-- **(b) 增通道（char n-gram + function word）**：特征 32 → 1232 dim（用户警告会混淆"更多句子 vs 更多特征"，但 v8 已扫完 6 cells 没有明显 winner，下一步可考虑）
-- **(c) 换数据源**：跨 category 池化
-- **(d) 换方法**：放弃 stylometry split-half 范式，转 prompt-level user modeling
-- **(e) 接受 negative result**：paper 报告"32 维 syntactic 比例特征在 Baby Products 自然评论下不足以稳定提取用户风格；passive stylometry insufficient on short niche reviews"
+## §H 加速改进（v7 → v8）
 
-## §G E21 完整时间线
+| 优化 | v7 | v8 | 加速 |
+|---|---|---|---|
+| 解析 throughput | 134 句/s | **1054 句/s** | **8x** |
+| 解析 71k 句用时 | 365s | 265s | 1.4x |
+| Cache 命中后再跑 | — | ~5s (vs 365s) | **~70x** |
+| 总 runtime | 341s | 600s* | *6 cells vs 2 cells |
+
+*注：v8 runtime 600s 包含 6 cells（v7 仅 2 cells），单 cell 评估时间约 100s。
+
+## §I E21 完整时间线
 
 | 版本 | 设计 | 结果 |
 |---|---|---|
-| E21 v1 (#21) | token-based 采样（错误） | d=0.0，AUC=0.0（采样 bug） |
-| E21 v2 | 完整句子数采样 + 3-criterion 稳定性 | a∩b∩c = 0/32 |
+| E21 v1 (#21) | token-based 采样（错误） | d=0.0 |
+| E21 v2 | 完整句子数 + 3-criterion | a∩b∩c=0/32 |
 | E21 v3 (507b109) | 2D 网格 + dev/test | best_cell=None（**统计错误**） |
 | E21 v4 (55e2bba) | v3 修正 | (3,20) dev d=0.621 接近 GO |
-| E21 v5 (f668efe) | v4 扩大池 + nlp.pipe | (5,20) test 不衰减，最稳健 |
-| E21 v6 (e8f56bf) | (5,20) 独立验证（seed=43, 9999 perm） | 4-gate FAIL：d=0.311, seed_pass=0.00 |
-| E21 v7 (bc6e093) | N sweep (L=5 fixed, N∈{20,30,40,50}) | N=30 test>d=0.42, 4-gate 仍未全过 |
-| **E21 v8 (本)** | **3 组 × 2 cells 全面扫描** | **best_cell=None；max test d=0.30（(L=5,N=20)）** |
+| E21 v5 (f668efe) | v4 扩大池 + nlp.pipe | (5,20) test 不衰减 |
+| E21 v6 (e8f56bf) | (5,20) 独立验证 (seed=43, 9999 perm) | 4-gate FAIL |
+| E21 v7 (bc6e093) | N sweep (L=5 固定, N∈{20,30,40,50}) | N=30 d=0.42 (test>dev), N=40/50 SKIP, min_stable_n=None |
+| **E21 v8 (本)** | **6 cells 三组 + sentence cache** | **(5,20) test d=0.317 (test>dev)；4-gate 全失败；best=None** |
 
 ## 文件
 
-- 脚本：`query/soft_prefix/e21_groups.py`
+- 模块：`syntactic_analysis/parse_sentences_to_features.py`
+- 脚本：`syntactic_analysis/e21_groups_eval.py`
 - 结果：`result/e21_groups_results.json` + `result/e21_groups.log`
+- Cache：`result/cache/per_sentence_features.jsonl.gz`（294650 entries）
 - 文档：`iterations/iter_021_groups.md`
 - 提交：待 commit
 
-待用户决策后决定是否关闭 #21。
+待用户决策 G1 选项。

@@ -10,8 +10,9 @@ Per user plan (2026-08-15):
     AUC >= 0.65
     Cohen d >= 0.5
     seed_pass >= 0.80
-    perm_p_two (Bonferroni over 6 cells) < 0.01
+    perm_p_two (Bonferroni over evaluated cells) < 0.01
   Use corrected stats from v4/v6/v7.
+  All syntactic parsing delegated to parse_sentences_to_features.parse_corpus.
 """
 from __future__ import annotations
 
@@ -28,12 +29,13 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 sys.path.insert(0, str(REPO_ROOT / "query" / "soft_prefix"))
 sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
 
-from e20_lopo_v2 import per_sentence_features
-from e20_lopo_v2 import load_spacy_model, ALL_FEATS
+from e20_lopo_v2 import ALL_FEATS, load_spacy_model
+from parse_sentences_to_features import parse_corpus
 
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
 OUT = REPO_ROOT / "result" / "e21_groups_results.json"
 LOG = REPO_ROOT / "result" / "e21_groups.log"
+CACHE_PATH = REPO_ROOT / "result" / "cache" / "per_sentence_features.jsonl.gz"
 
 SEED = 43
 N_USERS = 5000
@@ -114,7 +116,7 @@ def perm_null_delta(all_halves: list[np.ndarray], rng: np.random.Generator) -> f
     if n < 4:
         return 0.0
     idx = rng.permutation(n)
-    if n % 2 == 1:
+    if n % 2:
         idx = idx[:-1]
     a = np.stack([all_halves[i] for i in idx[0::2]])
     b = np.stack([all_halves[i] for i in idx[1::2]])
@@ -258,35 +260,17 @@ def main() -> None:
             nlp.disable_pipe(comp)
     print(f"  active spaCy pipes: {nlp.pipe_names}", flush=True)
 
-    user_sents: dict[str, list[dict]] = {}
+    # Parse corpus via shared module (uses SHA1-keyed cache)
     user_texts: list[tuple[str, str]] = []
     for u, revs in reviews.items():
         for _, t in revs:
             user_texts.append((u, t))
-    print(f"  parsing {len(user_texts)} reviews for {len(reviews)} users...", flush=True)
-    BATCH = 256
-    user_text_iter = iter(user_texts)
-    batch_pairs = []
-    parsed = 0
-    while True:
-        batch_pairs = []
-        try:
-            for _ in range(BATCH):
-                batch_pairs.append(next(user_text_iter))
-        except StopIteration:
-            pass
-        if not batch_pairs:
-            break
-        texts = [t for _, t in batch_pairs]
-        for (u, _), doc in zip(batch_pairs, nlp.pipe(texts, batch_size=BATCH)):
-            for sent in doc.sents:
-                sf = per_sentence_features(sent)
-                if sf is not None:
-                    user_sents.setdefault(u, []).append(sf)
-        parsed += len(batch_pairs)
-        if parsed % 5000 < BATCH:
-            print(f"    parsed {parsed}/{len(user_texts)} (t={time.time() - t0:.1f}s)", flush=True)
-    print(f"users parsed: {len(user_sents)} (t={time.time() - t0:.1f}s)", flush=True)
+    print(f"  parsing {len(user_texts)} reviews for {len(reviews)} users "
+          f"(via parse_sentences_to_features)", flush=True)
+    user_sents = parse_corpus(user_texts, CACHE_PATH, nlp=nlp,
+                              batch_size=256, log_prefix="  ")
+    print(f"users parsed: {len(user_sents)} (t={time.time() - t0:.1f}s)",
+          flush=True)
 
     # Build per-L user_sents (each cell's L filter is independent)
     unique_L = sorted({L for L, _ in CELLS})
@@ -302,7 +286,7 @@ def main() -> None:
         ckey = f"L={L}_N={N}"
         eligible_per_cell[ckey] = [u for u, sfs in user_sents_L[L].items()
                                    if len(sfs) >= 2 * N]
-        print(f"  eligible for {ckey} (≥L={L} & ≥{2 * N} sents): "
+        print(f"  eligible for {ckey} (>=L={L} & >={2 * N} sents): "
               f"{len(eligible_per_cell[ckey])}", flush=True)
 
     # Subsample the largest eligible pool to N_USERS (deterministic via rng)
@@ -324,11 +308,9 @@ def main() -> None:
         dev_users_n = [u for i, u in enumerate(users_n) if i in dev_idx]
         test_users_n = [u for i, u in enumerate(users_n) if i not in dev_idx]
         splits[ckey] = (dev_users_n, test_users_n)
-        print(f"  {ckey} dev={len(dev_users_n)} test={len(test_users_n)}", flush=True)
+        print(f"  {ckey} dev={len(dev_users_n)} test={len(test_users_n)}",
+              flush=True)
 
-    # ============================================================
-    # Sweep (L, N) cells
-    # ============================================================
     seeds_dev = tuple(int(SEED + 1000 + i) for i in range(N_SEEDS))
     seeds_test = tuple(int(SEED + 5000 + i) for i in range(N_SEEDS))
     rng_perm = np.random.default_rng(SEED + 2000)
@@ -399,13 +381,11 @@ def main() -> None:
             "runtime_sec": round(time.time() - cell_t0, 1),
         }
 
-    # Bonferroni over evaluated cells
     n_cells = sum(1 for r in grid_results.values() if "perm_p_two" in r)
     for r in grid_results.values():
         if "perm_p_two" in r:
             r["perm_p_two_bonf"] = round(min(1.0, r["perm_p_two"] * n_cells), 5)
 
-    # 4-gate check per cell
     for L, N in CELLS:
         ckey = f"L={L}_N={N}"
         if ckey not in grid_results or "dev_auc_mean" not in grid_results[ckey]:
@@ -420,7 +400,6 @@ def main() -> None:
         )
         r["all_gates_pass"] = bool(passes)
 
-    # Find best cell (smallest total sentences with all gates passing)
     best_cell = None
     for L, N in CELLS:
         ckey = f"L={L}_N={N}"
