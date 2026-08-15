@@ -10,10 +10,10 @@ Design:
   2. Per-sentence syntactic primitives from e20_lopo_v2.per_sentence_features.
   3. Stability selection (3-criterion, not E20 v2's single corr):
      (a) |corr(feat, sent_count)| < 0.1   across users
-     (b) cross-word-count ICC > 0.6       over 60/100/240/450 token samples
-     (c) resample stability ICC > 0.7     over 5 resamples per word count
+     (b) cross-sent-count ICC > 0.6       over 5/10/20/40 sentence samples
+     (c) resample stability ICC > 0.7     over 5 resamples per sent count
   4. self vs cross distance:
-     self  = ||vec_U_seed_a - vec_U_seed_b||   (a != b, same word count)
+     self  = ||vec_U_seed_a - vec_U_seed_b||   (a != b, same sent count)
      cross = ||vec_U - vec_V||                 (U != V)
      AUC sanity-checked against synthetic case where self < cross.
   5. 999 user-label permutations.
@@ -42,17 +42,18 @@ from e20_lopo_v2 import (  # reuse constants
 
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
 META = REPO_ROOT / "data" / "meta_Baby_Products_2023.jsonl.gz"
-OUT = REPO_ROOT / "result" / "e21_simple_discrimination.json"
+OUT = REPO_ROOT / "result" / "e21_simple_discrimination_v2.json"
 
 SEED = 42
 N_USERS = 300
 MIN_ASINS = 3
 MIN_WORDS = 200
-MIN_SENTS = 10
-# word-count sampling grid for stability selection
-SAMPLE_TOKENS = (60, 100, 240, 450)
-N_RESAMPLE = 5             # resamples per word-count for resample ICC
-WORD_BIN = 240             # canonical word count for self/cross comparison
+MIN_SENTS = 50             # v2: need enough sents to sample 5/10/20/40 without overlap
+# SAMPLE BY COMPLETE SENTENCE COUNT (not token count): syntactic primitive
+# is the full sentence, not the partial token window.
+SAMPLE_SENT_COUNTS = (5, 10, 20, 40)
+N_RESAMPLE = 5
+SENT_BIN = 20              # canonical sent count for self/cross comparison
 # stability thresholds (per #21 Task 2)
 STAB_CORR_THRESH = 0.1
 STAB_CROSS_BIN_ICC = 0.6
@@ -94,19 +95,19 @@ def user_features_from_sents(sent_feats: list[dict]) -> np.ndarray | None:
     return np.asarray([f[name] for name in ALL_FEATS], dtype=np.float32)
 
 
-def sample_by_tokens(sent_feats: list[dict], target_tok: int, rng: np.random.Generator) -> list[dict]:
-    """Random sample of sentences whose cumulative n_tok first reaches target_tok."""
-    if not sent_feats:
+def sample_by_sents(sent_feats: list[dict], n_sents: int, rng: np.random.Generator) -> list[dict]:
+    """Random sample of n_sents complete sentences (no truncation).
+
+    v2 of e21: syntactic primitives are complete sentences, so the sampling
+    unit is the sentence count, not the token count. This avoids the v1 bug
+    where cum>=target_tok stop condition produced 1-50 sentence samples
+    depending on sentence length distribution.
+    """
+    if not sent_feats or n_sents <= 0:
         return []
+    n = min(n_sents, len(sent_feats))
     order = rng.permutation(len(sent_feats))
-    cum = 0
-    out = []
-    for i in order:
-        cum += sent_feats[i]["n_tok"]
-        out.append(sent_feats[i])
-        if cum >= target_tok:
-            break
-    return out
+    return [sent_feats[i] for i in order[:n]]
 
 
 def icc_one_way(values: np.ndarray) -> float:
@@ -202,30 +203,29 @@ def main() -> None:
     # ============================================================
     # Task 2: 3-criterion stability filter
     # ============================================================
-    # For each user u and each target tok in SAMPLE_TOKENS, draw N_RESAMPLE
-    # samples, compute features for each, store in a tensor.
-    # Resulting shape: (n_users, len(SAMPLE_TOKENS), N_RESAMPLE, n_feats)
+    # v2: sample by complete sentence count (5, 10, 20, 40)
+    # Resulting shape: (n_users, len(SAMPLE_SENT_COUNTS), N_RESAMPLE, n_feats)
     n_feats = len(ALL_FEATS)
-    samples = np.zeros((n_users, len(SAMPLE_TOKENS), N_RESAMPLE, n_feats), dtype=np.float32)
-    sent_counts_per_user = np.zeros((n_users, len(SAMPLE_TOKENS)), dtype=np.float32)
+    samples = np.zeros((n_users, len(SAMPLE_SENT_COUNTS), N_RESAMPLE, n_feats), dtype=np.float32)
+    sent_counts_per_user = np.zeros((n_users, len(SAMPLE_SENT_COUNTS)), dtype=np.float32)
     for ui, u in enumerate(sorted(user_sents)):
-        for ti, target in enumerate(SAMPLE_TOKENS):
+        for ti, target_n in enumerate(SAMPLE_SENT_COUNTS):
             for ri in range(N_RESAMPLE):
                 s_rng = np.random.default_rng(SEED + ui * 1000 + ti * 100 + ri)
-                samps = sample_by_tokens(user_sents[u], target, s_rng)
+                samps = sample_by_sents(user_sents[u], target_n, s_rng)
                 v = user_features_from_sents(samps)
                 if v is not None:
                     samples[ui, ti, ri] = v
                     sent_counts_per_user[ui, ti] = len(samps)
-    print(f"sample grid: ({n_users}, {len(SAMPLE_TOKENS)}, {N_RESAMPLE}, {n_feats})", flush=True)
+    print(f"sample grid: ({n_users}, {len(SAMPLE_SENT_COUNTS)}, {N_RESAMPLE}, {n_feats})", flush=True)
 
     # criterion (a): per-feature corr(feat, sent_count) across users, averaged
-    # over (ti, ri). Use canonical bin (ti=index of WORD_BIN in SAMPLE_TOKENS)
-    canonical_ti = SAMPLE_TOKENS.index(WORD_BIN)
+    # over (ti, ri). Use canonical bin (ti=index of SENT_BIN in SAMPLE_SENT_COUNTS)
+    canonical_ti = SAMPLE_SENT_COUNTS.index(SENT_BIN)
     feat_corr: dict[str, float] = {}
     for fi, fname in enumerate(ALL_FEATS):
         corrs = []
-        for ti in range(len(SAMPLE_TOKENS)):
+        for ti in range(len(SAMPLE_SENT_COUNTS)):
             for ri in range(N_RESAMPLE):
                 fvals = samples[:, ti, ri, fi]
                 ns = sent_counts_per_user[:, ti]
@@ -238,11 +238,11 @@ def main() -> None:
     pass_a = {f for f, c in feat_corr.items() if abs(c) < STAB_CORR_THRESH}
     print(f"criterion (a) |corr|<{STAB_CORR_THRESH}: {len(pass_a)}/{n_feats}", flush=True)
 
-    # criterion (b): cross-word-count ICC. For each user, take the mean across
-    # resamples at each word count (k=len(SAMPLE_TOKENS) measurements per user).
+    # criterion (b): cross-sent-count ICC. For each user, take the mean across
+    # resamples at each sent count (k=len(SAMPLE_SENT_COUNTS) measurements per user).
     feat_cross_icc: dict[str, float] = {}
     for fi, fname in enumerate(ALL_FEATS):
-        # use mean across resamples: shape (n_users, len(SAMPLE_TOKENS))
+        # use mean across resamples: shape (n_users, len(SAMPLE_SENT_COUNTS))
         m = samples[:, :, :, fi].mean(axis=2)  # (n_users, n_bins)
         # drop zero-variance columns
         if np.std(m) == 0 or m.shape[1] < 2:
@@ -252,13 +252,13 @@ def main() -> None:
     pass_b = {f for f, v in feat_cross_icc.items() if v > STAB_CROSS_BIN_ICC}
     print(f"criterion (b) cross-bin ICC>{STAB_CROSS_BIN_ICC}: {len(pass_b)}/{n_feats}", flush=True)
 
-    # criterion (c): resample stability. For each word count, ICC across the
+    # criterion (c): resample stability. For each sent count, ICC across the
     # N_RESAMPLE resamples (k=N_RESAMPLE measurements per user). Average over
-    # word counts.
+    # sent counts.
     feat_resample_icc: dict[str, float] = {}
     for fi, fname in enumerate(ALL_FEATS):
         iccs = []
-        for ti in range(len(SAMPLE_TOKENS)):
+        for ti in range(len(SAMPLE_SENT_COUNTS)):
             m = samples[:, ti, :, fi]  # (n_users, N_RESAMPLE)
             if np.std(m) == 0 or m.shape[1] < 2:
                 continue
@@ -397,7 +397,7 @@ def main() -> None:
             "n_stable": feat_dim,
         },
         "n_users": n_users, "n_self_pairs": len(diffs_self), "n_cross_pairs": len(diffs_cross),
-        "n_perm": N_PERM, "canonical_word_bin": WORD_BIN,
+        "n_perm": N_PERM, "canonical_sent_bin": SENT_BIN,
         "self_vs_cross": {
             "d_self_mean": round(float(diffs_self.mean()), 4),
             "d_cross_mean": round(float(diffs_cross.mean()), 4),
