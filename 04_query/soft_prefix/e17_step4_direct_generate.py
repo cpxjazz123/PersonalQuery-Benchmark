@@ -160,8 +160,15 @@ def main() -> None:
         # fall back to all available training vectors
         train_vec_arr = np.asarray(list(TRAIN_VECS["vectors"].values()), dtype=np.float32)
     global_mean = train_vec_arr.mean(axis=0)
+    # CRITICAL: training script z-scored vectors with (x - mu) / sd over training
+    # users; inference MUST use the SAME mu/sd or projector receives OOD inputs.
+    Z_MU = train_vec_arr.mean(axis=0)
+    Z_SD = train_vec_arr.std(axis=0) + 1e-9
+    def zscore(x):
+        return (np.asarray(x, dtype=np.float32) - Z_MU) / Z_SD
+    global_mean_z = zscore(global_mean)  # apply z-score so projector gets train-distribution input
     print(f"  global mean computed over {len(train_vec_arr)} train-user vectors "
-          f"(from e17_train_vectors.json)", flush=True)
+          f"(from e17_train_vectors.json); z-scored with train mu/sd", flush=True)
 
     # build a user-level permutation table (each user gets a fixed shuffle)
     perm_table: dict[str, np.ndarray] = {}
@@ -185,16 +192,17 @@ def main() -> None:
     # per-condition vectors and per-row attrs
     jobs: list[dict] = []
     for uid in final_users:
-        vec_correct = np.asarray(style["vectors"][uid], dtype=np.float32)
-        vec_shuffled = vec_correct[perm_table[uid]]
+        vec_correct_raw = np.asarray(style["vectors"][uid], dtype=np.float32)
+        vec_correct_z = zscore(vec_correct_raw)  # project into train distribution
+        vec_shuffled_z = vec_correct_z[perm_table[uid]]
         for prod in user_products[uid]:
             for cond in CONDITIONS:
                 if cond == "correct":
-                    z = vec_correct
+                    z = vec_correct_z
                 elif cond == "shuffled":
-                    z = vec_shuffled
+                    z = vec_shuffled_z
                 elif cond == "global_mean":
-                    z = global_mean
+                    z = global_mean_z
                 else:
                     z = np.zeros(USER_DIM, dtype=np.float32)
                 jobs.append({"user_id": uid, "asin": prod["asin"], "cond": cond,

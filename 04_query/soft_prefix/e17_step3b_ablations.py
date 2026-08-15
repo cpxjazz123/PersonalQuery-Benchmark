@@ -127,6 +127,9 @@ def main() -> None:
     mu = train_uvec.mean(axis=0)
     sd = train_uvec.std(axis=0) + 1e-9
 
+    def zscore_vec(x):
+        return (np.asarray(x, dtype=np.float32) - mu) / sd
+
     # helper: forward a (u, p, t) triple under a given z, return syntax distance
     emb_m = base.get_input_embeddings()
 
@@ -202,6 +205,8 @@ def main() -> None:
                 if z30 is None:
                     continue
                 z_correct = np.asarray(z30, dtype=np.float32)
+                # CRITICAL: training z-scored vectors. Inference must do the same
+                z_correct = zscore_vec(z_correct)
                 # determine z_to_use for the "correct" pass
                 if isinstance(manipulate, tuple) and manipulate[0] == "alpha":
                     z_to_use = z_correct
@@ -282,6 +287,7 @@ def main() -> None:
             if z30 is None:
                 continue
             z_correct = np.asarray(z30, dtype=np.float32)
+            z_correct = zscore_vec(z_correct)
             z_shuffled = z_correct[shuf_vec]
             from copy_aware import build_attr_prompt_lines
             attrs = r.get("attrs") or r.get("attrs_used")
