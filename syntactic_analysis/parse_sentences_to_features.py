@@ -182,6 +182,77 @@ def parse_corpus(reviews_iter: Iterable[tuple[str, str]],
     return user_sents
 
 
+def parse_corpus_with_reviews(reviews_iter: Iterable[tuple[str, str, str]],
+                               cache_path: Path,
+                               nlp: Language | None = None,
+                               batch_size: int = 256,
+                               log_prefix: str = "") -> dict[str, dict[str, list[dict]]]:
+    """Parse (user_id, review_id, review_text) corpus, using cache.
+
+    Returns {user_id: {review_id: [features_dict, ...]}}. The review_id layer
+    lets callers split a user's sentences by source review (parent_asin),
+    ensuring two halves contain disjoint review text — used by E21 v11
+    to avoid within-user sentence duplication across split-half.
+
+    Shares the same sentence-level cache as parse_corpus (keyed by sent_key
+    SHA1). New reviews reuse cached parses; new sentences get parsed once.
+
+    The caller should pre-dedup `reviews_iter` by (user_id, review_id, text)
+    if duplicates exist; this function dedups by sent_key only.
+    """
+    nlp = nlp or load_spacy_model()
+    for comp in ("ner", "lemmatizer", "attribute_ruler"):
+        if comp in nlp.pipe_names:
+            nlp.disable_pipe(comp)
+
+    sent_cache = load_features_cache(cache_path)
+    print(f"{log_prefix}cache loaded: {len(sent_cache)} sentences from "
+          f"{cache_path.name}", flush=True)
+
+    # Collect (user, review_id, sent_text) triples
+    sent_triples: list[tuple[str, str, str]] = []
+    seen_triples: set[tuple[str, str, str]] = set()
+    for u, rid, t in reviews_iter:
+        if (u, rid, t) in seen_triples:
+            continue
+        seen_triples.add((u, rid, t))
+        for s in split_sents(t):
+            sent_triples.append((u, rid, s))
+    n_unique_sents = len({sent_key(s) for _, _, s in sent_triples})
+    print(f"{log_prefix}total sentences: {len(sent_triples)} "
+          f"(unique: {n_unique_sents})", flush=True)
+
+    # Lookup cache; collect unique miss sentences
+    miss_sents: list[str] = []
+    miss_keys: set[str] = set()
+    for _, _, s in sent_triples:
+        k = sent_key(s)
+        if k not in sent_cache and k not in miss_keys:
+            miss_keys.add(k)
+            miss_sents.append(s)
+    n_hit = len(sent_triples) - len(miss_sents)
+    print(f"{log_prefix}cache hits: {n_hit}/{len(sent_triples)}, "
+          f"to parse: {len(miss_sents)} unique", flush=True)
+
+    t0 = time.time()
+    if miss_sents:
+        new_feats = parse_miss_sentences(miss_sents, nlp,
+                                         batch_size=batch_size, t0=t0)
+        sent_cache.update(new_feats)
+
+    save_features_cache(cache_path, sent_cache)
+    print(f"{log_prefix}cache saved: {len(sent_cache)} entries", flush=True)
+
+    # Assemble {user: {review_id: [sf, ...]}}
+    user_review_sents: dict[str, dict[str, list[dict]]] = {}
+    for u, rid, s in sent_triples:
+        sf = sent_cache.get(sent_key(s))
+        if sf is None:
+            continue
+        user_review_sents.setdefault(u, {}).setdefault(rid, []).append(sf)
+    return user_review_sents
+
+
 __all__ = [
     "CACHE_META_VERSION",
     "split_sents",
@@ -190,4 +261,5 @@ __all__ = [
     "save_features_cache",
     "parse_miss_sentences",
     "parse_corpus",
+    "parse_corpus_with_reviews",
 ]

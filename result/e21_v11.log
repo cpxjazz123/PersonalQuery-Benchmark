@@ -1,0 +1,73 @@
+users scanned: 3386206 (t=52.9s)
+word>=100 candidates: 20000
+users with >= 2 products: 14699
+  active spaCy pipes: ['tok2vec', 'tagger', 'parser']
+  parsing 70863 reviews for 14699 users (via parse_corpus_with_reviews)
+  cache loaded: 298151 sentences from per_sentence_features.jsonl.gz
+  total sentences: 293345 (unique: 277202)
+  cache hits: 29357/293345, to parse: 263988 unique
+    parsed 5120/263988 (t=7.6s)
+    parsed 10240/263988 (t=14.2s)
+    parsed 15104/263988 (t=20.1s)
+    parsed 20224/263988 (t=26.3s)
+    parsed 25088/263988 (t=32.3s)
+    parsed 30208/263988 (t=38.7s)
+    parsed 35072/263988 (t=44.7s)
+    parsed 40192/263988 (t=50.8s)
+    parsed 45056/263988 (t=57.0s)
+    parsed 50176/263988 (t=63.3s)
+    parsed 55040/263988 (t=69.5s)
+    parsed 60160/263988 (t=76.0s)
+    parsed 65024/263988 (t=82.1s)
+    parsed 70144/263988 (t=88.3s)
+    parsed 75008/263988 (t=94.2s)
+    parsed 80128/263988 (t=100.7s)
+    parsed 85248/263988 (t=107.0s)
+    parsed 90112/263988 (t=113.2s)
+    parsed 95232/263988 (t=119.8s)
+    parsed 100096/263988 (t=125.8s)
+    parsed 105216/263988 (t=132.1s)
+    parsed 110080/263988 (t=138.2s)
+    parsed 115200/263988 (t=144.6s)
+    parsed 120064/263988 (t=150.6s)
+    parsed 125184/263988 (t=157.8s)
+    parsed 130048/263988 (t=164.1s)
+    parsed 135168/263988 (t=170.4s)
+    parsed 140032/263988 (t=176.3s)
+    parsed 145152/263988 (t=182.7s)
+    parsed 150016/263988 (t=188.7s)
+    parsed 155136/263988 (t=195.0s)
+    parsed 160000/263988 (t=201.1s)
+    parsed 165120/263988 (t=207.7s)
+    parsed 170240/263988 (t=214.0s)
+    parsed 175104/263988 (t=220.5s)
+    parsed 180224/263988 (t=227.2s)
+    parsed 185088/263988 (t=233.3s)
+    parsed 190208/263988 (t=239.7s)
+    parsed 195072/263988 (t=245.8s)
+    parsed 200192/263988 (t=252.3s)
+    parsed 205056/263988 (t=258.4s)
+    parsed 210176/263988 (t=264.7s)
+    parsed 215040/263988 (t=270.6s)
+    parsed 220160/263988 (t=277.2s)
+    parsed 225024/263988 (t=283.6s)
+    parsed 230144/263988 (t=290.1s)
+    parsed 235008/263988 (t=296.3s)
+    parsed 240128/263988 (t=302.9s)
+    parsed 245248/263988 (t=309.2s)
+    parsed 250112/263988 (t=315.7s)
+    parsed 255232/263988 (t=322.2s)
+    parsed 260096/263988 (t=329.1s)
+  cache saved: 578163 entries
+users parsed: 14685 (t=532.7s)
+  eligible for L=5_N=15 (>=L=5 & >=30 sents & >=2 reviews): 1599
+  L=5_N=15 dev=799 test=800
+
+=== Cell L=5_N=15: dev=799 test=800 ===
+  dev AUC=0.6692+-0.0114  d=0.5947  seed_pass=0.93  delta=0.04585
+      perm: 9999 iterations on 1346 halves (dim=318)
+      perm done (t=11.7s)
+  perm p_one=0.00010  p_two=0.00010
+  test AUC=0.6599  d=0.5578  seed_pass=0.73
+wrote /home/wlia0047/ar57/wenyu/PersoanlQuery/result/e21_v11_results.json (t=719.6s)
+best_cell: [5, 15]
