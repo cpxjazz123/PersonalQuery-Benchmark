@@ -1,0 +1,83 @@
+Loading prior eligible users (v9/v10/v11/v12) for exclusion...
+  prior v9: 1626 users
+  prior v10: 1626 users
+  prior v11: 1633 users
+  prior v12: 1606 users
+  total prior: 4815
+Reading word counts...
+  users: 3386206 (t=53.2s)
+  cands 20000 → 19841 after exclusion
+Loading reviews with (parent_asin, text) dedup...
+  users with >= 2 asins: 14678
+Building (user, asin) sentence map via parse_corpus_with_reviews...
+  cache loaded: 849614 sentences from per_sentence_features.jsonl.gz
+  total sentences: 291737 (unique: 274663)
+  cache hits: 41366/291737, to parse: 250371 unique
+    parsed 5120/250371 (t=7.8s)
+    parsed 10240/250371 (t=14.2s)
+    parsed 15104/250371 (t=20.4s)
+    parsed 20224/250371 (t=26.9s)
+    parsed 25088/250371 (t=32.6s)
+    parsed 30208/250371 (t=39.0s)
+    parsed 35072/250371 (t=44.6s)
+    parsed 40192/250371 (t=50.9s)
+    parsed 45056/250371 (t=56.7s)
+    parsed 50176/250371 (t=62.7s)
+    parsed 55040/250371 (t=68.8s)
+    parsed 60160/250371 (t=74.9s)
+    parsed 65024/250371 (t=80.7s)
+    parsed 70144/250371 (t=87.0s)
+    parsed 75008/250371 (t=93.2s)
+    parsed 80128/250371 (t=99.3s)
+    parsed 85248/250371 (t=105.4s)
+    parsed 90112/250371 (t=111.4s)
+    parsed 95232/250371 (t=117.8s)
+    parsed 100096/250371 (t=123.6s)
+    parsed 105216/250371 (t=129.7s)
+    parsed 110080/250371 (t=135.7s)
+    parsed 115200/250371 (t=142.1s)
+    parsed 120064/250371 (t=148.9s)
+    parsed 125184/250371 (t=154.9s)
+    parsed 130048/250371 (t=161.0s)
+    parsed 135168/250371 (t=167.2s)
+    parsed 140032/250371 (t=173.1s)
+    parsed 145152/250371 (t=179.3s)
+    parsed 150016/250371 (t=185.3s)
+    parsed 155136/250371 (t=191.6s)
+    parsed 160000/250371 (t=197.8s)
+    parsed 165120/250371 (t=203.9s)
+    parsed 170240/250371 (t=211.2s)
+    parsed 175104/250371 (t=217.6s)
+    parsed 180224/250371 (t=224.1s)
+    parsed 185088/250371 (t=230.2s)
+    parsed 190208/250371 (t=236.5s)
+    parsed 195072/250371 (t=242.7s)
+    parsed 200192/250371 (t=249.7s)
+    parsed 205056/250371 (t=256.0s)
+    parsed 210176/250371 (t=262.4s)
+    parsed 215040/250371 (t=268.6s)
+    parsed 220160/250371 (t=275.2s)
+    parsed 225024/250371 (t=281.7s)
+    parsed 230144/250371 (t=288.2s)
+    parsed 235008/250371 (t=294.4s)
+    parsed 240128/250371 (t=300.8s)
+    parsed 245248/250371 (t=307.3s)
+    parsed 250112/250371 (t=314.0s)
+  cache saved: 1114422 entries
+  users with sents: 14668
+Filtering eligible (>=30 sents, >=2 asins, L=5 filter)...
+  eligible users: 1526
+  train/dev/test: 915/305/306
+Aggregating full 318-dim vectors from ALL eligible sentences...
+  users with vectors: 1526
+Selecting Query-compatible features...
+  initial filter kept 73/318; now running split-half stability on selected...
+  after stability: 7; computing between/within...
+  final Query-compatible features: 7/318
+  wrote e22_t1_feature_schema.json
+  wrote e22_t1_user_vectors.npz (Z shape=(1526, 7))
+  wrote e22_t1_manifest.json
+Running Check-1 discrimination eval on filtered z_user...
+  AUC=0.8177±0.0096  d=1.3127  seed_pass=1.00
+  perm on 612 halves (dim=7)
+  wrote e22_t1_results.json; all_gates_pass=True
