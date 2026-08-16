@@ -85,3 +85,8 @@
      " > result/xxx.log 2>&1 &
      ```
    - 需先 `scancel` 取消已提交的 sbatch 作业；用 `ps aux | grep xxx` + `kill` 管理本地 nohup 进程
+
+9. **禁止用 sleep 等待后台进程，改用定期手动轮询**：
+   - 后台任务（nohup/setsid 启动的训练、生成、评估）启动后，**禁止** `sleep 300; tail xxx.log` 这类休眠等待
+   - 应通过多次 `tail -n 20 <log>` / `ps aux | grep <proc>` 快速轮询检查进度，每次检查间隔由用户或上下文决定
+   - 轮询时若进程已完成（log 出现 DONE/完成标志），立即进行下一步，不要多余等待
