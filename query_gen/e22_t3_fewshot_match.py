@@ -240,7 +240,6 @@ def main() -> None:
             zq = {}
             hits = []
             for u in users:
-                # build prompt with exemplar in system role (few-shot style)
                 attr_prompt = ("Product attributes:\n" +
                                "\n".join(f"{k}: {gen_attrs[k]}"
                                          for k in gen_attrs) +
@@ -248,8 +247,19 @@ def main() -> None:
                                "mentions every attribute.")
                 if MODE == "fewshot" and exemplar_for:
                     ex = exemplar_for[u]
-                    sys_msg = ("You write shopping queries in a style like "
-                               "this review example:\n" + ex)
+                    # STRONG style anchor: transform THIS review into the
+                    # query, keeping its sentence structure/clauses/tone.
+                    sys_msg = ("You are a copywriter. Rewrite the user's "
+                               "review below into a shopping query that "
+                               "mentions every product attribute. Keep the "
+                               "review's sentence structure, clause order, "
+                               "punctuation and tone exactly — only swap "
+                               "the descriptive content for the attribute "
+                               "values. Output ONLY the rewritten sentence.")
+                    attr_prompt = ("Review to transform:\n" + ex +
+                                   "\n\nProduct attributes to mention:\n" +
+                                   "\n".join(f"{k}: {gen_attrs[k]}"
+                                             for k in gen_attrs))
                 else:
                     sys_msg = "You write shopping queries."
                 p = tok.apply_chat_template(
