@@ -251,7 +251,10 @@ def main() -> None:
         if len(svs) < N_USERS:
             log(f"  skip {asin}: style vectors {len(svs)}")
             continue
-        # corpus
+        # corpus: target + its BGE NEAREST-NEIGHBOR decoys within the same
+        # category, so retrieval is genuinely hard (decoys are semantically
+        # close to the target) instead of trivially saturated (target always
+        # rank1 under random same-category decoys).
         same_cat = []
         for asin2, rec in meta.items():
             if asin2 == asin:
@@ -261,13 +264,21 @@ def main() -> None:
                                       "Incont", "Crib", "Pad", "Changing")):
                 if attrs_for_n(rec, N_ATTRS) is not None:
                     same_cat.append(asin2)
-        rng2 = random.Random(SEED + pi)
-        rng2.shuffle(same_cat)
-        decoys = [a for a in same_cat if title_of(a)][:N_CORPUS - 1]
+        same_cat = [a for a in same_cat if title_of(a)]
+        if len(same_cat) < N_CORPUS - 1:
+            rng2 = random.Random(SEED + pi)
+            rng2.shuffle(same_cat)
+            decoys = same_cat[:N_CORPUS - 1]
+        else:
+            # nearest-neighbour selection via BGE title embeddings
+            tgt_title = title_of(asin)
+            cand_titles = [tgt_title] + [title_of(a) for a in same_cat]
+            cand_vecs = encode(cand_titles)
+            sims = cand_vecs[0] @ cand_vecs[1:].T
+            nn_order = np.argsort(-sims)[:N_CORPUS - 1]
+            decoys = [same_cat[i] for i in nn_order]
         corpus = [asin] + decoys
-        doc_texts = [title_of(a) or attrs_to_text(attrs_for_n(meta[a],
-                                                              N_ATTRS))
-                     for a in corpus]
+        doc_texts = [title_of(a) for a in corpus]
         doc_vecs = encode(doc_texts)
         target_idx = 0
 

@@ -270,7 +270,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 35.1
+   "runtime_sec": 37.1
   },
   {
    "asin": "B0BSGZ7J94",
@@ -360,8 +360,8 @@
       1,
       1,
       1,
-      1,
-      1,
+      2,
+      2,
       1,
       1,
       1
@@ -369,10 +369,10 @@
      "AE6EN3S3DLY3DDCWDZHJ5WKHC5HQ": [
       1,
       1,
+      2,
       1,
       1,
-      1,
-      1,
+      2,
       1,
       1
      ],
@@ -381,10 +381,10 @@
       1,
       1,
       1,
+      2,
       1,
-      1,
-      1,
-      1
+      2,
+      2
      ],
      "AHCZ6MJHUWGYWZ3SXMD3QBBOFAPA": [
       1,
@@ -407,12 +407,12 @@
     "diff": 0.0,
     "rank_means": [
      1.0,
-     1.0,
-     1.0,
-     1.0,
+     1.25,
+     1.25,
+     1.375,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.375,
     "purity": 0.975
    },
    "baseline": {
@@ -477,7 +477,7 @@
       1,
       1,
       1,
-      1
+      2
      ],
      "AEDWH4JRNEPSEJDCMMZJIY54NVOQ": [
       1,
@@ -491,12 +491,12 @@
      ],
      "AE6EN3S3DLY3DDCWDZHJ5WKHC5HQ": [
       1,
+      2,
       1,
       1,
       1,
       1,
-      1,
-      1,
+      2,
       1
      ],
      "AHSQ5K552SD4NH32WTSPO4O4PPUA": [
@@ -512,7 +512,7 @@
      "AHCZ6MJHUWGYWZ3SXMD3QBBOFAPA": [
       1,
       1,
-      1,
+      2,
       1,
       1,
       1,
@@ -529,18 +529,18 @@
     ],
     "diff": 0.0,
     "rank_means": [
+     1.125,
      1.0,
+     1.25,
      1.0,
-     1.0,
-     1.0,
-     1.0
+     1.125
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.25,
     "purity": 1.0
    },
    "steer_diff_minus_baseline": 0.0,
-   "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 31.5
+   "steer_rankdiff_minus_baseline": 0.125,
+   "runtime_sec": 33.2
   },
   {
    "asin": "B0BQ1QK14T",
@@ -565,124 +565,124 @@
    "steer": {
     "hit10": {
      "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      0
-     ],
-     "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1
-     ],
-     "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1
-     ],
-     "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": [
-      1,
-      1,
+      0,
       1,
       1,
       1,
       0,
       1,
-      1
-     ],
-     "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1
-     ]
-    },
-    "ranks": {
-     "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": [
-      5,
-      1,
-      1,
-      1,
-      5,
-      2,
-      3,
-      11
+      0,
+      0
      ],
      "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": [
       1,
       1,
-      4,
-      2,
+      0,
       1,
-      7,
-      6,
-      3
+      1,
+      0,
+      0,
+      1
      ],
      "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": [
-      6,
+      0,
       1,
       1,
-      4,
-      4,
-      7,
-      3,
-      7
+      0,
+      1,
+      0,
+      1,
+      0
      ],
      "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": [
       1,
-      7,
+      0,
       1,
-      3,
+      0,
       1,
-      11,
-      10,
-      2
+      0,
+      0,
+      1
      ],
      "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": [
-      3,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+     ]
+    },
+    "ranks": {
+     "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": [
+      11,
+      1,
+      1,
+      2,
+      11,
+      5,
+      11,
+      11
+     ],
+     "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": [
+      1,
+      2,
+      11,
+      7,
+      1,
+      11,
+      11,
+      10
+     ],
+     "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": [
+      11,
+      1,
+      1,
+      11,
       6,
-      3,
-      5,
-      3,
-      3,
-      5,
-      4
+      11,
+      9,
+      11
+     ],
+     "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": [
+      2,
+      11,
+      2,
+      11,
+      1,
+      11,
+      11,
+      10
+     ],
+     "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": [
+      7,
+      11,
+      9,
+      11,
+      11,
+      10,
+      11,
+      11
      ]
     },
     "means": [
-     0.875,
-     1.0,
-     1.0,
-     0.875,
-     1.0
+     0.5,
+     0.625,
+     0.5,
+     0.5,
+     0.375
     ],
-    "diff": 0.125,
+    "diff": 0.25,
     "rank_means": [
-     3.625,
-     3.125,
-     4.125,
-     4.5,
-     4.0
+     6.625,
+     6.75,
+     7.625,
+     7.375,
+     10.125
     ],
-    "rank_diff": 1.375,
+    "rank_diff": 3.5,
     "purity": 1.0
    },
    "baseline": {
@@ -690,9 +690,9 @@
      "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": [
       0,
       1,
-      1,
-      1,
-      1,
+      0,
+      0,
+      0,
       1,
       0,
       0
@@ -701,27 +701,27 @@
       1,
       1,
       1,
+      0,
       1,
       1,
       1,
-      1,
-      1
+      0
      ],
      "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": [
+      0,
+      1,
+      0,
       1,
       1,
-      1,
-      1,
-      1,
-      1,
+      0,
       1,
       1
      ],
      "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": [
+      0,
       1,
-      1,
-      1,
-      1,
+      0,
+      0,
       1,
       1,
       1,
@@ -730,7 +730,7 @@
      "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": [
       1,
       1,
-      1,
+      0,
       1,
       1,
       1,
@@ -741,76 +741,76 @@
     "ranks": {
      "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": [
       11,
-      1,
-      4,
-      4,
-      5,
       3,
+      11,
+      11,
+      11,
+      10,
       11,
       11
      ],
      "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": [
-      1,
-      1,
-      1,
-      6,
       2,
       1,
+      7,
+      11,
+      8,
       1,
-      10
+      1,
+      11
      ],
      "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": [
-      7,
-      1,
+      11,
+      2,
+      11,
       3,
       1,
-      1,
-      5,
+      11,
       1,
       1
      ],
      "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": [
-      7,
+      11,
       1,
-      7,
-      7,
-      3,
-      2,
-      2,
+      11,
+      11,
+      9,
+      6,
+      4,
       1
      ],
      "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": [
       1,
       1,
-      2,
-      1,
-      1,
-      4,
-      2,
+      11,
+      6,
+      3,
+      10,
+      7,
       11
      ]
     },
     "means": [
+     0.25,
+     0.75,
      0.625,
-     1.0,
-     1.0,
-     1.0,
-     0.875
+     0.625,
+     0.75
     ],
-    "diff": 0.375,
+    "diff": 0.5,
     "rank_means": [
-     6.25,
-     2.875,
-     2.5,
-     3.75,
-     2.875
+     9.875,
+     5.25,
+     5.125,
+     6.75,
+     6.25
     ],
-    "rank_diff": 3.75,
+    "rank_diff": 4.75,
     "purity": 1.0
    },
    "steer_diff_minus_baseline": -0.25,
-   "steer_rankdiff_minus_baseline": -2.375,
-   "runtime_sec": 35.8
+   "steer_rankdiff_minus_baseline": -1.25,
+   "runtime_sec": 37.9
   },
   {
    "asin": "B08X6L7T3N",
@@ -1080,7 +1080,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 34.4
+   "runtime_sec": 36.1
   },
   {
    "asin": "B07CQV5WFT",
@@ -1168,7 +1168,7 @@
      ],
      "AG23WYTTJ5ZSADAGJBCYQ2DFUV4Q": [
       1,
-      1,
+      2,
       1,
       1,
       1,
@@ -1217,12 +1217,12 @@
     "diff": 0.0,
     "rank_means": [
      1.0,
-     1.0,
+     1.125,
      1.0,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 1.0
    },
    "baseline": {
@@ -1294,7 +1294,7 @@
       1,
       1,
       1,
-      1,
+      3,
       1,
       1,
       1
@@ -1340,17 +1340,17 @@
     "diff": 0.0,
     "rank_means": [
      1.0,
-     1.0,
+     1.25,
      1.0,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.25,
     "purity": 1.0
    },
    "steer_diff_minus_baseline": 0.0,
-   "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 33.1
+   "steer_rankdiff_minus_baseline": -0.125,
+   "runtime_sec": 34.9
   },
   {
    "asin": "B09VTNLD2H",
@@ -1450,7 +1450,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1,
       1,
       1,
@@ -1488,11 +1488,11 @@
     "rank_means": [
      1.0,
      1.0,
-     1.0,
+     1.125,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 0.975
    },
    "baseline": {
@@ -1566,7 +1566,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1
      ],
      "AGGTG5JKOD5FAZTCLI72QBOAIIIA": [
@@ -1576,7 +1576,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1
      ],
      "AGZIBDQ3D7BRKY7DVKB76XTWV52A": [
@@ -1610,17 +1610,17 @@
     "diff": 0.0,
     "rank_means": [
      1.0,
-     1.0,
-     1.0,
+     1.125,
+     1.125,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 0.975
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 28.2
+   "runtime_sec": 30.0
   },
   {
    "asin": "B0C8TR5MHM",
@@ -1890,7 +1890,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 40.3
+   "runtime_sec": 42.2
   },
   {
    "asin": "B0BPY84T57",
@@ -1925,11 +1925,11 @@
       0
      ],
      "AF5TS2ONDIGYKS7FJDZUP6MOKKXQ": [
-      1,
       0,
       0,
-      1,
-      1,
+      0,
+      0,
+      0,
       0,
       1,
       0
@@ -1937,26 +1937,26 @@
      "AFDOIYOQ5JU6UHGI6FFDK64SB7DA": [
       0,
       0,
+      0,
+      0,
       1,
       0,
-      1,
       0,
-      0,
-      1
+      0
      ],
      "AGDGBICJ5Y4GAZHCEQMQA34JBJBQ": [
-      1,
       0,
       0,
       0,
       0,
-      1,
-      1,
-      1
+      0,
+      0,
+      0,
+      0
      ],
      "AGAFAPQHCHOS6ZLKAVAPECFA255Q": [
       0,
-      1,
+      0,
       0,
       0,
       0,
@@ -1969,7 +1969,7 @@
      "AHFJDIN4IJQSW5KVUA3I2XKUYP6A": [
       11,
       11,
-      1,
+      3,
       11,
       11,
       11,
@@ -1977,38 +1977,38 @@
       11
      ],
      "AF5TS2ONDIGYKS7FJDZUP6MOKKXQ": [
-      6,
       11,
       11,
-      10,
-      7,
       11,
-      4,
+      11,
+      11,
+      11,
+      8,
       11
      ],
      "AFDOIYOQ5JU6UHGI6FFDK64SB7DA": [
       11,
       11,
-      8,
-      11,
-      7,
       11,
       11,
-      7
+      10,
+      11,
+      11,
+      11
      ],
      "AGDGBICJ5Y4GAZHCEQMQA34JBJBQ": [
-      7,
       11,
       11,
       11,
       11,
-      8,
-      10,
-      7
+      11,
+      11,
+      11,
+      11
      ],
      "AGAFAPQHCHOS6ZLKAVAPECFA255Q": [
       11,
-      7,
+      11,
       11,
       11,
       11,
@@ -2019,38 +2019,38 @@
     },
     "means": [
      0.125,
-     0.5,
-     0.375,
-     0.5,
-     0.125
+     0.125,
+     0.125,
+     0.0,
+     0.0
     ],
-    "diff": 0.375,
+    "diff": 0.125,
     "rank_means": [
-     9.75,
-     8.875,
-     9.625,
-     9.5,
-     10.5
+     10.0,
+     10.625,
+     10.875,
+     11.0,
+     11.0
     ],
-    "rank_diff": 1.625,
+    "rank_diff": 1.0,
     "purity": 0.975
    },
    "baseline": {
     "hit10": {
      "AHFJDIN4IJQSW5KVUA3I2XKUYP6A": [
-      1,
-      1,
       0,
       0,
       0,
-      1,
       0,
-      1
+      0,
+      0,
+      0,
+      0
      ],
      "AF5TS2ONDIGYKS7FJDZUP6MOKKXQ": [
       0,
-      1,
-      1,
+      0,
+      0,
       1,
       0,
       0,
@@ -2074,47 +2074,47 @@
       0,
       0,
       0,
-      1,
+      0,
       0
      ],
      "AGAFAPQHCHOS6ZLKAVAPECFA255Q": [
-      1,
-      1,
-      1,
-      1,
-      1,
+      0,
+      0,
       0,
       1,
+      0,
+      0,
+      0,
       0
      ]
     },
     "ranks": {
      "AHFJDIN4IJQSW5KVUA3I2XKUYP6A": [
-      9,
-      5,
       11,
       11,
       11,
-      8,
       11,
-      8
+      11,
+      11,
+      11,
+      11
      ],
      "AF5TS2ONDIGYKS7FJDZUP6MOKKXQ": [
       11,
-      9,
+      11,
+      11,
+      5,
+      11,
+      11,
       8,
-      4,
-      11,
-      11,
-      2,
       11
      ],
      "AFDOIYOQ5JU6UHGI6FFDK64SB7DA": [
       11,
       11,
       11,
-      3,
-      6,
+      7,
+      10,
       11,
       11,
       11
@@ -2122,45 +2122,45 @@
      "AGDGBICJ5Y4GAZHCEQMQA34JBJBQ": [
       11,
       11,
-      2,
+      3,
       11,
       11,
       11,
-      9,
+      11,
       11
      ],
      "AGAFAPQHCHOS6ZLKAVAPECFA255Q": [
-      8,
-      7,
-      9,
-      5,
-      8,
       11,
-      8,
+      11,
+      11,
+      7,
+      11,
+      11,
+      11,
       11
      ]
     },
     "means": [
-     0.5,
-     0.5,
+     0.0,
      0.25,
      0.25,
-     0.75
+     0.125,
+     0.125
     ],
-    "diff": 0.5,
+    "diff": 0.25,
     "rank_means": [
-     9.25,
-     8.375,
-     9.375,
-     9.625,
-     8.375
+     11.0,
+     9.875,
+     10.375,
+     10.0,
+     10.5
     ],
-    "rank_diff": 1.25,
+    "rank_diff": 1.125,
     "purity": 1.0
    },
    "steer_diff_minus_baseline": -0.125,
-   "steer_rankdiff_minus_baseline": 0.375,
-   "runtime_sec": 32.4
+   "steer_rankdiff_minus_baseline": -0.125,
+   "runtime_sec": 34.5
   },
   {
    "asin": "B07XQKB8RC",
@@ -2430,7 +2430,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 26.5
+   "runtime_sec": 28.3
   },
   {
    "asin": "B0BG3BM2JT",
@@ -2509,7 +2509,7 @@
      "AGCZ33JPECTFGNONCWKELJAYKAJQ": [
       1,
       1,
-      1,
+      5,
       1,
       1,
       1,
@@ -2521,9 +2521,9 @@
       1,
       1,
       1,
-      1,
-      1,
-      1,
+      3,
+      2,
+      5,
       1
      ],
      "AFSCPDQQ6KI4MTTHHG7ZWKQ4B6ZQ": [
@@ -2533,12 +2533,12 @@
       1,
       1,
       1,
-      1,
+      6,
       1
      ],
      "AHVBEX74YSYJJE6S2BOS7BNNNH6A": [
-      1,
-      2,
+      5,
+      7,
       1,
       1,
       1,
@@ -2566,13 +2566,13 @@
     ],
     "diff": 0.125,
     "rank_means": [
-     1.0,
-     1.0,
-     1.0,
-     1.125,
+     1.5,
+     1.875,
+     1.625,
+     2.25,
      2.25
     ],
-    "rank_diff": 1.25,
+    "rank_diff": 0.75,
     "purity": 1.0
    },
    "baseline": {
@@ -2646,13 +2646,13 @@
       1,
       1,
       1,
-      1,
+      2,
       1
      ],
      "AFSCPDQQ6KI4MTTHHG7ZWKQ4B6ZQ": [
-      1,
-      1,
-      1,
+      2,
+      2,
+      3,
       1,
       1,
       1,
@@ -2663,20 +2663,20 @@
       1,
       1,
       1,
+      2,
       1,
-      1,
-      1,
-      1,
+      2,
+      4,
       1
      ],
      "AHCWVOQUYD2HL6V7OM3H2CS2MTOQ": [
       1,
-      1,
-      1,
-      1,
-      9,
-      1,
       2,
+      1,
+      1,
+      8,
+      1,
+      8,
       1
      ]
     },
@@ -2690,17 +2690,17 @@
     "diff": 0.0,
     "rank_means": [
      1.0,
-     1.0,
-     1.0,
-     1.0,
-     2.125
+     1.125,
+     1.5,
+     1.625,
+     2.875
     ],
-    "rank_diff": 1.125,
+    "rank_diff": 1.875,
     "purity": 1.0
    },
    "steer_diff_minus_baseline": 0.125,
-   "steer_rankdiff_minus_baseline": 0.125,
-   "runtime_sec": 29.4
+   "steer_rankdiff_minus_baseline": -1.125,
+   "runtime_sec": 31.1
   },
   {
    "asin": "B0BPCTQL85",
@@ -2970,7 +2970,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 42.5
+   "runtime_sec": 44.5
   },
   {
    "asin": "B0BFBSX7FT",
@@ -3240,7 +3240,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 30.0
+   "runtime_sec": 31.4
   },
   {
    "asin": "B002HORL2M",
@@ -3322,7 +3322,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1,
       1
      ],
@@ -3331,7 +3331,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1,
       1,
       1
@@ -3376,13 +3376,13 @@
     ],
     "diff": 0.0,
     "rank_means": [
-     1.0,
-     1.0,
+     1.125,
+     1.125,
      1.0,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 0.95
    },
    "baseline": {
@@ -3465,7 +3465,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1,
       1
      ],
@@ -3501,16 +3501,16 @@
     "rank_means": [
      1.0,
      1.0,
-     1.0,
+     1.125,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 0.95
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 36.4
+   "runtime_sec": 38.7
   },
   {
    "asin": "B0BFXJ55RB",
@@ -3780,7 +3780,7 @@
    },
    "steer_diff_minus_baseline": 0.0,
    "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 43.4
+   "runtime_sec": 45.3
   },
   {
    "asin": "B0BFK9MDJQ",
@@ -4003,7 +4003,7 @@
       1,
       1,
       1,
-      1,
+      2,
       1,
       1,
       1,
@@ -4041,26 +4041,26 @@
     "rank_means": [
      1.0,
      1.0,
-     1.0,
+     1.125,
      1.0,
      1.0
     ],
-    "rank_diff": 0.0,
+    "rank_diff": 0.125,
     "purity": 0.975
    },
    "steer_diff_minus_baseline": 0.0,
-   "steer_rankdiff_minus_baseline": 0.0,
-   "runtime_sec": 35.6
+   "steer_rankdiff_minus_baseline": -0.125,
+   "runtime_sec": 37.2
   }
  ],
  "aggregate": {
-  "steer_diff_mean": 0.0417,
+  "steer_diff_mean": 0.0333,
   "steer_diff_min": 0.0,
-  "steer_diff_max": 0.375,
-  "baseline_diff_mean": 0.0583,
+  "steer_diff_max": 0.25,
+  "baseline_diff_mean": 0.05,
   "delta_mean": -0.0167,
   "n_pos_delta": 1,
   "n_products": 15
  },
- "runtime_sec": 670.1
+ "runtime_sec": 681.3
 }
