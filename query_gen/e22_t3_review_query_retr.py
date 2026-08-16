@@ -187,15 +187,37 @@ def main() -> None:
 
         # review sentences as queries
         hits_by_user = {}
+        coverage_by_user = {}
+        per_sent = []  # (hit, n_attrs_covered, rank)
         for u in users:
             sents = user_sents[u][:N_SENTS_PER_USER]
             hs = []
+            covs = []
             for s in sents:
                 rk = retr(s)
-                hs.append(1 if rk <= TOP_K else 0)
+                h = 1 if rk <= TOP_K else 0
+                hs.append(h)
+                cov = sum(1 for a in attrs.values()
+                          if str(a).lower() in s.lower())
+                covs.append(cov)
+                per_sent.append((h, cov, rk))
             hits_by_user[u] = hs
+            coverage_by_user[u] = covs
         means = [float(np.mean(h)) for h in hits_by_user.values()]
         diff = float(np.max(means) - np.min(means))
+        # coverage-stratified diff: within review queries of >=k attr coverage
+        strat = {}
+        for k in (0, 1, 2, 3):
+            sel = [x for x in per_sent if x[1] >= k]
+            if len(sel) >= 3:
+                strat[k] = {
+                    "n": len(sel),
+                    "hit_rate": round(float(np.mean([x[0] for x in sel])), 3),
+                    "mean_coverage": round(float(np.mean([x[1] for x in sel])), 2),
+                }
+        corr = float(np.corrcoef([x[1] for x in per_sent],
+                                 [x[0] for x in per_sent])[0, 1]) \
+            if len(per_sent) >= 3 else None
         # template query as control
         sv = [attrs[k] for k in ("Brand", "Color", "Material", "Category",
                                  "Price")]
@@ -209,11 +231,15 @@ def main() -> None:
             "review_hit10_mean_by_user": {u: round(float(np.mean(h)), 3)
                                           for u, h in hits_by_user.items()},
             "review_hit10_diff": round(diff, 4),
+            "coverage_by_user": {u: coverage_by_user[u] for u in users},
+            "coverage_stratified": strat,
+            "hit_cov_corr": round(corr, 3) if corr is not None else None,
             "template_hit10": tmpl_hits,
             "template_hit10_mean": round(float(np.mean(tmpl_hits)), 3),
         })
         log(f"[{pi + 1}/{len(cands)}] {asin}: review-hit@10 diff="
             f"{diff:.3f} means={[round(m, 2) for m in means]} "
+            f"cov_corr={corr:.2f} strat={strat} "
             f"template={np.mean(tmpl_hits):.2f} "
             f"({time.time() - p0:.0f}s)")
 
