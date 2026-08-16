@@ -1,0 +1,213 @@
+{
+ "mode": "fewshot",
+ "products": [
+  {
+   "asin": "B087BQJD2B",
+   "self_rank": [
+    1,
+    4,
+    3,
+    2,
+    4
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AGLROAHPUNUWQEZTPX4UBT7FTW4Q": "Its a little lumpy and needs to be fluffed out from the way it was packed.",
+    "AENQ6SRRBYQRCKKVEKIFO3MLER3Q": "I suffer from chronic back pain and sciatica.",
+    "AGKAQB27GYXZPWM5T2SYPGWHVJFQ": "The pillow I got him was very full and firm and came with a bag of extra filling in case you wanted to make pillow firmer.",
+    "AGDDPBRPO5INA5WEUSV4HQXTLE3A": "I didn\u2019t want to get a pillow that would just be done for when the baby comes so I read the previous reviews about how kids fit in the pillow too.",
+    "AHV4AZEC3SIJ6MAAVY7UUOVPJQUQ": "It was very understuffed and wasn't like the photos at all."
+   }
+  },
+  {
+   "asin": "B0BSGZ7J94",
+   "self_rank": [
+    5,
+    4,
+    1,
+    2,
+    3
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AGMZKK5W46I4LQGYJ3KCS56P4AUA": "I love these baby crib sheets.",
+    "AEDWH4JRNEPSEJDCMMZJIY54NVOQ": "The design is perfect for our nursery.",
+    "AE6EN3S3DLY3DDCWDZHJ5WKHC5HQ": "These crib sheets fit our crib mattress perfect.",
+    "AHSQ5K552SD4NH32WTSPO4O4PPUA": "I love these changing pad covers, they are so trendy and cute!!",
+    "AHCZ6MJHUWGYWZ3SXMD3QBBOFAPA": "The material of these sheets are very soft, and somewhat thicker than other sheets that I have, which makes me feel like they will last longer."
+   }
+  },
+  {
+   "asin": "B0BQ1QK14T",
+   "self_rank": [
+    3,
+    2,
+    5,
+    4,
+    1
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.375,
+   "exemplars": {
+    "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": "The pattern on the diapers is adorable.",
+    "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": "At night one insert may not be enough so I prefer using one bamboo insert and one microfiber insert.",
+    "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": "Love how they come with a wet bag!",
+    "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": "Will update when I know how they handle a blowout",
+    "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": "I only ever air dry these and wash them with a standard wash routine of cold soak, hot wash with a double cold rinse using arm and hammer liquid detergent."
+   }
+  },
+  {
+   "asin": "B08X6L7T3N",
+   "self_rank": [
+    2,
+    4,
+    5,
+    2,
+    3
+   ],
+   "rank1": 0,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AEH7RAIDBU7QALXTMWAA73PTL4JA": "It uses leftover \"stone\" that would have otherwise been discarded, which makes it \"eco friendly\" in a sense.",
+    "AENPFFAIQ75VTJYM6BCEKB5WWWJQ": "They really stay put well and are easy to apply and remove.",
+    "AHUOOO3WCQNZA4MQPWHAOEUEQ4YQ": "My son used crayons with these and they worked great.",
+    "AHXCOH4ABGDUF6PLAWTVRWDNTIVA": "One is outlined in blue and the other is yellow so you can see what you\u2019re grabbing and bring some of each if you\u2019re taking them somewhere which I thought was smart.",
+    "AGBWV3ZQCJ5OT6OXJCN7WO777UOQ": "They can add their own preference on colors anyway."
+   }
+  },
+  {
+   "asin": "B07CQV5WFT",
+   "self_rank": [
+    1,
+    5,
+    1,
+    4,
+    3
+   ],
+   "rank1": 2,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AHMJDBGCMBWWE6IREMRRST7J2BTA": "and they are the answer to my long time problem!",
+    "AG23WYTTJ5ZSADAGJBCYQ2DFUV4Q": "If you are searching for a all natural fiber insert, these do have microfiber in them.",
+    "AGSDHGJYDOXR5AV2HKPE66ASOQDQ": "1 star removed for the cost.",
+    "AFB55UQE543YUZNXMPWUBEXLBWXA": "Sometimes the stains stick a bit.",
+    "AFT5KI7MPVCKL46ISZJSTWHWMHAQ": "One regular insert in a pocket diaper with a thirsties insert lasts us about 6 hours overnight."
+   }
+  },
+  {
+   "asin": "B09VTNLD2H",
+   "self_rank": [
+    4,
+    1,
+    3,
+    1,
+    5
+   ],
+   "rank1": 2,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AFZWJV6QRADWP3K26FWG27PZIADA": "Just enough to combat AC chill.",
+    "AHTVGS7ZLBRFWALOPEJRL2MCDJWQ": "We have this and a Halo at home, and I reach for this one over the Halo most nights.",
+    "AGGTG5JKOD5FAZTCLI72QBOAIIIA": "This one is great because there is a zipper at each end, and there is a flap of fabric to protect the zipper on each end as well.",
+    "AGZIBDQ3D7BRKY7DVKB76XTWV52A": "I feel like there may be durability issues, but if they pop up I will update the review.<br /><br",
+    "AEMQR7V24N45RXVKX4BVVLB7Q67Q": "The price was good compared to other similar items."
+   }
+  },
+  {
+   "asin": "B0C8TR5MHM",
+   "self_rank": [
+    2,
+    4,
+    4,
+    1,
+    5
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AEOXVEZM5R2KVVTESYPMHHHQXZCA": "I do realize bamboo shouldn't be put in the dishwasher",
+    "AHLA24J43UD2AKTINUBUWKEDPQHQ": "This is the best quality Bamboo plate set I\u2019ve gotten and I\u2019ve tried many brands.",
+    "AHSPC5CJU3KSQTDFHAYJN5Z5X5CA": "So easy to wash and dry.",
+    "AF7P3N4WIHMAVATNPD5MCDI5Y2KQ": "A big deal to me because study show kids eat better with orange/red plate/utensils that\u2019s why most fast food have red or orange in their logo as it stimulate appetite.",
+    "AGZCQFX7UYPWHA4VWLQW3TR6WI3A": "It is made out of bamboo with the spoon and fork toppers being silicone, not plastic."
+   }
+  },
+  {
+   "asin": "B0BPY84T57",
+   "self_rank": [
+    1,
+    3,
+    2,
+    4,
+    5
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.1875,
+   "exemplars": {
+    "AHFJDIN4IJQSW5KVUA3I2XKUYP6A": "and two for $25 is not a bad deal in my opinion!",
+    "AF5TS2ONDIGYKS7FJDZUP6MOKKXQ": "They fit perfectly, stretch on easily and are soft.",
+    "AFDOIYOQ5JU6UHGI6FFDK64SB7DA": "The 2 pack is a great value!",
+    "AGDGBICJ5Y4GAZHCEQMQA34JBJBQ": "Perfect for a neutral nursery that is going for that wood toned / natural feel.",
+    "AGAFAPQHCHOS6ZLKAVAPECFA255Q": "Its soft and a cute print as well."
+   }
+  },
+  {
+   "asin": "B07XQKB8RC",
+   "self_rank": [
+    4,
+    2,
+    3,
+    1,
+    5
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.0,
+   "exemplars": {
+    "AEITW3SRFREQ2TVLTA7ESOBIENDA": "It was a more pricey stroller than this, and it didn't come with the car seat!!",
+    "AGATAD6BRSLU3MXJKBGLY4TTHJLA": "This thing is junk!",
+    "AH5VDE2Z5X2ZBRZ3IYMSCVW7ZWFQ": "Otherwise, stick with just the car seat and try another stroller.",
+    "AFZUG6V6C5UTP3V3TZJJSJGJTCJA": "But when we went to leave, the front wheel would not move.",
+    "AEAJATCYHWH3R6EXKY7HV6DWK4XQ": "I highly recommend this to anyone in the market for a jogging stroller."
+   }
+  },
+  {
+   "asin": "B0BG3BM2JT",
+   "self_rank": [
+    5,
+    3,
+    1,
+    4,
+    2
+   ],
+   "rank1": 1,
+   "n_rank": 5,
+   "hit10_diff": 0.1875,
+   "exemplars": {
+    "AGCZ33JPECTFGNONCWKELJAYKAJQ": "Two way talk works well too.",
+    "AGOL3J3VWWTPMEXUZTOEYVX5NJNA": "It\u2019s just the right size.",
+    "AFSCPDQQ6KI4MTTHHG7ZWKQ4B6ZQ": "Love our Rest+!!",
+    "AHVBEX74YSYJJE6S2BOS7BNNNH6A": "For how much it cost, I\u2019m very disappointed!!!!",
+    "AHCWVOQUYD2HL6V7OM3H2CS2MTOQ": "The light also has one side where the light doesn\u2019t light up and has a shadow"
+   }
+  }
+ ],
+ "aggregate": {
+  "rank1": 11,
+  "n_rank": 50,
+  "rank1_frac": 0.22,
+  "chance": 0.2,
+  "hit10_diff_mean": 0.075
+ },
+ "runtime_sec": 370.8
+}
