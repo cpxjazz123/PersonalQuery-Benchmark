@@ -1,0 +1,235 @@
+{
+ "products": [
+  {
+   "asin": "B087BQJD2B",
+   "self_rank_steer": [
+    1,
+    3,
+    5,
+    2,
+    4
+   ],
+   "self_rank_baseline": [
+    1,
+    3,
+    5,
+    2,
+    4
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B0BSGZ7J94",
+   "self_rank_steer": [
+    5,
+    4,
+    1,
+    2,
+    3
+   ],
+   "self_rank_baseline": [
+    5,
+    4,
+    1,
+    2,
+    3
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B0BQ1QK14T",
+   "self_rank_steer": [
+    3,
+    2,
+    5,
+    4,
+    1
+   ],
+   "self_rank_baseline": [
+    3,
+    2,
+    4,
+    3,
+    1
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.375,
+   "hit10_diff_baseline": 0.375
+  },
+  {
+   "asin": "B08X6L7T3N",
+   "self_rank_steer": [
+    1,
+    4,
+    5,
+    2,
+    3
+   ],
+   "self_rank_baseline": [
+    1,
+    4,
+    5,
+    2,
+    3
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B07CQV5WFT",
+   "self_rank_steer": [
+    2,
+    5,
+    1,
+    4,
+    3
+   ],
+   "self_rank_baseline": [
+    2,
+    5,
+    1,
+    4,
+    3
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B09VTNLD2H",
+   "self_rank_steer": [
+    4,
+    2,
+    3,
+    2,
+    5
+   ],
+   "self_rank_baseline": [
+    4,
+    2,
+    3,
+    2,
+    5
+   ],
+   "rank1_steer": 0,
+   "rank1_baseline": 0,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B0C8TR5MHM",
+   "self_rank_steer": [
+    1,
+    4,
+    3,
+    2,
+    5
+   ],
+   "self_rank_baseline": [
+    1,
+    4,
+    3,
+    1,
+    5
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 2,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B0BPY84T57",
+   "self_rank_steer": [
+    1,
+    3,
+    2,
+    4,
+    5
+   ],
+   "self_rank_baseline": [
+    1,
+    3,
+    2,
+    4,
+    5
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.1875,
+   "hit10_diff_baseline": 0.1875
+  },
+  {
+   "asin": "B07XQKB8RC",
+   "self_rank_steer": [
+    4,
+    2,
+    3,
+    1,
+    5
+   ],
+   "self_rank_baseline": [
+    4,
+    3,
+    2,
+    1,
+    5
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0,
+   "hit10_diff_baseline": 0.0
+  },
+  {
+   "asin": "B0BG3BM2JT",
+   "self_rank_steer": [
+    5,
+    3,
+    1,
+    4,
+    2
+   ],
+   "self_rank_baseline": [
+    5,
+    3,
+    1,
+    4,
+    2
+   ],
+   "rank1_steer": 1,
+   "rank1_baseline": 1,
+   "n_rank": 5,
+   "hit10_diff_steer": 0.0625,
+   "hit10_diff_baseline": 0.0625
+  }
+ ],
+ "aggregate": {
+  "rank1_steer": 9,
+  "rank1_baseline": 10,
+  "n_rank": 50,
+  "rank1_steer_frac": 0.18,
+  "rank1_baseline_frac": 0.2,
+  "chance": 0.2,
+  "hit10_diff_steer_mean": 0.0625,
+  "hit10_diff_baseline_mean": 0.0625
+ },
+ "runtime_sec": 552.3
+}
