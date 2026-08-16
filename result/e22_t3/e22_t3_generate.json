@@ -1,0 +1,21 @@
+{
+ "version": "e22_t3_generate_v1",
+ "seed": 3333,
+ "model": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+ "num_tokens": 16,
+ "max_new_tokens": 96,
+ "n_cells": 785,
+ "n_generations": 3140,
+ "activation": {
+  "prefix_real_norm": 165.0,
+  "prefix_real_per_token_norm": [
+   58.5,
+   58.5,
+   58.5,
+   58.5
+  ],
+  "prefix_zero_norm": 0.0,
+  "prefix_diff_real_vs_zero": 165.0
+ },
+ "runtime_sec": 1439.1
+}

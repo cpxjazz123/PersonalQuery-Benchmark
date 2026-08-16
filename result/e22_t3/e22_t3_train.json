@@ -1,0 +1,51 @@
+{
+ "version": "e22_t3_train_v1",
+ "seed": 3333,
+ "model": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+ "model_sha256_short": "n/a",
+ "z_dim": 7,
+ "num_tokens": 16,
+ "proj_hidden": 128,
+ "gate_init": 0.1,
+ "lr": 0.0002,
+ "epochs": 10,
+ "batch": 6,
+ "loss_weights": {
+  "style": 3.0,
+  "cmp": 2.0,
+  "margin": 0.3
+ },
+ "n_train_samples": 2768,
+ "n_dev_samples": 939,
+ "n_test_samples": 916,
+ "best_dev_loss": 1.2343688178807497,
+ "history": {
+  "train_loss": [
+   2.824,
+   1.0965,
+   0.8669,
+   0.7608,
+   0.7686,
+   0.7589,
+   0.7434,
+   0.6988,
+   0.7393,
+   0.733
+  ],
+  "dev_loss": [
+   1.6172,
+   1.5319,
+   1.3468,
+   1.3194,
+   1.2973,
+   1.2706,
+   1.3023,
+   1.2344,
+   1.2797,
+   1.2806
+  ]
+ },
+ "injector_sha256": "53ac99b0f6a0cc432d56e032b62bb41b9daec900847150a5d9837d5ae37d9ca2",
+ "n_trainable_params": 5837577,
+ "runtime_sec": 999.4
+}

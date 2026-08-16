@@ -1,0 +1,124 @@
+{
+ "version": "e22_t3_check3_v1",
+ "seed": 4444,
+ "n_generations": 3140,
+ "activation_check": {
+  "prefix_real_norm": 165.0,
+  "prefix_real_per_token_norm": [
+   58.5,
+   58.5,
+   58.5,
+   58.5
+  ],
+  "prefix_zero_norm": 0.0,
+  "prefix_diff_real_vs_zero": 165.0,
+  "gate_pass": true
+ },
+ "user_swap_check": {
+  "n_users": 273,
+  "accuracy_mean_other": 0.7326,
+  "margin_mean_other": 0.4088,
+  "margin_95ci": [
+   0.2866,
+   0.5181
+  ],
+  "cohen_d": 0.3976,
+  "perm_p_two": 0.0001,
+  "gate_pass": true,
+  "paired": {
+   "run": true,
+   "n_pairs": 765,
+   "own_minus_shuffled_mean": 21.8312,
+   "pct_own_closer": 0.7948
+  }
+ },
+ "product_swap_check": {
+  "n_users_multi_product": 223,
+  "within_user_syntax_var": 1.9626988505239202,
+  "between_user_syntax_var": 2.5126091088618105,
+  "b_over_w": 1.2802,
+  "gate_pass": true
+ },
+ "monotonicity_check": {
+  "run": false,
+  "note": "interpolation generations not produced"
+ },
+ "control_comparison": {
+  "shuffled-z": {
+   "run": true,
+   "n_users": 269,
+   "real_minus_ctrl_mean": 17.9969,
+   "bootstrap_95ci": [
+    9.9872,
+    28.9336
+   ],
+   "perm_p_two": 0.0001,
+   "gate_pass": true
+  },
+  "true-zero-z": {
+   "run": true,
+   "n_users": 263,
+   "real_minus_ctrl_mean": 1.0408,
+   "bootstrap_95ci": [
+    0.4692,
+    1.7297
+   ],
+   "perm_p_two": 0.0001,
+   "gate_pass": true
+  },
+  "injection-off": {
+   "run": true,
+   "n_users": 263,
+   "real_minus_ctrl_mean": 1.9085,
+   "bootstrap_95ci": [
+    0.7743,
+    3.4346
+   ],
+   "perm_p_two": 0.0001,
+   "gate_pass": true
+  }
+ },
+ "content_preservation": {
+  "real-z": {
+   "n": 785,
+   "exact_5_attrs": 0.9478,
+   "exact_digits": 0.9949,
+   "exact_brand": 0.9758,
+   "exact_price": 0.9949,
+   "gate_pass": false
+  },
+  "shuffled-z": {
+   "n": 785,
+   "exact_5_attrs": 0.2968,
+   "exact_digits": 0.7427,
+   "exact_brand": 0.6866,
+   "exact_price": 0.6713,
+   "gate_pass": false
+  },
+  "true-zero-z": {
+   "n": 785,
+   "exact_5_attrs": 0.3452,
+   "exact_digits": 0.4344,
+   "exact_brand": 0.4102,
+   "exact_price": 0.4548,
+   "gate_pass": false
+  },
+  "injection-off": {
+   "n": 785,
+   "exact_5_attrs": 0.349,
+   "exact_digits": 0.4471,
+   "exact_brand": 0.4204,
+   "exact_price": 0.4662,
+   "gate_pass": false
+  }
+ },
+ "all_gates": {
+  "activation": true,
+  "user_swap": true,
+  "product_swap": true,
+  "control_compare": true,
+  "content": false
+ },
+ "runtime_sec": 420.2,
+ "all_gates_pass": false
+}
