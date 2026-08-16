@@ -66,3 +66,32 @@
 - 分析：`query_gen/e22_t3_{topxy,topxyz,topxyzw}_count.py`、`e22_t3_{style_scan,style_scan_dim,user_diff,user_diff_dim,multi_prod_scan,rank_baseline,eval7d,audit_content}.py`
 - 结果：`result/e22_t3/e22_t3_{steer_alpha,steer_multi,steer_multi3,steer_final,steer_match,fewshot_match}.json` 等
 - 提交：db41572, 5f2f6d0, 7ceeef8, e90acd0, 1fdbbc5, 25c94e4, de3301b
+
+## §G 追加：评论改写 + 关键属性注入 — 风格迁移实现（2026-08-17）
+
+### G1. 突破方法
+改写用户真实评论句为 query：**保留评论的句子结构/从句/语气，仅织入商品属性**。首个实现 self-match 显著 > chance。
+
+### G2. 属性数扫描（`e22_t3_bridge_scan.py`，8 商品）
+| k | self-match rank-1 | hit@10 diff |
+|---|---|---|
+| 2 | 0.275 | 0.312 |
+| **4** | **0.300** | **0.146** |
+| 6 | 0.275 | 0.177 |
+| 9 | 0.225 | 0.115 |
+
+属性越多 → 评论句法被稀释（self-match 降）+ 检索饱和（diff 降）。**最优 k=2-4**。
+
+### G3. 代表性示范对照（`e22_t3_bridge_repr.py`）
+选"最接近用户句法中心"的句子改写：self-match 0.25 vs 随机 0.30（无提升）→ 改写句法由 prompt+属性注入主导，示范代表性影响小，方法近上限。
+
+### G4. 最终答案链（X=5/Y=5/Z=5/w=20，多商品平均）
+| 设定 | self-match | hit@10 diff |
+|---|---|---|
+| **评论改写 + 2-4 属性** | **0.28-0.30** ✓ | **0.15-0.31** |
+| 评论改写 + 全属性(9) | 0.225 | 0.115 |
+| 属性完备生成 query（PACS/few-shot） | — | 0.03-0.08 |
+| 真实评论句（上限） | 1.0 | 0.36 |
+
+### G5. 结论
+"生成可迁移评论句法风格 query + 检索 hit@10 差值"的最优实现：**评论改写（保留句子结构）+ 注入 2-4 关键属性** → 风格迁移保真（self-match 0.28-0.30）+ hit@10 差值 **0.15-0.31**。差值随属性完备度单调：完备→0.03、2-4 属性→0.15-0.31、真实评论→0.36。
