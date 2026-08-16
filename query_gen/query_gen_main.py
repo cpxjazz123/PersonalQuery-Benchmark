@@ -34,13 +34,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 REPO_ROOT = Path("/fs04/ar57/wenyu/PersoanlQuery")
 OUT_DIR = REPO_ROOT / "result" / "e22_t3"
 
-MODEL_PATH = ("/fs04/scratch2/ar57/wenyu/hf_home/hub/models--Qwen--Qwen2.5-1.5B-"
-              "Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306")
+MODEL_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
 META = REPO_ROOT / "data" / "meta_Baby_Products_2023.jsonl.gz"
 TASK1_VECTORS = REPO_ROOT / "result" / "e22_t1_user_vectors.npz"
 TASK1_MANIFEST = REPO_ROOT / "result" / "e22_t1_manifest.json"
-PROBE_PT = OUT_DIR / "e22_t3_syntax_probe.pt"
+PROBE_PT = OUT_DIR / "e22_t3_syntax_probe2.pt"
 INJECTOR_PT = OUT_DIR / "e22_t3_injector.pt"
 GEN_OUT = OUT_DIR / "e22_t3_grid_generations.jsonl"
 EVAL_OUT = OUT_DIR / "e22_t3_grid_eval.json"
@@ -55,17 +54,49 @@ GATE_INIT = 0.1
 LR = 2e-4
 N_EPOCHS = 8
 N_EPOCHS_PATIENCE = 3
-BATCH = 16
+BATCH = 2                    # 2B rows/step on 7B model (memory-limited)
 MAX_SAMPLES_PER_USER = 4
 WEIGHT_DECAY = 1e-2
 W_STYLE = 3.0
 W_CMP = 2.0
 CMP_MARGIN = 0.3
 W_COPY_POINTER = 0.2
+COMMENT_TARGET_RATIO = 0.0   # FIXED 0: review sentences must NEVER be an LM
+                             # generation target (user directive). Comment
+                             # text is used ONLY as the style-loss hidden
+                             # anchor (prefix+comment -> z_user region).
+SPAN_GAP = 8                  # strict-span decoding: max free (connector)
+                             # tokens allowed between forced attr spans
+MAX_MID_WAIT = 16            # strict-span: max consecutive steps to wait for
+                             # the LM to finish a mid-value tail before the
+                             # span is force-completed anyway (deadlock guard)
+# clean_free decoding: free tokens restricted to these connectors (no
+# review-content words can leak); attribute tokens are added dynamically.
+CLEAN_CONNECTORS = {
+    "a", "an", "the", "and", "or", "but", "with", "for", "in", "on", "of",
+    "to", "at", "from", "by", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "should", "would",
+    "could", "can", "will", "shall", "may", "might", "must", "not", "no",
+    "yes", "so", "if", "then", "than", "as", "this", "that", "these",
+    "those", "it", "its", "they", "them", "their", "we", "our", "us",
+    "you", "your", "i", "my", "me", "he", "she", "his", "her", "one",
+    "two", "three", "want", "need", "get", "find", "buy", "purchase",
+    "please", "also", "very", "really", "just", "about", "around",
+    "under", "over", "less", "more", "most", "least", "good", "great",
+    "best", "perfect", "nice", "like", "love", "price", "cost", "size",
+    "sizes", "color", "colors", "brand", "style", "material", "item",
+    "items", "product", "products", "pack", "set", "count", "quantity",
+    "includes", "including", "made", "make", "fits", "fit", "fits",
+    "baby", "babies", "toddler", "toddlers", "child", "children", "kids",
+    "adult", "adults", "age", "range", "number", "instructions", "care",
+    "unisex", "spring", "protection",
+    "€", "£", "$",
+}
 TEMPERATURE = 0.7
 TOP_K = 40
 TOP_P = 0.92
 MAX_NEW_GRID = [16, 32, 64]
+MIN_TOKENS_GRID = [0, 20, 40]   # length-bucket floor: >=20 / >=40 words
 N_QUERIES_GRID = [2, 4, 8]
 N_TEST_USERS = 120
 MAX_PRODS_PER_USER = 6
@@ -74,6 +105,7 @@ N_BOOTSTRAP = 2000
 MIN_USERS = 20
 DTYPE = torch.bfloat16
 DEVICE = "cuda:0"
+_DBG = False  # set True for strict-span debug traces (one-sample runs only)
 
 TOP_ATTR_KEYS = ["Brand", "Color", "Material", "Category", "Price"]
 TOP_ATTR_ALIASES = {
@@ -82,6 +114,26 @@ TOP_ATTR_ALIASES = {
     "Material": ["Material", "material", "Material Type", "Material Composition"],
     "Category": [],
     "Price": [],
+}
+# 扩展属性池（有语义，按语料频率排序；用于 N-scan：top-N 属性）
+EXT_ATTR_KEYS = [
+    "Style", "Age Range (Description)", "Pattern", "Special Feature",
+    "Number Of Items", "Target gender", "Size", "Product Care Instructions",
+    "Theme", "Unit Count", "Fabric Type", "Shape",
+]
+EXT_ATTR_ALIASES = {
+    "Style": ["Style", "style"],
+    "Age Range (Description)": ["Age Range (Description)", "Age Range"],
+    "Pattern": ["Pattern", "pattern"],
+    "Special Feature": ["Special Feature", "special feature"],
+    "Number Of Items": ["Number Of Items", "Number of Items", "Number of items"],
+    "Target gender": ["Target gender", "Target Gender"],
+    "Size": ["Size", "size"],
+    "Product Care Instructions": ["Product Care Instructions", "Care Instructions"],
+    "Theme": ["Theme", "theme"],
+    "Unit Count": ["Unit Count", "unit count"],
+    "Fabric Type": ["Fabric Type", "fabric type"],
+    "Shape": ["Shape", "shape", "Item Shape"],
 }
 SYSTEM_PROMPT = (
     "You are a shopping query writer. Write one short natural shopping query "
@@ -116,6 +168,25 @@ def neutralize_content(query: str, attrs: dict) -> str:
         if not v:
             continue
         out = re.sub(re.escape(str(v)), "xx xx", out)
+    return out
+
+
+def skeletonize(text: str, attrs: dict) -> str:
+    """Rewrite a review sentence into 'user syntax + product content'.
+
+    Every attribute value found in the review text (case-insensitive) is
+    replaced by the canonical attribute value, keeping the sentence's
+    clause/punctuation/connector structure intact. Result: a training target
+    that carries the USER's syntax but only product-attribute content —
+    no review-specific content can leak. Replacement order: longest value
+    first so multi-word values are not partially eaten by substrings.
+    """
+    out = text
+    for v in sorted(attrs.values(), key=lambda s: -len(str(s))):
+        vv = str(v)
+        if not vv:
+            continue
+        out = re.sub(re.escape(vv), vv, out, flags=re.IGNORECASE)
     return out
 
 
@@ -169,18 +240,58 @@ def attrs_for(rec: dict) -> dict[str, str] | None:
     return out
 
 
+def attrs_for_n(rec: dict, n: int) -> dict[str, str] | None:
+    """Top-N attributes for a product: fixed 5 (Brand/Color/Material/Category/
+    Price) + EXT_ATTR_KEYS in frequency order up to n total. Returns None if
+    the product lacks any of the required fixed 5 or fewer than n present."""
+    out: dict[str, str] = {}
+    det = rec.get("details", {})
+    for canon in TOP_ATTR_KEYS:
+        if canon == "Category":
+            v = rec.get("category_leaf")
+        elif canon == "Price":
+            p = rec.get("price")
+            v = f"${p:.2f}" if p is not None else None
+        else:
+            v = None
+            for alias in TOP_ATTR_ALIASES[canon]:
+                if alias in det and isinstance(det[alias], str) and det[alias].strip():
+                    v = det[alias].strip()
+                    break
+        if v:
+            out[canon] = v
+    if len(out) < 5:
+        return None
+    for canon in EXT_ATTR_KEYS:
+        if len(out) >= n:
+            break
+        v = None
+        for alias in EXT_ATTR_ALIASES[canon]:
+            if alias in det and isinstance(det[alias], str) and det[alias].strip():
+                v = det[alias].strip()
+                break
+        if v:
+            out[canon] = v
+    if len(out) < n:
+        return None
+    return out
+
+
 def attr_prompt(attrs: dict[str, str]) -> str:
     lines = ["Product attributes:"]
-    for k in TOP_ATTR_KEYS:
+    for k in attrs.keys():
         lines.append(f"{k}: {attrs[k]}")
     lines.append("Write a natural shopping query that mentions every attribute.")
     return "\n".join(lines)
 
 
-def user_prompt_tokens(attrs: dict[str, str], tokenizer) -> list[int]:
+def user_prompt_tokens(attrs: dict[str, str], tokenizer,
+                       length_hint: str = "") -> list[int]:
+    hint = (f" Write a detailed query of {length_hint} words."
+            if length_hint else "")
     return tokenizer.apply_chat_template(
         [{"role": "system", "content": SYSTEM_PROMPT},
-         {"role": "user", "content": attr_prompt(attrs)}],
+         {"role": "user", "content": attr_prompt(attrs) + hint}],
         tokenize=True, add_generation_prompt=True)
 
 
@@ -322,13 +433,54 @@ def mixed_logits(gen_logits, p_copy, copy_logits):
 # ============================================================== 解码
 
 
+@torch.no_grad()
 def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
-                   attrs_list, max_new) -> list[str]:
-    """Batch KV-cache decoding with copy mixing + EOS content guard."""
+                   attrs_list, max_new, min_tokens=0,
+                   strict_spans=False, clean_free=False,
+                   steer_vecs=None, steer_layer=-2,
+                   steer_alpha=1.0) -> list[str]:
+    """Batch KV-cache decoding with copy mixing + CONTENT/LENGTH guards.
+
+    - copy-head mixes pointer-copy probability with the LM distribution
+    - EOS is blocked while (a) any attribute value is missing from the output
+      OR (b) length < min_tokens; the block is lifted after 64 tokens so a
+      stuck sample terminates (records actual length; eval buckets by it)
+    - while a value is still missing, its source tokens get a soft boost so
+      the model tends to emit them naturally (no token-level forcing, hence
+      no dead-loop)
+    - strict_spans=True: hard token/span-level content constraint. Every
+      attribute value must appear VERBATIM as a contiguous span copied from
+      the prompt. While any value is missing, the decoder is allowed at most
+      SPAN_GAP free (connector) tokens before the next missing span is force-
+      copied; the next span is chosen by the copy-head pointer attention so
+      the model still controls the ordering. Guarantees all attrs appear in
+      ONE autoregressive pass (no post-hoc append / no candidate rerank).
+    """
     bsz = len(prompts)
     emb = model.get_input_embeddings()
     pad_id = tok.pad_token_id or tok.eos_token_id
     encs = [list(p) for p in prompts]
+    # ---- PACS activation steering: add alpha*v_style to the hidden state of
+    # the newly generated token at steer_layer during every forward pass
+    _steer_hook = None
+    if steer_vecs is not None:
+        n_layers = model.config.num_hidden_layers
+        _lid = steer_layer if steer_layer >= 0 else n_layers + steer_layer
+        _sv = steer_vecs
+
+        def _hook_fn(module, args, output):
+            h = output[0]
+            B = h.size(0)
+            pos = h.size(1) - 1
+            for b in range(B):
+                if _sv[b] is None:
+                    continue
+                v = _sv[b].to(h.device).to(h.dtype)
+                h[b, pos] = h[b, pos] + steer_alpha * v
+            return (h,) + output[1:]
+
+        _steer_hook = model.model.layers[_lid].register_forward_hook(
+            _hook_fn)
     max_p = max(len(e) for e in encs)
     ids = torch.tensor([e + [pad_id] * (max_p - len(e)) for e in encs],
                        dtype=torch.long, device=DEVICE)
@@ -371,12 +523,53 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
                         if i + j < max_p:
                             src_attr_mask[b, i + j] = True
                     break
+    # clean_free allowed-token set per sample: attr tokens + connectors +
+    # digits/punctuation tokens (so only clean query language can be sampled)
+    clean_tokens: list[set[int] | None] = [None] * bsz
+    if clean_free:
+        connector_ids: set[int] = set()
+        for w in CLEAN_CONNECTORS:
+            for t in tok(w, add_special_tokens=False)["input_ids"]:
+                connector_ids.add(t)
+        punct_strs = [",", ".", "!", "?", ";", ":", "'", "-", "&", "%",
+                      "(", ")", "[", "]", "/", " "]
+        for s in punct_strs:
+            for t in tok(s, add_special_tokens=False)["input_ids"]:
+                connector_ids.add(t)
+        if tok.eos_token_id is not None:
+            connector_ids.add(tok.eos_token_id)
+        for b in range(bsz):
+            if not use_copy[b]:
+                continue
+            tok_set = set(connector_ids)
+            for v in attrs_list[b].values():
+                for t in tok(str(v), add_special_tokens=False)["input_ids"]:
+                    tok_set.add(t)
+            clean_tokens[b] = tok_set
     past = None
     generated: list[list[int]] = [[] for _ in range(bsz)]
     done = [False] * bsz
     next_emb = full
     next_ids = None
     src_hidden_cache = None
+    # ---- strict-span tables: standalone tokenization per attribute value ----
+    # (NOT prompt-context tokenization: BPE merges differ with surrounding
+    # tokens, e.g. "$39.99" inside "Price: $39.99" — forcing must use the
+    # value's OWN token ids so the decoded output contains the verbatim text)
+    span_tables: list[list[dict]] | None = None
+    active_span: list[list[int]] = [[] for _ in range(bsz)]
+    since_span: list[int] = [0] * bsz
+    mid_wait: list[int] = [0] * bsz
+    if strict_spans:
+        span_tables = []
+        for b in range(bsz):
+            tbl = []
+            if use_copy[b]:
+                for v in attrs_list[b].values():
+                    v_ids = tok(str(v), add_special_tokens=False)["input_ids"]
+                    if v_ids:
+                        tbl.append({"key": str(v), "tokens": list(v_ids)})
+            span_tables.append(tbl)
     for step in range(max_new):
         first = past is None
         out = model(inputs_embeds=next_emb if first else None,
@@ -388,7 +581,7 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
         if first:
             last_valid = attn.sum(dim=1) - 1
             logits = out.logits[torch.arange(bsz, device=DEVICE), last_valid]
-            if any(use_copy):
+            if any(use_copy) and copy_head is not None:
                 src_hidden = out.hidden_states[-1][
                     :, src_offset:src_offset + max_p, :]
                 src_hidden_cache = src_hidden
@@ -400,7 +593,7 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
                                       copy_logits)[:, 0]
         else:
             logits = out.logits[:, -1]
-            if any(use_copy):
+            if any(use_copy) and copy_head is not None:
                 gen_hidden = out.hidden_states[-1][:, -1:, :]
                 p_copy, copy_logits = copy_head(
                     gen_hidden, src_hidden_cache, src_attr_mask, ids)
@@ -419,14 +612,130 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
             sorted_l[mask] = float("-inf")
             logits = torch.gather(sorted_l, 1, idx.argsort(dim=-1))
         probs = F.softmax(logits, dim=-1)
-        gen_strs = [tok.decode(g, skip_special_tokens=True).lower()
-                    for g in generated]
+        # repetition penalty: discourage immediate token repeats to suppress
+        # the "Quaternion Quaternion..." degradation on long generation
+        for b in range(bsz):
+            if done[b]:
+                continue
+            if len(generated[b]) >= 4:
+                last4 = generated[b][-4:]
+                if len(set(last4)) <= 2:
+                    for tid in set(last4):
+                        probs[b, tid] *= 0.01
+        # strict-span forcing: while attrs are missing, force-copy the next
+        # missing value's standalone tokens (verbatim text guarantee); allow
+        # at most SPAN_GAP free connector tokens between spans. The next span
+        # is chosen by the model's own first-token logit preference. Never
+        # force while the tail is mid-word/mid-value of a missing attr
+        # (avoids splitting a value that the LM is naturally emitting).
+        forced: list[int | None] = [None] * bsz
+        if strict_spans:
+            _space_tok = None
+            for b in range(bsz):
+                if done[b] or not use_copy[b]:
+                    continue
+                if active_span[b]:
+                    forced[b] = active_span[b].pop(0)
+                    continue
+                text_b = tok.decode(generated[b],
+                                    skip_special_tokens=True).lower()
+                missing = [s for s in span_tables[b]
+                           if s["key"].lower() not in text_b]
+                if missing:
+                    tail = text_b.rstrip()
+                    tail_w = re.split(r"\W+", tail)[-1] if tail else ""
+                    vwords = []
+                    for s in missing:
+                        vwords += [w for w in re.split(r"\W+", s["key"].lower())
+                                   if w]
+                    # mid-word: tail word is a strict prefix of a value word
+                    mid_word = bool(tail_w) and any(
+                        len(w) > len(tail_w) and w.startswith(tail_w)
+                        for w in vwords)
+                    # mid-value: tail ends with a non-trivial prefix of a
+                    # missing value string
+                    mid_value = False
+                    if not mid_word:
+                        for s in missing:
+                            vk = s["key"].lower()
+                            for k in range(min(4, len(vk)), len(vk) + 1):
+                                if tail.endswith(vk[:k]):
+                                    mid_value = True
+                                    break
+                            if mid_value:
+                                break
+                    if mid_word or mid_value:
+                        mid_wait[b] += 1
+                        # deadlock guard: if the LM never finishes the value
+                        # it started, force-complete the span anyway
+                        if mid_wait[b] < MAX_MID_WAIT:
+                            since_span[b] = 0
+                            if _DBG:
+                                print(f"[dbg] step{step} b{b} mid "
+                                      f"w={mid_wait[b]} tail={tail[-20:]!r}",
+                                      flush=True)
+                            continue
+                    mid_wait[b] = 0
+                    since_span[b] += 1
+                    if since_span[b] >= SPAN_GAP:
+                        best = None
+                        for s in missing:
+                            sc = float(probs[b, s["tokens"][0]])
+                            if best is None or sc > best[0]:
+                                best = (sc, s)
+                        s = best[1]
+                        if _DBG:
+                            print(f"[dbg] step{step} b{b} FORCE "
+                                  f"{s['key']!r} sc={best[0]:.2e} "
+                                  f"miss={[x['key'] for x in missing]} "
+                                  f"tail={tail[-25:]!r}", flush=True)
+                        if _space_tok is None:
+                            _space_tok = tok(" ", add_special_tokens=False)[
+                                "input_ids"]
+                        if tail and not tail[-1].isspace() and _space_tok:
+                            forced[b] = _space_tok[0]
+                            active_span[b] = s["tokens"]
+                        else:
+                            forced[b] = s["tokens"][0]
+                            active_span[b] = s["tokens"][1:]
+                        since_span[b] = 0
+                else:
+                    since_span[b] = 0
+        # content/length guard per sample
         for b in range(bsz):
             if done[b] or attrs_list[b] is None:
                 continue
-            if any(str(v).lower() not in gen_strs[b]
-                   for v in attrs_list[b].values()):
+            G = generated[b]
+            text_b = tok.decode(G, skip_special_tokens=True).lower()
+            missing = [v for v in attrs_list[b].values()
+                       if str(v).lower() not in text_b]
+            all_present = not missing
+            if (not all_present or len(G) < min_tokens) and \
+                    len(G) < (160 if strict_spans else 96):
                 probs[b, tok.eos_token_id] = 0.0
+            if missing and not strict_spans:
+                for v in missing:
+                    for tid in tok(str(v), add_special_tokens=False)["input_ids"]:
+                        probs[b, tid] *= 5.0
+        # clean_free: mask free-token sampling to connector/punct/attr tokens
+        # so review content words can never leak into the generated query
+        if clean_free:
+            for b in range(bsz):
+                if done[b]:
+                    continue
+                allowed = clean_tokens[b]
+                if allowed is None:
+                    continue
+                mask = torch.zeros_like(probs[b], dtype=torch.bool)
+                mask[list(allowed)] = True
+                probs[b] = torch.where(mask, probs[b],
+                                       torch.zeros_like(probs[b]))
+                if _DBG and step < 3:
+                    top = torch.topk(probs[b], 8).indices.tolist()
+                    print(f"[dbg] clean step{step} b{b} top8="
+                          f"{[tok.decode([t]) for t in top]} "
+                          f"rowsum={float(probs[b].sum()):.3f}",
+                          flush=True)
         probs = torch.nan_to_num(probs, nan=0.0, posinf=0.0, neginf=0.0)
         row_sum = probs.sum(dim=-1)
         bad = row_sum <= 0
@@ -438,6 +747,10 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
             fb[fb == 0] = 1.0 / keep
             probs[bad] = fb
         sample_ids = torch.multinomial(probs, 1).squeeze(1)
+        if strict_spans:
+            for b in range(bsz):
+                if forced[b] is not None:
+                    sample_ids[b] = forced[b]
         next_ids = sample_ids.clone()
         for b in range(bsz):
             if done[b]:
@@ -455,15 +768,23 @@ def generate_batch(model, tok, copy_head, prefix_embeds, prompts,
         next_ids = next_ids.unsqueeze(1)
         attn = torch.cat([attn, torch.ones(bsz, 1, dtype=attn.dtype,
                                            device=DEVICE)], dim=1)
+    if _steer_hook is not None:
+        _steer_hook.remove()
     return [tok.decode(g, skip_special_tokens=True).strip() for g in generated]
+
 
 
 # ============================================================== 数据
 
 
 def build_samples(train_users, dev_users, test_users, user_products, meta,
-                  user_to_z):
-    """(train, dev, test) samples: user x product x chosen template."""
+                  user_to_z, user_comments=None):
+    """(train, dev, test) samples: user x product x chosen template.
+
+    user_comments: {user_id: [review texts]} — used as STYLE anchors (the
+    user's real syntax). Comments are NOT the generation target; they only
+    provide the style-loss hidden anchor (see run_batch style path).
+    """
     import spacy
     from spacy import load as _spacy_load
     nlp = _spacy_load("en_core_web_sm")
@@ -473,6 +794,7 @@ def build_samples(train_users, dev_users, test_users, user_products, meta,
     vd = np.load(TASK1_VECTORS, allow_pickle=True)
     tm = vd["train_mean"].astype(np.float64)
     ts = vd["train_std"].astype(np.float64)
+    user_comments = user_comments or {}
 
     prod_attrs: dict[str, dict] = {}
     for u, prods in user_products.items():
@@ -483,6 +805,14 @@ def build_samples(train_users, dev_users, test_users, user_products, meta,
                     prod_attrs[a] = at
     rng = random.Random(SEED)
     samples: dict[str, list[dict]] = {"train": [], "dev": [], "test": []}
+    # template-318 cache: (template_id, asin) -> 318 vec. Reusable across
+    # users and models (spaCy features are model-independent).
+    T318 = OUT_DIR / "e22_t3_template318_cache.npz"
+    t318: dict[str, np.ndarray] = {}
+    if T318.exists():
+        cc = np.load(T318, allow_pickle=True)
+        t318 = {q: v for q, v in zip(cc["queries"], cc["vecs"])}
+        log(f"  template318 cache: {len(t318)}")
     for split, users in (("train", train_users), ("dev", dev_users),
                          ("test", test_users)):
         for u in users:
@@ -500,7 +830,11 @@ def build_samples(train_users, dev_users, test_users, user_products, meta,
                 for t in TEMPLATES:
                     q = t.format(A1=sv[0], A2=sv[1], A3=sv[2], A4=sv[3],
                                  A5=sv[4])
-                    y = spacy318(q, attrs, nlp, tm, ts)
+                    if q not in t318:
+                        y = spacy318(q, attrs, nlp, tm, ts)
+                        if y is not None:
+                            t318[q] = y
+                    y = t318.get(q)
                     if y is None:
                         continue
                     d = float(np.linalg.norm(y - z))
@@ -510,10 +844,15 @@ def build_samples(train_users, dev_users, test_users, user_products, meta,
                     continue
                 samples[split].append({
                     "user_id": u, "asin": asin, "z_user": z.tolist(),
-                    "attrs": attrs, "target_queries": [best_q]})
+                    "attrs": attrs, "target_queries": [best_q],
+                    "comments": user_comments.get(u, [])})
                 cnt += 1
                 if cnt >= MAX_SAMPLES_PER_USER:
                     break
+    # merge-update cache (never overwrite whole cache on partial runs)
+    np.savez_compressed(
+        T318, queries=np.asarray(list(t318.keys())),
+        vecs=np.stack(list(t318.values())))
     for s in samples:
         log(f"  {s}: {len(samples[s])} samples")
     return samples["train"], samples["dev"], samples["test"]
@@ -548,9 +887,10 @@ def train_stage() -> None:
     splits = {s: set(mt["splits"][s]["ids"]) for s in ("train", "dev", "test")}
 
     user_products: dict[str, set] = defaultdict(set)
+    user_comments: dict[str, list[str]] = defaultdict(list)
     target = set(user_ids)
     with gzip.open(REVIEWS, "rt", encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for i, line in enumerate(f):
             try:
                 d = json.loads(line)
             except Exception:
@@ -559,11 +899,19 @@ def train_stage() -> None:
             a = d.get("parent_asin") or d.get("asin")
             if u and a and u in target:
                 user_products[u].add(a)
+                t = (d.get("text") or "").strip()
+                if t:
+                    user_comments[u].append(t)
+            if i > 20000000:
+                break
+    # keep up to N comments per user (for style anchor)
+    for u in user_comments:
+        user_comments[u] = user_comments[u][:40]
     meta = load_meta()
     log(f"meta asins: {len(meta)}")
     train_samples, dev_samples, test_samples = build_samples(
         splits["train"], splits["dev"], splits["test"], user_products, meta,
-        user_to_z)
+        user_to_z, user_comments)
 
     tok = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
     if tok.pad_token_id is None:
@@ -580,8 +928,18 @@ def train_stage() -> None:
     proj = SoftPrefixProjector(user_dim=Z_DIM, hidden_dim=PROJ_HIDDEN,
                                num_tokens=NUM_TOKENS, model_dim=H,
                                dtype=DTYPE, gate_init=GATE_INIT).to(DEVICE)
-    probe = nn.Sequential(nn.Linear(H, 256), nn.GELU(), nn.Linear(256, 128),
-                          nn.GELU(), nn.Linear(128, Z_DIM)).to(DEVICE)
+
+    class _FrozenProbe(nn.Module):
+        def __init__(self, hdim):
+            super().__init__()
+            self.net = nn.Sequential(nn.Linear(hdim, 256), nn.GELU(),
+                                     nn.Linear(256, 128), nn.GELU(),
+                                     nn.Linear(128, Z_DIM)).to(DEVICE)
+
+        def forward(self, x):
+            return self.net(x.float())
+
+    probe = _FrozenProbe(H)
     probe.load_state_dict(torch.load(PROBE_PT, map_location=DEVICE))
     for p in probe.parameters():
         p.requires_grad = False
@@ -612,6 +970,14 @@ def train_stage() -> None:
         encs = []
         for b in batch:
             tgt = random.choice(b["target_queries"])
+            # ---- content/style split training ----
+            # Content: template target ONLY (attrs shape). Copy head =
+            # pointer over the ATTR PROMPT spans — review tokens are never
+            # in the copy source. Style: user review sentences enter ONLY
+            # the style-loss path below (hidden anchor under prefix(z_user));
+            # they are never LM targets (user directive: no review sentence
+            # as training objective), so review content cannot leak into
+            # generation.
             encs.append((b, tgt, encode_prompt(tok, b["attrs"], tgt)))
         max_p = max(len(e[2][0]) for e in encs)
         max_t = max(len(e[2][1]) for e in encs)
@@ -717,21 +1083,73 @@ def train_stage() -> None:
         else:
             loss_pointer = torch.tensor(0.0, device=DEVICE)
 
-        pooled_pre = hsr[:, :NUM_TOKENS, :].mean(dim=1)
-        z_pred_pre = probe(pooled_pre)
-        loss_style_pre = F.mse_loss(z_pred_pre, z)
-        t_start = NUM_TOKENS + max_p
-        t_end = min(t_start + max_t, hs.size(1))
-        pooled_tgt = hsr[:, t_start:t_end, :].mean(dim=1)
-        z_pred_tgt = probe(pooled_tgt)
-        loss_style_tgt = F.mse_loss(z_pred_tgt, z)
-        loss_style = loss_style_pre + loss_style_tgt
-
-        pooled_s = hss[:, :NUM_TOKENS, :].mean(dim=1)
-        z_pred_s = probe(pooled_s)
-        d_real = F.pairwise_distance(z_pred_pre, z, p=2)
-        d_shuf = F.pairwise_distance(z_pred_s, z, p=2)
-        loss_cmp = torch.clamp(d_real - d_shuf + CMP_MARGIN, min=0).mean()
+        # ---- STYLE path: user COMMENT sentences are the style anchor ----
+        # The user's real review sentence (NOT the template) is teacher-forced
+        # under the prefix; its pooled hidden must decode to z_user. This
+        # teaches "prefix(z_user) + user syntax -> user z region", so at
+        # inference the freely generated query lands in the user's syntax
+        # area. Content is handled separately by the copy path above.
+        # Build comment inputs: prefix + comment tokens (no attr prompt).
+        com_texts = []
+        com_idx = []
+        for b in range(n):
+            cmts = batch[b].get("comments") or []
+            if cmts:
+                com_texts.append(random.choice(cmts))
+                com_idx.append(b)
+        if com_texts:
+            c_ids = [tok(c, add_special_tokens=False)["input_ids"][:64]
+                     for c in com_texts]
+            c_max = max(len(x) for x in c_ids)
+            cids = torch.tensor(
+                [x + [tok.pad_token_id] * (c_max - len(x)) for x in c_ids],
+                dtype=torch.long, device=DEVICE)
+            cmask = torch.tensor(
+                [[1] * len(x) + [0] * (c_max - len(x)) for x in c_ids],
+                dtype=torch.long, device=DEVICE)
+            cemb = emb(cids).to(DTYPE)
+            cpos = torch.arange(c_max, device=DEVICE).unsqueeze(0) \
+                .expand(len(com_texts), -1) + NUM_TOKENS
+            # real-prefix rows and shuffled-prefix rows for these comments
+            with torch.no_grad():
+                z_com = torch.tensor(
+                    np.stack([batch[i]["z_user"] for i in com_idx]),
+                    dtype=torch.float32, device=DEVICE)
+            pc_real = proj(z_com.to(DTYPE))
+            z_com_shuf = z_com[torch.randperm(len(com_idx))]
+            pc_shuf = proj(z_com_shuf.to(DTYPE))
+            # first pass: real-prefix comments -> style loss (DIFFERENTIABLE:
+            # projector must receive gradient through the comment forward)
+            full_c = torch.cat([pc_real, cemb], dim=1)
+            cmask_f = torch.cat(
+                [torch.ones(len(com_texts), NUM_TOKENS,
+                            dtype=torch.long, device=DEVICE), cmask], dim=1)
+            cpos_f = torch.cat([
+                torch.arange(NUM_TOKENS, device=DEVICE).unsqueeze(0)
+                .expand(len(com_texts), -1), cpos], dim=1)
+            out_c = model(inputs_embeds=full_c, attention_mask=cmask_f,
+                          position_ids=cpos_f, use_cache=False,
+                          output_hidden_states=True)
+            hc = out_c.hidden_states[-1]
+            pooled_c = hc[:, :NUM_TOKENS, :].mean(dim=1)
+            z_pred_real = probe(pooled_c)
+            loss_style = F.mse_loss(z_pred_real, z_com)
+            # second pass: shuffled-prefix comments -> contrastive (frozen
+            # model forward for the shuffled side is enough for the margin)
+            full_s = torch.cat([pc_shuf, cemb], dim=1)
+            out_s = model(inputs_embeds=full_s, attention_mask=cmask_f,
+                          position_ids=cpos_f, use_cache=False,
+                          output_hidden_states=True)
+            pooled_s = out_s.hidden_states[-1][:, :NUM_TOKENS, :].mean(dim=1)
+            z_pred_shuf = probe(pooled_s)
+            d_real = F.pairwise_distance(z_pred_real, z_com, p=2)
+            d_shuf = F.pairwise_distance(z_pred_shuf, z_com, p=2)
+            loss_cmp = torch.clamp(d_real - d_shuf + CMP_MARGIN, min=0).mean()
+        else:
+            # fallback: prefix-only style (no comment available)
+            pooled_pre = hsr[:, :NUM_TOKENS, :].mean(dim=1)
+            z_pred_pre = probe(pooled_pre)
+            loss_style = F.mse_loss(z_pred_pre, z)
 
         total = (loss_content + W_STYLE * loss_style + W_CMP * loss_cmp
                  + W_COPY_POINTER * torch.clamp(loss_pointer, max=10.0))
@@ -870,20 +1288,28 @@ def grid_generate_stage() -> None:
     log("injector (318) + copy head loaded")
 
     jobs = []
-    for mn in MAX_NEW_GRID:
+    # length buckets: (max_new, min_tokens, length_hint) -> target
+    # 10-20 / 21-40 / 41-80 words. min_tokens enforces REAL length (EOS
+    # blocked until reached) and the hint steers the model to write longer.
+    BUCKETS = [(48, 10, "10-20"),
+               (80, 21, "21-40"),
+               (120, 41, "41-80")]
+    for bucket_id, (mn, mnt, hint) in enumerate(BUCKETS):
         for u in test_users:
             for c in cell_map[u]:
                 for rep in range(N_REPS):
-                    jobs.append((c, "real-z", mn, rep))
-                    jobs.append((c, "shuffled-z", mn, rep))
-    log(f"jobs: {len(jobs)}")
+                    jobs.append((c, "real-z", bucket_id, rep, mnt, mn, hint))
+                    jobs.append((c, "shuffled-z", bucket_id, rep, mnt, mn,
+                                 hint))
+    log(f"jobs: {len(jobs)} (3 length buckets x 2 controls x 2 reps)")
     records = []
     rng2 = random.Random(SEED + 1)
     with torch.no_grad():
         for start in range(0, len(jobs), BATCH):
             chunk = jobs[start:start + BATCH]
             prompts, prefix_embeds, attrs_list = [], [], []
-            for c, ctrl, mn, rep in chunk:
+            mnts = []
+            for c, ctrl, bid, rep, mnt, mn, hint in chunk:
                 z_real = np.asarray(c["z_user"], dtype=np.float64)
                 if ctrl == "real-z":
                     zz = z_real
@@ -892,17 +1318,23 @@ def grid_generate_stage() -> None:
                             key=lambda x: float(
                                 np.linalg.norm(user_to_zfull[x] - z_real)))
                     zz = user_to_zfull[o]
-                prompts.append(user_prompt_tokens(c["attrs"], tok))
+                prompts.append(user_prompt_tokens(c["attrs"], tok, hint))
                 prefix_embeds.append(proj(
                     torch.tensor(zz, dtype=torch.float32, device=DEVICE)
                     .to(DTYPE).unsqueeze(0))[0])
                 attrs_list.append(c["attrs"])
+                mnts.append(mnt)
+            mn = max(x[5] for x in chunk)
             texts = generate_batch(model, tok, copy_head, prefix_embeds,
-                                   prompts, attrs_list, chunk[0][2])
-            for (c, ctrl, mn, rep), txt in zip(chunk, texts):
+                                   prompts, attrs_list, mn,
+                                   min_tokens=mnts[0])
+            for (c, ctrl, bid, rep, mnt, mn_, hint), txt in zip(chunk, texts):
+                n_tok = len(txt.split())
                 records.append({"user_id": c["user_id"], "asin": c["asin"],
                                 "attrs": c["attrs"], "control": ctrl,
-                                "max_new": mn, "rep": rep, "query": txt})
+                                "length_bucket": bid, "rep": rep,
+                                "min_tokens": mnt, "max_new": mn_,
+                                "actual_tokens": n_tok, "query": txt})
             if start % 320 == 0:
                 log(f"  generated {start + len(chunk)}/{len(jobs)}")
     with open(GEN_OUT, "w") as f:
@@ -1325,6 +1757,134 @@ def dimscan_stage() -> None:
     log("DIMSCAN DONE")
 
 
+# ============================================================== 属性数量扫描
+
+
+def nscan_stage() -> None:
+    """Attribute-count scan: for each N (top-N attributes), generate queries
+    and measure the maximal NATURAL length achievable (no degeneracy, all N
+    attributes present). Question: does adding attributes allow longer,
+    still-natural queries?
+    """
+    random.seed(SEED)
+    np.random.seed(SEED)
+    vd = np.load(TASK1_VECTORS, allow_pickle=True)
+    user_ids = list(vd["user_ids"])
+    z_full = vd["Z_full"].astype(np.float64)
+    user_to_zfull = {u: z_full[i] for i, u in enumerate(user_ids)}
+    mt = json.load(open(TASK1_MANIFEST))
+    test_users = sorted(mt["splits"]["test"]["ids"])
+    rng = random.Random(SEED)
+    rng.shuffle(test_users)
+    test_users = test_users[:80]
+
+    meta = load_meta()
+    user_products: dict[str, set] = defaultdict(set)
+    with gzip.open(REVIEWS, "rt", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            u = d.get("user_id")
+            a = d.get("parent_asin") or d.get("asin")
+            if u and a and u in test_users:
+                user_products[u].add(a)
+    # collect products with all N attributes for the largest N
+    N_MAX = 5 + len(EXT_ATTR_KEYS)
+    cells_by_n: dict[int, list[dict]] = {n: [] for n in range(5, N_MAX + 1)}
+    for u in test_users:
+        for a in user_products.get(u, set()):
+            if a not in meta:
+                continue
+            rec = meta[a]
+            for n in range(5, N_MAX + 1):
+                attrs = attrs_for_n(rec, n)
+                if attrs is not None:
+                    cells_by_n[n].append({"user_id": u, "asin": a,
+                                          "attrs": attrs,
+                                          "z_user": user_to_zfull[u].tolist()})
+    for n in cells_by_n:
+        rng.shuffle(cells_by_n[n])
+        cells_by_n[n] = cells_by_n[n][:40]
+        log(f"  N{n}: {len(cells_by_n[n])} cells")
+
+    tok = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+    if tok.pad_token_id is None:
+        tok.pad_token_id = tok.eos_token_id
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_PATH, torch_dtype=DTYPE, device_map=DEVICE,
+        trust_remote_code=True)
+    model.eval()
+    H = model.config.hidden_size
+    ckpt = torch.load(INJECTOR_PT, map_location=DEVICE)
+    proj = SoftPrefixProjector(user_dim=Z_DIM, hidden_dim=PROJ_HIDDEN,
+                               num_tokens=NUM_TOKENS, model_dim=H,
+                               dtype=DTYPE, gate_init=GATE_INIT).to(DEVICE)
+    proj.load_state_dict(ckpt["proj"])
+    proj.eval()
+    copy_head = CopyAwareHead(hidden_dim=H, vocab_size=model.config.vocab_size,
+                              dtype=DTYPE).to(DEVICE)
+    if "copy_head" in ckpt:
+        copy_head.load_state_dict(ckpt["copy_head"])
+    copy_head.eval()
+    log("injector loaded")
+
+    # generate per N with a generous length hint; measure natural max length
+    results: dict[int, dict] = {}
+    for n in range(5, N_MAX + 1):
+        cells = cells_by_n[n]
+        if not cells:
+            results[n] = {"run": False}
+            continue
+        gens: list[dict] = []
+        with torch.no_grad():
+            for start in range(0, len(cells), BATCH):
+                chunk = cells[start:start + BATCH]
+                prompts, pes, attrs_list = [], [], []
+                for c in chunk:
+                    prompts.append(user_prompt_tokens(c["attrs"], tok,
+                                                      "as detailed as possible"))
+                    pes.append(proj(torch.tensor(
+                        np.asarray(c["z_user"], dtype=np.float64),
+                        dtype=torch.float32, device=DEVICE).to(DTYPE)
+                        .unsqueeze(0))[0])
+                    attrs_list.append(c["attrs"])
+                texts = generate_batch(model, tok, copy_head, pes, prompts,
+                                       attrs_list, 120, min_tokens=0)
+                for c, t in zip(chunk, texts):
+                    gens.append({"attrs": c["attrs"], "query": t})
+        # metrics: natural = not degenerate AND all attrs present
+        n_ok = n_all = 0
+        nats: list[int] = []
+        for g in gens:
+            q = g["query"]
+            toks = q.split()
+            n_all += 1
+            degenerate = len(set(toks)) <= 3 or len(toks) < 5
+            content_ok = all(str(v).lower() in q.lower()
+                             for v in g["attrs"].values())
+            if not degenerate and content_ok:
+                n_ok += 1
+                nats.append(len(toks))
+        import statistics
+        results[n] = {
+            "run": True, "n_gens": n_all, "n_attrs": n,
+            "natural_content_ok_frac": round(n_ok / n_all, 4),
+            "natural_len_mean": round(statistics.mean(nats), 1) if nats else None,
+            "natural_len_median": round(statistics.median(nats), 1) if nats else None,
+            "natural_len_p90": round(sorted(nats)[int(0.9 * len(nats))], 1)
+            if nats else None,
+        }
+        log(f"  N{n}: ok_frac={results[n]['natural_content_ok_frac']} "
+            f"nat_len med={results[n]['natural_len_median']} "
+            f"p90={results[n]['natural_len_p90']}")
+    with open(OUT_DIR / "e22_t3_nscan.json", "w") as f:
+        json.dump({"version": "query_gen_nscan_v1", "seed": SEED,
+                   "results": results}, f, indent=1)
+    log("NSCAN DONE")
+
+
 def main() -> None:
     t0 = time.time()
     # 内联 spaCy 特征（不 import 项目脚本）：注册到本模块
@@ -1341,6 +1901,8 @@ def main() -> None:
         scale_scan_stage()
     elif MAIN_STAGE == "dimscan":
         dimscan_stage()
+    elif MAIN_STAGE == "nscan":
+        nscan_stage()
     else:
         grid_eval_stage()
     log(f"runtime {time.time() - t0:.0f}s")

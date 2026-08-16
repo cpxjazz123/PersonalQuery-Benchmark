@@ -1,0 +1,164 @@
+{
+ "version": "e22_t3_retr_style_v1",
+ "seed": 7777,
+ "asin": "B0BQ1QK14T",
+ "attrs": {
+  "Brand": "TDIAPERS",
+  "Color": "Multicolor 02 Kt",
+  "Material": "Polyester",
+  "Category": "Covers",
+  "Price": "$37.99",
+  "Style": "Protection",
+  "Age Range (Description)": "Toddler",
+  "Number Of Items": "18",
+  "Target gender": "Unisex"
+ },
+ "config": {
+  "X": 5,
+  "Y": 5,
+  "Z": 5,
+  "w": 20
+ },
+ "corpus_size": 200,
+ "top_k": 10,
+ "target_idx": 0,
+ "content_purity": 0.05,
+ "users": {
+  "AE2JI7VAWG4DJZP7LKH3SEZKN56Q": {
+   "queries": [
+    "I_STAT 3.0 100% 2013 TDIAPERS 37.99 scandal 32.00 38.00 39.00 18 2 0 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00",
+    "Iacman 18000 100 TDIAPERS centres,StartTime 37.99,Protection,Unisex,TDIAPERS 1 Multicolor 02 Kt,TDIAPERS 1 Polyester.潮流.Instantiate.办公楼. Covers. 18. 2 $37.99. 18000 Toddler",
+    "Iェs. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3. 3.",
+    "I_EPSI1000 Covers المرحلة1000,  18  10  1 TDIAPERS, starting milage  37.99.strength  11, Multicolor 02 Kt,  0.00 Polyester,  37.99  37.99,  1  37.99,  1  37.99,  1  37.99,  1  37.99,"
+   ],
+   "hit10": [
+    1,
+    1,
+    0,
+    1
+   ],
+   "mean_hit10": 0.75,
+   "ranks": [
+    1,
+    1,
+    null,
+    3
+   ],
+   "mean_rank": 1.67
+  },
+  "AHP5AG3KQWUBZ6QRXGWPC2OK2PQA": {
+   "queries": [
+    "I生成love𝓭8 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1",
+    "Iコミlove注意力the 3-2018 1- TDIAPERS 3- 37.99 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3- 3-",
+    "I outClosures IMO.  18-2eroonies.   TDIAPERS  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99  37.99",
+    "IT freezes, Municip_CLAMP  18 18 18, TDIAPERS  37.99  37.99,  37.99,  37.99  37.99,  37.99  37.99,  37.99,  37.99,  37.99  37.99,  37.99,  37.99,  37.9"
+   ],
+   "hit10": [
+    0,
+    1,
+    1,
+    1
+   ],
+   "mean_hit10": 0.75,
+   "ranks": [
+    null,
+    1,
+    2,
+    1
+   ],
+   "mean_rank": 1.33
+  },
+  "AGJRXFVZAQM4Z5DYKNOKK5WF6F7Q": {
+   "queries": [
+    "I déjàesters, 32-38, 100-120, 2-3, 1, 18, 10-12 TDIAPERS, tout, 37.99, 100-1 Multicolor 02 Kt, 3, 100-12 Polyester, 18, 1 Covers, 18, 1 $37.99, 1 Protection,  Toddler, 1 Unisex",
+    "Iospitalност. 3-18. 2018. TDIAPERS 18 1 1 Multicolor 02 Kt 1 1 37.99 1 1 1  Polyester 1 1 1  Covers 1 1 1  $37.99 1 1 1  Protection 1 1 1  Toddler 1 1 1  Unisex",
+    "I الثالI monarch 322009083 18 30 32 33 3 Weekly 37.99 труд 2 3 3 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3 3 1 18 3",
+    "Irais 100%局the袄t. TDIAPERS. 37.99. 18. 02. Kt. 18. 37.99. 18. 02. Kt. 18. 37.99. 18. 02. Kt. 18. 37.99. 18. 02. Kt. 18. 37.99. 18. 02. Kt. 18."
+   ],
+   "hit10": [
+    1,
+    1,
+    0,
+    1
+   ],
+   "mean_hit10": 0.75,
+   "ranks": [
+    1,
+    1,
+    null,
+    2
+   ],
+   "mean_rank": 1.33
+  },
+  "AGCTK2Z2ND3YCNM4ZCOI6CSEYSIQ": {
+   "queries": [
+    "I⒝needขึ้นa Einstein  18  18  37.99 唁Protection  18 TDIAPERS  18  WP  Multicolor 02 Kt  18  1 Polyester  18  1 Covers  18  1 $37.99  18  1 Toddler  18  1 Unisex",
+    "Iを受けI hashCode: 183010222 TDIAPERS 183010 Multicolor 02 Kt 183010 Polyester 183010 Covers 183010 $37.99 183010 Protection 183010 Toddler 183010 Unisex 183010 18",
+    "I Voldemort, 18, 18, 1 TDIAPERS, graz🐞, 18 Multicolor 02 Kt, 18 18 Polyester, 18, 1 Covers, 37.99, 18, 1 $37.99, 18, 1 Protection, 18, 1 Toddler, 18, 1 Unisex",
+    "I股份want Awon 18 02 Kt 18 18  TDIAPERS  37.99 骇on  02 Kt  18  1 Multicolor 02 Kt  18  1 Polyester  18  1 Covers  18  1 $37.99  18  1 Protection  18  1 Toddler  18  1 Unisex"
+   ],
+   "hit10": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "mean_hit10": 1.0,
+   "ranks": [
+    4,
+    1,
+    4,
+    1
+   ],
+   "mean_rank": 2.5
+  },
+  "AEVT7G4YZM2E5MI3SGA6J6EZZR4A": {
+   "queries": [
+    "(statearr: 18, 18, 1 TDIAPERS, 18, 1 Multicolor 02 Kt, 18, 1 Polyester, 18, 1 Covers, 37.99, 18, 1 $37.99, 18, 1 Protection, 18, 1 Toddler, 18, 1 Unisex)",
+    "ߗI 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02 02",
+    "EW-1000-8-20 18 02 Kt 37.99不大 çocuklar跟他 8-2 TDIAPERS 18 02 Kt 37.99 18 02 Kt 37.99 18 02 Kt 37.99 18 02 Kt 37.99 18 02 Kt 37.99 18 02 Kt 37.99 18 02 K",
+    "consecפסיכ Silk 3130 300 112 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100"
+   ],
+   "hit10": [
+    1,
+    0,
+    1,
+    0
+   ],
+   "mean_hit10": 0.5,
+   "ranks": [
+    1,
+    null,
+    1,
+    null
+   ],
+   "mean_rank": 1.0
+  }
+ },
+ "template": {
+  "queries": [
+   "Find me a TDIAPERS Covers in Multicolor 02 Kt, made of Polyester, under $37.99.",
+   "Can you show me the TDIAPERS Covers which is Multicolor 02 Kt, Polyester, and costs $37.99?",
+   "I want a TDIAPERS Covers with Multicolor 02 Kt and Polyester, for $37.99.",
+   "For my baby, I need a TDIAPERS Covers that is Multicolor 02 Kt, made of Polyester, and priced at $37.99."
+  ],
+  "hit10": [
+   1,
+   1,
+   1,
+   1
+  ],
+  "mean_hit10": 1.0,
+  "ranks": [
+   3,
+   8,
+   6,
+   2
+  ]
+ },
+ "hit10_diff_across_styles": 0.5,
+ "hit10_mean_style": 0.75,
+ "hit10_template": 1.0,
+ "hit10_style_minus_template": -0.25,
+ "runtime_sec": 90.6
+}
