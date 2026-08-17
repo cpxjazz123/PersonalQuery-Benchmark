@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import json
+import random
 import sys
 import time
 from pathlib import Path
@@ -48,6 +49,7 @@ def log(msg: str) -> None:
 
 
 def unit(a, axis=-1):
+    a = np.asarray(a, dtype=np.float32)
     n = np.linalg.norm(a, axis=axis, keepdims=True)
     return a / np.maximum(n, 1e-9)
 
@@ -103,7 +105,7 @@ def main() -> None:
               if s in cache and s in rewrites and rewrites[s] in cache]
         user_constr[uid] = cs[:Y]
         user_ho[uid] = ho[:N_HO]
-    keep = [uid for uid, in [u["user_id"] for u in users]
+    keep = [uid for uid in [u["user_id"] for u in users]
             if len(user_constr[uid]) >= max(3, Y // 2)
             and len(user_ho[uid]) >= N_HO]
     log(f"test users with enough data: {len(keep)}")

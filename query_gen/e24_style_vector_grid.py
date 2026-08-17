@@ -41,6 +41,8 @@ OUT_E24.mkdir(parents=True, exist_ok=True)
 VEC_NPZ = OUT_E23 / "style_vectors_100u.npz"
 HO_JSON = OUT_E23 / "style_vectors_heldout_validity.json"
 HO_HIDDEN_FILE = OUT_E23 / "heldout_hidden.npz"
+DEV_POOL_JSONL = OUT_E24 / "dev_pool_100u.jsonl"           # per-user tagged construction pool
+SHORT_POOL_JSON = OUT_E24 / "short_pool_dev.json"           # per-user X=3 short pool (from Phase A)
 SC_HIDDEN = {16: OUT_E23 / "scale_hidden_L16.npz",
              24: OUT_E23 / "scale_hidden_L24.npz",
              26: OUT_E23 / "scale_hidden_L26.npz",
@@ -121,79 +123,52 @@ def main() -> None:
     log(f"loaded {len(rewrites)} rewrites")
 
     # ---- build per-user construction / held-out sentence pools ----
-    # construction pool = sentences in scale_hidden caches, NOT in construct_1000
-    # held-out = from ho_valid[user]
-    # for X=3 cell we use short_caches; for X>=5 we use main caches
-    user_constr: dict[str, list[str]] = {}      # user -> [sent] (X>=5 pool)
-    user_short: dict[str, list[str]] = {}       # user -> [sent] (X=3 pool)
-    for u in users_all:
-        seen_long, seen_short = set(), set()
-        constr_long, constr_short = [], []
-        # for X>=5: scan scale_hidden cache; need to know which user each sent belongs to
-        # the cache doesn't tag user; we re-derive from construct_1000 + ho_per_user
-        # Since we need user-tagged sents, we reconstruct from the ho_valid file
-        # which has per-user lists.
-        user_constr[u] = []
-        user_short[u] = []
-
-    # Reconstruct per-user sentence lists from ho_valid["heldout_sentences_per_user"]
-    # plus the implied construction set (1000 per user minus held-out 8).
-    # But we don't have direct access to per-user construction; we approximate
-    # using the intersection of "all scale_hidden texts" minus construct_1000.
-    # For per-user: we use the 1000-user construction set (v["sentences"]) tagged
-    # by ... actually v doesn't tag per user either. The E23 scale script just
-    # pooled per-user after loading reviews from Baby_Products_2023.jsonl.gz
-    # which we don't want to re-do here. We rely on ho_valid for held-out only.
-    # For construction, we instead use scale_hidden caches filtered through
-    # rewrite availability.
-    all_constr_texts = sorted(
-        set(caches[24].keys()) | set(caches[26].keys()) |
-        set(caches[27].keys()))
-    all_short_texts = sorted(
-        set(short_caches[24].keys()) | set(short_caches[26].keys()) |
-        set(short_caches[27].keys()))
-
-    # Filter to those that have a rewrite (i.e., are valid construction sents)
-    constr_with_rw = [t for t in all_constr_texts if t in rewrites]
-    short_with_rw = [t for t in all_short_texts if t in rewrites]
-    log(f"constr_with_rw={len(constr_with_rw)} short_with_rw={len(short_with_rw)}")
-
-    # Since we don't have per-user tag, we approximate: for each user, take the
-    # first K_GRID_MAX construction sents from constr_with_rw that are NOT in
-    # that user's held-out. (All users share the same pool; this is a per-user
-    # subset but not user-specific. To get truly per-user, would need to
-    # re-run spaCy pipe on reviews per-user like e23_scale.py did.)
-    # For Phase B v1 we accept this simplification: per-user style vector is
-    # built from the same pool subset, with held-out 8 sentences user-specific.
-    # This biases the held-out metric toward "any 8 vs any 8" rather than
-    # "user-specific 8 vs user-specific 8", but the OWN-vs-OTHER cos gap and
-    # split-half are still informative.
-    log("WARNING: using shared construction pool across users (per-user tag "
-        "not recovered without re-running e23 sentence pool scan). "
-        "This biases held-out retrieval toward 'generic vs generic'; "
-        "per-user genuine held-out still varies via ho_per_user.")
-
-    # For each user: take K_GRID_MAX sents from constr_with_rw that are NOT in
-    # this user's held-out sents.
+    # per-user construction sents from dev_pool_100u.jsonl (rebuilt by
+    # e24_dev_pool_rebuild.py — per-user tagged sentence lists, sentence text
+    # identical to scale_hidden caches so no re-encoding needed).
+    if not DEV_POOL_JSONL.exists():
+        raise FileNotFoundError(
+            f"{DEV_POOL_JSONL} missing — run e24_dev_pool_rebuild.py first")
     user_constr_pool: dict[str, list[str]] = {}
-    for u in users_all:
-        ho_set = set(ho_per_user[u])
-        eligible = [t for t in constr_with_rw if t not in ho_set]
-        user_constr_pool[u] = eligible[:K_GRID_MAX]
-    user_short_pool: dict[str, list[str]] = {}
-    for u in users_all:
-        ho_set = set(ho_per_user[u])
-        eligible = [t for t in short_with_rw if t not in ho_set]
-        user_short_pool[u] = eligible[:200]   # X=3 pool max 200
+    with open(DEV_POOL_JSONL) as f:
+        for line in f:
+            if line.strip():
+                d = json.loads(line)
+                user_constr_pool[str(d["user_id"])] = d["construction_sents"]
+    log(f"loaded per-user construction pools for "
+        f"{len(user_constr_pool)} dev users (e24_dev_pool_rebuild output)")
 
-    # ---- user subset: those with >= K_GRID_MAX construction + >= N_HO held-out ----
+    # X=3 short pool from short_pool_dev.json (Phase A step_short_dev output,
+    # also per-user). Fall back to short_caches if short_pool_dev.json missing.
+    user_short_pool: dict[str, list[str]] = {}
+    if SHORT_POOL_JSON.exists():
+        sp = json.load(open(SHORT_POOL_JSON))
+        for uid, sents in sp.items():
+            user_short_pool[str(uid)] = list(sents)[:200]
+        log(f"loaded per-user short pools for {len(user_short_pool)} users")
+    else:
+        # fallback: derive from short_caches (shared, no per-user tag)
+        all_short_texts = sorted(
+            set(short_caches[24].keys()) | set(short_caches[26].keys()) |
+            set(short_caches[27].keys()))
+        short_with_rw = [t for t in all_short_texts if t in rewrites]
+        for u in users_all:
+            ho_set = set(ho_per_user[u])
+            eligible = [t for t in short_with_rw if t not in ho_set]
+            user_short_pool[u] = eligible[:200]
+        log(f"WARNING: short_pool_dev.json missing; using shared short pool "
+            f"({len(short_with_rw)} sents). X=3 cells will have same flaw.")
+
+    # ---- user subset: those with >= N_HO held-out in cache (per-cell
+    #     additional Y/MIN_W filtering happens inside the cell loop so that
+    #     Y=10 cells can use all 100 users even if they don't have 200 sents).
     ho_cache_texts = set(ho_cache_all.keys())
     keep_users = [u for u in users_all
-                  if len(user_constr_pool[u]) >= K_GRID_MAX
-                  and sum(1 for s in ho_per_user[u]
+                  if sum(1 for s in ho_per_user[u]
                           if s in ho_cache_texts
                           and rewrites.get(s) in ho_cache_texts) >= N_HO]
-    log(f"users with >= {K_GRID_MAX} constr + {N_HO} ho: {len(keep_users)}")
+    log(f"users with >= {N_HO} ho: {len(keep_users)} "
+        f"(per-cell Y/min_w filter applied later)")
 
     # ---- held-out deltas: [U, N_HO, 7 layers, H] ----
     HO_LAYERS_ALL = [8, 12, 16, 20, 24, 26, 27]
@@ -231,23 +206,29 @@ def main() -> None:
     # at each layer
     def build_constr_delta(u: str, l: int, k: int, min_w: int) -> np.ndarray:
         """Build mean_diff style vector from first k sents of u with
-        word-count >= min_w. word count approximated by character length / 5
-        (cheap proxy; we don't re-spacy)."""
-        pool = user_constr_pool[u] if min_w >= 5 else user_short_pool[u]
-        # for min_w=3 use short pool; min_w>=5 use main pool
-        # crude length filter: assume >=10 chars for X=3, scaled
-        if min_w >= 15:
-            filt = [t for t in pool if len(t) >= 75]
-        elif min_w >= 10:
-            filt = [t for t in pool if len(t) >= 50]
-        elif min_w >= 8:
-            filt = [t for t in pool if len(t) >= 40]
-        elif min_w >= 5:
-            filt = [t for t in pool if len(t) >= 25]
-        elif min_w >= 3:
-            filt = pool
+        word-count >= min_w.
+
+        per-user dev_pool_100u.jsonl already has sents word-count-filtered
+        (>=5 words from spaCy); per-user short_pool_dev.json has >=3 words.
+        For X>=8 we additionally filter by character length proxy
+        (len(t) >= ~5*min_w to exclude short sents; user_short_pool is
+        already 3-4 words so we skip X>=8 for short pool).
+        """
+        if min_w >= 3:
+            pool = user_short_pool.get(u, [])
+            filt = pool if min_w == 3 else [t for t in pool if len(t) >= 20]
         else:
-            filt = pool
+            return None
+        if min_w >= 5:
+            pool = user_constr_pool.get(u, [])
+            if min_w >= 15:
+                filt = [t for t in pool if len(t) >= 75]
+            elif min_w >= 10:
+                filt = [t for t in pool if len(t) >= 50]
+            elif min_w >= 8:
+                filt = [t for t in pool if len(t) >= 40]
+            else:  # 5 <= min_w < 8
+                filt = pool
         sents = filt[:k]
         if len(sents) < min(k, 3):
             return None

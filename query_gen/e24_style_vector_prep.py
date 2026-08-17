@@ -199,6 +199,13 @@ def step_l27_dev(client) -> None:
 # Step 3: X=3 short sentence pool for dev 39 users
 # ============================================================================
 def step_short_dev(client) -> None:
+    short_json = OUT_E24 / "short_pool_dev.json"
+    if short_json.exists() and all(p.exists() for p in SC_HIDDEN_SHORT.values()):
+        sizes = [len(load_hidden_cache(p)) for p in SC_HIDDEN_SHORT.values()]
+        if min(sizes) > 1000:
+            log(f"step_short_dev: short caches + json exist "
+                f"(min size={min(sizes)}), skipping")
+            return
     # 39 scale users
     v = np.load(VEC_NPZ, allow_pickle=True)
     dev_users = [str(u) for u in v["users"]]
@@ -439,22 +446,34 @@ def step_rewrites_new(client) -> None:
     # 用 _HiddenBackend 已加载的 transformers 模型做 batch rewrite
     hb = client._hidden_backend
     tok = hb.tokenizer
+    # generation 用 left-padding（CLAUDE.md Rule 4 注意事项）：
+    # right-padding 预测首个新 token 会落到 pad 位置，必须用 left-padding
+    # 让所有样本生成位置对齐右端
+    tok.padding_side = "left"
+    if tok.pad_token_id is None:
+        tok.pad_token_id = tok.eos_token_id
     model = hb.model
     import torch
     new_pairs: list[tuple[str, str]] = []
     for st in range(0, len(todo_sents), REWRITE_BATCH):
         chunk = todo_sents[st:st + REWRITE_BATCH]
-        encs = [tok.apply_chat_template(
-            [{"role": "system", "content": REWRITE_SYSTEM},
-             {"role": "user", "content": s}],
-            tokenize=True, add_generation_prompt=True) for s in chunk]
-        max_l = max(len(e) for e in encs)
-        ids = torch.tensor([e + [tok.pad_token_id] * (max_l - len(e))
-                            for e in encs], dtype=torch.long,
-                           device=hb.device)
-        attn = torch.tensor([[1] * len(e) + [0] * (max_l - len(e))
-                             for e in encs], dtype=torch.long,
-                            device=hb.device)
+        # transformers 5.x apply_chat_template(tokenize=True) 返回 BatchEncoding
+        # 而非 list；取 ["input_ids"] 拿真正的 token list
+        encs_ids: list[list[int]] = []
+        for s in chunk:
+            be = tok.apply_chat_template(
+                [{"role": "system", "content": REWRITE_SYSTEM},
+                 {"role": "user", "content": s}],
+                tokenize=True, add_generation_prompt=True)
+            encs_ids.append(list(be["input_ids"]))
+        max_l = max(len(e) for e in encs_ids)
+        # left-padding：pad 加在左侧
+        ids = torch.tensor(
+            [[tok.pad_token_id] * (max_l - len(e)) + e
+             for e in encs_ids], dtype=torch.long, device=hb.device)
+        attn = torch.tensor(
+            [[0] * (max_l - len(e)) + [1] * len(e)
+             for e in encs_ids], dtype=torch.long, device=hb.device)
         with torch.no_grad():
             gen = model.generate(
                 input_ids=ids, attention_mask=attn,
@@ -463,12 +482,19 @@ def step_rewrites_new(client) -> None:
                 pad_token_id=tok.pad_token_id,
                 eos_token_id=tok.eos_token_id, use_cache=True)
         rewrites: list[str] = []
-        for b, e in enumerate(encs):
-            row = gen[b, len(e):]
+        for b, e_ids in enumerate(encs_ids):
+            # left-padding：生成 tokens 在 max_l 之后；attention_mask sum-1
+            # 即可定位 prompt 末端（Rule 4 注意事项）
+            start = int(attn[b].sum().item())
+            row = gen[b, start:]
             if tok.eos_token_id in row:
                 row = row[:row.tolist().index(tok.eos_token_id)]
             t = tok.decode(row, skip_special_tokens=True).strip()
-            t = t.split("")[0].strip()
+            # 取首个句子（按 newline / period 切），避免模型写多个句子
+            for sep in ("\n", "."):
+                if sep in t:
+                    t = t.split(sep)[0].strip()
+                    break
             rewrites.append(t)
         for s, r in zip(chunk, rewrites):
             new_pairs.append((s, r))

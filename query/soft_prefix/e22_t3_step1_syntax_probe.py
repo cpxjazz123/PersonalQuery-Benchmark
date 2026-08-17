@@ -51,8 +51,7 @@ from extract_syntactic_features import (  # noqa: E402
 from extract_clause_features_single_query import load_spacy_model  # noqa: E402
 from e22_t2_syntax_encoder_bridge import load_spacy_model as _lsp  # noqa: E402
 
-MODEL_PATH = ("/fs04/scratch2/ar57/wenyu/hf_home/hub/models--Qwen--Qwen2.5-1.5B-"
-              "Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306")
+MODEL_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 REVIEWS = REPO_ROOT / "data" / "Baby_Products_2023.jsonl.gz"
 META = REPO_ROOT / "data" / "meta_Baby_Products_2023.jsonl.gz"
 TASK1_VECTORS = REPO_ROOT / "result" / "e22_t1_user_vectors.npz"
@@ -64,7 +63,7 @@ Z_DIM = 318             # FULL 318-dim syntactic space (user directive 2026-08-1
 MAX_SAMPLES = 800          # products (x 12 templates each)
 N_EPOCHS = 30
 LR = 3e-4
-BATCH = 16
+BATCH = 4
 TEMPLATE_SPLIT_TEST = [10, 11]   # held-out templates (0-indexed)
 DTYPE = torch.bfloat16
 DEVICE = "cuda:0"
