@@ -1,0 +1,52 @@
+[12:27:43] users=100, layer=26, alphas=[0.0, 0.5, 1.0, 2.0, 4.0], mean_diff norm at L26 = 109.1
+[12:27:44] activation means built
+Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:02<00:06,  2.18s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:04<00:03,  1.98s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.76s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.60s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.72s/it]
+[12:27:52] model loaded, 28 layers, steers at layer 26
+[12:27:52] cached generations: 0
+[12:27:52] tasks total=520, to generate=520
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:497: UserWarning: `do_sample` is set to `False`. However, `top_p` is set to `0.8` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_p`.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:509: UserWarning: `do_sample` is set to `False`. However, `top_k` is set to `20` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_k`.
+  warnings.warn(
+[12:27:54]   generated 16/520
+[12:27:56]   generated 32/520
+[12:27:58]   generated 48/520
+[12:28:00]   generated 64/520
+[12:28:01]   generated 80/520
+[12:28:02]   generated 96/520
+[12:28:04]   generated 112/520
+[12:28:05]   generated 128/520
+[12:28:07]   generated 144/520
+[12:28:09]   generated 160/520
+[12:28:10]   generated 176/520
+[12:28:11]   generated 192/520
+[12:28:13]   generated 208/520
+[12:28:15]   generated 224/520
+[12:28:17]   generated 240/520
+[12:28:17]   generated 256/520
+[12:28:19]   generated 272/520
+[12:28:21]   generated 288/520
+[12:28:23]   generated 304/520
+[12:28:24]   generated 320/520
+[12:28:25]   generated 336/520
+[12:28:27]   generated 352/520
+[12:28:29]   generated 368/520
+[12:28:30]   generated 384/520
+[12:28:32]   generated 400/520
+[12:28:33]   generated 416/520
+[12:28:35]   generated 432/520
+[12:28:36]   generated 448/520
+[12:28:38]   generated 464/520
+[12:28:40]   generated 480/520
+[12:28:40]   generated 496/520
+[12:28:42]   generated 512/520
+[12:28:44]   generated 520/520
+[12:28:47] generated texts encoded
+[12:28:47] === summary ===
+[12:28:47] alpha=0.5: move_cos=0.154 (frac>0 0.47) | h_gen~s_u 0.165 | identity top1=0.010 top5=0.050 | d_user=1142.0 d_neutral=1133.2
+[12:28:47] alpha=1.0: move_cos=0.136 (frac>0 0.46) | h_gen~s_u 0.163 | identity top1=0.010 top5=0.050 | d_user=1079.4 d_neutral=1063.3
+[12:28:47] alpha=2.0: move_cos=0.126 (frac>0 0.46) | h_gen~s_u 0.160 | identity top1=0.010 top5=0.040 | d_user=1012.0 d_neutral=990.4
+[12:28:47] alpha=4.0: move_cos=0.126 (frac>0 0.46) | h_gen~s_u 0.159 | identity top1=0.010 top5=0.040 | d_user=1012.6 d_neutral=990.9
+[12:28:47] cross (alpha=2.0): other_top1=0.000 other_top5=0.200 self_rank_mean=55.25
+[12:28:47] DONE — wrote /fs04/ar57/wenyu/PersoanlQuery/result/e23_style_vector/steer_gen.json (64.5s)

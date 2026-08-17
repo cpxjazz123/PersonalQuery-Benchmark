@@ -1,0 +1,57 @@
+[12:34:28] users=20, layers=[8, 16, 20, 24, 26, 27], alphas=[0.25, 0.5, 1.0, 2.0, 4.0]
+Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:06<00:19,  6.46s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:07<00:07,  3.54s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:09<00:02,  2.60s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:13<00:00,  3.27s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:13<00:00,  3.44s/it]
+[12:34:43] tasks=620, cached=0, to generate=620
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:497: UserWarning: `do_sample` is set to `False`. However, `top_p` is set to `0.8` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_p`.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:509: UserWarning: `do_sample` is set to `False`. However, `top_k` is set to `20` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_k`.
+  warnings.warn(
+[12:34:46]   generated 16/620
+[12:34:48]   generated 32/620
+[12:34:50]   generated 48/620
+[12:34:52]   generated 64/620
+[12:34:54]   generated 80/620
+[12:34:56]   generated 96/620
+[12:34:58]   generated 112/620
+[12:35:00]   generated 128/620
+[12:35:02]   generated 144/620
+[12:35:04]   generated 160/620
+[12:35:06]   generated 176/620
+[12:35:08]   generated 192/620
+[12:35:10]   generated 208/620
+[12:35:12]   generated 224/620
+[12:35:14]   generated 240/620
+[12:35:16]   generated 256/620
+[12:35:18]   generated 272/620
+[12:35:20]   generated 288/620
+[12:35:22]   generated 304/620
+[12:35:24]   generated 320/620
+[12:35:26]   generated 336/620
+[12:35:28]   generated 352/620
+[12:35:30]   generated 368/620
+[12:35:32]   generated 384/620
+[12:35:34]   generated 400/620
+[12:35:36]   generated 416/620
+[12:35:38]   generated 432/620
+[12:35:39]   generated 448/620
+[12:35:41]   generated 464/620
+[12:35:43]   generated 480/620
+[12:35:45]   generated 496/620
+[12:35:47]   generated 512/620
+[12:35:49]   generated 528/620
+[12:35:51]   generated 544/620
+[12:35:53]   generated 560/620
+[12:35:55]   generated 576/620
+[12:35:57]   generated 592/620
+[12:35:59]   generated 608/620
+[12:35:59]   generated 620/620
+[12:36:03] encoded
+[12:36:03] === grid (move_cos / frac>0 / repeat) ===
+[12:36:03]         a0.25      a0.5       a1.0       a2.0       a4.0       
+[12:36:03] L8     -0.100/0.45/0.33 -0.100/0.45/0.33 -0.003/0.50/0.37 -0.003/0.50/0.37 -0.103/0.45/0.24 
+[12:36:03] L16    +0.022/0.50/0.26 -0.076/0.45/0.26 -0.076/0.45/0.26 -0.077/0.45/0.34 -0.077/0.45/0.34 
+[12:36:03] L20    +0.097/0.55/0.38 +0.097/0.55/0.38 +0.097/0.55/0.40 +0.097/0.55/0.40 +0.097/0.55/0.35 
+[12:36:03] L24    -0.134/0.40/0.50 -0.063/0.45/0.53 -0.063/0.45/0.53 -0.067/0.45/0.55 -0.067/0.45/0.55 
+[12:36:03] L26    +0.244/0.65/0.54 +0.244/0.65/0.54 +0.303/0.70/0.51 +0.303/0.70/0.51 +0.255/0.65/0.42 
+[12:36:03] L27    +0.249/0.85/0.45 +0.221/0.75/0.49 +0.221/0.75/0.49 +0.214/0.75/0.48 +0.214/0.75/0.48 
+[12:36:03] DONE — wrote /fs04/ar57/wenyu/PersoanlQuery/result/e23_style_vector/steer_scan.json (95.0s)
