@@ -90,3 +90,13 @@
    - 后台任务（nohup/setsid 启动的训练、生成、评估）启动后，**禁止** `sleep 300; tail xxx.log` 这类休眠等待
    - 应通过多次 `tail -n 20 <log>` / `ps aux | grep <proc>` 快速轮询检查进度，每次检查间隔由用户或上下文决定
    - 轮询时若进程已完成（log 出现 DONE/完成标志），立即进行下一步，不要多余等待
+
+10. **临时文件 / 产物路径必须使用 `hj82_scratch2`，禁止写入 `/fs04`**：
+    - 所有临时文件（log、debug output、intermediate cache、no_stdout redirect 等）、所有业务产物（实验 result JSON/npz/jsonl、scale_validity 等）一律写入 `/home/wlia0047/hj82_scratch2/wenyu/<sub_path>`
+    - **禁止**写入 `/fs04/ar57/wenyu/PersoanlQuery/result/` 或 `/tmp/claude-*/.../tasks`（`/fs04` 总容量 500G 已 89% 占用，`/tmp` 多用户共享易冲突）
+    - 项目代码 commit 仅保留在 `/fs04/ar57/wenyu/PersoanlQuery/`（git repo）；运行时的 log / cache / npz / jsonl 走 `hj82_scratch2`
+    - 标准做法：
+      - 业务代码内硬编码 OUT 路径为 `Path("/home/wlia0047/hj82_scratch2/wenyu/<feature>/result/...")`
+      - 启动后台任务前显式 `export TMPDIR=/home/wlia0047/hj82_scratch2/wenyu/tmp`（避免 torch / vllm 把临时文件写到 `/tmp`）
+      - 已有 `/fs04` 下的 result 文件需迁移到 `hj82_scratch2` 并在脚本里更新引用路径
+    - 命名建议：`/home/wlia0047/hj82_scratch2/wenyu/<feature>/<artifact>.{json,jsonl,npz,log}`

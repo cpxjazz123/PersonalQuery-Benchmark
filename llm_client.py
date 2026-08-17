@@ -28,6 +28,14 @@ DEFAULT_QWEN_MODEL_PATH = (
     "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 )
 
+# 业务侧可调用 QwenLocalClient.get_hidden_states(texts, layers) 提取
+# 指定层的 pooled hidden activations（mean over tokens weighted by attention
+# mask）。vllm 不原生暴露 per-layer hidden states，因此单独建一个 transformers
+# 后端通道；与 _LocalBackend（vllm 生成）解耦，按需懒加载、互不抢占显存。
+_HIDDEN_DEFAULT_DTYPE = os.environ.get("QWEN_DTYPE", "bfloat16")
+_HIDDEN_DEFAULT_BATCH = int(os.environ.get("QWEN_HIDDEN_BATCH", "32"))
+_HIDDEN_MAX_LENGTH = int(os.environ.get("QWEN_HIDDEN_MAX_LENGTH", "160"))
+
 
 def _log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -47,6 +55,86 @@ def _usage_value(usage, key: str) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+class _HiddenBackend:
+    """transformers-only 后端，专门给 hidden state 提取用。
+
+    与 _LocalBackend（vllm 生成）完全解耦：独立 singleton、独立显存占用、
+    按需懒加载。vllm 不原生暴露 per-layer hidden states，所以单独建一个
+    transformers 通道；AGENTS.md Rule 8 禁止业务代码直接 import
+    transformers，所以把这路径封到 llm_client.py 内部，业务侧只用
+    QwenLocalClient.get_hidden_states(texts, layers)。
+    """
+
+    _lock = threading.Lock()
+    _initialized: bool = False
+    model = None
+    tokenizer = None
+    device: Optional[str] = None
+    dtype = None
+    model_path: Optional[str] = None
+
+    @classmethod
+    def get(cls, model_path: str):
+        if cls._initialized and cls.model_path == model_path:
+            return cls
+        with cls._lock:
+            if cls._initialized and cls.model_path == model_path:
+                return cls
+            cls._load(model_path)
+            return cls
+
+    @classmethod
+    def _load(cls, model_path: str) -> None:
+        # transformers 直接 import：只允许出现在 llm_client.py 内部
+        # （AGENTS.md Rule 8 业务代码不允许 import transformers）
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"_HiddenBackend 模型路径不存在: {model_path}"
+            )
+        dt = _HIDDEN_DEFAULT_DTYPE
+        torch_dtype = {
+            "bfloat16": torch.bfloat16,
+            "float16": torch.float16,
+            "float32": torch.float32,
+        }.get(dt)
+        if torch_dtype is None:
+            raise ValueError(
+                f"QWEN_DTYPE={dt!r} 非法，必须是 bfloat16/float16/float32"
+            )
+
+        cls.tokenizer = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True)
+        if cls.tokenizer.pad_token_id is None:
+            cls.tokenizer.pad_token_id = cls.tokenizer.eos_token_id
+        cls.model = AutoModelForCausalLM.from_pretrained(
+            model_path, dtype=torch_dtype, device_map="cuda",
+            trust_remote_code=True)
+        cls.model.eval()
+        for p in cls.model.parameters():
+            p.requires_grad = False
+        cls.device = "cuda"
+        cls.dtype = dt
+        cls.model_path = model_path
+        cls._initialized = True
+        _log(
+            f"[QwenLocal-Hidden] 已加载 transformers 模型: path={model_path}, "
+            f"dtype={dt}, n_layer={cls.model.config.num_hidden_layers}"
+        )
+
+    @classmethod
+    def reset(cls) -> None:
+        with cls._lock:
+            cls.model = None
+            cls.tokenizer = None
+            cls._initialized = False
+            cls.model_path = None
+            cls.dtype = None
+            cls.device = None
 
 
 class _LocalBackend:
@@ -233,11 +321,29 @@ class QwenLocalClient:
     cfg["llm"]["client_class"] 切换后端而无需改动其他代码。
     """
 
-    def __init__(self, model: str = DEFAULT_QWEN_MODEL_PATH):
+    def __init__(
+        self,
+        model: str = DEFAULT_QWEN_MODEL_PATH,
+        with_vllm: bool = True,
+    ):
+        """初始化 QwenLocalClient。
+
+        参数:
+            model: HF repo id 或本地模型路径（env QWEN_MODEL_PATH 优先）
+            with_vllm: 是否同时初始化 vllm 生成后端。False 时只初始化
+                transformers hidden-states 后端，可用于「仅需 hidden state
+                提取、不需要 generation」的场景（例如 E24 StyleVector 网格
+                扫描）。当前 pq_env 上 vllm 0.27.1 + torch 2.13/cu130 引擎
+                初始化失败（TypeError: 'type' object is not subscriptable），
+                hidden-states-only 工作流因此必须传 with_vllm=False。
+        """
         # 业务侧可能传 HF repo id；env 优先，再 fallback 到入参
         env_path = os.environ.get("QWEN_MODEL_PATH", "").strip()
         self.model_name = env_path or model or DEFAULT_QWEN_MODEL_PATH
-        self._backend = _LocalBackend.get(self.model_name)
+        if with_vllm:
+            self._backend = _LocalBackend.get(self.model_name)
+        else:
+            self._backend = None
         # 暴露给业务侧 debug 使用
         self.model = self.model_name
         # Qwen3 才有 thinking；Qwen2 一律关闭
@@ -280,6 +386,12 @@ class QwenLocalClient:
         safe_max_tokens = max(128, int(max_tokens))
         safe_temp = temperature if temperature is not None else 0.7
 
+        if self._backend is None:
+            raise RuntimeError(
+                "QwenLocalClient 实例化时 with_vllm=False：vllm 生成后端未"
+                "初始化。generation 方法（call / call_with_cache）需要"
+                "with_vllm=True。"
+            )
         full_prompt = _build_prompt_from_user_only(self._backend.tokenizer, safe_prompt)
 
         retry_count = 0
@@ -370,6 +482,11 @@ class QwenLocalClient:
         safe_max_tokens = max(128, int(max_tokens))
         safe_temp = temperature if temperature is not None else 0.7
 
+        if self._backend is None:
+            raise RuntimeError(
+                "QwenLocalClient 实例化时 with_vllm=False：vllm 生成后端未"
+                "初始化。call_with_cache 需要 with_vllm=True。"
+            )
         full_prompt = _apply_chat_template(
             self._backend.tokenizer, safe_system, safe_user
         )
@@ -468,13 +585,88 @@ class QwenLocalClient:
             stream=False,
         )
 
+    # ---------- hidden state extraction ----------
+    # 业务侧用：抽取指定层的 pooled hidden activations（mean over tokens
+    # weighted by attention_mask），与 style_vector / PACS / steering 一类
+    # 任务配套。transformers 直跑，不走 vllm（vllm 不暴露 per-layer hidden
+    # states），但封装在 llm_client.py 内部以满足 AGENTS.md Rule 8。
+    def get_hidden_states(
+        self,
+        texts: list[str],
+        layers: list[int],
+        batch_size: Optional[int] = None,
+        max_length: Optional[int] = None,
+    ) -> dict[int, "np.ndarray"]:
+        """对一组文本提取指定层的 pooled hidden states。
+
+        参数:
+            texts: 字符串列表
+            layers: 层索引列表（0-indexed，Qwen2-7B 共 28 层，取值范围 0..27）
+            batch_size: 默认 _HIDDEN_DEFAULT_BATCH (32)
+            max_length: 默认 _HIDDEN_MAX_LENGTH (160)
+
+        返回: dict[layer_idx, np.ndarray]，shape=(len(texts), hidden_dim)
+              pooled 方式：mean over tokens weighted by attention_mask
+        """
+        import numpy as np  # 仅在本方法内 import（业务代码可用 numpy）
+
+        if not texts:
+            raise ValueError("texts must be non-empty")
+        if not layers:
+            raise ValueError("layers must be non-empty")
+        n_layers_total = self._hidden_backend.model.config.num_hidden_layers
+        bad = [l for l in layers if not (0 <= l < n_layers_total)]
+        if bad:
+            raise ValueError(
+                f"layer indices out of range [0, {n_layers_total}): {bad}"
+            )
+        bs = batch_size or _HIDDEN_DEFAULT_BATCH
+        ml = max_length or _HIDDEN_MAX_LENGTH
+        tok = self._hidden_backend.tokenizer
+        m = self._hidden_backend.model
+
+        # 按层收集 (text_idx, pooled_vec)
+        per_layer: dict[int, list] = {l: [] for l in layers}
+        import torch
+        with torch.no_grad():
+            for st in range(0, len(texts), bs):
+                chunk = texts[st:st + bs]
+                enc = tok(
+                    chunk, return_tensors="pt", padding=True,
+                    truncation=True, max_length=ml).to(self._hidden_backend.device)
+                o = m(**enc, use_cache=False, output_hidden_states=True)
+                hs = torch.stack([o.hidden_states[l] for l in layers])
+                # hs shape: (n_layers, B, T, H)
+                am = enc["attention_mask"].unsqueeze(0).unsqueeze(-1).to(hs.dtype)
+                pooled = (hs * am).sum(2) / am.sum(2).clamp_min(1)
+                # pooled shape: (n_layers, B, H)
+                for li, l in enumerate(layers):
+                    per_layer[l].append(pooled[li].float().cpu().numpy())
+                _log(
+                    f"  hidden {min(st + bs, len(texts))}/{len(texts)} "
+                    f"layers={layers}"
+                )
+        return {l: np.concatenate(per_layer[l], axis=0) for l in layers}
+
+    @property
+    def _hidden_backend(self):
+        return _HiddenBackend.get(self.model_name)
+
 
 # 工厂函数（与 14_llm_rerank/common/llm_rerank_common.py 中的 get_llm_client 兼容）
-def create_qwen_local_client(model: Optional[str] = None) -> QwenLocalClient:
-    """便捷工厂：model 缺省时使用 QWEN_MODEL_PATH / DEFAULT_QWEN_MODEL_PATH。"""
+def create_qwen_local_client(
+    model: Optional[str] = None,
+    with_vllm: bool = True,
+) -> QwenLocalClient:
+    """便捷工厂：model 缺省时使用 QWEN_MODEL_PATH / DEFAULT_QWEN_MODEL_PATH。
+
+    with_vllm=False 时跳过 vllm 初始化（pq_env 当前 vllm engine 不可用）；
+    此模式仅支持 hidden state 提取（get_hidden_states），不能调用
+    call / call_with_cache 等生成接口。
+    """
     if model is None:
         model = os.environ.get("QWEN_MODEL_PATH", "").strip() or DEFAULT_QWEN_MODEL_PATH
-    return QwenLocalClient(model=model)
+    return QwenLocalClient(model=model, with_vllm=with_vllm)
 
 
 __all__ = ["QwenLocalClient", "create_qwen_local_client", "DEFAULT_QWEN_MODEL_PATH"]
