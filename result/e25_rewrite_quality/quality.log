@@ -1,0 +1,15 @@
+[15:54:39] loaded 13984 from e23_scale
+[15:54:39] loaded 800 from e23_heldout
+[15:54:39] loaded 10382 from e24_test
+[15:54:39] total pairs: 25166
+[15:55:24] analyzed 24339/25166 pairs (skipped: empty=827)
+[15:55:24] === lowest edit (rewrites barely changed) ===
+[15:55:24] === highest edit (rewrites changed a lot) ===
+[15:55:24] === shortest rewrites ===
+[15:55:24] === longest rewrites ===
+[15:55:24] DONE — wrote /home/wlia0047/hj82_scratch2/wenyu/e25_rewrite_quality/rewrite_quality.json
+[15:55:24]   src_len mean=15.3 rw_len mean=11.9 ratio=0.87
+[15:55:24]   jacc mean=0.263 overlap mean=0.356
+[15:55:24]   person removal=0.684, sent removal=0.823, excl removal=0.879
+[15:55:24]   number preservation=0.364
+[15:55:24]   identical_to_src=47, too_short=2192, too_long=2, empty=827

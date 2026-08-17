@@ -1,0 +1,270 @@
+{
+ "version": "e25_rewrite_quality_v1",
+ "n_pairs": 25166,
+ "n_analyzed": 24339,
+ "n_empty": 827,
+ "n_too_short(<3 words)": 2192,
+ "n_too_long(>100 words)": 2,
+ "n_identical_to_source": 47,
+ "src_word_len_stats": {
+  "mean": 15.346,
+  "median": 13,
+  "stdev": 8.925,
+  "min": 1,
+  "max": 75
+ },
+ "rw_word_len_stats": {
+  "mean": 11.856,
+  "median": 10,
+  "stdev": 8.372,
+  "min": 0,
+  "max": 109
+ },
+ "len_ratio(rw/src)": {
+  "mean": 0.869,
+  "median": 0.857,
+  "stdev": 0.542,
+  "min": 0.0,
+  "max": 14.75
+ },
+ "edit_distance_norm_stats": {
+  "mean": 0.628,
+  "median": 0.655,
+  "stdev": 0.205,
+  "min": 0.0,
+  "max": 1.0
+ },
+ "word_overlap_ratio(recall)": {
+  "mean": 0.356,
+  "median": 0.357,
+  "stdev": 0.277,
+  "min": 0.0,
+  "max": 1.0
+ },
+ "jaccard_stats": {
+  "mean": 0.263,
+  "median": 0.231,
+  "stdev": 0.238,
+  "min": 0.0,
+  "max": 1.0
+ },
+ "person_words": {
+  "src_with_person_words": 14666,
+  "rewrite_removed_all_person_words": 10033,
+  "removal_rate": 0.684
+ },
+ "sentiment_words": {
+  "src_with_sentiment_words": 8647,
+  "rewrite_removed_all_sentiment_words": 7117,
+  "removal_rate": 0.823
+ },
+ "exclamations": {
+  "src_with_exclamations": 2325,
+  "rewrite_removed_all_exclamations": 2043,
+  "removal_rate": 0.879
+ },
+ "all_caps_words": {
+  "src_with_all_caps": 976,
+  "rewrite_removed_all_caps": 703,
+  "removal_rate": 0.72
+ },
+ "numbers": {
+  "src_with_numbers": 2450,
+  "rewrite_kept_all_numbers": 891,
+  "rewrite_partial_numbers": 130,
+  "preservation_rate": 0.364
+ },
+ "runtime_sec": 44.9,
+ "samples": [
+  {
+   "src": "Easy to clean and sanitize.",
+   "rw": "Easy to clean and sanitize.",
+   "label": "e23_scale",
+   "ed_norm": 0.0,
+   "jacc": 1.0,
+   "overlap": 1.0,
+   "src_len": 5,
+   "rw_len": 5,
+   "category": "low_edit"
+  },
+  {
+   "src": "Pretty good potty chair.",
+   "rw": "Pretty good potty chair.",
+   "label": "e23_scale",
+   "ed_norm": 0.0,
+   "jacc": 1.0,
+   "overlap": 1.0,
+   "src_len": 4,
+   "rw_len": 4,
+   "category": "low_edit"
+  },
+  {
+   "src": "/>Unlike the [[ASIN:B002J03PBA Thermos Funtainer 12 Ounce Bottle, Batman]], the straw is silicone.",
+   "rw": "Bottle, Batman]], the straw is silicone",
+   "label": "e24_test",
+   "ed_norm": 0.0,
+   "jacc": 1.0,
+   "overlap": 1.0,
+   "src_len": 18,
+   "rw_len": 18,
+   "category": "low_edit"
+  },
+  {
+   "src": "And boy does she.<br /><br />She's been using this teether for over 2 months and it's been perfect for her.",
+   "rw": "her",
+   "label": "e24_test",
+   "ed_norm": 0.0,
+   "jacc": 1.0,
+   "overlap": 1.0,
+   "src_len": 19,
+   "rw_len": 19,
+   "category": "low_edit"
+  },
+  {
+   "src": "Between this steel bar and the extra thick car seat sides its really like a fortress around your child, I feel like my little one is very safe.",
+   "rw": "like my little one is very safe",
+   "label": "e24_test",
+   "ed_norm": 0.0,
+   "jacc": 1.0,
+   "overlap": 1.0,
+   "src_len": 11,
+   "rw_len": 11,
+   "category": "low_edit"
+  },
+  {
+   "src": "BPA free melamine toddler plate with a raised edge for easy scooping.",
+   "rw": "review sentence in a plain, neutral, matter-of-fact style",
+   "label": "e24_test",
+   "ed_norm": 0.993,
+   "jacc": 0.05,
+   "overlap": 0.05,
+   "src_len": 23,
+   "rw_len": 1,
+   "category": "high_edit"
+  },
+  {
+   "src": "Sometimes, when I unscrew the lid, the gasket comes part way out and has to be put back.",
+   "rw": "rewritten sentence, nothing else",
+   "label": "e24_test",
+   "ed_norm": 0.993,
+   "jacc": 0.0,
+   "overlap": 0.0,
+   "src_len": 31,
+   "rw_len": 0,
+   "category": "high_edit"
+  },
+  {
+   "src": "I knew the quality would be nice and soft",
+   "rw": ", and emotional words",
+   "label": "e24_test",
+   "ed_norm": 0.994,
+   "jacc": 0.0,
+   "overlap": 0.0,
+   "src_len": 28,
+   "rw_len": 0,
+   "category": "high_edit"
+  },
+  {
+   "src": "The spout is pretty good size and I had no problems pouring the apple sauce in.",
+   "rw": "The spout is pretty good size and I had no problems pouring the apple sauce in",
+   "label": "e24_test",
+   "ed_norm": 0.994,
+   "jacc": 0.0,
+   "overlap": 0.0,
+   "src_len": 32,
+   "rw_len": 0,
+   "category": "high_edit"
+  },
+  {
+   "src": "This cover felt a little stiff while trying to get it over the seat but other than that, it\u2019s really nice.",
+   "rw": "sentence, nothing else",
+   "label": "e24_test",
+   "ed_norm": 1.0,
+   "jacc": 0.0,
+   "overlap": 0.0,
+   "src_len": 4,
+   "rw_len": 3,
+   "category": "high_edit"
+  },
+  {
+   "src": "/>The suction caused by a hands free pumping bra makes it vital to get a good fitting flange.",
+   "rw": "",
+   "label": "e24_test",
+   "src_len": 46,
+   "rw_len": 0,
+   "category": "short_rw"
+  },
+  {
+   "src": "But with these diapers you don\u2019t have to worry about that!",
+   "rw": "remove personal tone, slang, exclamations, and emotional words",
+   "label": "e24_test",
+   "src_len": 21,
+   "rw_len": 0,
+   "category": "short_rw"
+  },
+  {
+   "src": "I first bought one at $37.99 but returned it when I spotted the same model at $27.89.",
+   "rw": "it when I spotted the same model at $27",
+   "label": "e24_test",
+   "src_len": 22,
+   "rw_len": 0,
+   "category": "short_rw"
+  },
+  {
+   "src": "I knew the quality would be nice and soft",
+   "rw": ", and emotional words",
+   "label": "e24_test",
+   "src_len": 28,
+   "rw_len": 0,
+   "category": "short_rw"
+  },
+  {
+   "src": "Needless to say, she took to it like a fish in water, and instead of bouncing up and down does this cute sway from side to side.",
+   "rw": "does this cute sway from side to side",
+   "label": "e24_test",
+   "src_len": 26,
+   "rw_len": 0,
+   "category": "short_rw"
+  },
+  {
+   "src": "/>The only potty I like more than this one is the Summer Infant Step by Step Potty because the seat is padded and it doubles as a footstool once the top part sits on the big potty.",
+   "rw": "Original: The only potty I like more than this one is the Summer Infant Step by Step Potty because the seat is padded and it doubles as a footstool once the top part sits on the big potty!\n\nRewritten:",
+   "label": "e23_scale",
+   "src_len": 37,
+   "rw_len": 74,
+   "category": "long_rw"
+  },
+  {
+   "src": "We got a good amount of bubbles in the bath, but it also required a decent amount of liquid to get them (just the 2 capfulls were not sufficient).",
+   "rw": "Original Sentence: \n\"OMG, we totally nailed it with this bath stuff! It was so bubbly and fun, but dang, we had to use like a ton of it just to get those bubbles going. I mean, two capfuls just weren'",
+   "label": "e23_scale",
+   "src_len": 29,
+   "rw_len": 83,
+   "category": "long_rw"
+  },
+  {
+   "src": "We try to only give him the pacifier when he is so mad that we can't calm him down with walking/rocking/songs etc...",
+   "rw": "\"Illegal Tender\" is a movie that doesn't offer much in terms of originality or depth. The plot revolves around a group of characters who rob a bank, which has been done countless times before. The act",
+   "label": "e23_scale",
+   "src_len": 24,
+   "rw_len": 97,
+   "category": "long_rw"
+  },
+  {
+   "src": "It isn't trying to be a nipple which is great for a breastfed baby but it is soft enough that my son could easily figure it out.",
+   "rw": "\"Ice Age\" is a prehistoric animated adventure that follows the journey of a group of animals who are mistakenly frozen by an asteroid. The movie features a cast of lovable characters including a sloth",
+   "label": "e23_scale",
+   "src_len": 27,
+   "rw_len": 104,
+   "category": "long_rw"
+  },
+  {
+   "src": "At first, this seemed like a great solution.",
+   "rw": "Original: \nThis place is absolutely amazing! The food was so good, I could've eaten an entire cow! The service was top-notch, the staff was super friendly and accommodating. I felt like royalty being ",
+   "label": "e23_scale",
+   "src_len": 8,
+   "rw_len": 109,
+   "category": "long_rw"
+  }
+ ]
+}
