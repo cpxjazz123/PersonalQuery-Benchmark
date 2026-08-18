@@ -1,9 +1,21 @@
 """E30 Step 1 — pick K_PRODUCTS shared products in X=8 / Y=40 cell.
 
 A product is "shared" in this cell if it has ≥5 distinct eligible users (each
-with ≥Y=40 sents of ≥X=8 words). For each picked product we extract up to 4
-attribute values from `meta_Baby_Products_2023.jsonl.gz` (brand, title,
-features[0..1]) so the copy-aware Qwen has verbatim strings to copy.
+with ≥Y=40 sents of ≥X=8 words). For each picked product we extract 4 STRUCTURED
+attribute VALUES (no key prefixes) from `meta_Baby_Products_2023.jsonl.gz`:
+
+  A1 = brand (store)
+  A2 = title (truncated to 60 chars at word boundary)
+  A3 = details[some_key] VALUE only (no "key:" prefix)
+  A4 = details[other_key] VALUE only (no "key:" prefix)
+
+"Structured" means: complete, well-defined values — NOT raw fragments with
+unclosed quotes or incomplete sentences (which was the case when we sliced
+features[0] to 50 chars and got "Awarded \"Best Baby Monitor Overall, "). We
+use the `details` dict to get clean, complete attribute values like
+"19.3 x 13.4 x 6.5 inches" or "Plastic". The "key:" prefix is metadata, not
+part of the attribute value — we strip it so the model can naturally embed the
+value into a shopping query.
 
 Writes /home/wlia0047/hj82_scratch2/wenyu/e29_paper/e30_picked_products.json
 """
@@ -98,13 +110,53 @@ def main():
     need = top_asins - set(all_attrs.keys())
     log(f"need to parse {len(need)} products from meta gz")
     if need:
-        def short(s, maxlen=50):
+        def short(s, maxlen=60):
             s = (s or '').strip()
-            # collapse whitespace, take first maxlen chars at word boundary
             s = ' '.join(s.split())
             if len(s) > maxlen:
                 s = s[:maxlen].rsplit(' ', 1)[0]
             return s
+        def pick_details_values(details):
+            """Pick up to 4 short, complete values from details dict (VALUE only, no key prefix).
+
+            Prefers values WITHOUT digits (less likely to be paraphrased / dropped by
+            generation models). Falls back to numeric values if needed.
+
+            A "good" value:
+              - is str (not dict/list/number), 3 ≤ len(value) ≤ 40 chars
+              - does not end with a comma/colon/'See more'
+              - key is meaningful (skip shipping / discontinued / rankings / model numbers)
+            Returns list of value strings (NOT "key: value", just value), with
+            no-number values first.
+            """
+            bad_keys = {
+                'Domestic Shipping', 'International Shipping', 'Best Sellers Rank',
+                'Is Discontinued By Manufacturer', 'Date First Available',
+                'Package Dimensions', 'Item model number', 'Country/Region of origin',
+                'ASIN', 'Item Weight', 'Brand', 'Model Name', 'Number Of Items',
+                'Batteries required', 'Batteries', 'Number of channels',
+                'Standing screen display size', 'Battery life', 'Item model number',
+                'Best Sellers Rank',
+            }
+            no_num = []
+            with_num = []
+            for k, v in (details or {}).items():
+                if k in bad_keys:
+                    continue
+                if not isinstance(v, str):
+                    continue
+                v = v.strip()
+                if not (3 <= len(v) <= 40):
+                    continue
+                if v.endswith((',', ':', ';')) or 'See more' in v:
+                    continue
+                if v.lower().startswith('item can') or v.lower().startswith('this item'):
+                    continue
+                if any(c.isdigit() for c in v):
+                    with_num.append(v)
+                else:
+                    no_num.append(v)
+            return no_num + with_num
         with gzip.open(META_GZ, 'rt') as f:
             for line in f:
                 try:
@@ -115,39 +167,37 @@ def main():
                 if pa in need:
                     brand = short(o.get('store') or '', 30)
                     title = short(o.get('title') or '', 60)
-                    feats = o.get('features') or []
-                    feat1 = short(feats[0] if len(feats) > 0 else '', 60)
-                    feat2 = short(feats[1] if len(feats) > 1 else '', 60)
+                    vals = pick_details_values(o.get('details') or {})
                     all_attrs[pa] = {
                         'title': title, 'store': brand,
-                        'feat1': feat1, 'feat2': feat2,
+                        'kvs': vals,  # values only now
                     }
         with open(PRODUCT_ATTRS_CACHE, 'wb') as f:
             pickle.dump(all_attrs, f, protocol=4)
         log(f"saved cache for {len(all_attrs):,} products in {time.time()-t0:.0f}s")
 
-    # Step F: build final picked products list with attrs (truncated to short spans)
+    # Step F: build final picked products list with attrs (A1=brand, A2=title, A3/A4=details VALUE)
     log("building picked products list with attrs...")
     picked = []
     skipped = 0
+    skipped_no_kv = 0
     for asin, users in top:
         meta = all_attrs.get(asin)
         if meta is None:
             skipped += 1
             continue
-        # A1=brand (short), A2=title (short), A3=feat1 (short), A4=feat2 (short)
         attrs = {}
         if meta['store']:
             attrs['A1'] = meta['store']
         if meta['title']:
             attrs['A2'] = meta['title']
-        if meta['feat1'] and meta['feat1'] != meta['title']:
-            attrs['A3'] = meta['feat1']
-        if meta['feat2'] and meta['feat2'] != meta['feat1'] and meta['feat2'] != meta['title']:
-            attrs['A4'] = meta['feat2']
-        if len([v for v in attrs.values() if v]) < 2:
-            skipped += 1
+        vals = meta.get('kvs', [])
+        short_vals = [v for v in vals if len(v) <= 50]
+        if len(short_vals) < 2:
+            skipped_no_kv += 1
             continue
+        attrs['A3'] = short_vals[0]
+        attrs['A4'] = short_vals[1]
         picked.append({
             'asin': asin,
             'attrs': attrs,
@@ -156,6 +206,7 @@ def main():
             'n_eligible_users': len(users),
             'candidate_users': sorted(users),
         })
+    log(f"skipped {skipped_no_kv} products with <2 short KV values")
 
     log(f"final picked: {len(picked)} (skipped {skipped})")
 

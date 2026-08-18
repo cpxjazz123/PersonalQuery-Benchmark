@@ -40,8 +40,8 @@ PAPER = Path('/home/wlia0047/hj82_scratch2/wenyu/e29_paper')
 PICKED_JSON = PAPER / 'e30_picked_products.json'
 SOURCE_JSONL = PAPER / 'e30_source_queries.jsonl'
 EMB_NPZ = PAPER / 'e30_style_embs.npz'
-OUT_JSONL = PAPER / 'e30_styled_queries_unique_assignment.jsonl'
-OUT_LOG = PAPER / 'e30_gen_styled_unique_assignment.log'
+OUT_JSONL = PAPER / 'e30_styled_queries_v2_unique_assignment.jsonl'
+OUT_LOG = PAPER / 'e30_gen_styled_v2_unique_assignment.log'
 
 MAX_NEW_TOKENS = 64
 BATCH_SIZE = 2
@@ -102,10 +102,15 @@ def _build_forced_prefix(tokenizer, attrs: dict, force_keys: list[str]) -> list[
             forced.append(comma_id)
             forced.append(space_id)
         forced.extend(lst)
-    while forced and forced[-1] == period_id:
-        forced.pop()
-    i_id = tokenizer('I', add_special_tokens=False)['input_ids']
-    forced.append(space_id)
+    # Keep the trailing period of A4 (so substring match against "A4." works)
+    # Then append space + "I'm" so continuation reads naturally
+    i_id = tokenizer("I'm", add_special_tokens=False)['input_ids']
+    # If last token is period, append space; else append space + period + space
+    # Simpler: just append " I'm" — model continues with " looking for..."
+    if forced and forced[-1] != period_id:
+        forced.append(space_id)
+    else:
+        forced.append(space_id)
     forced.extend(i_id)
     return forced
 
@@ -232,6 +237,10 @@ def main():
                 cand_pres = [_count_attrs_preserved(attrs, c) for c in candidates]
                 full_idx = [i for i, p_ in enumerate(cand_pres) if p_ == len(attrs)]
                 if not full_idx:
+                    # DEBUG: show what candidates looked like
+                    log(f"      DEBUG user {str(u)[:8]}: all 48 candidates:")
+                    for ci, (q, p) in enumerate(zip(candidates, cand_pres)):
+                        log(f"        [{ci:2d}] p={p}/4 | {q}")
                     raise RuntimeError(
                         f"No 4/4-preserving candidate for user {str(u)[:8]} "
                         f"(preservation range: {min(cand_pres)}-{max(cand_pres)}/4). "
