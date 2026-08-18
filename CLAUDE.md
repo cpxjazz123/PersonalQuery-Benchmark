@@ -100,3 +100,15 @@
       - 启动后台任务前显式 `export TMPDIR=/home/wlia0047/hj82_scratch2/wenyu/tmp`（避免 torch / vllm 把临时文件写到 `/tmp`）
       - 已有 `/fs04` 下的 result 文件需迁移到 `hj82_scratch2` 并在脚本里更新引用路径
     - 命名建议：`/home/wlia0047/hj82_scratch2/wenyu/<feature>/<artifact>.{json,jsonl,npz,log}`
+
+11. **运行脚本必须放在 `/home/wlia0047/ar57/wenyu/PersoanlQuery` 目录下**：
+    - 所有 `python script.py` / `nohup python ...` 启动前必须先 `cd /home/wlia0047/ar57/wenyu/PersoanlQuery`
+    - 该目录与 `/fs04/ar57/wenyu/PersoanlQuery` 指向同一份 git repo（filesystem alias），但**所有运行/进程的 cwd 一律用 `/home/wlia0047/ar57/wenyu/PersoanlQuery`，禁止用 `/fs04/ar57/wenyu/PersoanlQuery`**
+    - 原因：`/fs04` 总容量 500G 已 89% 占用且 IO 带宽受限；`/home/wlia0047/ar57/wenyu/PersoanlQuery` 走主盘, 启动 vLLM / 读 dataset / 写临时 cache 更稳
+    - 标准启动方式：
+      ```bash
+      cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+      nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python script.py > /home/wlia0047/hj82_scratch2/wenyu/<feature>/xxx.log 2>&1 &
+      ```
+    - 验证 cwd：`pwd` 应输出 `/home/wlia0047/ar57/wenyu/PersoanlQuery`，否则视为违规
+    - 例外：仅 `git` / `cat` / `Edit` 操作 git tracked 文件可走 `/fs04/...` 路径（IDE 兼容），但 Python 进程一律走 `/home/wlia0047/...`
