@@ -1289,10 +1289,9 @@ def _compute_losses_for_batch(
         all_user_idx = torch.arange(num_users, device=x.device)
         if covariance_mode in {"diagonal_gmm"}:
             user_mu_k, user_logvar_k, mix_logits = user_table(all_user_idx)
-            user_prior_kl = gmm_log_likelihood(
-                user_mu_k.detach(), user_logvar_k.detach(), mix_logits.detach()
-            ).mean() * 0.0
-            user_prior_kl = standard_normal_kl(user_mu_k, user_logvar_k).mean() * 0.5
+            per_component_kl = standard_normal_kl(user_mu_k, user_logvar_k)
+            mix_probs = F.softmax(mix_logits, dim=-1)
+            user_prior_kl = (mix_probs * per_component_kl).sum(dim=-1).mean()
             log_p_xu = gmm_log_likelihood(mu, logvar, user_mu_k, user_logvar_k, mix_logits)
             user_match = F.cross_entropy(log_p_xu, user_idx)
         elif covariance_mode in {"diagonal_student_t"}:
@@ -1394,7 +1393,12 @@ def infer_user_sentence_distributions(
 
     encoder.eval()
     user_table.eval()
-    all_user_idx = torch.arange(user_table.user_mu.weight.shape[0] if hasattr(user_table, "user_mu") else user_table.num_users, device=device)
+    all_user_idx = torch.arange(
+        user_table.user_mu.weight.shape[0]
+        if isinstance(user_table.user_mu, nn.Embedding)
+        else user_table.user_mu.shape[0],
+        device=device,
+    )
     with torch.no_grad():
         mu_out = []
         for chunk_start in range(0, feature_tensor.shape[0], USER_CHUNK_SIZE_TRAIN):
@@ -1413,7 +1417,8 @@ def infer_user_sentence_distributions(
             user_mu_tensor, user_L_tensor = user_table(all_user_idx)
         elif covariance_mode in {"diagonal_gmm"}:
             user_mu_k, user_logvar_k, mix_logits = user_table(all_user_idx)
-            user_mu_tensor = user_mu_k.detach()
+            mix_probs = F.softmax(mix_logits, dim=-1)
+            user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
         elif covariance_mode in {"diagonal_student_t"}:
             user_mu, user_log_scale, user_df = user_table(all_user_idx)
             user_mu_tensor = user_mu
@@ -1422,7 +1427,8 @@ def infer_user_sentence_distributions(
             user_mu_tensor = user_mu
         elif covariance_mode in {"diagonal_student_t_gmm"}:
             user_mu_k, user_log_scale_k, user_df_k, mix_logits = user_table(all_user_idx)
-            user_mu_tensor = user_mu_k.detach()
+            mix_probs = F.softmax(mix_logits, dim=-1)
+            user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
         elif covariance_mode in {"diagonal_logistic"}:
             user_mu, user_log_s = user_table(all_user_idx)
             user_mu_tensor = user_mu
@@ -1484,6 +1490,7 @@ def calibrate_absolute_threshold_with_unseen_holdout(
     user_match_weight: float,
     abs_threshold_quantile: float,
     calibration_summary_file: Path,
+    user_index_tensor: torch.Tensor,
 ) -> dict:
     """使用训练未见 holdout 句子做 user-match score 分布, 校准绝对阈值."""
     if not sentence_output:
@@ -1534,7 +1541,12 @@ def calibrate_absolute_threshold_with_unseen_holdout(
         else:
             holdout_mu = holdout_features
 
-        all_user_idx = torch.arange(user_table.user_mu.weight.shape[0] if hasattr(user_table, "user_mu") else user_table.num_users, device=device)
+        all_user_idx = torch.arange(
+        user_table.user_mu.weight.shape[0]
+        if isinstance(user_table.user_mu, nn.Embedding)
+        else user_table.user_mu.shape[0],
+        device=device,
+    )
         user_match_scores = []
         user_match_labels = []
         if covariance_mode == "full":
@@ -1639,7 +1651,12 @@ def rank_and_select_queries(
     candidate_tensor = torch.as_tensor(candidate_features_scaled, dtype=torch.float32, device=device)
     user_id_to_profile = {row["user_id"]: row[PROBE_REPRESENTATION_FIELD] for row in user_profile_rows}
 
-    all_user_idx = torch.arange(user_table.user_mu.weight.shape[0] if hasattr(user_table, "user_mu") else user_table.num_users, device=device)
+    all_user_idx = torch.arange(
+        user_table.user_mu.weight.shape[0]
+        if isinstance(user_table.user_mu, nn.Embedding)
+        else user_table.user_mu.shape[0],
+        device=device,
+    )
     with torch.no_grad():
         if encoder is not None:
             mu_out = []
@@ -1784,15 +1801,21 @@ def build_summary(
 
 
 def ensure_directories() -> None:
-    """Make sure all parent dirs exist for input/output files."""
-    for path in (
-        SUMMARY_FILE, DETAIL_FILE, USER_PROFILE_FILE, SENTENCE_FILE,
-        EXCLUDED_USER_FILE, SELECTED_RECORD_FILE, REJECTED_RECORD_FILE,
-        QUERY_FILE.parent, PROBE_SUMMARY_FILE.parent, PROBE_PER_FEATURE_FILE.parent,
-        PROBE_FOLD_FILE.parent, VALIDATE_OUTPUT_DIR, VALIDATE_FIG_DIR,
-        COMPARE_OUTPUT_DIR,
-    ):
-        path.mkdir(parents=True, exist_ok=True)
+    """Make sure all parent dirs exist for input/output files.
+
+    Iterates a set of parent directories (deduplicated) so that we never
+    accidentally create a directory at a file path (which would cause
+    IsADirectoryError when write_jsonl tries to open that path as a file).
+    """
+    parent_dirs = {
+        SUMMARY_FILE.parent, DETAIL_FILE.parent, USER_PROFILE_FILE.parent,
+        SENTENCE_FILE.parent, EXCLUDED_USER_FILE.parent, SELECTED_RECORD_FILE.parent,
+        REJECTED_RECORD_FILE.parent, QUERY_FILE.parent, PROBE_SUMMARY_FILE.parent,
+        PROBE_PER_FEATURE_FILE.parent, PROBE_FOLD_FILE.parent,
+        VALIDATE_OUTPUT_DIR, VALIDATE_FIG_DIR, COMPARE_OUTPUT_DIR,
+    }
+    for parent in parent_dirs:
+        parent.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -2352,6 +2375,7 @@ def main_train() -> None:
         user_match_weight=USER_MATCH_WEIGHT,
         abs_threshold_quantile=ABS_THRESHOLD_QUANTILE,
         calibration_summary_file=INPUT_DIR / f"{OUTPUT_TAG}_calibration_summary.json",
+        user_index_tensor=torch.as_tensor(dataset["user_indices"], dtype=torch.long, device=DEVICE),
     )
 
     selected_records, rejected_records = rank_and_select_queries(
