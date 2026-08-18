@@ -101,6 +101,9 @@ STYLE_RECON_WEIGHT = 0.8
 SENT_KL_WEIGHT = 0.05
 USER_PRIOR_KL_WEIGHT = 0.02
 LATENT_ALIGN_WEIGHT = float(os.environ.get("VADES_LATENT_ALIGN_WEIGHT", "1.0"))
+STYLE_DISTINCT_WEIGHT = float(os.environ.get("VADES_STYLE_DISTINCT_WEIGHT", "0.5"))
+STYLE_ANCHOR_WEIGHT = float(os.environ.get("VADES_STYLE_ANCHOR_WEIGHT", "0.3"))
+DISENTANGLE_N_CLUSTERS = int(os.environ.get("VADES_DISENTANGLE_K", "8"))
 ABS_THRESHOLD_QUANTILE = float(os.environ.get("VADES_ABS_THRESHOLD_QUANTILE", "0.95"))
 MAX_USERS_OVERRIDE = os.environ.get("VADES_MAX_USERS")
 SKIP_POST_CLUSTERING = os.environ.get("VADES_SKIP_POST_CLUSTERING", "0") == "1"
@@ -108,7 +111,7 @@ COVARIANCE_MODE = os.environ.get("VADES_COVARIANCE_MODE", "diagonal_gmm")
 VALID_COVARIANCE_MODES = {
     "diagonal", "full", "diagonal_gmm",
     "diagonal_student_t", "diagonal_laplace", "diagonal_student_t_gmm",
-    "diagonal_logistic",
+    "diagonal_logistic", "diagonal_disentangled",
 }
 if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
     raise ValueError(
@@ -134,8 +137,10 @@ if COVARIANCE_MODE in {"diagonal_gmm", "diagonal_student_t_gmm"} and GMM_COMPONE
 # (1) 训练/输入路径
 INPUT_DIR = REPO_ROOT / "result" / "personal_query" / "12_complexity_analysis_clause_features" / CATEGORY
 REVIEW_SOURCE_FILE = (
-    REPO_ROOT / "result" / "personal_query" / "01_preference_extraction" / CATEGORY / "stage1_filtered_users_reviews.json"
+    Path(os.environ["VADES_REVIEW_SOURCE"]) if os.environ.get("VADES_REVIEW_SOURCE")
+    else REPO_ROOT / "result" / "personal_query" / "01_preference_extraction" / CATEGORY / "stage1_filtered_users_reviews.json"
 )
+SKIP_DEDUP = os.environ.get("VADES_SKIP_DEDUP", "0") == "1"
 CANDIDATE_QUERY_FILE = INPUT_DIR / "query_10_candidates_clause_features_joint_fisher_shared_pca_k3.jsonl"
 RAW_CANDIDATE_QUERY_FILE = REPO_ROOT / "result" / "personal_query" / "06_query" / CATEGORY / "query_by_expression_style_no_depth_check_10.json"
 SUMMARY_FILE = INPUT_DIR / f"{OUTPUT_TAG}_summary.json"
@@ -147,6 +152,8 @@ SENTENCE_EXTRACT_CACHE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_extracted_sentences.jso
 SELECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_selected_query_records.jsonl"
 REJECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_rejected_query_records.jsonl"
 QUERY_FILE = REPO_ROOT / "result" / "personal_query" / "06_query" / CATEGORY / f"query_by_expression_style_{OUTPUT_TAG}.json"
+ENCODER_CKPT = INPUT_DIR / f"vades_encoder_{OUTPUT_TAG}.pt"
+USER_TABLE_CKPT = INPUT_DIR / f"vades_user_table_{OUTPUT_TAG}.pt"
 
 # (2) probe 路径常量
 PROBE_REPRESENTATION_FIELD = "user_mu"
@@ -657,6 +664,72 @@ class UserDistributionTableStudentTGMM(nn.Module):
         return self._df()
 
 
+class UserDistributionTableDisentangled(nn.Module):
+    """Disentangled user prior: user_mu = style_center[user_cluster[u]] + user_offset[u].
+
+    - style_centers: [n_clusters, latent_dim] — shared across users in same cluster (style contribution)
+    - user_offsets: [num_users, latent_dim] — unique per user (identity contribution)
+    - user_cluster_ids: [num_users] — fixed cluster assignment (from KMeans on raw features)
+    - forward returns (mu, logvar) 同 diagonal 模式, 但 mu 是 point estimate
+
+    Loss 额外加:
+    - style_distinct_loss: 风格中心彼此远离 (cosine)
+    - style_anchor_loss:   风格中心贴近用户平均特征 (用训练前 cluster anchors)
+    """
+
+    def __init__(
+        self,
+        num_users: int,
+        latent_dim: int,
+        user_cluster_ids: torch.Tensor,
+        style_anchors: torch.Tensor | None = None,
+        fixed_logvar: float = -2.0,
+    ):
+        super().__init__()
+        self.num_users = num_users
+        self.latent_dim = latent_dim
+        n_clusters = int(user_cluster_ids.max().item()) + 1
+        self.n_clusters = n_clusters
+        self.register_buffer("user_cluster_ids", user_cluster_ids.to(torch.long))
+        # 风格中心: init = KMeans cluster centroids (若提供), 否则随机
+        if style_anchors is not None:
+            assert style_anchors.shape == (n_clusters, latent_dim)
+            self.style_centers = nn.Parameter(style_anchors.clone())
+        else:
+            self.style_centers = nn.Parameter(torch.zeros(n_clusters, latent_dim))
+        self.user_offsets = nn.Parameter(torch.zeros(num_users, latent_dim))
+        self.fixed_logvar = fixed_logvar
+        # V2: init user_offsets with std=0.5 (更大初值, 让 fixed_logvar=-2 不会马上 KL 收敛到 0)
+        nn.init.normal_(self.user_offsets, std=0.5)
+
+    def forward(self, user_index: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        clusters = self.user_cluster_ids[user_index]
+        style = self.style_centers[clusters]
+        offset = self.user_offsets[user_index]
+        mu = style + offset
+        logvar = torch.full_like(mu, self.fixed_logvar)
+        return mu, logvar
+
+    def get_style_centers(self) -> torch.Tensor:
+        return self.style_centers
+
+    @property
+    def user_mu(self) -> torch.Tensor:
+        """暴露全量 user_mu 矩阵 (style_centers[cluster] + user_offsets) 以兼容推理代码."""
+        all_idx = torch.arange(self.num_users, device=self.style_centers.device)
+        clusters = self.user_cluster_ids[all_idx]
+        return self.style_centers[clusters] + self.user_offsets
+
+    @property
+    def user_logvar(self) -> torch.Tensor:
+        """暴露全量 user_logvar 矩阵 (fixed)."""
+        return torch.full(
+            (self.num_users, self.latent_dim),
+            self.fixed_logvar,
+            device=self.style_centers.device,
+        )
+
+
 class SentenceEncoderFull(nn.Module):
     """SentenceEncoder with full-covariance latent (Cholesky L)."""
 
@@ -767,6 +840,10 @@ def load_filtered_user_reviews() -> list[dict]:
 def filter_users_with_duplicate_reviews() -> None:
     """过滤掉有重复 target_reviews 的用户, 避免句子提取时产生重复句子导致 holdout 不足."""
     global REVIEW_SOURCE_FILE
+
+    if SKIP_DEDUP:
+        log(f"VADES_SKIP_DEDUP=1, 跳过 dedup, 直接使用 {REVIEW_SOURCE_FILE}")
+        return
 
     filtered_file = INPUT_DIR / "stage1_filtered_users_reviews_dedup.json"
     if filtered_file.exists():
@@ -1034,6 +1111,42 @@ def build_training_dataset(sentence_rows: list[dict], feature_names: list[str]) 
 # SECTION 6: Training + Inference + Calibration + Ranking + Summary
 # ============================================================
 
+def pre_cluster_users_for_disentangle(
+    feature_matrix: np.ndarray,
+    user_index_tensor: np.ndarray,
+    n_clusters: int,
+    seed: int = SEED,
+) -> tuple[np.ndarray, np.ndarray]:
+    """对 user 原始特征矩阵 [num_sentences, feat_dim] + per-sentence user_index [num_sentences] 跑 KMeans, 返回:
+    - user_cluster_ids: [num_users] int cluster 索引
+    - style_anchors:    [n_clusters, feat_dim] cluster 中心 (作为 style_centers 初值)
+
+    用于 diagonal_disentangled 模式的 user_cluster_ids 注入。
+    """
+    from sklearn.cluster import KMeans
+    num_sentences = feature_matrix.shape[0]
+    if num_sentences == 0:
+        raise ValueError("pre_cluster_users_for_disentangle: feature_matrix 为空, 无句子可聚类")
+    # 聚类前先聚合: 每个用户取 mean features (避免 sentence-level 噪声主导聚类)
+    num_users = int(user_index_tensor.max()) + 1
+    feat_dim = feature_matrix.shape[1]
+    sum_per_user = np.zeros((num_users, feat_dim), dtype=np.float64)
+    cnt_per_user = np.zeros(num_users, dtype=np.int64)
+    for s in range(num_sentences):
+        u = int(user_index_tensor[s])
+        sum_per_user[u] += feature_matrix[s]
+        cnt_per_user[u] += 1
+    per_user_features = sum_per_user / np.clip(cnt_per_user, 1, None).reshape(-1, 1)
+    log(f"pre_cluster: per_user_features.shape={per_user_features.shape}")
+    # KMeans 自动 n_clusters 调整 (silhouette 至少要 > 1 user/cluster)
+    eff_k = max(2, min(n_clusters, num_users - 1, num_users // 2)) if num_users >= 4 else 2
+    km = KMeans(n_clusters=eff_k, random_state=seed, n_init=10)
+    user_cluster_ids = km.fit_predict(per_user_features)
+    style_anchors = km.cluster_centers_.astype(np.float32)
+    log(f"pre_cluster: KMeans K={eff_k} (要求 {n_clusters}, 实际 {eff_k})")
+    return user_cluster_ids.astype(np.int64), style_anchors
+
+
 def train_vades_user_distribution_model(
     sentence_rows: list[dict],
     dataset: dict,
@@ -1060,6 +1173,8 @@ def train_vades_user_distribution_model(
     gmm_components: int = GMM_COMPONENTS,
     max_users_override: Optional[int] = None,
     seed: int = SEED,
+    user_cluster_ids: torch.Tensor | None = None,
+    style_anchors: torch.Tensor | None = None,
 ) -> tuple[SentenceEncoder | SentenceEncoderStudentT | SentenceEncoderFull, object, list[dict]]:
     """主训练 loop (与原 train_vades_lite_sentence_latent_threshold.main() 一致)."""
     set_random_seed(seed)
@@ -1095,10 +1210,16 @@ def train_vades_user_distribution_model(
         user_ids = [user_ids[idx] for idx in keep_indices_arr]
         num_users = new_num_users
         dataset["grouped_rows"] = {user_id: grouped_rows[user_id] for user_id in user_ids}
+        # 同步限制 disentangle 的 user_cluster_ids + style_anchors
+        if user_cluster_ids is not None and style_anchors is not None:
+            user_cluster_ids = user_cluster_ids[keep_indices_arr].contiguous()
+            style_anchors = style_anchors  # anchors 仍按 cluster 维度保留
 
     encoder, user_table = _build_encoder_and_user_table(
         input_dim, HIDDEN_DIM, LATENT_DIM, num_users,
         encoder_dist=encoder_dist, covariance_mode=covariance_mode, gmm_components=gmm_components,
+        user_cluster_ids=user_cluster_ids,
+        style_anchors=style_anchors,
     )
     encoder.to(device)
     user_table.to(device)
@@ -1213,6 +1334,8 @@ def train_vades_user_distribution_model(
 def _build_encoder_and_user_table(
     input_dim: int, hidden_dim: int, latent_dim: int, num_users: int,
     encoder_dist: str, covariance_mode: str, gmm_components: int,
+    user_cluster_ids: torch.Tensor | None = None,
+    style_anchors: torch.Tensor | None = None,
 ) -> tuple[nn.Module, nn.Module]:
     """按 encoder_dist/covariance_mode 构造 encoder + user table."""
     if covariance_mode == "full":
@@ -1236,6 +1359,18 @@ def _build_encoder_and_user_table(
     elif covariance_mode == "diagonal_logistic":
         encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
         user_table = UserDistributionTableLogistic(num_users, latent_dim)
+    elif covariance_mode == "diagonal_disentangled":
+        encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
+        # user_cluster_ids + style_anchors 由 main_train 在加载训练数据后注入
+        if user_cluster_ids is None:
+            raise ValueError(
+                "diagonal_disentangled 需要 main_train 提供 user_cluster_ids (KMeans on raw features)"
+            )
+        user_table = UserDistributionTableDisentangled(
+            num_users, latent_dim,
+            user_cluster_ids=user_cluster_ids,
+            style_anchors=style_anchors,
+        )
     else:
         encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
         user_table = UserDistributionTable(num_users, latent_dim)
@@ -1325,6 +1460,25 @@ def _compute_losses_for_batch(
             user_prior_kl = standard_normal_kl(user_mu, 2.0 * user_log_s + float(np.log(np.pi ** 2 / 3.0))).mean()
             log_p_xu = logistic_log_likelihood(mu, logvar, user_mu, user_log_s)
             user_match = F.cross_entropy(log_p_xu, user_idx)
+        elif covariance_mode in {"diagonal_disentangled"}:
+            user_mu, user_logvar = user_table(all_user_idx)
+            user_prior_kl = standard_normal_kl(user_mu, user_logvar).mean()
+            log_p_xu = -diagonal_gaussian_kl(
+                mu.unsqueeze(1),
+                logvar.unsqueeze(1),
+                user_mu.unsqueeze(0),
+                user_logvar.unsqueeze(0),
+            )
+            user_match = F.cross_entropy(log_p_xu, user_idx)
+            # ===== disentangle 额外 loss (V2: 只保留 style_distinct_loss, 删 anchor_loss) =====
+            style_centers = user_table.get_style_centers()
+            # 风格中心彼此远离 (cosine 相似度)
+            n_c = style_centers.size(0)
+            sc_norm = F.normalize(style_centers, dim=-1)
+            sim_matrix = sc_norm @ sc_norm.t()
+            off_diag = sim_matrix - torch.eye(n_c, device=sim_matrix.device)
+            style_distinct_loss = (off_diag ** 2).sum() / max(1, n_c * (n_c - 1))
+            # V2: style_anchor_loss 已删 (让 user_offsets 自由承担 per-user variation)
         else:
             user_mu, user_logvar = user_table(all_user_idx)
             user_prior_kl = standard_normal_kl(user_mu, user_logvar).mean()
@@ -1352,7 +1506,13 @@ def _compute_losses_for_batch(
         + user_prior_kl_weight * user_prior_kl
         + latent_align_weight * latent_align
     )
-    return {
+    if covariance_mode == "diagonal_disentangled":
+        # V2: 只加 style_distinct_loss (anchor_loss 已删)
+        loss = loss + STYLE_DISTINCT_WEIGHT * style_distinct_loss
+        extra = {"style_distinct_loss": style_distinct_loss}
+    else:
+        extra = {}
+    out = {
         "loss": loss,
         "user_match_loss": user_match,
         "recon_loss": recon_loss,
@@ -1360,6 +1520,8 @@ def _compute_losses_for_batch(
         "user_prior_kl": user_prior_kl,
         "latent_align": latent_align,
     }
+    out.update(extra)
+    return out
 
 
 def _user_match_loss(mu: torch.Tensor, user_mu: torch.Tensor, user_L: torch.Tensor, weight: float) -> torch.Tensor:
@@ -1508,7 +1670,7 @@ def calibrate_absolute_threshold_with_unseen_holdout(
 
     holdout_features = torch.as_tensor(feature_matrix[holdout_indices], dtype=torch.float32, device=device)
     encoder = None
-    encoder_path = INPUT_DIR / "vades_encoder.pt"
+    encoder_path = ENCODER_CKPT
     if encoder_path.exists():
         if covariance_mode == "full":
             encoder = SentenceEncoderFull(
@@ -2327,6 +2489,20 @@ def main_train() -> None:
     candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
 
+    # ==== disentangle 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
+    user_cluster_ids_t: torch.Tensor | None = None
+    style_anchors_t: torch.Tensor | None = None
+    if COVARIANCE_MODE == "diagonal_disentangled":
+        # 用 raw feature matrix (per-sentence) + user_indices 聚合到 per-user mean, 再 KMeans
+        raw_per_sent = dataset["feature_matrix"]  # [num_sentences, feat_dim]
+        user_indices_np = dataset["user_indices"]  # [num_sentences]
+        cluster_ids_np, anchors_np = pre_cluster_users_for_disentangle(
+            raw_per_sent, user_indices_np,
+            n_clusters=DISENTANGLE_N_CLUSTERS, seed=SEED,
+        )
+        user_cluster_ids_t = torch.as_tensor(cluster_ids_np, dtype=torch.long)
+        style_anchors_t = torch.as_tensor(anchors_np, dtype=torch.float32)
+
     encoder, user_table, detail_rows = train_vades_user_distribution_model(
         feature_rows,
         dataset,
@@ -2340,13 +2516,15 @@ def main_train() -> None:
         weight_decay=WEIGHT_DECAY,
         user_chunk_size=USER_CHUNK_SIZE_TRAIN,
         device=DEVICE,
-        encoder_ckpt_path=INPUT_DIR / "vades_encoder.pt",
-        user_table_ckpt_path=INPUT_DIR / "vades_user_table.pt",
+        encoder_ckpt_path=ENCODER_CKPT,
+        user_table_ckpt_path=USER_TABLE_CKPT,
         detail_file=DETAIL_FILE,
         summary_file=SUMMARY_FILE,
         gmm_components=GMM_COMPONENTS,
         max_users_override=max_users_override,
         seed=SEED,
+        user_cluster_ids=user_cluster_ids_t,
+        style_anchors=style_anchors_t,
     )
 
     user_profile_rows, sentence_output = infer_user_sentence_distributions(
