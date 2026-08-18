@@ -60,6 +60,22 @@ SEED = 42
 STYLE_K_PREFIX = 8
 STYLE_ALPHA = 2.0
 
+# Query-likeness markers (must appear in styled_query for it to read like a search)
+QUERY_MARKERS = [
+    "looking for", "want to", "want a", "want the",
+    "find a", "find the", "searching for",
+    "i need", "i would like", "i am looking",
+    "can you show", "could you show",
+    "show me", "where can", "where to",
+]
+# Anti-query openers (starters that don't sound like a search query)
+BAD_OPENERS = [
+    "this is ", "that is ", "this is true",
+    "not the same", "i have been looking", "i have",
+    "it's not ", "i would recommend",
+    "i recommend", "great idea",
+]
+
 ANNAWEGMANN_PATH = '/fs04/ar57/wenyu/.cache/huggingface/hub/models--AnnaWegmann--Style-Embedding/snapshots'
 
 
@@ -84,6 +100,24 @@ def _is_attr_in_query(attr_value: str, query: str) -> bool:
 
 def _count_attrs_preserved(attrs: dict, query: str) -> int:
     return sum(1 for v in attrs.values() if _is_attr_in_query(v, query))
+
+
+def _query_likeness_score(query: str) -> float:
+    """Score how much `query` looks like a search query (0..1).
+
+    - +0.4 if contains any QUERY_MARKER
+    - -0.6 if starts with BAD_OPENER (kills score)
+    - +0.1 base score for non-empty
+    """
+    ql = query.lower().strip()
+    if not ql:
+        return 0.0
+    score = 0.1
+    if any(m in ql for m in QUERY_MARKERS):
+        score += 0.4
+    if any(ql.startswith(b) for b in BAD_OPENERS):
+        score -= 0.6
+    return max(0.0, score)
 
 
 def _generate_k_prefix(model, input_ids, attention_mask, style, k_prefix, alpha,
@@ -214,7 +248,7 @@ def main():
                         f"(preservation range: {min(cand_pres)}-{max(cand_pres)}/4). "
                         f"Increase NUM_RETURN_SEQUENCES."
                     )
-                # Step 2: style rerank among 4/4 candidates
+                # Step 2: style rerank among 4/4 candidates, blended with query-likeness
                 full_cands = [candidates[i] for i in full_idx]
                 cand_embs = aw_model.encode(
                     full_cands, convert_to_numpy=True,
@@ -223,11 +257,18 @@ def main():
                 )
                 user_norm = emb / (np.linalg.norm(emb) + 1e-8)
                 cos_scores = cand_embs @ user_norm
-                rel_idx = int(np.argmax(cos_scores))
+                # Normalize cos to [0, 1] (cos ∈ [-1, 1])
+                cos_norm = (cos_scores + 1) / 2
+                # Query-likeness per candidate
+                q_likes = np.array([_query_likeness_score(c) for c in full_cands])
+                # Combined score: 70% style match + 30% query-likeness
+                combined = 0.7 * cos_norm + 0.3 * q_likes
+                rel_idx = int(np.argmax(combined))
                 best_idx = full_idx[rel_idx]
                 chosen_q = full_cands[rel_idx]
                 chosen_pre = cand_pres[best_idx]
                 chosen_cos = float(cos_scores[rel_idx])
+                chosen_qlike = float(q_likes[rel_idx])
                 rec = {
                     'asin': asin,
                     'user_id': str(u),
@@ -241,6 +282,7 @@ def main():
                     'n_44_candidates': len(full_idx),
                     'best_idx': best_idx,
                     'chosen_style_cos': chosen_cos,
+                    'chosen_query_likeness': chosen_qlike,
                     'candidates_preservation': cand_pres,
                     'candidates_style_cos': cos_scores.tolist(),
                     'all_candidates': candidates,
@@ -249,7 +291,7 @@ def main():
                 n_done += 1
                 log(f"    user {ui+1}/{len(users)} ({str(u)[:8]}): "
                     f"{len(full_idx)}/20 4/4-preserving, chosen_cos={chosen_cos:.3f}, "
-                    f"preservation={chosen_pre}/4")
+                    f"chosen_qlike={chosen_qlike:.2f}, preservation={chosen_pre}/4")
             log(f"  product {pi+1}/{len(products)}: {n_done}/{n_total} pairs in {time.time()-t0:.0f}s")
 
     log(f"DONE: wrote {n_done} records to {OUT_JSONL} in {time.time()-t0:.0f}s")
