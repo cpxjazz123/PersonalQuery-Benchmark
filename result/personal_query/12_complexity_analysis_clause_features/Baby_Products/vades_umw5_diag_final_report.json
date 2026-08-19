@@ -1,0 +1,70 @@
+{
+  "experiment": "VADES disentangle 修复方案诊断 - UMW=5 终极验证",
+  "purpose": "用户假设强化 USER_MATCH_WEIGHT(1→5)可迫使 encoder 学 user 信息,本测试是最终验证",
+  "conclusion": "Option B 失败 - 5x USER_MATCH_WEIGHT 对 encoder 学习 user 信号 0 增益,与 UMW=1 完全相同",
+  "umw5_vs_umw1_comparison": {
+    "user_offsets_std": {"umw1": 0.4565, "umw5": 0.4584, "delta": 0.0019},
+    "style_centers_std": {"umw1": 3.3347, "umw5": 3.3361, "delta": 0.0014},
+    "ratio_user_offsets_to_style_centers": {"umw1": 0.1369, "umw5": 0.1374},
+    "linear_probe_encoder_latent_ho_acc": {"umw1": 0.043, "umw5": 0.048, "random": 0.034},
+    "linear_probe_raw_20d_ho_acc": {"umw1": 0.16, "umw5": 0.16},
+    "mahalanobis_top1_acc": {"umw1": 0.00, "umw5": 0.00},
+    "cosine_top1_acc": {"umw1": 0.00, "umw5": 0.00},
+    "margin_mean_mahalanobis": {"umw1": -79.41, "umw5": -69.73},
+    "verdict": "5x USER_MATCH_WEIGHT 对所有评估指标的影响 < 5%,encoder 仍不编码 user 信息"
+  },
+  "why_umw5_failed": {
+    "gradient_flow_analysis": "user_match_loss = ||mu_s - user_mu[user]||^2 的梯度同时流过 mu_s(encoder)和 user_mu(user_table)。由于 user_offsets 是 unconstrained learnable param,模型选择 '拉近 user_mu' 而非 'encoder 学习 user 方向'。即使权重 x5,这种不对称的难度仍然使模型走阻力最小的路径",
+    "encoder_collapse_test_umw5": {
+      "linear_probe_encoder_20d_to_user_id": {
+        "train_acc_after_20_epochs": 0.05,
+        "holdout_acc_after_20_epochs": 0.048,
+        "random_baseline": 0.034
+      },
+      "linear_probe_raw_20d_to_user_id": {
+        "train_acc_after_20_epochs": 0.60,
+        "holdout_acc_after_20_epochs": 0.16
+      },
+      "verdict": "encoder latent (0.048%) ≈ raw features (0.16%) 的退化点。encoder 没有添加任何 user 可分性,反而破坏了 raw 中已存在的 4.7x random 信号"
+    }
+  },
+  "all_attempted_fixes_failed": [
+    {"fix": "cosine distance", "result": "0% top-1"},
+    {"fix": "user_mu scale 归一化 (×0.93)", "result": "0% top-1"},
+    {"fix": "mu_s scale 归一化 (×1.07)", "result": "0% top-1"},
+    {"fix": "Z-score 归一化", "result": "0% top-1"},
+    {"fix": "diagonal VADES (无 disentangle)", "result": "0% top-1, user_mu 坍缩到原点"},
+    {"fix": "USER_MATCH_WEIGHT=5 (disentangle)", "result": "0% top-1,encoder 仍无 user 信号"}
+  ],
+  "root_cause": "VADES disentangle 架构中,user_table 通过 unconstrained user_offsets 可任意适配 encoder 输出,而 encoder 同时被 KL/重构损失约束到 style_centers 方向。user_match_loss 梯度被 user_table '吸收',encoder 不需要学 user 信号。这是架构性缺陷,不能通过损失权重调节",
+  "viable_paths": [
+    {
+      "option": "A: 放弃 VADES, 用 47d raw cosine",
+      "evidence": "已验证 macro_AUC=0.6458, top1=0.62% (18.6x random),是当前唯一已知工作的方案",
+      "next_step": "用 raw 47d cosine 重做 calibration + V3 evaluation,看 %both 是否 > 3.3%"
+    },
+    {
+      "option": "B2: 修改 disentangle 架构,移除 user_offsets 可学习性",
+      "evidence": "让 user_offsets 不参与梯度反传(只 encoder 学),强制 user_signal 走 encoder",
+      "next_step": "改 gaussian_vades.py:user_offsets = fixed user embedding 或 detach;重训+评估",
+      "risk": "需修改架构,可能影响其他流程;时间投入大"
+    },
+    {
+      "option": "C: 监督分类器替代 VADES",
+      "evidence": "raw 20d linear probe 已达 0.16% holdout,MLP/deeper model 预期更高",
+      "next_step": "训练 MLP(raw 47d → user_id),作为 user_mu 的替代",
+      "risk": "放弃概率框架,校准方式需重写"
+    }
+  ],
+  "files": {
+    "umw5_disentangle_outputs": "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/personal_query/12_complexity_analysis_clause_features/Baby_Products/vades_disentangled_v2_3000u_umw5_*",
+    "diagnostic_scripts": [
+      "/home/wlia0047/hj82_scratch2/wenyu/postfilter/diag_umw5_3000u.py",
+      "/home/wlia0047/hj82_scratch2/wenyu/postfilter/linear_probe_umw5.py"
+    ],
+    "logs": [
+      "/home/wlia0047/hj82_scratch2/wenyu/postfilter/logs/diag_umw5_3000u.log",
+      "/home/wlia0047/hj82_scratch2/wenyu/postfilter/logs/linear_probe_umw5.log"
+    ]
+  }
+}
