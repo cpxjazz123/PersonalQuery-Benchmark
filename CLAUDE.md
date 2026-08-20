@@ -27,6 +27,11 @@
      - 后续步（KV cache 模式）logits 只有新 token 位置，用 `logits[:,-1]`
      - batch 内各样本独立 prompt/属性 span/hook 方向时，逐样本构建 mask/position/span 后整批 forward
    - 已实现单条生成的脚本（如无批量版本）必须改造或注明 TODO，不得新增逐条生成逻辑
+   - **vLLM 后端必须直接 batched 调用**：`QwenLocalClient.call()` 内部走 `backend.model.generate([prompt])` 一次只传一个 prompt (batch=1)，仍属于逐条生成。**禁止**用 `client.call()` 串行循环生成多条 prompt。正确做法：
+     - 直接调 `client._backend.model.generate([prompts], sampling_params)` 一次传入所有 prompt
+     - 或封装 `batch_generate(client, prompts, temp, max_tokens)` 辅助函数（参考 `phase11_g_diverse_z_v2.py::batch_generate`，K=10 prompts → 1 次 vLLM 调用 vs 10 次串行，~3x 提速）
+     - vLLM 内部 `apply_chat_template` + `tokenize=False` + `add_generation_prompt=True` 与 `call()` 一致
+     - vLLM 对**完全相同**的 prompt 会 dedup 跳过采样；如需同 prompt 多 sample 获得不同输出，必须在 prompt 加唯一后缀（如 `(variant {seed_idx})`）或使用 `SamplingParams(seed=...)`
 
 5. **已实现的提速方法（实现相关业务时必须使用）**：
 
@@ -50,6 +55,31 @@
       - vLLM 只适用于**标准 generate 路径**（无自定义 hook/copy head 干预的纯 LM 生成）；带自定义层 hook、copy head 或中间激活注入的生成必须走原生批量解码（规则 4/5a），不得硬套 vLLM
       - 使用 vLLM 时必须保持解码配置一致（temperature/top-p/penalty/max_tokens 与预注册或对照配置逐字段一致），禁止不同引擎引入解码差异
       - vLLM 服务启动/关闭纳入脚本生命周期；小批量（<100 条）或单次生成直接用原生批量解码即可，引擎开销不值得
+      - **vLLM 必须 batched 调用，禁止串行 `client.call()` 循环**：见规则 4 末尾注意事项，`call()` 内部 batch=1 失去 batching 优势；正确做法是 `client._backend.model.generate([prompts], sampling)` 一次传所有 prompt
+
+   **h. vLLM batched 调用参考实现（必读）**：
+      - 路径：`phase11_g_diverse_z_v2.py::batch_generate(client, prompts, temp, max_tokens)`
+      - 实现：
+        ```python
+        from vllm import SamplingParams
+        sampling = SamplingParams(
+            max_tokens=max_tokens, temperature=temp,
+            top_p=0.95 if temp > 0 else 1.0,
+        )
+        full_prompts = [
+            client._backend.tokenizer.apply_chat_template(
+                [{"role": "user", "content": p}],
+                tokenize=False, add_generation_prompt=True,
+            )
+            for p in prompts
+        ]
+        outputs = client._backend.model.generate(full_prompts, sampling)
+        texts = [o.outputs[0].text.strip() if o.outputs else "" for o in outputs]
+        return texts
+        ```
+      - 实测效果（Phase 11.G 30 pairs × K=10 personal prompts）：v1 `call()` 串行 593s → v2 batched 194s（**3x 提速**）
+      - 适用场景：所有需要 K 个不同 prompt（style samples / beam candidates / diverse sampling）一次生成的业务
+      - **陷阱**：vLLM 对完全相同 prompt dedup；同 prompt 多 sample 必须加 `(variant {idx})` 后缀或 `SamplingParams(seed=...)`
 
    这些方法均为已验证的实测提速；新实现/改造相关业务时必须选用适用的方法，禁止回退到逐条生成、逐元素循环、重复加载大文件等低效模式。
 
