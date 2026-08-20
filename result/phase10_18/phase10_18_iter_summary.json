@@ -1,0 +1,246 @@
+{
+  "version": "phase10_18_b_v1",
+  "n_pairs": 30,
+  "n_rounds": 5,
+  "n_candidates_per_round": 8,
+  "exemplar_per_pair": 3,
+  "round_summaries": [
+    {
+      "round": 0,
+      "elapsed_sec": 46.614715337753296,
+      "best_margin_mean": -495.5917943630406,
+      "best_rank_mean": 1341.1,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_count": 23,
+      "attrs_complete_rate": 0.7666666666666667,
+      "n_pairs": 30
+    },
+    {
+      "round": 1,
+      "elapsed_sec": 41.92307233810425,
+      "best_margin_mean": -443.5255423712122,
+      "best_rank_mean": 1190.3666666666666,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_count": 23,
+      "attrs_complete_rate": 0.7666666666666667,
+      "n_pairs": 30
+    },
+    {
+      "round": 2,
+      "elapsed_sec": 42.47941970825195,
+      "best_margin_mean": -408.18579790698533,
+      "best_rank_mean": 1119.7333333333333,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_count": 21,
+      "attrs_complete_rate": 0.7,
+      "n_pairs": 30
+    },
+    {
+      "round": 3,
+      "elapsed_sec": 41.36998510360718,
+      "best_margin_mean": -399.57613857232104,
+      "best_rank_mean": 1057.0,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_count": 21,
+      "attrs_complete_rate": 0.7,
+      "n_pairs": 30
+    },
+    {
+      "round": 4,
+      "elapsed_sec": 40.71034836769104,
+      "best_margin_mean": -390.5565207239455,
+      "best_rank_mean": 1057.0,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_count": 21,
+      "attrs_complete_rate": 0.7,
+      "n_pairs": 30
+    }
+  ],
+  "final_iter_state": {
+    "0": {
+      "best_margin": -224.02933346279906,
+      "best_rank": 446,
+      "best_round": 3,
+      "best_query": "TL Care offers an Ecru cotton item weighing 1.21 pounds, with exact 1x1x1-inch dimensions."
+    },
+    "1": {
+      "best_margin": -458.3871014687295,
+      "best_rank": 95,
+      "best_round": 0,
+      "best_query": "Looking for an American Baby Company Grey Stars and Moon cotton blanket weighing exactly 9.2 ounces? It's 52 x 28 inches with a thickness of 0.04 inches."
+    },
+    "2": {
+      "best_margin": -329.18045636937745,
+      "best_rank": 1525,
+      "best_round": 0,
+      "best_query": "Looking for a Graco item in Kenzie color? I need one weighing exactly 19 pounds, made from Alloy Steel. Dimensions should be precisely 21.5 x 19.5 x 23.5 inches."
+    },
+    "3": {
+      "best_margin": -674.9688629879756,
+      "best_rank": 586,
+      "best_round": 0,
+      "best_query": "Looking for a Gaiatop pink item weighing 0.032 ounces made of Acrylonitrile Butadiene Styrene? Check products with dimensions 12.2\"D x 5.19\"W x 3.5\"H."
+    },
+    "4": {
+      "best_margin": -252.1194726814474,
+      "best_rank": 672,
+      "best_round": 1,
+      "best_query": "Regalo white metal product, 0.01kg, 49x1x36in dimensions sought."
+    },
+    "5": {
+      "best_margin": -550.5847126063895,
+      "best_rank": 1037,
+      "best_round": 0,
+      "best_query": "Looking for an Ergobaby carrier in natural color weighing exactly 8 ounces? Make sure it's made of pure cotton, measuring approximately 10.5 x 8 x 4 inches."
+    },
+    "6": {
+      "best_margin": -629.201833222955,
+      "best_rank": 2175,
+      "best_round": 0,
+      "best_query": "Looking for a Dinosaur 3 pack item by Specmsky? Get it in acrylic, weighing exactly 4.6 ounces, measuring 4.25 x 2.24 x 6.77 inches, and weighing 4.59 ounces."
+    },
+    "7": {
+      "best_margin": -366.3048364852498,
+      "best_rank": 1608,
+      "best_round": 0,
+      "best_query": "Looking for a lightweight, sturdy Munchkin baby bottle with blue/green color? It weighs just 6.2 ounces and is made of durable plastic. Measures 8.5 x 3 x 7.75 inches - perfect for your little one!"
+    },
+    "8": {
+      "best_margin": -440.15379951417253,
+      "best_rank": 89,
+      "best_round": 0,
+      "best_query": "Looking for a lightweight, plastic pink kingdom-themed NUK feeding accessory for my baby's travel needs? I need something measuring exactly 7.4 inches wide by 2.8 inches high."
+    },
+    "9": {
+      "best_margin": -475.1722866572193,
+      "best_rank": 1904,
+      "best_round": 1,
+      "best_query": "Hippypotamus offers a unique, dual-color piece weighing 6.4 ounces, crafted from durable plastic; it measures 6\" width by 8.5\" height."
+    },
+    "10": {
+      "best_margin": -329.25174257587264,
+      "best_rank": 1388,
+      "best_round": 0,
+      "best_query": "Looking for a compact Toddleroo by North States Colorplay playpen weighing exactly 20 pounds? Ensure it's BPA, Phthalate, and Lead free. Need dimensions 2 x 192 x 26 inches for a perfect fit."
+    },
+    "11": {
+      "best_margin": -367.6813006760608,
+      "best_rank": 2602,
+      "best_round": 3,
+      "best_query": "BRITAX, Cool Flow Teal fabric seat, weighs precisely 13 pounds, spans 16 x 20.5 x 27.5 inches."
+    },
+    "12": {
+      "best_margin": -294.44862720975993,
+      "best_rank": 633,
+      "best_round": 0,
+      "best_query": "Looking for a Diono item in blue? I need one weighing exactly 6.1 pounds, made from High Density Polyethylene, Polypropylene, and Metal. The dimensions should be precisely 16.1 x 18.5 x 9.4 inches."
+    },
+    "13": {
+      "best_margin": -512.3706774223265,
+      "best_rank": 529,
+      "best_round": 0,
+      "best_query": "Diono gray backpack, weighing 9.6 ounces, made of durable polyester, measures 4.7 inches in diameter, 4.5 inches in width, and stands at 12.4 inches high."
+    },
+    "14": {
+      "best_margin": -201.30867695815846,
+      "best_rank": 529,
+      "best_round": 0,
+      "best_query": "This VOLHA & CO. jersey item, weighing precisely 11.8 ounces, boasts a stylish white and black color scheme. With dimensions of 32 inches long by 16 inches wide, it promises comfort and fit."
+    },
+    "15": {
+      "best_margin": -407.00569105862496,
+      "best_rank": 1647,
+      "best_round": 2,
+      "best_query": "Get the Ubbi violet plastic item weighing 8 oz, sized 4.5\" x 7.5\" x 5\", now!"
+    },
+    "16": {
+      "best_margin": -344.8016475746804,
+      "best_rank": 2568,
+      "best_round": 0,
+      "best_query": "Seeking a Suptikes product with a striking yellow and blue color scheme, weighing precisely 5.6 ounces, made of durable polypropylene material, measuring exactly 6 inches long by 3 inches wide."
+    },
+    "17": {
+      "best_margin": -481.00392977208026,
+      "best_rank": 61,
+      "best_round": 0,
+      "best_query": "Looking for a BreathableBaby item in Quilted White Stars color, weighing exactly 1.25 pounds? I need a 100% Polyester Mesh Exclusive of Decoration material product with dimensions 193\"L x 0.2\"W x 11\"H."
+    },
+    "18": {
+      "best_margin": -175.34298446339335,
+      "best_rank": 437,
+      "best_round": 0,
+      "best_query": "I'm looking for a hiccapop white bag weighing 4.33 pounds, made of nylon, plastic, and metal, with dimensions 33 inches wide by 16 inches high."
+    },
+    "19": {
+      "best_margin": -299.55932427524795,
+      "best_rank": 126,
+      "best_round": 2,
+      "best_query": "HBlife's 11.2-ounce, felt material, pink bag measures precisely 9.1 inches in diameter, 7.1 inches wide, and stands at 13.8 inches tall."
+    },
+    "20": {
+      "best_margin": -379.431542941124,
+      "best_rank": 718,
+      "best_round": 2,
+      "best_query": "Seeking OXO Navy item, 5.24 lbs, crafted from EVA foam & PP, measuring 12.9\"D x 14.9\"W x 12.5\"H."
+    },
+    "21": {
+      "best_margin": -399.7094394254477,
+      "best_rank": 1952,
+      "best_round": 0,
+      "best_query": "Summer Infant white plastic baby bath tub, weighing exactly 1 pound, measures 11.25 inches long by 9.5 inches wide."
+    },
+    "22": {
+      "best_margin": -383.9948574983275,
+      "best_rank": 399,
+      "best_round": 3,
+      "best_query": "Chicco's blueDiscover/teal, 10.2-oz silicone item, measuring 3\"W x 7\"H, is exactly what I'm after."
+    },
+    "23": {
+      "best_margin": -431.1063189846834,
+      "best_rank": 2685,
+      "best_round": 0,
+      "best_query": "Looking for a Munchkin baby bottle in Pink/Purple color? It weighs 0.38 pounds, made from stainless steel and plastic for durability, with dimensions of 8 x 1.13 x 8 inches. Plus, it's easy to clean - perfect for parents!"
+    },
+    "24": {
+      "best_margin": -343.41347721805914,
+      "best_rank": 1421,
+      "best_round": 0,
+      "best_query": "Looking for an Mosebears item? Get the Animal White variant weighing exactly 14.4 ounces, crafted from 100% cotton. It measures 25.98 x 22.83 x 0.04 inches."
+    },
+    "25": {
+      "best_margin": -503.49553971578416,
+      "best_rank": 355,
+      "best_round": 0,
+      "best_query": "Looking for a Vibe Bear item in Lucky White color, weighing exactly 12 ounces? Make sure it's crafted from pure Cotton and measures precisely 38.19 x 26.38 x 5.91 inches."
+    },
+    "26": {
+      "best_margin": -391.8635144079651,
+      "best_rank": 709,
+      "best_round": 3,
+      "best_query": "Aonsen black product, featuring 1.76 ounces, PVC material, with precise dimensions 6.1 x 1.6 x 0.01 inches."
+    },
+    "27": {
+      "best_margin": -311.65655293523537,
+      "best_rank": 706,
+      "best_round": 0,
+      "best_query": "Looking for a 4moms baby item in oatmeal color? I need one weighing exactly 15 ounces, made from jersey material. Dimensions should be precisely 10.6 inches long by 8.3 inches wide."
+    },
+    "28": {
+      "best_margin": -367.47825246154207,
+      "best_rank": 1221,
+      "best_round": 0,
+      "best_query": "Seeking a lightweight, 4.2-ounce silicone item by PrimaStella in a charming pink and purple color, measuring 4.5 x 1 x 0.1 inches."
+    },
+    "29": {
+      "best_margin": -391.66882868767743,
+      "best_rank": 887,
+      "best_round": 3,
+      "best_query": "Find a Mgtfbg creation, 5-ounce, featuring C Pink Blue hues, crafted from supple Silicone, measuring 5.9x0.62x4.92 inches."
+    }
+  }
+}
