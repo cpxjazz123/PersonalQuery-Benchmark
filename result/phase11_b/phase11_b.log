@@ -1,0 +1,45 @@
+[21:42:22] ======================================================================
+[21:42:22] Phase 11.B: Gaussian sampling diversity test (4-control, 30 pairs)
+[21:42:22] ======================================================================
+[21:42:22] [1] Loading pairs ...
+[21:42:22]   pairs: 30
+[21:42:22] [2] Loading Phase 11.A Gaussian cache ...
+[21:42:31]   mu_768: (876, 768), sigma_lowrank: (876, 768, 768)
+[21:42:31]   valid users: 876/876
+[21:42:31] [3] Building per-pair info ...
+[21:42:31]   pair_info: 30
+[21:42:31] [4] Loading TinyStyler model ...
+Loading weights:   0%|          | 0/560 [00:00<?, ?it/s]Loading weights: 100%|██████████| 560/560 [00:00<00:00, 24133.68it/s]
+[transformers] The tied weights mapping and config for this model specifies to tie shared.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+[21:42:59]   loaded
+[21:42:59] [5] Loading T5 tokenizer ...
+[21:42:59]   loaded
+[21:42:59] [6] Pre-tokenizing 30 prompts ...
+[21:42:59]   tokenized
+[21:42:59] [7] Building all candidates (30 pairs × 4 conds × 10 = 1200) ...
+[21:42:59]   sampled 10 s_u per user
+[21:42:59]   cand_jobs: 1200
+[21:43:02]   [8/1200] elapsed 3.3s, rate=2.44/s, ETA=489s
+[21:43:59]   [168/1200] elapsed 60.4s, rate=2.78/s, ETA=371s
+[21:44:57]   [328/1200] elapsed 117.6s, rate=2.79/s, ETA=313s
+[21:45:55]   [488/1200] elapsed 175.8s, rate=2.78/s, ETA=257s
+[21:46:51]   [648/1200] elapsed 232.1s, rate=2.79/s, ETA=198s
+[21:47:49]   [808/1200] elapsed 290.0s, rate=2.79/s, ETA=141s
+[21:48:47]   [968/1200] elapsed 347.7s, rate=2.78/s, ETA=83s
+[21:49:44]   [1128/1200] elapsed 405.1s, rate=2.78/s, ETA=26s
+[21:50:10]   generated 1200 in 430.6s, rate=2.79/s
+[21:50:10] [8] Saving generations to /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_gaussian_samples.jsonl ...
+[21:50:10]   → /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_gaussian_samples.jsonl
+[21:50:10] [9] Computing diversity and style report ...
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 26410.15it/s]
+[21:50:15]   encoding 1200 candidates ...
+[21:50:15]   summary by ctrl:
+[21:50:15]     sampled-z      : diversity(1-mean_cos)=0.6999, mean_pair_cos=0.3001
+[21:50:15]     mean-z         : diversity(1-mean_cos)=0.4458, mean_pair_cos=0.5542
+[21:50:15]     shuffled-z     : diversity(1-mean_cos)=0.4394, mean_pair_cos=0.5606
+[21:50:15]     injection-off  : diversity(1-mean_cos)=0.5732, mean_pair_cos=0.4268
+[21:50:15]   diversity gain (sampled/mean): 1.57x (PASS)
+[21:50:15]   → /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_diversity_report.json
+[21:50:15] ======================================================================
+[21:50:15] PHASE 11.B COMPLETE
+[21:50:15] ======================================================================
