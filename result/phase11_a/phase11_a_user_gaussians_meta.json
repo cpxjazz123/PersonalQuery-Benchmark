@@ -1,0 +1,31 @@
+{
+  "phase": "11.A",
+  "encoder": "AnnaWegmann/Style-Embedding",
+  "n_users": 876,
+  "n_valid_users": 876,
+  "emb_dim": 768,
+  "pca_dim": 128,
+  "pca_explained_variance_ratio": 0.9957950913677283,
+  "n_sentences_used": 8760,
+  "mean_count_per_user": 10.0,
+  "lw_alpha_mean": 0.37760499119758606,
+  "lw_alpha_max": 0.6721974015235901,
+  "eigval_min_median": 0.052891768515110016,
+  "split_half_cos_mean": 0.7171273941252823,
+  "split_half_cos_std": 0.18357424905933148,
+  "validation": {
+    "n_pairs": 200,
+    "rank1_coverage": 0.735,
+    "top10_coverage": 0.96,
+    "top100_coverage": 0.995,
+    "mean_rank": 3.41,
+    "median_rank": 1.0,
+    "n_valid_users": 876,
+    "random_baseline_mean_rank": 438.0,
+    "phase10_15_baseline": {
+      "rank1_coverage": 0.012557077625570776,
+      "mean_best_rank": 307.763698630137
+    },
+    "signal_meaningful": true
+  }
+}

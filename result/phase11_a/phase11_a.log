@@ -1,0 +1,46 @@
+[21:24:41] ======================================================================
+[21:24:41] Phase 11.A: Per-user Gaussian N(mu_u, Sigma_u) at 768d AnnaWegmann
+[21:24:41] ======================================================================
+[21:24:41] [1] Loading phase10 pairs (876 users) ...
+[21:24:41]   phase10 users: 876
+[21:24:41] [2] Loading per-sentence 768d AnnaWegmann embeddings ...
+[21:24:41]   Cache miss: encoding 876 users' train sentences ...
+[21:24:42]   train sentences: 8760
+[21:24:42]   using snapshot: /fs04/ar57/wenyu/.cache/huggingface/hub/models--AnnaWegmann--Style-Embedding/snapshots/d7d0f5ca829316a8f5695e49dfce80b86db5e76c
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 25970.52it/s]
+/home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_a_per_user_gaussian.py:131: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  log(f"  loaded, dim={model.get_sentence_embedding_dimension()}")
+[21:25:14]   loaded, dim=768
+[21:25:19]   encoded 8760 texts in 4.8s, shape=(8760, 768)
+[21:25:19]   saved: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_a_per_sentence_embs_768d.npz
+[21:25:19] [3] Per-user mean pooling ...
+[21:25:19]   valid users: 876/876
+[21:25:19]   mean count per user: 10.0, min/max: 10/10
+[21:25:19] [4] Split-half cosine check on per-user mean ...
+[21:25:20]   split-half cos (mean): 0.7171 +/- 0.1836 (n=4380)
+[21:25:20] [5] PCA 768 -> 128 on user_mu ...
+[21:25:20]   PCA explained variance: 0.9958 (top 128)
+[21:25:20]   user_mu_pca: (876, 128)
+[21:25:20] [6] Per-user Sigma (768d) with Ledoit-Wolf shrinkage ...
+[21:25:20]   per-user sentence groups: 876
+[21:25:58]   computed 100/876 Sigma
+[21:26:34]   computed 200/876 Sigma
+[21:27:10]   computed 300/876 Sigma
+[21:27:46]   computed 400/876 Sigma
+[21:28:22]   computed 500/876 Sigma
+[21:28:59]   computed 600/876 Sigma
+[21:29:35]   computed 700/876 Sigma
+[21:30:12]   computed 800/876 Sigma
+[21:30:40]   LW shrinkage alpha (mean/median/max): 0.3776 / 0.3745 / 0.6722
+[21:30:40]   Eigenvalue min (median/min): 5.2892e-02 / 8.4960e-03
+[21:30:40] [7] Validation: per-user held-out sentence identification (768d AnnaWegmann) ...
+[21:30:40]   heldout pairs: 876
+[21:33:21]   target rank distribution: rank-1=0.7350, top-10=0.9600, top-100=0.9950
+[21:33:21]   mean rank: 3.4, median: 1.0 (n_valid=876, random baseline ~438.0)
+[21:33:21] [8] Saving Gaussian cache to /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_a_user_gaussians_768d.npz ...
+[21:33:28]   saved: mu_768 (876, 768), mu_128 (876, 128), sigma_diag (876, 768), sigma_lowrank (876, 768, 768)
+[21:33:28]   validation: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_a_validation_maha.json
+[21:33:28]   meta: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_a_user_gaussians_meta.json
+[21:33:28] ======================================================================
+[21:33:28] PHASE 11.A COMPLETE
+[21:33:28] ======================================================================
