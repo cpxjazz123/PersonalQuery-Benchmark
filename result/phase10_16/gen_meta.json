@@ -1,0 +1,22 @@
+{
+  "version": "phase10_16_b_v1",
+  "n_pairs": 876,
+  "n_controls": 4,
+  "n_seeds_per_control": 4,
+  "n_total_generations": 14016,
+  "controls": [
+    "real-z",
+    "shuffled-z",
+    "true-zero-z",
+    "injection-off"
+  ],
+  "temperature": 0.7,
+  "top_k": 40,
+  "top_p": 0.92,
+  "max_new_tokens": 48,
+  "num_tokens_prefix": 16,
+  "model": "Qwen2.5-Coder-7B-Instruct",
+  "injector_checkpoint": "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/e22_t3/e22_t3_injector_best.pt",
+  "elapsed_sec": 669.9981179237366,
+  "rate_per_sec": 20.919461749287166
+}
