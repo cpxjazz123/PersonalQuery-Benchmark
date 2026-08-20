@@ -1,0 +1,279 @@
+{
+  "version": "phase10_19_b_v1",
+  "n_pairs": 30,
+  "n_rounds": 5,
+  "n_candidates_per_round": 8,
+  "k_nearest_neighbors": 3,
+  "n_target_exemplars": 2,
+  "n_counter_exemplars": 2,
+  "n_diff_features": 8,
+  "round_summaries": [
+    {
+      "round": 0,
+      "elapsed_sec": 41.73368549346924,
+      "best_margin_mean": -Infinity,
+      "best_rank_mean": 1610.1666666666667,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_post_count": 21,
+      "attrs_complete_post_rate": 0.7,
+      "n_pairs": 30
+    },
+    {
+      "round": 1,
+      "elapsed_sec": 39.472365379333496,
+      "best_margin_mean": -Infinity,
+      "best_rank_mean": 1246.9666666666667,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_post_count": 23,
+      "attrs_complete_post_rate": 0.7666666666666667,
+      "n_pairs": 30
+    },
+    {
+      "round": 2,
+      "elapsed_sec": 40.263227224349976,
+      "best_margin_mean": -Infinity,
+      "best_rank_mean": 1076.5,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_post_count": 24,
+      "attrs_complete_post_rate": 0.8,
+      "n_pairs": 30
+    },
+    {
+      "round": 3,
+      "elapsed_sec": 40.3830087184906,
+      "best_margin_mean": -Infinity,
+      "best_rank_mean": 978.1,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_post_count": 25,
+      "attrs_complete_post_rate": 0.8333333333333334,
+      "n_pairs": 30
+    },
+    {
+      "round": 4,
+      "elapsed_sec": 40.0673189163208,
+      "best_margin_mean": -Infinity,
+      "best_rank_mean": 867.6333333333333,
+      "rank1_count": 0,
+      "rank1_coverage": 0.0,
+      "attrs_complete_post_count": 26,
+      "attrs_complete_post_rate": 0.8666666666666667,
+      "n_pairs": 30
+    }
+  ],
+  "final_iter_state": {
+    "0": {
+      "best_margin": -187.44814927549987,
+      "best_rank": 116,
+      "best_round": 2,
+      "best_query": "TL Care's ecru cotton sheet, weighing 1.21 pounds, is a compact 1x1x1-inch package, perfect for your needs.",
+      "best_attrs_complete_post": true
+    },
+    "1": {
+      "best_margin": -312.2772236705496,
+      "best_rank": 175,
+      "best_round": 2,
+      "best_query": "American Baby Company Grey Stars & Moon Cotton Blanket, 9.2 oz, 52x28 inches, with 9.2 ounces, 52 x 28 x, and Grey Stars and Moon.",
+      "best_attrs_complete_post": true
+    },
+    "2": {
+      "best_margin": -277.5655511086027,
+      "best_rank": 1040,
+      "best_round": 1,
+      "best_query": "Graco Kenzie Alloy Steel playpen weighs 19 pounds, fits snugly at 21.5x19.5x23.5 inches, perfect for on-the-go adventures.",
+      "best_attrs_complete_post": true
+    },
+    "3": {
+      "best_margin": -1253.1733724660317,
+      "best_rank": 270,
+      "best_round": 3,
+      "best_query": "Gaiatop pink ABS fan, 0.032 oz, 12.2\"D x 5.19\"W x 3.5\"H dimensions, with 0.032 ounces and Acrylonitrile Butadiene Styrene.",
+      "best_attrs_complete_post": true
+    },
+    "4": {
+      "best_margin": -257.6746182770064,
+      "best_rank": 471,
+      "best_round": 3,
+      "best_query": "Regalo white metal gate, lightweight (0.01 kg), fits 49x1x36 inches.",
+      "best_attrs_complete_post": true
+    },
+    "5": {
+      "best_margin": -256.8094385294926,
+      "best_rank": 574,
+      "best_round": 4,
+      "best_query": "Ergobaby Natural cotton carrier, weighing 8 ounces, measures 10.5x8x4 inches.",
+      "best_attrs_complete_post": true
+    },
+    "6": {
+      "best_margin": -382.19083412470195,
+      "best_rank": 2495,
+      "best_round": 0,
+      "best_query": "Specmsky Dinosaur 3 pack, acrylic material, 4.6 oz weight, 4.25x2.24x6.77 in dimensions. Perfect for home or on-the-go use.",
+      "best_attrs_complete_post": true
+    },
+    "7": {
+      "best_margin": -315.8942405646892,
+      "best_rank": 1182,
+      "best_round": 4,
+      "best_query": "Munchkin Blue/Green plastic sippy cup, 6.2 oz weight, fits easily in the dishwasher.",
+      "best_attrs_complete_post": true
+    },
+    "8": {
+      "best_margin": -236.03035977212403,
+      "best_rank": 490,
+      "best_round": 2,
+      "best_query": "NUK Pink Kingdom plastic pacifier, 0.01 oz, fits perfectly, loved by babies.",
+      "best_attrs_complete_post": true
+    },
+    "9": {
+      "best_margin": -448.9167934354648,
+      "best_rank": 1434,
+      "best_round": 2,
+      "best_query": "Hippypotamus white/black plastic item weighs 6.4 ounces; dimensions 6\"W x 8.5\"H, not nested, medium dependency depth, high punctuation density, with White / Black.",
+      "best_attrs_complete_post": true
+    },
+    "10": {
+      "best_margin": -Infinity,
+      "best_rank": 2918,
+      "best_round": -1,
+      "best_query": null,
+      "best_attrs_complete_post": false
+    },
+    "11": {
+      "best_margin": -319.39028614662016,
+      "best_rank": 222,
+      "best_round": 1,
+      "best_query": "BRITAX Cool Flow Teal fabric car seat, 13 pounds, fits snugly; perfect for both safety and comfort!",
+      "best_attrs_complete_post": true
+    },
+    "12": {
+      "best_margin": -192.9192963927976,
+      "best_rank": 323,
+      "best_round": 4,
+      "best_query": "Diono Blue car seat, 6.1 pounds, HDPE, PP, metal, fits my 5-year-old comfortably, with 16.1 x 18.5 x and High Density Polyethylene, Polypropylene,.",
+      "best_attrs_complete_post": false
+    },
+    "13": {
+      "best_margin": -143.1161598810702,
+      "best_rank": 97,
+      "best_round": 4,
+      "best_query": "Diono gray polyester diaper bag, lightweight 9.6 ounces, fits perfectly in the City Mini stroller.",
+      "best_attrs_complete_post": true
+    },
+    "14": {
+      "best_margin": -377.36362623487275,
+      "best_rank": 586,
+      "best_round": 0,
+      "best_query": "VOLHA & CO.'s jersey sheet set, 11.8 oz, white and black, 32\"L x 16\"W dimensions, with 11.8 ounces and White, Black.",
+      "best_attrs_complete_post": true
+    },
+    "15": {
+      "best_margin": -309.5812697904232,
+      "best_rank": 1222,
+      "best_round": 1,
+      "best_query": "Ubbi violet plastic bib, 8 ounces, fits perfectly, great for mealtime.",
+      "best_attrs_complete_post": true
+    },
+    "16": {
+      "best_margin": -439.12769371442255,
+      "best_rank": 1843,
+      "best_round": 1,
+      "best_query": "Suptikes polypropylene storage bin, 5.6 ounces, 6\"L x 3\"W dimensions, yellow and blue colors, with Yellow, Blue.",
+      "best_attrs_complete_post": true
+    },
+    "17": {
+      "best_margin": -Infinity,
+      "best_rank": 2918,
+      "best_round": -1,
+      "best_query": null,
+      "best_attrs_complete_post": false
+    },
+    "18": {
+      "best_margin": -605.1569612837907,
+      "best_rank": 118,
+      "best_round": 4,
+      "best_query": "Hiccapop white nylon, plastic, and metal combo, 4.33-pound weight, 33\"W x 16\"H dimensions, with 4.33 pounds and Nylon, Plastic, Metal.",
+      "best_attrs_complete_post": true
+    },
+    "19": {
+      "best_margin": -149.6553166458118,
+      "best_rank": 69,
+      "best_round": 0,
+      "best_query": "HBlife pink felt backpack, 11.2 ounces, fits perfectly on kids, stylish & comfy!",
+      "best_attrs_complete_post": true
+    },
+    "20": {
+      "best_margin": -1808.5891409566757,
+      "best_rank": 576,
+      "best_round": 3,
+      "best_query": "\"OXO navy EVA foam and PP lunch box, lightweight 5.24 pounds, fits perfectly in my backpack.\"",
+      "best_attrs_complete_post": true
+    },
+    "21": {
+      "best_margin": -355.9975304097097,
+      "best_rank": 77,
+      "best_round": 1,
+      "best_query": "Summer Infant's 1-pound white plastic item, measuring 11.25\"L x 9.5\"W, perfect for compact, lightweight storage solutions.",
+      "best_attrs_complete_post": true
+    },
+    "22": {
+      "best_margin": -303.9220030975928,
+      "best_rank": 133,
+      "best_round": 0,
+      "best_query": "Chicco's blue Discover/teal silicone sippy cup, weighing precisely 10.2 ounces, fits perfectly in tiny hands, measuring 3 inches wide by 7 inches high.",
+      "best_attrs_complete_post": true
+    },
+    "23": {
+      "best_margin": -Infinity,
+      "best_rank": 2918,
+      "best_round": -1,
+      "best_query": null,
+      "best_attrs_complete_post": false
+    },
+    "24": {
+      "best_margin": -549.6248318222329,
+      "best_rank": 1340,
+      "best_round": 0,
+      "best_query": "Mosebears Animal White cotton item, 14.4 ounces; 25.98x22.83x0.04 inches dimensions.",
+      "best_attrs_complete_post": true
+    },
+    "25": {
+      "best_margin": -461.9208657193958,
+      "best_rank": 1444,
+      "best_round": 1,
+      "best_query": "Vibe bear's Lucky White, 12-ounce, cotton baby play mat measures 38.19 x 26.38 x 5.91 inches.",
+      "best_attrs_complete_post": true
+    },
+    "26": {
+      "best_margin": -78.9600059144791,
+      "best_rank": 2,
+      "best_round": 4,
+      "best_query": "Aonsen black PVC case, 1.76 ounces; fits snugly, stylishly, perfect for travel.",
+      "best_attrs_complete_post": true
+    },
+    "27": {
+      "best_margin": -850.2111990566291,
+      "best_rank": 388,
+      "best_round": 3,
+      "best_query": "4Moms oatmeal jersey play yard, 15 oz, fits snugly; perfect for babies.",
+      "best_attrs_complete_post": true
+    },
+    "28": {
+      "best_margin": -200.55384651458462,
+      "best_rank": 58,
+      "best_round": 2,
+      "best_query": "PrimaStella silicone pink and purple kids' utensil set, 4.2 ounces, 4.5x1x0.1 inches.",
+      "best_attrs_complete_post": true
+    },
+    "29": {
+      "best_margin": -368.9157333210601,
+      "best_rank": 530,
+      "best_round": 0,
+      "best_query": "Mgtfbg C Pink Blue Silicone product, weighing 5 ounces, measures 5.9 x 0.62 x 4.92 inches.",
+      "best_attrs_complete_post": true
+    }
+  }
+}
