@@ -1,0 +1,11 @@
+{
+  "encoder": "AnnaWegmann/Style-Embedding",
+  "snapshot": "/fs04/ar57/wenyu/.cache/huggingface/hub/models--AnnaWegmann--Style-Embedding/snapshots/d7d0f5ca829316a8f5695e49dfce80b86db5e76c",
+  "n_users": 876,
+  "emb_dim": 768,
+  "n_sentences_used": 8760,
+  "mean_count_per_user": 10.0,
+  "split_half_cos_mean": 0.7171273923641683,
+  "split_half_cos_std": 0.1835742524957953,
+  "n_split_half_trials": 4380
+}
