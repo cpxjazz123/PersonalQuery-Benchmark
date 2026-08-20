@@ -53,15 +53,12 @@
 
    这些方法均为已验证的实测提速；新实现/改造相关业务时必须选用适用的方法，禁止回退到逐条生成、逐元素循环、重复加载大文件等低效模式。
 
-6. **任务完成必须 commit + comment + push + close 四步闭环**：
-   - 每个实验/任务完成时必须严格执行以下四步，缺一不可：
+6. **任务完成必须 commit + push 两步闭环**：
+   - 每个实验/任务完成时必须严格执行以下两步，缺一不可：
      1. **commit**：`git add` 所有相关文件（脚本 + iter 文档 + result JSON/log，result/ 在 .gitignore 用 `git add -f`），用 `git diff --cached --stat` 验证文件齐全后再 commit
-     2. **comment**：用 `glab issue note <id>` post 进度/勘误/最终 note 到对应 GitLab issue；至少含设计、量化结果、文件位置、提交号四要素
-     3. **push**：`git push` 到 main（已 commit 但未 push 视为未完成）
-     4. **close**：实验有明确 GO/NO-GO 结论后用 `glab issue close <id>` 关闭 issue；如果结论仍待用户决策，先 post note 等回复，不要擅自关闭
-   - 任何一步遗漏都会破坏可复现性或决策链（如 v3 漏 push result JSON 导致误判、漏 close 导致 issue 状态错乱）
-   - **不允许**"代码写完 + 文档写完"就报告完成，必须四步全做完
-   - **不允许**在用户未明确同意前关闭 issue（即使是 NO-GO 也先 post note 等用户确认）
+     2. **push**：`git push` 到 main（已 commit 但未 push 视为未完成）
+   - 任何一步遗漏都会破坏可复现性
+   - **不允许**"代码写完 + 文档写完"就报告完成，必须两步全做完
 
 7. **虚拟环境必须使用 `pq_env`（本项目专用）**：
    - 唯一允许的 Python 解释器：`/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`（python 3.10）
