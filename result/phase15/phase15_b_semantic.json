@@ -1,0 +1,94 @@
+{
+  "phase": "15.B",
+  "encoder": "sentence-transformers/all-MiniLM-L6-v2",
+  "feature_space": "all-MiniLM-L6-v2 384d cosine (cand vs attrs string)",
+  "n_candidates": 960,
+  "n_conditions": 4,
+  "n_pairs": 30,
+  "per_cond": {
+    "A_sampled": {
+      "n_candidates": 240,
+      "mean_semantic_sim": 0.671464356717964,
+      "median_semantic_sim": 0.6779352426528931,
+      "mean_attrs_coverage": 0.8066666666666668,
+      "pct_perfect_coverage": 0.125,
+      "mean_n_attrs_missing": 0.9666666666666667
+    },
+    "B_mean": {
+      "n_candidates": 240,
+      "mean_semantic_sim": 0.7331839901705582,
+      "median_semantic_sim": 0.7524330019950867,
+      "mean_attrs_coverage": 0.8208333333333335,
+      "pct_perfect_coverage": 0.2,
+      "mean_n_attrs_missing": 0.8958333333333334
+    },
+    "C_shuffled": {
+      "n_candidates": 240,
+      "mean_semantic_sim": 0.7433840613812208,
+      "median_semantic_sim": 0.7614016234874725,
+      "mean_attrs_coverage": 0.8400000000000001,
+      "pct_perfect_coverage": 0.275,
+      "mean_n_attrs_missing": 0.8
+    },
+    "D_off": {
+      "n_candidates": 240,
+      "mean_semantic_sim": 0.7554819002747536,
+      "median_semantic_sim": 0.7586376965045929,
+      "mean_attrs_coverage": 0.8783333333333334,
+      "pct_perfect_coverage": 0.4375,
+      "mean_n_attrs_missing": 0.6083333333333333
+    }
+  },
+  "paired_diffs": {
+    "A_sampled_vs_B_mean": {
+      "semantic_diff": -0.06171963345259428,
+      "semantic_diff_ci95": [
+        -0.08642162719120583,
+        -0.03715289465617389
+      ],
+      "semantic_diff_excludes_0": true,
+      "coverage_diff": -0.01416666666666666,
+      "coverage_diff_ci95": [
+        -0.028354166666666663,
+        -0.000833333333333334
+      ],
+      "coverage_diff_excludes_0": true
+    },
+    "A_sampled_vs_C_shuffled": {
+      "semantic_diff": -0.0719197046632568,
+      "semantic_diff_ci95": [
+        -0.10382036100452145,
+        -0.03918989876129975
+      ],
+      "semantic_diff_excludes_0": true,
+      "coverage_diff": -0.03333333333333332,
+      "coverage_diff_ci95": [
+        -0.05916666666666665,
+        -0.007499999999999995
+      ],
+      "coverage_diff_excludes_0": true
+    },
+    "A_sampled_vs_D_off": {
+      "semantic_diff": -0.08401754355678956,
+      "semantic_diff_ci95": [
+        -0.11909522206832965,
+        -0.051867423425428584
+      ],
+      "semantic_diff_excludes_0": true,
+      "coverage_diff": -0.07166666666666664,
+      "coverage_diff_ci95": [
+        -0.09835416666666666,
+        -0.0458333333333333
+      ],
+      "coverage_diff_excludes_0": true
+    }
+  },
+  "decision_logic": {
+    "GO": "A_sampled semantic CI > 0",
+    "GO_no_regress": "no significant regression",
+    "PARTIAL-GO_with_caution": "small negative diff but CI includes 0",
+    "NO-GO_regression": "CI < -0.05 (regress > 5%)"
+  },
+  "verdict": "NO-GO_regression",
+  "verdict_reason": "A_sampled SEMANTIC REGRESSES by >5%: diff=-0.0840 CI [-0.1191, -0.0519]"
+}

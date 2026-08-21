@@ -1,0 +1,74 @@
+{
+  "phase": "15.C",
+  "panel_per_cond": {
+    "A_sampled": {
+      "D1_style_margin_768d": 0.32259730423490207,
+      "D2_author_id_top10_30u": 0.8333333333333334,
+      "D3_syntactic_318d_maha_proxy": 0.0080147471347279,
+      "D4_semantic_sim_to_attrs": 0.671464356717964,
+      "D5_perfect_attrs_rate": 0.125,
+      "composite_mean": 0.4588524353552318
+    },
+    "B_mean": {
+      "D1_style_margin_768d": 0.22882859526822966,
+      "D2_author_id_top10_30u": 0.7,
+      "D3_syntactic_318d_maha_proxy": 0.005591902924565229,
+      "D4_semantic_sim_to_attrs": 0.7331839901705582,
+      "D5_perfect_attrs_rate": 0.2,
+      "composite_mean": 0.4169011220908383
+    },
+    "C_shuffled": {
+      "D1_style_margin_768d": 0.2529315401489536,
+      "D2_author_id_top10_30u": 0.7666666666666667,
+      "D3_syntactic_318d_maha_proxy": 0.006569007422978388,
+      "D4_semantic_sim_to_attrs": 0.7433840613812208,
+      "D5_perfect_attrs_rate": 0.275,
+      "composite_mean": 0.4423878189049549
+    },
+    "D_off": {
+      "D1_style_margin_768d": 0.22451708186417818,
+      "D2_author_id_top10_30u": 0.6333333333333333,
+      "D3_syntactic_318d_maha_proxy": 0.004506534474988734,
+      "D4_semantic_sim_to_attrs": 0.7554819002747536,
+      "D5_perfect_attrs_rate": 0.4375,
+      "composite_mean": 0.40445971248681345
+    }
+  },
+  "paired_diff_A_vs_D": {
+    "D1_style_margin_diff": {
+      "mean": 0.09808022237072388,
+      "ci95": [
+        0.019293213003935914,
+        0.1908294889082511
+      ]
+    },
+    "D2_author_id_top10_diff": {
+      "mean": 0.2,
+      "ci95": [
+        0.0,
+        0.4
+      ]
+    },
+    "D4_semantic_sim_diff": {
+      "mean": -0.08401754355678956,
+      "ci95": [
+        -0.12017170431868483,
+        -0.051317873050769194
+      ]
+    }
+  },
+  "dimensions_explained": {
+    "D1_style_margin_768d": "AnnaWegmann 768d cos best-of-K margin (higher = more in-style)",
+    "D2_author_id_top10_30u": "best-of-K target in top-10 of 30 eval users (higher = more identifiable)",
+    "D3_syntactic_318d_maha_proxy": "1/(1+Phase14 maha mean_rank) — Phase 14 318d Mahalanobis mean rank inverted",
+    "D4_semantic_sim_to_attrs": "sentence-bert cosine cand vs product attrs string (higher = more content-faithful)",
+    "D5_perfect_attrs_rate": "% candidates with 100% attrs present in cand text"
+  },
+  "decision_logic": {
+    "GO": "A_sampled composite > D_off, and at least 2 dims lift paired CI > 0",
+    "PARTIAL-GO": "1 dim lifts CI > 0, no dim regresses > 5%",
+    "NO-GO": "Style lift but semantic regresses > 5% (style-content trade-off unacceptable)"
+  },
+  "verdict": "NO-GO_style_content_tradeoff",
+  "n_dims_lift_or_preserved": 1
+}
