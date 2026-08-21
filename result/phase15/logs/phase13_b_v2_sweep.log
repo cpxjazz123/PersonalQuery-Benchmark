@@ -1,0 +1,47 @@
+[15:16:26] ======================================================================
+[15:16:26] Phase 13.B-v2: N sweep on Gaussian fitting convergence
+[15:16:26] ======================================================================
+[15:16:26] [1] Finding 198 users with ≥50 reviews in raw data ...
+[15:17:05]   users with ≥50 reviews: 198
+[15:17:05]   sents per user: min=34 median=331 max=3209
+[15:17:05]   total sentences to encode: 19349
+[15:17:05] [2] Loading Qwen (transformers backend) ...
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:00<02:13,  2.53it/s]Loading weights:   1%|          | 2/339 [00:00<02:05,  2.69it/s]Loading weights:   2%|▏         | 6/339 [00:00<00:34,  9.53it/s]Loading weights:   5%|▍         | 16/339 [00:00<00:11, 27.70it/s]Loading weights:   8%|▊         | 28/339 [00:01<00:07, 43.46it/s]Loading weights:  12%|█▏        | 40/339 [00:01<00:05, 59.62it/s]Loading weights:  14%|█▍        | 48/339 [00:01<00:04, 63.33it/s]Loading weights:  17%|█▋        | 56/339 [00:01<00:04, 59.37it/s]Loading weights:  19%|█▉        | 65/339 [00:01<00:04, 64.97it/s]Loading weights:  22%|██▏       | 75/339 [00:01<00:03, 71.90it/s]Loading weights:  24%|██▍       | 83/339 [00:01<00:03, 71.86it/s]Loading weights:  27%|██▋       | 91/339 [00:01<00:03, 67.29it/s]Loading weights:  30%|██▉       | 101/339 [00:02<00:03, 73.68it/s]Loading weights:  33%|███▎      | 111/339 [00:02<00:03, 70.40it/s]Loading weights:  37%|███▋      | 124/339 [00:02<00:02, 83.01it/s]Loading weights:  39%|███▉      | 133/339 [00:02<00:02, 82.75it/s]Loading weights:  42%|████▏     | 142/339 [00:02<00:02, 75.34it/s]Loading weights:  44%|████▍     | 150/339 [00:02<00:02, 68.77it/s]Loading weights:  47%|████▋     | 161/339 [00:02<00:02, 77.05it/s]Loading weights:  51%|█████     | 172/339 [00:02<00:02, 83.39it/s]Loading weights:  53%|█████▎    | 181/339 [00:03<00:01, 83.27it/s]Loading weights:  56%|█████▌    | 190/339 [00:03<00:02, 73.40it/s]Loading weights:  58%|█████▊    | 198/339 [00:03<00:02, 69.01it/s]Loading weights:  62%|██████▏   | 209/339 [00:03<00:01, 77.27it/s]Loading weights:  65%|██████▍   | 220/339 [00:03<00:01, 75.26it/s]Loading weights:  68%|██████▊   | 232/339 [00:03<00:01, 75.51it/s]Loading weights:  72%|███████▏  | 244/339 [00:03<00:01, 83.57it/s]Loading weights:  75%|███████▍  | 253/339 [00:03<00:01, 83.53it/s]Loading weights:  77%|███████▋  | 262/339 [00:04<00:01, 76.51it/s]Loading weights:  80%|███████▉  | 270/339 [00:04<00:00, 69.80it/s]Loading weights:  83%|████████▎ | 281/339 [00:04<00:00, 77.72it/s]Loading weights:  86%|████████▌ | 292/339 [00:04<00:00, 83.94it/s]Loading weights:  89%|████████▉ | 301/339 [00:04<00:00, 83.84it/s]Loading weights:  91%|█████████▏| 310/339 [00:04<00:00, 76.39it/s]Loading weights:  94%|█████████▍| 318/339 [00:04<00:00, 69.61it/s]Loading weights:  97%|█████████▋| 329/339 [00:05<00:00, 77.87it/s]Loading weights: 100%|██████████| 339/339 [00:05<00:00, 66.84it/s]
+[15:17:20] [QwenLocal-Hidden] 已加载 transformers 模型: path=/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct, dtype=bfloat16, n_layer=28
+[15:17:20]   Qwen loaded on cuda
+[15:17:20] [3] Extracting layer 14 hidden states (mean-pool) ...
+[15:17:27]   20/198 users (7.5s)
+[15:17:34]   40/198 users (14.2s)
+[15:17:40]   60/198 users (20.7s)
+[15:17:47]   80/198 users (27.4s)
+[15:17:54]   100/198 users (33.8s)
+[15:18:00]   120/198 users (39.9s)
+[15:18:06]   140/198 users (46.6s)
+[15:18:13]   160/198 users (53.0s)
+[15:18:19]   180/198 users (59.6s)
+[15:18:25]   done (65.2s), caching to /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase13_b_v2_user_hiddens_n100.npz
+[15:18:25] [4] Freeing Qwen ...
+[15:18:27] [5] Fitting Gaussian with N levels ...
+[15:18:27]   H = 3584
+[15:18:27]   N=10:
+[15:18:27]   N=20:
+[15:18:27]   N=30:
+[15:18:27]   N=50:
+[15:18:27]   N=100:
+[15:18:27]   fits: 990
+[15:18:27] [6] Writing CSV: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase13_b_v2_ratio_per_user.csv
+[15:18:27] [7] Aggregate per N ...
+
+   N    mean_mu  mean_sigma  mean_ratio  med_ratio
+-------------------------------------------------------
+  10    709.796     282.298      0.4034     0.3943
+  20    701.144     297.681      0.4314     0.4267
+  30    704.183     304.552      0.4398     0.4340
+  50    705.363     310.030      0.4476     0.4464
+ 100    703.728     313.058      0.4528     0.4548
+
+→ ratio plateau starts at N=30
+[15:18:27]   saved summary: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase13_b_v2_summary.json
+[15:18:27] ======================================================================
+[15:18:27] PHASE 13.B-v2 N SWEEP DONE
+[15:18:27] ======================================================================

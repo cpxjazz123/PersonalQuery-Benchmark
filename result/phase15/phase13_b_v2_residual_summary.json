@@ -1,0 +1,60 @@
+{
+  "phase": "13.B-v2 residual",
+  "n_users_total": 198,
+  "N_levels": [
+    10,
+    20,
+    30,
+    50,
+    100
+  ],
+  "per_N": {
+    "10": {
+      "n_users": 198,
+      "mean_mu_norm": 135.2577749358283,
+      "mean_sigma_norm": 282.2983255868006,
+      "mean_ratio": 4.212886016953485,
+      "median_ratio": 2.6034496916944923,
+      "std_ratio": 4.85298157022154
+    },
+    "20": {
+      "n_users": 198,
+      "mean_mu_norm": 121.66074054650586,
+      "mean_sigma_norm": 297.6813789136482,
+      "mean_ratio": 6.0032855365431805,
+      "median_ratio": 2.8283410169662853,
+      "std_ratio": 7.701830929086461
+    },
+    "30": {
+      "n_users": 198,
+      "mean_mu_norm": 113.61969264348348,
+      "mean_sigma_norm": 304.55200048889776,
+      "mean_ratio": 6.366868359476264,
+      "median_ratio": 3.281280075144136,
+      "std_ratio": 7.94759216049263
+    },
+    "50": {
+      "n_users": 196,
+      "mean_mu_norm": 110.1793148420295,
+      "mean_sigma_norm": 309.94651521955217,
+      "mean_ratio": 6.39723633242569,
+      "median_ratio": 3.287380686146377,
+      "std_ratio": 7.9356201488640155
+    },
+    "100": {
+      "n_users": 183,
+      "mean_mu_norm": 103.56242505579047,
+      "mean_sigma_norm": 309.5963734277611,
+      "mean_ratio": 6.194129962762539,
+      "median_ratio": 3.654309894683832,
+      "std_ratio": 6.9954046485677965
+    }
+  },
+  "plateau_start_N": 50,
+  "comparison_to_phase_15d": {
+    "phase_15d_N10_ratio_residual": 7.3,
+    "phase_15d_mu_norm": 24,
+    "phase_15d_sigma_norm": 175,
+    "note": "Phase 15.D used N=10 sents/user (raw Amazon via vades_proto filter, 298 users). Current sweep uses 198 users with ≥50 reviews in raw data."
+  }
+}
