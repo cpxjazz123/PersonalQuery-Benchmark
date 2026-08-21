@@ -29,6 +29,16 @@
 
 **所有 cond × 所有 paired-best-layer** 都**显著差于** global best (layer=26)。
 
+### 3. Rank-1 / Top-10 Paired vs Global (paired best layer)
+
+| Cond | Rank-1 paired | Rank-1 global | Top-10 paired | verdict |
+|---|---|---|---|---|
+| A22_a0.5 | **0/30** | 1/30 | 3/30 | global wins |
+| A14_a1.0 | **1/30** | 1/30 | 5/30 | tie on rank-1, global wins on mean rank |
+| D_off    | **0/30** | 1/30 | 5/30 | global wins |
+
+**Paired 在 rank-1 上几乎全输或平**。A22_a0.5 和 D_off 在 paired 下 rank-1 完全消失 (0/30)。A14_a1.0 paired 在 layer 14/18 偶尔打平 rank-1 (1/30),但 mean rank 仍 global 胜 (57.3 vs 47.2)。
+
 ### 3. 决策 NO-GO
 
 | 指标 | Global (Phase 14.F) | Paired (Phase 14.F-paired) | 决策 |
