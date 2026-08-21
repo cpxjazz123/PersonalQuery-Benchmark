@@ -1,0 +1,9 @@
+{
+  "phase": "13.F style-space re-eval",
+  "encoder": "AnnaWegmann/Style-Embedding",
+  "snapshot": "/fs04/ar57/wenyu/.cache/huggingface/hub/models--AnnaWegmann--Style-Embedding/snapshots/d7d0f5ca829316a8f5695e49dfce80b86db5e76c",
+  "n_candidates": 960,
+  "n_pairs": 30,
+  "n_off_users": 20,
+  "verdict": "NO-GO"
+}

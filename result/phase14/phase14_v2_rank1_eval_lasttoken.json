@@ -1,0 +1,175 @@
+{
+  "phase": "14",
+  "encoder": "AnnaWegmann/Style-Embedding (768d)",
+  "n_candidates": 960,
+  "n_pairs": 30,
+  "n_conditions": 4,
+  "k_per_cond": 8,
+  "cov_pooled_method": "Ledoit-Wolf shrinkage",
+  "cov_shrinkage": 0.011084729805588722,
+  "eigval_min": 0.0006714658811688423,
+  "eigval_max": 16.678089141845703,
+  "per_cond_eval": {
+    "A_sampled": {
+      "n_pairs": 30,
+      "cosine": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.06666666666666667,
+        "top100_coverage": 0.5,
+        "mean_best_rank": 194.3,
+        "mean_best_rank_ci95": [
+          127.9975,
+          269.9741666666666
+        ]
+      },
+      "maha": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.03333333333333333,
+        "top100_coverage": 0.3,
+        "mean_best_rank": 201.66666666666666,
+        "mean_best_rank_ci95": [
+          146.82833333333335,
+          268.705
+        ]
+      }
+    },
+    "B_mean": {
+      "n_pairs": 30,
+      "cosine": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.0,
+        "top100_coverage": 0.5,
+        "mean_best_rank": 190.46666666666667,
+        "mean_best_rank_ci95": [
+          124.65833333333333,
+          265.0441666666666
+        ]
+      },
+      "maha": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.03333333333333333,
+        "top100_coverage": 0.36666666666666664,
+        "mean_best_rank": 216.53333333333333,
+        "mean_best_rank_ci95": [
+          158.09583333333333,
+          278.8675
+        ]
+      }
+    },
+    "C_shuffled": {
+      "n_pairs": 30,
+      "cosine": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.0,
+        "top100_coverage": 0.4666666666666667,
+        "mean_best_rank": 199.03333333333333,
+        "mean_best_rank_ci95": [
+          131.425,
+          270.37166666666667
+        ]
+      },
+      "maha": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.0,
+        "top100_coverage": 0.36666666666666664,
+        "mean_best_rank": 205.56666666666666,
+        "mean_best_rank_ci95": [
+          143.14249999999998,
+          278.8016666666667
+        ]
+      }
+    },
+    "D_off": {
+      "n_pairs": 30,
+      "cosine": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.0,
+        "top100_coverage": 0.4,
+        "mean_best_rank": 214.53333333333333,
+        "mean_best_rank_ci95": [
+          141.92916666666667,
+          298.50833333333327
+        ]
+      },
+      "maha": {
+        "rank1_coverage": 0.0,
+        "top10_coverage": 0.06666666666666667,
+        "top100_coverage": 0.2,
+        "mean_best_rank": 226.73333333333332,
+        "mean_best_rank_ci95": [
+          165.93166666666667,
+          297.14833333333326
+        ]
+      }
+    }
+  },
+  "paired_diffs": {
+    "A_sampled_vs_B_mean": {
+      "cosine_rank_diff": {
+        "mean": -3.8333333333333335,
+        "ci95": [
+          -35.87083333333333,
+          25.833333333333332
+        ],
+        "ci_excludes_0": false
+      },
+      "maha_rank_diff": {
+        "mean": 14.866666666666667,
+        "ci95": [
+          -31.5675,
+          62.86916666666665
+        ],
+        "ci_excludes_0": false
+      }
+    },
+    "A_sampled_vs_C_shuffled": {
+      "cosine_rank_diff": {
+        "mean": 4.733333333333333,
+        "ci95": [
+          -57.10333333333333,
+          68.65166666666657
+        ],
+        "ci_excludes_0": false
+      },
+      "maha_rank_diff": {
+        "mean": 3.9,
+        "ci95": [
+          -50.03583333333333,
+          62.4733333333333
+        ],
+        "ci_excludes_0": false
+      }
+    },
+    "A_sampled_vs_D_off": {
+      "cosine_rank_diff": {
+        "mean": 20.233333333333334,
+        "ci95": [
+          -46.8675,
+          81.60333333333331
+        ],
+        "ci_excludes_0": false
+      },
+      "maha_rank_diff": {
+        "mean": 25.066666666666666,
+        "ci95": [
+          -24.2675,
+          77.03416666666666
+        ],
+        "ci_excludes_0": false
+      }
+    }
+  },
+  "comparison": {
+    "Phase10_15_318d_Maha_rank1_876pairs_96cands": 0.01256,
+    "Phase10_19_318d_Maha_top100_30pairs": "5/30 = 17%",
+    "Phase13_E_318d_Maha_rank1_30pairs": "0% (NO-GO)",
+    "Phase13_F_768d_cosine_best_K_margin_A_sampled_vs_D_off": "+0.098 CI [0.016, 0.190]"
+  },
+  "decision_logic": {
+    "GO": "A_sampled cosine rank-1 > 1.26% with paired CI > 0 OR top-100 > 17%",
+    "PARTIAL-GO": "A_sampled best-rank lift CI > 0 but rank-1 unchanged",
+    "NO-GO": "no significant rank lift in 768d style space"
+  },
+  "verdict": "GO",
+  "verdict_reason": "A_sampled cosine top-100 = 50.0% > 17%"
+}

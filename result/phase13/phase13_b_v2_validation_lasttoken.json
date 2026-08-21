@@ -1,0 +1,32 @@
+{
+  "phase": "13.B",
+  "n_users_valid": 298,
+  "cos_metrics": {
+    "layer12": {
+      "own_mean_cos": 1.0,
+      "other_mean_cos": 0.371407051564463,
+      "margin": 0.628592948435537
+    },
+    "layer14": {
+      "own_mean_cos": 1.0,
+      "other_mean_cos": 0.37171372905773603,
+      "margin": 0.628286270942264
+    },
+    "layer16": {
+      "own_mean_cos": 1.0,
+      "other_mean_cos": 0.3932143405329861,
+      "margin": 0.6067856594670139
+    },
+    "layer20": {
+      "own_mean_cos": 1.0,
+      "other_mean_cos": 0.4891436580143519,
+      "margin": 0.5108563419856481
+    },
+    "layer24": {
+      "own_mean_cos": 1.0,
+      "other_mean_cos": 0.4762156840488815,
+      "margin": 0.5237843159511185
+    }
+  },
+  "verdict": "GO"
+}

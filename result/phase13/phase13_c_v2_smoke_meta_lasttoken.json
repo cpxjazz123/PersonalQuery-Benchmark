@@ -1,0 +1,51 @@
+{
+  "phase": "13.C smoke test",
+  "model": "Qwen2-7B-Instruct",
+  "layer": 14,
+  "alpha": 1.0,
+  "k_samples": 4,
+  "rho_grid": [
+    0.0,
+    0.3,
+    0.5,
+    0.7
+  ],
+  "smoke_stats": {
+    "rho_grid": [
+      0.0,
+      0.3,
+      0.5,
+      0.7
+    ],
+    "users": [
+      "AE26QWXI2OZ4KCJPKNB6YZTNBR5Q",
+      "AE2B5CUQIA5ULZCR34UOPOXROEPA",
+      "AE2ED6WSUDMW3NGBDG4NWQCYNOMQ"
+    ],
+    "rho0.0_user0_jaccard_mean": 0.6666666666666666,
+    "rho0.0_user0_unique_n": 4,
+    "rho0.0_user1_jaccard_mean": 1.0,
+    "rho0.0_user1_unique_n": 1,
+    "rho0.0_user2_jaccard_mean": 0.7111111111111111,
+    "rho0.0_user2_unique_n": 3,
+    "rho0.3_user0_jaccard_mean": 0.5452380952380952,
+    "rho0.3_user0_unique_n": 3,
+    "rho0.3_user1_jaccard_mean": 1.0,
+    "rho0.3_user1_unique_n": 1,
+    "rho0.3_user2_jaccard_mean": 0.6388888888888888,
+    "rho0.3_user2_unique_n": 3,
+    "rho0.5_user0_jaccard_mean": 0.8000000000000002,
+    "rho0.5_user0_unique_n": 2,
+    "rho0.5_user1_jaccard_mean": 0.6,
+    "rho0.5_user1_unique_n": 2,
+    "rho0.5_user2_jaccard_mean": 0.5,
+    "rho0.5_user2_unique_n": 2,
+    "rho0.7_user0_jaccard_mean": 0.5095238095238096,
+    "rho0.7_user0_unique_n": 3,
+    "rho0.7_user1_jaccard_mean": 0.41666666666666674,
+    "rho0.7_user1_unique_n": 3,
+    "rho0.7_user2_jaccard_mean": 0.5055555555555555,
+    "rho0.7_user2_unique_n": 4
+  },
+  "n_records": 49
+}
