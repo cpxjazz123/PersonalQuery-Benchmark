@@ -1,0 +1,49 @@
+[14:41:37] ======================================================================
+[14:41:37] Phase 15.E: α-only sweep on v1 mean-pool StyleVector (no ρ)
+[14:41:37] ======================================================================
+[14:41:37] [1] Loading pairs and filtering to Gaussian cache ...
+[14:41:37]   pairs total: 876, valid users in Gaussian cache: 298
+[14:41:37]   filtered pairs (target user in valid set): 30
+[14:41:37]   first pair attrs: {'Brand': 'Gaiatop', 'Item Weight': '0.032 ounces', 'Product Dimensions': '12.2"D x 5.19"W x 3.5"H', 'Color': 'Pink', 'Material': 'Acrylonitrile Butadiene Styrene'}
+[14:41:37] [2] Loading v1 mean-pool user_gaussians (298 users, layer 14) ...
+[14:41:37]   cached 298 user Gaussians
+[14:41:37] [3] Loading Qwen (transformers backend) ...
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:00<02:44,  2.05it/s]Loading weights:   8%|▊         | 26/338 [00:00<00:08, 38.30it/s]Loading weights:  12%|█▏        | 39/338 [00:00<00:05, 53.67it/s]Loading weights:  14%|█▍        | 48/338 [00:01<00:04, 60.84it/s]Loading weights:  17%|█▋        | 57/338 [00:01<00:05, 54.13it/s]Loading weights:  19%|█▉        | 64/338 [00:01<00:05, 49.48it/s]Loading weights:  22%|██▏       | 76/338 [00:01<00:05, 49.60it/s]Loading weights:  25%|██▌       | 86/338 [00:01<00:04, 50.97it/s]Loading weights:  27%|██▋       | 92/338 [00:01<00:04, 50.30it/s]Loading weights:  29%|██▉       | 99/338 [00:02<00:05, 42.62it/s]Loading weights:  33%|███▎      | 110/338 [00:02<00:04, 54.58it/s]Loading weights:  35%|███▍      | 117/338 [00:02<00:04, 50.34it/s]Loading weights:  38%|███▊      | 129/338 [00:02<00:03, 63.91it/s]Loading weights:  41%|████      | 137/338 [00:02<00:03, 58.60it/s]Loading weights:  44%|████▍     | 149/338 [00:02<00:03, 61.09it/s]Loading weights:  47%|████▋     | 159/338 [00:03<00:02, 63.93it/s]Loading weights:  51%|█████     | 172/338 [00:03<00:02, 61.47it/s]Loading weights:  54%|█████▍    | 184/338 [00:03<00:02, 62.88it/s]Loading weights:  57%|█████▋    | 191/338 [00:03<00:02, 57.14it/s]Loading weights:  58%|█████▊    | 197/338 [00:03<00:02, 47.54it/s]Loading weights:  62%|██████▏   | 208/338 [00:03<00:02, 54.96it/s]Loading weights:  65%|██████▍   | 219/338 [00:04<00:01, 65.84it/s]Loading weights:  67%|██████▋   | 227/338 [00:04<00:01, 60.38it/s]Loading weights:  69%|██████▉   | 234/338 [00:04<00:01, 52.94it/s]Loading weights:  71%|███████   | 240/338 [00:04<00:01, 51.72it/s]Loading weights:  73%|███████▎  | 246/338 [00:04<00:01, 51.35it/s]Loading weights:  75%|███████▌  | 254/338 [00:04<00:01, 56.62it/s]Loading weights:  77%|███████▋  | 260/338 [00:04<00:01, 53.71it/s]Loading weights:  79%|███████▊  | 266/338 [00:05<00:01, 43.91it/s]Loading weights:  81%|████████  | 273/338 [00:05<00:01, 49.45it/s]Loading weights:  83%|████████▎ | 279/338 [00:05<00:01, 42.95it/s]Loading weights:  87%|████████▋ | 293/338 [00:05<00:00, 55.29it/s]Loading weights:  90%|████████▉ | 303/338 [00:05<00:00, 64.76it/s]Loading weights:  93%|█████████▎| 315/338 [00:05<00:00, 73.82it/s]Loading weights:  96%|█████████▌| 323/338 [00:05<00:00, 62.72it/s]Loading weights:  98%|█████████▊| 330/338 [00:06<00:00, 58.60it/s]Loading weights: 100%|██████████| 338/338 [00:06<00:00, 54.41it/s]
+[14:41:53] [QwenLocal-Hidden] 已加载 transformers 模型: path=/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-1.5B-Instruct, dtype=bfloat16, n_layer=28
+[14:41:53]   Qwen loaded on cuda
+[14:41:53] [4] Sweep over α configs (no ρ) ...
+[14:41:53] --- Config: D_off (α=0.0) ---
+[14:41:53]   [D_off] generating 30 pairs × K=8 (α=0.0) ...
+[14:42:15]     D_off 10/30 (21.6s)
+[14:42:35]     D_off 20/30 (41.8s)
+[14:42:55]     D_off 30/30 (62.3s)
+[14:42:55]   → 240 records, sweep total 62.3s
+[14:42:55] --- Config: A_a0.3 (α=0.3) ---
+[14:42:55]   [A_a0.3] generating 30 pairs × K=8 (α=0.3) ...
+[14:43:16]     A_a0.3 10/30 (20.9s)
+[14:43:37]     A_a0.3 20/30 (41.6s)
+[14:43:58]     A_a0.3 30/30 (62.4s)
+[14:43:58]   → 240 records, sweep total 62.4s
+[14:43:58] --- Config: A_a0.5 (α=0.5) ---
+[14:43:58]   [A_a0.5] generating 30 pairs × K=8 (α=0.5) ...
+[14:44:19]     A_a0.5 10/30 (20.9s)
+[14:44:39]     A_a0.5 20/30 (41.6s)
+[14:45:00]     A_a0.5 30/30 (62.4s)
+[14:45:00]   → 240 records, sweep total 62.4s
+[14:45:00] --- Config: A_a1.0 (α=1.0) ---
+[14:45:00]   [A_a1.0] generating 30 pairs × K=8 (α=1.0) ...
+[14:45:21]     A_a1.0 10/30 (20.9s)
+[14:45:42]     A_a1.0 20/30 (42.0s)
+[14:46:03]     A_a1.0 30/30 (62.9s)
+[14:46:03]   → 240 records, sweep total 62.9s
+[14:46:03] --- Config: A_a1.5 (α=1.5) ---
+[14:46:03]   [A_a1.5] generating 30 pairs × K=8 (α=1.5) ...
+[14:46:24]     A_a1.5 10/30 (20.8s)
+[14:46:45]     A_a1.5 20/30 (41.6s)
+[14:47:06]     A_a1.5 30/30 (62.5s)
+[14:47:06]   → 240 records, sweep total 62.5s
+[14:47:06] [5] Total records: 1200
+[14:47:06]   meta: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase15_e_1.5b_meta.json
+[14:47:06] ======================================================================
+[14:47:06] PHASE 15.E SWEEP COMPLETE — run phase15_d_eval_only.py next (or new eval)
+[14:47:06] ======================================================================

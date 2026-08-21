@@ -1,0 +1,20 @@
+{
+  "phase": "15.E",
+  "n_configs": 5,
+  "n_pairs": 30,
+  "K": 8,
+  "layer": 14,
+  "alpha_sweep": [
+    0.0,
+    0.3,
+    0.5,
+    1.0,
+    1.5
+  ],
+  "temperature": 1.0,
+  "top_p": 0.95,
+  "max_new_tokens": 80,
+  "hard_copy_post": true,
+  "n_total_records": 1200,
+  "n_user_gaussians": 298
+}
