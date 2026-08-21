@@ -1,0 +1,25 @@
+[15:39:05] ======================================================================
+[15:39:05] Phase 16 v2 batched multi-cond (5 remaining conds × K=8 = 40 samples/call)
+[15:39:05] ======================================================================
+[15:39:05] [1] Loading pairs ...
+[15:39:05]   pairs: 876
+[15:39:05] [2] Loading cached Gaussian N=30 ...
+[15:39:05]   users with Gaussian: 198
+[15:39:05]   filtered pairs: 30
+[15:39:05] [3] Loading Qwen ...
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:00<02:13,  2.53it/s]Loading weights:   1%|          | 2/339 [00:00<02:06,  2.65it/s]Loading weights:   2%|▏         | 6/339 [00:00<00:35,  9.41it/s]Loading weights:   5%|▌         | 17/339 [00:00<00:10, 29.29it/s]Loading weights:   8%|▊         | 28/339 [00:01<00:07, 41.91it/s]Loading weights:  12%|█▏        | 40/339 [00:01<00:05, 57.61it/s]Loading weights:  14%|█▍        | 48/339 [00:01<00:04, 61.32it/s]Loading weights:  17%|█▋        | 56/339 [00:01<00:04, 57.73it/s]Loading weights:  19%|█▉        | 64/339 [00:01<00:04, 61.36it/s]Loading weights:  22%|██▏       | 76/339 [00:01<00:03, 73.88it/s]Loading weights:  25%|██▌       | 85/339 [00:01<00:03, 76.09it/s]Loading weights:  28%|██▊       | 94/339 [00:01<00:03, 70.91it/s]Loading weights:  30%|███       | 102/339 [00:02<00:03, 65.52it/s]Loading weights:  33%|███▎      | 112/339 [00:02<00:03, 72.10it/s]Loading weights:  37%|███▋      | 124/339 [00:02<00:02, 82.23it/s]Loading weights:  39%|███▉      | 133/339 [00:02<00:02, 82.19it/s]Loading weights:  42%|████▏     | 142/339 [00:02<00:02, 75.04it/s]Loading weights:  44%|████▍     | 150/339 [00:02<00:02, 68.06it/s]Loading weights:  47%|████▋     | 161/339 [00:02<00:02, 76.57it/s]Loading weights:  51%|█████     | 172/339 [00:03<00:02, 74.27it/s]Loading weights:  54%|█████▍    | 184/339 [00:03<00:02, 74.73it/s]Loading weights:  58%|█████▊    | 196/339 [00:03<00:01, 75.03it/s]Loading weights:  61%|██████▏   | 208/339 [00:03<00:01, 75.79it/s]Loading weights:  65%|██████▍   | 220/339 [00:03<00:01, 83.78it/s]Loading weights:  68%|██████▊   | 229/339 [00:03<00:01, 83.35it/s]Loading weights:  70%|███████   | 238/339 [00:03<00:01, 75.34it/s]Loading weights:  73%|███████▎  | 246/339 [00:04<00:01, 68.74it/s]Loading weights:  76%|███████▌  | 257/339 [00:04<00:01, 76.44it/s]Loading weights:  79%|███████▉  | 268/339 [00:04<00:00, 74.73it/s]Loading weights:  82%|████████▏ | 279/339 [00:04<00:00, 73.04it/s]Loading weights:  86%|████████▌ | 292/339 [00:04<00:00, 83.77it/s]Loading weights:  89%|████████▉ | 301/339 [00:04<00:00, 83.41it/s]Loading weights:  91%|█████████▏| 310/339 [00:04<00:00, 76.25it/s]Loading weights:  94%|█████████▍| 318/339 [00:04<00:00, 69.67it/s]Loading weights:  97%|█████████▋| 328/339 [00:05<00:00, 75.18it/s]Loading weights: 100%|██████████| 339/339 [00:05<00:00, 66.09it/s]
+[15:39:21] [QwenLocal-Hidden] 已加载 transformers 模型: path=/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct, dtype=bfloat16, n_layer=28
+[15:39:21]   Qwen loaded on cuda
+[15:39:21] [4] Registering hook on layer 14 ...
+[15:39:21] [5] Batched multi-cond sweep ...
+[15:39:21]   conds: ['Ball_r1.0', 'Shrink_r0.5', 'Shrink_r1.0', 'Maha_a0.5', 'Maha_a1.0'], K=8, rows_per_call=40
+[15:39:47]     pair 10/30 (26.2s elapsed, ETA 52.5s)
+[15:40:11]     pair 20/30 (50.5s elapsed, ETA 25.3s)
+[15:40:36]     pair 30/30 (75.5s elapsed, ETA 0.0s)
+[15:40:36] [6] Total records: 1200 (expected 1200)
+[15:40:36]   sweep total: 75.5s
+[15:40:36] [7] Appending to /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase16_n30_gaussian_sweep.jsonl
+[15:40:36]   done. final jsonl size: 1,784,516 bytes
+[15:40:36] ======================================================================
+[15:40:36] PHASE 16 v2 BATCHED DONE — run eval next
+[15:40:36] ======================================================================

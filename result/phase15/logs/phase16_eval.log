@@ -1,0 +1,74 @@
+[15:42:30] ======================================================================
+[15:42:30] Phase 16 EVAL — 9 conds × 30 pairs × K=8 = 2160 records
+[15:42:30] ======================================================================
+[15:42:30] [1] Loading records ...
+[15:42:30]   loaded: 2160 records
+[15:42:30]   conds (9): ['A_a1.0', 'Ball_r0.3', 'Ball_r0.5', 'Ball_r1.0', 'D_off', 'Maha_a0.5', 'Maha_a1.0', 'Shrink_r0.5', 'Shrink_r1.0']
+[15:42:30] [2] Loading 876 user 768d embs ...
+[15:42:30]   user_embs: (876, 768), 876 users
+[15:42:30] [3] Loading AnnaWegmann style-embedding model ...
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 21557.03it/s]
+[15:42:46]   cand_embs: (2160, 768)
+[15:42:46] [4] Per-cand margin (cos_target - cos_off_mean) ...
+[15:42:47] [5] Per-pair best-of-K margin ...
+[15:42:47]   per-cond best-of-K: A_a1.0=30, Ball_r0.3=30, Ball_r0.5=30, Ball_r1.0=30, D_off=30, Maha_a0.5=30, Maha_a1.0=30, Shrink_r0.5=30, Shrink_r1.0=30
+[15:42:47] [6] Loading sentence-bert for semantic ...
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 2011.38it/s]
+[15:42:54]   encoding 30 attr prompts ...
+[15:42:55] [7] Per-pair dump ...
+[15:42:55] [8] Aggregate per cond ...
+[15:42:55] [9] Bootstrap CI vs baselines (D_off, A_a1.0) ...
+[15:42:55]   vs D_off:
+[15:42:55]   vs A_a1.0:
+[15:42:56]   saved: /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase16_n30_eval.json
+
+[15:42:56] ======================================================================
+[15:42:56] Phase 16 eval summary
+[15:42:56] ======================================================================
+cond              n_cand  mean_marg   BoK_marg    sem_sim
+------------------------------------------------------------
+A_a1.0               240     0.0003     0.0120     0.7491
+Ball_r0.3            240     0.0003     0.0113     0.7535
+Ball_r0.5            240     0.0010     0.0112     0.7367
+Ball_r1.0            240    -0.0001     0.0100     0.7437
+D_off                240    -0.0001     0.0104     0.8138
+Maha_a0.5            240    -0.0017     0.0106     0.8070
+Maha_a1.0            240    -0.0004     0.0114     0.8065
+Shrink_r0.5          240    -0.0003     0.0090     0.7441
+Shrink_r1.0          240     0.0007     0.0109     0.7458
+
+[15:42:56] --- vs D_off (CI excludes 0 = significant lift) ---
+  A_a1.0         bok_diff       diff=+0.0017 CI [-0.0021, +0.0056] ✗
+  A_a1.0         sem_diff       diff=-0.0646 CI [-0.1075, -0.0287] ✓
+  Ball_r0.3      bok_diff       diff=+0.0010 CI [-0.0022, +0.0043] ✗
+  Ball_r0.3      sem_diff       diff=-0.0603 CI [-0.0983, -0.0272] ✓
+  Ball_r0.5      bok_diff       diff=+0.0008 CI [-0.0034, +0.0048] ✗
+  Ball_r0.5      sem_diff       diff=-0.0770 CI [-0.1173, -0.0418] ✓
+  Ball_r1.0      bok_diff       diff=-0.0003 CI [-0.0036, +0.0027] ✗
+  Ball_r1.0      sem_diff       diff=-0.0701 CI [-0.1120, -0.0321] ✓
+  Maha_a0.5      bok_diff       diff=+0.0002 CI [-0.0016, +0.0023] ✗
+  Maha_a0.5      sem_diff       diff=-0.0068 CI [-0.0166, +0.0024] ✗
+  Maha_a1.0      bok_diff       diff=+0.0010 CI [-0.0007, +0.0026] ✗
+  Maha_a1.0      sem_diff       diff=-0.0073 CI [-0.0156, +0.0009] ✗
+  Shrink_r0.5    bok_diff       diff=-0.0013 CI [-0.0038, +0.0014] ✗
+  Shrink_r0.5    sem_diff       diff=-0.0696 CI [-0.1109, -0.0358] ✓
+  Shrink_r1.0    bok_diff       diff=+0.0005 CI [-0.0037, +0.0047] ✗
+  Shrink_r1.0    sem_diff       diff=-0.0680 CI [-0.1107, -0.0307] ✓
+[15:42:56] --- vs A_a1.0 (CI excludes 0 = significant lift) ---
+  Ball_r0.3      bok_diff       diff=-0.0007 CI [-0.0027, +0.0012] ✗
+  Ball_r0.3      sem_diff       diff=+0.0043 CI [-0.0080, +0.0195] ✗
+  Ball_r0.5      bok_diff       diff=-0.0008 CI [-0.0035, +0.0020] ✗
+  Ball_r0.5      sem_diff       diff=-0.0124 CI [-0.0277, +0.0023] ✗
+  Ball_r1.0      bok_diff       diff=-0.0020 CI [-0.0053, +0.0012] ✗
+  Ball_r1.0      sem_diff       diff=-0.0055 CI [-0.0288, +0.0169] ✗
+  D_off          bok_diff       diff=-0.0017 CI [-0.0057, +0.0018] ✗
+  D_off          sem_diff       diff=+0.0646 CI [+0.0271, +0.1030] ✓
+  Maha_a0.5      bok_diff       diff=-0.0015 CI [-0.0046, +0.0016] ✗
+  Maha_a0.5      sem_diff       diff=+0.0578 CI [+0.0213, +0.1002] ✓
+  Maha_a1.0      bok_diff       diff=-0.0007 CI [-0.0043, +0.0028] ✗
+  Maha_a1.0      sem_diff       diff=+0.0573 CI [+0.0206, +0.0994] ✓
+  Shrink_r0.5    bok_diff       diff=-0.0030 CI [-0.0058, -0.0008] ✓
+  Shrink_r0.5    sem_diff       diff=-0.0050 CI [-0.0191, +0.0098] ✗
+  Shrink_r1.0    bok_diff       diff=-0.0012 CI [-0.0045, +0.0018] ✗
+  Shrink_r1.0    sem_diff       diff=-0.0034 CI [-0.0142, +0.0073] ✗
+[15:42:56] DONE
