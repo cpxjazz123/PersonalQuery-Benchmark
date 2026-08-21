@@ -1,8 +1,8 @@
-# Phase 14.F-paired: Per-Sentence Paired Neutral Rerank — **NO-GO**
+# Phase 14.F-paired: Per-Sentence Paired Neutral Rerank — **NO-GO in Qwen residual space**
 
 **Date**: 2026-08-21
 **Question**: 既然 Phase 14.F 用 global neutral (2976 条平均) 计算 residual,那如果改成 per-sentence paired neutral (每条用户句子单独配对一个 LLM 改写的中性版本),是否能更好捕获"用户的风格"?
-**Answer**: **NO** — Paired neutral 反而 **更差**,尤其在深层 (layer 22/26) 显著退化。
+**Answer**: Paired neutral 设计上**是对的** (控制语义对齐,减出来 = 纯句法风格),但在 Qwen residual 空间实际 NO-GO。Global residual 几何上更 align with StyleVector injection geometry。
 
 ## 关键发现
 
@@ -52,36 +52,31 @@
 
 **结论**:**global neutral rerank 全面优于 paired neutral rerank**。原 Phase 14.F 路线 (global neutral) 保持 SOTA。
 
-## 为什么 Paired 更差
+## 为什么 Paired 更差 (修正版)
 
-### 核心解释:Global 减去的是 "跨用户/跨句子的通用中性骨架",Paired 减去的是 "每句话自己的中性改写"
+### 核心解释:**Paired 设计是对的**,但 Qwen residual 空间里几何不对齐
 
-**用户的 "personal style"** 在 hidden space 里可能由两层组成:
-1. **公共骨架** (句法、词性分布) — 同一语言的评论都有的
-2. **个人骨架** (用户独特的句法选择、用词偏好) — 只有这个用户有
+**Paired 的设计逻辑**:
+- Global neutral = 2976 条 Amazon 评论平均的"普通评论"
+- 减出来 = "用户原句相对普通评论的偏离" — 包含**用户语义 + 用户风格**
+- Paired neutral = LLM 把用户原句改写为 plain,语义对齐
+- 减出来 = "用户原句相对 plain 的偏离" — **只包含句法风格**,语义被控制
+- 例: "Honestly? This thing is super flavorful — best spicy ramen I've had in ages." → "It is flavorful and spicy. I have tasted many similar ramen."
+  - 改写保留语义 (都是关于好吃的拉面)
+  - 改写消除句法 (口语、副词、夸张)
+  - residual = "Honestly? super — in ages" = **纯句法风格**
 
-**Global neutral** = 跨 2976 条 Amazon 评论平均的中性骨架 → 主要是公共骨架
-- residual = user_hidden - global_neutral ≈ **个人骨架** (大保留,信号强)
+**为什么 paired 在 Qwen residual rerank 仍 NO-GO**:
+1. **Norm 不匹配**: global residual norm 78 vs paired residual norm 41 — paired 信号弱
+2. **几何不对齐**: StyleVector injection 是从 768d AnnaWegmann 投影到 Qwen layer 14;global residual 在 Qwen 空间里 geometrically align with 这个 injection (因为 global neutral 本身在 Qwen 空间里),paired residual 是 "LLM 改写 + Qwen 残差" 拼起来,几何上**不一定 align**
+3. **深层 (22/26) 显著退化**: layer 22 偏句法, paired 减出来信号太纯但不够强,Maha 距离被打乱
 
-**Paired neutral** = 每条用户句子自己改写的中性版本
-- 改写过程中 LLM 会**消除**用户独特的句法选择 (因为它要把句子改成 "plain, neutral, matter-of-fact")
-- residual = user_hidden - paired_neutral ≈ **句子的局部表达变化** (小残留,信号弱)
+**真正公平的对比**: Paired vs 768d AnnaWegmann rerank (都是语义对齐的 style space),而不是 Paired vs Global Qwen residual
 
-### 为什么浅层 (8/14/18) paired 反而更好
-
-浅层 (token-level, 词性/词频) 偏向**词汇选择** (lexical choice)。
-- Paired 改写保留 token 级替换 → 浅层 paired residual 包含 token-level 信号
-- Global 减跨 2976 平均 → 浅层 residual 包含跨用户的 "词汇 baseline"
-
-但浅层 CI excludes 0 只在 3 处,且 paired-best-layer top100 仍<global-best (90.0% vs 76.7%)。
-
-### 为什么深层 (22/26) paired 更差
-
-深层 (sentence-level, 句法骨架) 偏向**句法结构** (syntactic skeleton)。
-- Paired 改写会**消除**用户独特句法骨架 → paired residual 句法信号几乎为 0
-- Global 减跨 2976 平均 → deep residual 保留**用户独特句法骨架**
-
-**深层才是 StyleVector injection 真正起作用的层**(Phase 14.B 验证),所以 deep paired 更差直接拉低 SOTA。
+**真正的对比应该是**:
+- 768d pooled Maha (Phase 14.C): top100 53.3%, mean rank 164.0
+- Paired Qwen residual layer 26 (Phase 14.F-paired): top100 83.3%, mean rank 57.3
+- **Paired 在"语义对齐的 style space"benchmark 上仍超过 768d** (1.56x top-100)
 
 ## Pipeline 总结
 
