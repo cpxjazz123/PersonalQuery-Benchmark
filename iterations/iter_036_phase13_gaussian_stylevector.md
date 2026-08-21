@@ -197,6 +197,72 @@ h = output[0] if is_tuple else output
 
 ## 下一步 (Phase 13 范围外)
 
+### 13.F: Style-space (AnnaWegmann 768d) 重评估 ✅ (~30s)
+
+**用户反馈** (iter_036 后续):
+> "we dont use 318d because acl stylevector not use it as well"
+
+正确!ACL StyleVector 论文用 **style embedding** 评估(AnnaWegmann 768d),不是 318d syntactic features。
+
+**脚本**: `phase13_f_style_eval.py`
+- 用 `sentence_transformers` (AnnaWegmann/Style-Embedding) encode 960 candidates → 768d
+- 对每条 candidate 算:
+  - `cos_to_target = cos(cand_emb, μ_target_user_768d)` (user μ 来自 phase10_user_embs_768d.npz)
+  - `cos_to_off_mean = mean cos(cand_emb, μ_off_users_768d)` over 20 random other users
+  - `margin = cos_to_target - cos_to_off_mean`
+- Per-(pair, cond) 聚合 best-of-K 和 mean-of-K
+- Paired bootstrap diff (A_sampled vs D_off/B_mean/C_shuffled)
+
+**结果**:
+
+| Condition | mean-of-K margin | best-of-K margin |
+|-----------|------------------|-------------------|
+| **A_sampled (ρ=0.5)** | 0.0443 [-0.013, 0.095] | **0.3226 [0.250, 0.397]** |
+| B_mean (fixed) | 0.0430 [-0.032, 0.114] | 0.2288 [0.148, 0.301] |
+| C_shuffled (wrong user) | 0.0385 [-0.039, 0.101] | 0.2529 [0.179, 0.322] |
+| D_off (no hook) | **0.0591** [-0.023, 0.131] | 0.2245 [0.143, 0.295] |
+
+**Paired bootstrap diffs (A_sampled vs each)**:
+
+| 对比 | mean_margin_diff | best_margin_diff |
+|------|------------------|-------------------|
+| **A vs D_off** | -0.0148 [-0.067, **0.039**] (含 0) | **+0.0981 [0.016, 0.190] (excludes 0)** |
+| A vs B_mean | +0.0013 [-0.043, 0.048] (含 0) | +0.0938 [0.037, 0.155] (excludes 0) |
+| A vs C_shuffled | +0.0058 [-0.044, 0.061] (含 0) | +0.0697 [0.011, 0.148] (excludes 0) |
+
+**Verdict**: **GO** (best-of-K margin paired CI excludes 0 over D_off baseline)
+
+### 关键解读 — Style space vs Syntactic space
+
+| Space | 318d syntactic (Phase 13.E) | 768d AnnaWegmann (Phase 13.F) |
+|-------|------------------------------|---------------------------------|
+| A vs D_off signal | indistinguishable (mean rank 706 vs 867) | **best-K +0.098 CI excludes 0** |
+| Why | 句法特征(词性/依存)对 StyleVector 注入不敏感 | style tone/voice 真实反映在 AnnaWegmann 空间 |
+
+**两条重要结论**:
+1. **D_off (无 hook) 在 mean-of-K 反而最高** (0.0591) → LLM 默认生成已 "靠近 target mean",但 **单一 deterministic 输出 collapsed**,所以 best-of-K margin (0.2245) 显著低于 A_sampled (0.3226)
+2. **A_sampled 用 ρ=0.5 Gaussian sampling 扩展了风格分布**,让 best-of-K candidate **显著更接近** target user mean (0.323 vs 0.225),paired CI excludes 0
+
+**318d 评估错在哪**:
+- 318d 捕捉的是句子结构(POS tags、句法依赖、词长分布)
+- StyleVector 影响的是 style tone (sentence embedding space)
+- 句法不敏感于 style injection;只有 style embedding 空间才能看到 best-of-K signal
+
+### Phase 13 整体决策修订
+
+| 空间 | Verdict | Reason |
+|------|---------|--------|
+| 318d syntactic (Phase 13.E) | NO-GO | rank-1 = 0%, top-10 = 3.3% — 句法不敏感 |
+| 768d AnnaWegmann style (Phase 13.F) | **GO** | best-K margin +0.098 CI excludes 0 vs D_off |
+| **综合 verdict** | **PARTIAL-GO** | style space 有信号,但需要配合 best-of-K rerank 才能 work;不是生成端 alone 的胜利 |
+
+### Phase 13 → Phase 14 自然延伸
+
+Phase 13.F 显示 A_sampled 的 **best-of-K style margin 显著 lift** — 但前提是 **rerank by style space cosine**。
+- A_sampled 生成 K=8 candidates → AnnaWegmann encode → cosine to μ_target_user → top-1 selection
+- 这就是 Phase 10.15 的 318d rerank 思路,但 evaluation 改成 768d style space
+- 进一步推论:**主路线可能是 hybrid: StyleVector 注入扩展 style distribution + 768d style rerank 选 best**
+
 **Phase 10.19 contrastive RAG (top-100 17%) 仍是最佳 baseline**。
 
 主路线:

@@ -1,0 +1,141 @@
+{
+  "phase": "13.F",
+  "encoder": "AnnaWegmann/Style-Embedding",
+  "snapshot": "/fs04/ar57/wenyu/.cache/huggingface/hub/models--AnnaWegmann--Style-Embedding/snapshots/d7d0f5ca829316a8f5695e49dfce80b86db5e76c",
+  "feature_space": "768d AnnaWegmann style (cosine)",
+  "n_candidates": 960,
+  "n_conditions": 4,
+  "n_pairs": 30,
+  "n_off_users": 20,
+  "per_cond_raw_cos": {
+    "A_sampled": {
+      "n_cands": 240,
+      "mean_cos_target": 0.11129814429441467,
+      "mean_cos_off": 0.06696650754480894,
+      "mean_margin": 0.044331636749605725
+    },
+    "B_mean": {
+      "n_cands": 240,
+      "mean_cos_target": 0.12922372674802318,
+      "mean_cos_off": 0.0862303245337292,
+      "mean_margin": 0.04299340221429399
+    },
+    "C_shuffled": {
+      "n_cands": 240,
+      "mean_cos_target": 0.13651610151476537,
+      "mean_cos_off": 0.09800993338540138,
+      "mean_margin": 0.03850616812936399
+    },
+    "D_off": {
+      "n_cands": 240,
+      "mean_cos_target": 0.13740014211895565,
+      "mean_cos_off": 0.07826030561486733,
+      "mean_margin": 0.059139836504088335
+    }
+  },
+  "per_cond_eval": {
+    "A_sampled": {
+      "mean_of_K_margin_mean": 0.044331636749605725,
+      "mean_of_K_margin_ci95": [
+        -0.012722420508926007,
+        0.09517431820174048
+      ],
+      "best_of_K_margin_mean": 0.32259730423490207,
+      "best_of_K_margin_ci95": [
+        0.24953037743146222,
+        0.39744708579964927
+      ],
+      "n_pairs": 30
+    },
+    "B_mean": {
+      "mean_of_K_margin_mean": 0.04299340221429399,
+      "mean_of_K_margin_ci95": [
+        -0.032005334197771546,
+        0.11386845247798184
+      ],
+      "best_of_K_margin_mean": 0.22882859526822966,
+      "best_of_K_margin_ci95": [
+        0.14751097067104033,
+        0.30068113059271123
+      ],
+      "n_pairs": 30
+    },
+    "C_shuffled": {
+      "mean_of_K_margin_mean": 0.03850616812936399,
+      "mean_of_K_margin_ci95": [
+        -0.03905319960399538,
+        0.10048076820559193
+      ],
+      "best_of_K_margin_mean": 0.2529315401489536,
+      "best_of_K_margin_ci95": [
+        0.17925908509176225,
+        0.3223155331875508
+      ],
+      "n_pairs": 30
+    },
+    "D_off": {
+      "mean_of_K_margin_mean": 0.059139836504088335,
+      "mean_of_K_margin_ci95": [
+        -0.02285509254019606,
+        0.1311923040213442
+      ],
+      "best_of_K_margin_mean": 0.22451708186417818,
+      "best_of_K_margin_ci95": [
+        0.14251997380362202,
+        0.29522722669721885
+      ],
+      "n_pairs": 30
+    }
+  },
+  "paired_diffs": {
+    "A_sampled_vs_B_mean": {
+      "mean_margin_diff": 0.0013382345353117368,
+      "mean_margin_diff_ci95": [
+        -0.04317512548952436,
+        0.04776757164925583
+      ],
+      "best_margin_diff": 0.09376870896667241,
+      "best_margin_diff_ci95": [
+        0.03701948988561829,
+        0.15521413203173626
+      ],
+      "ci_excludes_0_mean": false,
+      "ci_excludes_0_best": true
+    },
+    "A_sampled_vs_C_shuffled": {
+      "mean_margin_diff": 0.005825468620241736,
+      "mean_margin_diff_ci95": [
+        -0.04391200726906694,
+        0.061272752993184694
+      ],
+      "best_margin_diff": 0.06966576408594846,
+      "best_margin_diff_ci95": [
+        0.010697525208815933,
+        0.14808951664095119
+      ],
+      "ci_excludes_0_mean": false,
+      "ci_excludes_0_best": true
+    },
+    "A_sampled_vs_D_off": {
+      "mean_margin_diff": -0.014808199754482606,
+      "mean_margin_diff_ci95": [
+        -0.06668819509057963,
+        0.039168217347663195
+      ],
+      "best_margin_diff": 0.09808022237072388,
+      "best_margin_diff_ci95": [
+        0.015822178785068294,
+        0.19031158578426885
+      ],
+      "ci_excludes_0_mean": false,
+      "ci_excludes_0_best": true
+    }
+  },
+  "decision_logic": {
+    "GO": "A_sampled vs D_off paired CI > 0 (mean or best)",
+    "PARTIAL-GO": "A_sampled vs B_mean CI > 0 but vs D_off does not",
+    "NO-GO": "no significant lift"
+  },
+  "verdict": "GO",
+  "verdict_reason": "A_sampled margin lifts over D_off (paired CI excludes 0): diff_mean=-0.0148, diff_best=0.0981"
+}
