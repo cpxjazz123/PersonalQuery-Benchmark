@@ -1,0 +1,72 @@
+[13:38:06] ======================================================================
+[13:38:06] Phase 15.D: α × ρ sweep — find natural StyleVector generation
+[13:38:06] ======================================================================
+[13:38:15] [1] Loading pairs and Gaussian cache (mean-pool v1) ...
+[13:38:17]   pairs: 30
+[13:38:17] [2] Loading Qwen2-7B (transformers backend, fp16) ...
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:54<5:06:04, 54.33s/it]Loading weights:   1%|▏         | 5/339 [00:54<45:17,  8.14s/it]  Loading weights:   2%|▏         | 7/339 [01:02<35:50,  6.48s/it]Loading weights:   3%|▎         | 11/339 [01:02<17:06,  3.13s/it]Loading weights:   4%|▍         | 15/339 [01:08<13:08,  2.43s/it]Loading weights:   4%|▍         | 15/339 [01:20<13:08,  2.43s/it]Loading weights:   5%|▌         | 17/339 [01:22<18:50,  3.51s/it]Loading weights:   5%|▌         | 18/339 [01:25<18:24,  3.44s/it]Loading weights:   6%|▌         | 21/339 [01:25<11:31,  2.18s/it]Loading weights:   7%|▋         | 25/339 [01:25<06:40,  1.27s/it]Loading weights:   8%|▊         | 27/339 [01:25<05:10,  1.01it/s]Loading weights:   8%|▊         | 27/339 [01:40<05:10,  1.01it/s]Loading weights:   9%|▊         | 29/339 [01:41<14:11,  2.75s/it]Loading weights:   9%|▉         | 30/339 [01:42<12:38,  2.46s/it]Loading weights:  10%|▉         | 33/339 [01:42<07:45,  1.52s/it]Loading weights:  12%|█▏        | 39/339 [01:44<04:26,  1.12it/s]Loading weights:  12%|█▏        | 40/339 [01:47<05:06,  1.03s/it]Loading weights:  13%|█▎        | 45/339 [01:47<03:05,  1.59it/s]Loading weights:  14%|█▎        | 46/339 [01:48<03:15,  1.50it/s]Loading weights:  14%|█▍        | 48/339 [01:49<02:45,  1.76it/s]Loading weights:  14%|█▍        | 49/339 [01:49<02:47,  1.73it/s]Loading weights:  15%|█▌        | 52/339 [01:56<06:06,  1.28s/it]Loading weights:  16%|█▌        | 53/339 [02:05<11:19,  2.38s/it]Loading weights:  16%|█▌        | 54/339 [02:06<10:03,  2.12s/it]Loading weights:  18%|█▊        | 60/339 [02:06<03:54,  1.19it/s]Loading weights:  19%|█▉        | 64/339 [02:15<06:06,  1.33s/it]Loading weights:  19%|█▉        | 66/339 [02:22<08:32,  1.88s/it]Loading weights:  20%|██        | 69/339 [02:23<05:54,  1.31s/it]Loading weights:  21%|██        | 71/339 [02:27<06:33,  1.47s/it]Loading weights:  22%|██▏       | 74/339 [02:27<04:42,  1.07s/it]Loading weights:  22%|██▏       | 75/339 [02:28<04:31,  1.03s/it]Loading weights:  23%|██▎       | 78/339 [02:30<03:51,  1.13it/s]Loading weights:  24%|██▍       | 81/339 [02:31<02:49,  1.52it/s]Loading weights:  24%|██▍       | 82/339 [02:33<03:32,  1.21it/s]Loading weights:  24%|██▍       | 83/339 [02:35<04:27,  1.05s/it]Loading weights:  25%|██▌       | 86/339 [02:35<02:43,  1.55it/s]Loading weights:  26%|██▌       | 87/339 [02:40<06:05,  1.45s/it]Loading weights:  27%|██▋       | 90/339 [02:41<03:40,  1.13it/s]Loading weights:  27%|██▋       | 92/339 [02:41<02:41,  1.53it/s]Loading weights:  28%|██▊       | 94/339 [02:41<02:07,  1.92it/s]Loading weights:  28%|██▊       | 96/339 [02:42<01:45,  2.30it/s]Loading weights:  29%|██▉       | 98/339 [02:42<01:31,  2.63it/s]Loading weights:  30%|██▉       | 101/339 [02:42<01:00,  3.94it/s]Loading weights:  30%|███       | 102/339 [02:44<01:58,  2.01it/s]Loading weights:  31%|███       | 105/339 [02:45<01:26,  2.71it/s]Loading weights:  32%|███▏      | 110/339 [02:45<00:46,  4.95it/s]Loading weights:  33%|███▎      | 112/339 [02:46<01:03,  3.57it/s]Loading weights:  34%|███▎      | 114/339 [02:49<02:00,  1.87it/s]Loading weights:  35%|███▍      | 118/339 [02:49<01:14,  2.95it/s]Loading weights:  36%|███▋      | 123/339 [02:49<00:53,  4.05it/s]Loading weights:  37%|███▋      | 126/339 [02:50<00:53,  3.97it/s]Loading weights:  40%|███▉      | 135/339 [02:55<01:15,  2.70it/s]Loading weights:  40%|████      | 137/339 [02:56<01:26,  2.33it/s]Loading weights:  41%|████      | 138/339 [02:57<01:26,  2.32it/s]Loading weights:  44%|████▎     | 148/339 [02:59<01:02,  3.07it/s]Loading weights:  44%|████▍     | 149/339 [03:01<01:28,  2.14it/s]Loading weights:  47%|████▋     | 160/339 [03:03<00:58,  3.08it/s]Loading weights:  48%|████▊     | 162/339 [03:04<00:53,  3.31it/s]Loading weights:  49%|████▊     | 165/339 [03:04<00:44,  3.95it/s]Loading weights:  49%|████▉     | 166/339 [03:05<00:55,  3.10it/s]Loading weights:  51%|█████     | 172/339 [03:11<01:40,  1.66it/s]Loading weights:  51%|█████     | 173/339 [03:14<02:22,  1.16it/s]Loading weights:  51%|█████▏    | 174/339 [03:14<02:09,  1.27it/s]Loading weights:  53%|█████▎    | 178/339 [03:15<01:28,  1.82it/s]Loading weights:  53%|█████▎    | 180/339 [03:16<01:18,  2.03it/s]Loading weights:  54%|█████▍    | 184/339 [03:18<01:28,  1.75it/s]Loading weights:  57%|█████▋    | 192/339 [03:19<00:40,  3.60it/s]Loading weights:  58%|█████▊    | 196/339 [03:23<01:09,  2.07it/s]Loading weights:  58%|█████▊    | 198/339 [03:23<01:00,  2.34it/s]Loading weights:  61%|██████▏   | 208/339 [03:24<00:30,  4.30it/s]Loading weights:  62%|██████▏   | 210/339 [03:26<00:48,  2.65it/s]Loading weights:  65%|██████▍   | 220/339 [03:27<00:28,  4.22it/s]Loading weights:  65%|██████▌   | 222/339 [03:31<00:54,  2.13it/s]Loading weights:  67%|██████▋   | 226/339 [03:32<00:40,  2.79it/s]Loading weights:  68%|██████▊   | 232/339 [03:37<00:58,  1.84it/s]Loading weights:  71%|███████▏  | 242/339 [03:37<00:29,  3.34it/s]Loading weights:  72%|███████▏  | 245/339 [03:40<00:38,  2.43it/s]Loading weights:  73%|███████▎  | 248/339 [03:40<00:31,  2.87it/s]Loading weights:  74%|███████▎  | 250/339 [03:41<00:29,  3.04it/s]Loading weights:  75%|███████▌  | 255/339 [03:45<00:44,  1.87it/s]Loading weights:  76%|███████▌  | 258/339 [03:46<00:35,  2.30it/s]Loading weights:  77%|███████▋  | 262/339 [03:46<00:26,  2.86it/s]Loading weights:  78%|███████▊  | 264/339 [03:46<00:23,  3.24it/s]Loading weights:  79%|███████▉  | 268/339 [03:47<00:17,  4.01it/s]Loading weights:  80%|███████▉  | 270/339 [03:47<00:15,  4.52it/s]Loading weights:  81%|████████  | 273/339 [03:47<00:10,  6.00it/s]Loading weights:  81%|████████  | 275/339 [03:48<00:13,  4.82it/s]Loading weights:  82%|████████▏ | 277/339 [03:49<00:17,  3.49it/s]Loading weights:  82%|████████▏ | 278/339 [03:49<00:16,  3.78it/s]Loading weights:  83%|████████▎ | 280/339 [03:50<00:14,  4.11it/s]Loading weights:  83%|████████▎ | 281/339 [03:52<00:40,  1.44it/s]Loading weights:  83%|████████▎ | 282/339 [03:57<01:21,  1.44s/it]Loading weights:  85%|████████▌ | 289/339 [03:57<00:24,  2.01it/s]Loading weights:  86%|████████▌ | 292/339 [04:02<00:37,  1.27it/s]Loading weights:  87%|████████▋ | 294/339 [04:06<00:48,  1.09s/it]Loading weights:  90%|████████▉ | 304/339 [04:08<00:18,  1.86it/s]Loading weights:  90%|████████▉ | 305/339 [04:10<00:23,  1.47it/s]Loading weights:  90%|█████████ | 306/339 [04:10<00:21,  1.52it/s]Loading weights:  91%|█████████▏| 310/339 [04:11<00:12,  2.34it/s]Loading weights:  93%|█████████▎| 316/339 [04:11<00:06,  3.68it/s]Loading weights:  94%|█████████▍| 318/339 [04:15<00:11,  1.86it/s]Loading weights:  95%|█████████▍| 321/339 [04:15<00:07,  2.48it/s]Loading weights:  95%|█████████▌| 323/339 [04:15<00:06,  2.57it/s]Loading weights:  96%|█████████▌| 325/339 [04:16<00:04,  2.83it/s]Loading weights:  97%|█████████▋| 328/339 [04:21<00:09,  1.18it/s]Loading weights:  97%|█████████▋| 330/339 [04:22<00:06,  1.50it/s]Loading weights:  98%|█████████▊| 333/339 [04:22<00:02,  2.07it/s]Loading weights:  99%|█████████▊| 334/339 [04:23<00:02,  1.88it/s]Loading weights:  99%|█████████▉| 336/339 [04:23<00:01,  2.20it/s]Loading weights: 100%|██████████| 339/339 [04:23<00:00,  1.28it/s]
+[13:42:56] [QwenLocal-Hidden] 已加载 transformers 模型: path=/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct, dtype=bfloat16, n_layer=28
+[13:42:56]   loaded, device=cuda
+[13:42:56] [3] Sweep over (α, ρ) configs ...
+[13:42:56] 
+--- Config: D_off (α=0.0, ρ=0.0) ---
+[13:42:56]   [D_off] generating 30 pairs × K=8 (α=0.0, ρ=0.0) ...
+[13:43:10]     D_off 10/30 (14.0s)
+[13:43:20]     D_off 20/30 (24.4s)
+[13:43:31]     D_off 30/30 (35.5s)
+[13:43:31]   → 240 records, sweep total 35.5s
+[13:43:31] 
+--- Config: A_a0.3_r0.0 (α=0.3, ρ=0.0) ---
+[13:43:31]   [A_a0.3_r0.0] generating 30 pairs × K=8 (α=0.3, ρ=0.0) ...
+[13:43:44]     A_a0.3_r0.0 10/30 (12.6s)
+[13:43:55]     A_a0.3_r0.0 20/30 (23.2s)
+[13:44:06]     A_a0.3_r0.0 30/30 (35.0s)
+[13:44:06]   → 240 records, sweep total 70.5s
+[13:44:06] 
+--- Config: A_a0.3_r0.3 (α=0.3, ρ=0.3) ---
+[13:44:06]   [A_a0.3_r0.3] generating 30 pairs × K=8 (α=0.3, ρ=0.3) ...
+[13:44:19]     A_a0.3_r0.3 10/30 (12.2s)
+[13:44:32]     A_a0.3_r0.3 20/30 (25.4s)
+[13:44:44]     A_a0.3_r0.3 30/30 (38.0s)
+[13:44:44]   → 240 records, sweep total 108.5s
+[13:44:44] 
+--- Config: A_a0.3_r0.5 (α=0.3, ρ=0.5) ---
+[13:44:44]   [A_a0.3_r0.5] generating 30 pairs × K=8 (α=0.3, ρ=0.5) ...
+[13:44:58]     A_a0.3_r0.5 10/30 (13.5s)
+[13:45:10]     A_a0.3_r0.5 20/30 (26.1s)
+[13:45:23]     A_a0.3_r0.5 30/30 (38.6s)
+[13:45:23]   → 240 records, sweep total 147.2s
+[13:45:23] 
+--- Config: A_a0.5_r0.0 (α=0.5, ρ=0.0) ---
+[13:45:23]   [A_a0.5_r0.0] generating 30 pairs × K=8 (α=0.5, ρ=0.0) ...
+[13:45:35]     A_a0.5_r0.0 10/30 (12.2s)
+[13:45:46]     A_a0.5_r0.0 20/30 (23.2s)
+[13:45:57]     A_a0.5_r0.0 30/30 (33.8s)
+[13:45:57]   → 240 records, sweep total 181.0s
+[13:45:57] 
+--- Config: A_a0.5_r0.3 (α=0.5, ρ=0.3) ---
+[13:45:57]   [A_a0.5_r0.3] generating 30 pairs × K=8 (α=0.5, ρ=0.3) ...
+[13:46:09]     A_a0.5_r0.3 10/30 (11.8s)
+[13:46:21]     A_a0.5_r0.3 20/30 (24.5s)
+[13:46:34]     A_a0.5_r0.3 30/30 (37.2s)
+[13:46:34]   → 240 records, sweep total 218.2s
+[13:46:34] 
+--- Config: A_a0.5_r0.5 (α=0.5, ρ=0.5) ---
+[13:46:34]   [A_a0.5_r0.5] generating 30 pairs × K=8 (α=0.5, ρ=0.5) ...
+[13:46:47]     A_a0.5_r0.5 10/30 (12.6s)
+[13:47:01]     A_a0.5_r0.5 20/30 (26.7s)
+[13:47:15]     A_a0.5_r0.5 30/30 (40.6s)
+[13:47:15]   → 240 records, sweep total 258.8s
+[13:47:15] [4] Collecting samples per cond ...
+[13:47:15] [5] Running eval (style margin + semantic) ...
+[13:47:15] [EVAL] Loading encoders ...
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 21666.14it/s]
+[13:47:18] [EVAL] Encoding all candidates ...
+Traceback (most recent call last):
+  File "/fs04/scratch2/hj82/wenyu/vades_prototype/phase15_d_alpha_rho_sweep.py", line 491, in <module>
+    main()
+  File "/fs04/scratch2/hj82/wenyu/vades_prototype/phase15_d_alpha_rho_sweep.py", line 428, in main
+    eval_out = evaluate_all(all_results)
+  File "/fs04/scratch2/hj82/wenyu/vades_prototype/phase15_d_alpha_rho_sweep.py", line 255, in evaluate_all
+    with torch.no_grad():
+NameError: name 'torch' is not defined

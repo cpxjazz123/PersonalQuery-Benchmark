@@ -1,0 +1,436 @@
+{
+  "D_off": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam mat with dimensions 40 inches wide by 7 inches high\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "BreathableBaby bassinet in white with polyester material, size 33L x 15W, weighs 7 ounces\" The search query for the given product attributes would be:\n\n\"BreathableBaby white bassinet, with 33\"L x 15\"W"
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL black polyester bag with dimensions 15.5 x 29 x 18 inches and 1.55 pounds weight\""
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "BRITAX car seat in Eclipse Black with Alloy Steel, 30 pounds\", with 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke Whitewash Wooden Furniture with 7Kg Weight\", with 7 Kilograms, 20.5\"D x 32\"W x 8\"H."
+    }
+  ],
+  "A_a0.3_r0.0": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam padding 40 inch wide by 7 inch high\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "BreathableBaby bassinet in white made of polyester with 7 ounces weight and dimensions 33 inches long by 15 inches wide\", with 33\"L x 15\"W, Bassinet White."
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "Find a SCTEL black polyester bag with dimensions of 15.5 x 29 x 18 inches and weighing 1.55 pounds."
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "Find BRITAX Eclipse Black stroller with alloy steel frame weighing 30 pounds in dimensions 20.5x19.5x25 inches, with 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke wooden chair in whitewash color with 7 kg weight and dimensions 20.5\"D x 32\"W x 8\"H\" Yes! Here is the search query based on the given product attributes, with 7 Kilograms."
+    }
+  ],
+  "A_a0.3_r0.3": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Find a Milliard grey foam mat with 40 inch width and 7 inch height, with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "BreathableBaby bassinet with white polyester material, 7 ounces and 33\"L x 15\"W dimensions\" Yes, that's correct! The search query accurately represents the product attributes you've listed. Here is th"
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL black polyester luggage bag with dimensions 15.5x29x18 inches\", with 1.55 pounds, 15.5 x 29 x 18 inches."
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "BRITAX Eclipse Black alloy steel car seat with dimensions 20.5x19.5x25 inches\", with 30 pounds, 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke wooden chair in Whitewash color, weighs 7 kg\", with 7 Kilograms, 20.5\"D x 32\"W x 8\"H."
+    }
+  ],
+  "A_a0.3_r0.5": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam mat with dimensions 40 inches wide by 7 inches high\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "Find me a BreathableBaby bassinet in white color with polyester material and 7 ounces weight please.\nHere's a possible short search query for the product you described:\n\n\"BreathableBaby white bassinet"
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL Black Polyester 1.55 lbs Bag with dimensions 15.5x29x18 inches\", with 1.55 pounds, 15.5 x 29 x 18 inches."
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "BRITAX Eclipse Black alloy steel baby stroller\", with 30 pounds, 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Find a Stokke wooden crib in whitewash color weighing 7 kg with dimensions 20.5\"D x 32\"W x 8\"H, with 7 Kilograms."
+    }
+  ],
+  "A_a0.5_r0.0": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam mat 40 inches wide by 7 inches high\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "BreathableBaby white bassinet made of polyester with 7 ounces product weight\", with 33\"L x 15\"W, Bassinet White."
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL black polyester bag with 1.55 pounds weight and dimensions 15.5x29x18 inches\", with 15.5 x 29 x 18 inches."
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "BRITAX Eclipse Black car seat with alloy steel construction\", with 30 pounds, 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke Whitewash Wood Furniture with 7kg weight and dimensions 20.5D x 32W x 8H\", with 7 Kilograms, 20.5\"D x 32\"W x 8\"H."
+    }
+  ],
+  "A_a0.5_r0.3": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam mat 40 inch wide\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "BreathableBaby bassinet in white made of polyester with dimensions 33 inches by 15 inches\", with 7 ounces, 33\"L x 15\"W, Bassinet White."
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL black polyester bag with dimensions 15.5 x 29 x 18 inches and weighing 1.55 pounds\""
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "Find me a BRITAX car seat in Eclipse Black color with alloy steel material that weighs 30 pounds, with 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke whitewash wooden high chair\", with 7 Kilograms, 20.5\"D x 32\"W x 8\"H."
+    }
+  ],
+  "A_a0.5_r0.5": [
+    {
+      "user_id": "AE26QWXI2OZ4...",
+      "asin": "B07PX3FSSR...",
+      "attrs": {
+        "Brand": "Milliard",
+        "Item Weight": "2.07 pounds",
+        "Product Dimensions": "40\"W x 7\"H",
+        "Color": "Grey",
+        "Material": "foam"
+      },
+      "q_final_post": "Milliard grey foam 40x7 inch mattress\", with 2.07 pounds, 40\"W x 7\"H."
+    },
+    {
+      "user_id": "AE2B5CUQIA5U...",
+      "asin": "B0BX78BW53...",
+      "attrs": {
+        "Brand": "BreathableBaby",
+        "Item Weight": "7 ounces",
+        "Product Dimensions": "33\"L x 15\"W",
+        "Color": "Bassinet White",
+        "Material": "Polyester"
+      },
+      "q_final_post": "Bre breath, 7 oz, 2000 and 1200, 15 inches\n\n  11 34\n  2012\n\n  2035, with BreathableBaby, 7 ounces, 33\"L x 15\"W, Bassinet White, Polyester."
+    },
+    {
+      "user_id": "AE2ED6WSUDMW...",
+      "asin": "B0BRQMMD4P...",
+      "attrs": {
+        "Brand": "SCTEL",
+        "Item Weight": "1.55 pounds",
+        "Product Dimensions": "15.5 x 29 x 18 inches",
+        "Color": "Black",
+        "Material": "Polyester"
+      },
+      "q_final_post": "SCTEL black polyester bag with dimensions 15.5x29x18 inches\", with 1.55 pounds, 15.5 x 29 x 18 inches."
+    },
+    {
+      "user_id": "AE3RVPQUALI4...",
+      "asin": "B07XTX43JX...",
+      "attrs": {
+        "Brand": "BRITAX",
+        "Item Weight": "30 pounds",
+        "Product Dimensions": "20.5 x 19.5 x 25 inches",
+        "Color": "Eclipse Black",
+        "Material": "Alloy Steel"
+      },
+      "q_final_post": "BRITAX alloy steel eclipse black stroller with 30 pound weight\", with 30 pounds, 20.5 x 19.5 x 25 inches."
+    },
+    {
+      "user_id": "AE45DJA7NTXI...",
+      "asin": "B07M8NX185...",
+      "attrs": {
+        "Brand": "Stokke",
+        "Item Weight": "7 Kilograms",
+        "Product Dimensions": "20.5\"D x 32\"W x 8\"H",
+        "Color": "Whitewash",
+        "Material": "Wood"
+      },
+      "q_final_post": "Stokke Whitewashed Wood Children's Furniture\", with 7 Kilograms, 20.5\"D x 32\"W x 8\"H."
+    }
+  ]
+}
