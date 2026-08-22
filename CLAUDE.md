@@ -139,3 +139,12 @@
       ```
     - 验证 cwd：`pwd` 应输出 `/home/wlia0047/ar57/wenyu/PersoanlQuery`，否则视为违规
     - 例外：仅 `git` / `cat` / `Edit` 操作 git tracked 文件可走 `/fs04/...` 路径（IDE 兼容），但 Python 进程一律走 `/home/wlia0047/...`
+
+12. **可运行脚本必须放在项目主目录 `/home/wlia0047/ar57/wenyu/PersoanlQuery` 下（禁止放在 `hj82_scratch2` 等外部目录）**：
+    - 所有 `.py` 可运行脚本必须位于 `/home/wlia0047/ar57/wenyu/PersoanlQuery/` 内（包括任何子目录，如 `query_gen/`、`result/phase15/scripts/`、`gaussian/` 等），"主目录"指项目根及其子目录树
+    - **禁止**将可运行脚本放在 `/home/wlia0047/hj82_scratch2/wenyu/vades_prototype/` 或 `/home/wlia0047/hj82_scratch2/wenyu/postfilter/`、`e29_paper/`、`gaussian_cluster/`、`disentangle/` 等任何外部目录
+    - `hj82_scratch2/wenyu/` 只允许存放 **运行时产物**：log / cache / jsonl / json / npz / pt / txt / png，**不允许存放 .py 可运行脚本**
+    - 历史遗留在 scratch2 的脚本（实测 247 个 .py，集中在 `vades_prototype/` 207 个 + `postfilter/` 28 + `e29_paper/` 8 + `gaussian_cluster/` 3 + `disentangle/` 1）必须迁移回项目内对应位置并 `git add -f` + `git commit` + `git push` 闭环
+    - 新增脚本必须直接写在项目内的对应子目录（按 phase 编号归档到 `result/phaseXX/scripts/` 或模块目录），**禁止**先放 scratch2 再"将来迁移"
+    - 迁移后须同步更新所有引用旧路径的脚本（import 路径、PATH 拼接、文档说明）指向新位置
+    - 与规则 10 的分工：规则 10 管**运行时产物**路径（log/result），规则 12 管**脚本本体**路径；前者 scratch2，后者项目内
