@@ -42,9 +42,9 @@ SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/syntax_subspace")
 OUT_DIR = REPO_ROOT / "result/phase35"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-CANDIDATES_JSON = REPO_ROOT / "result/phase34/candidates.json"
+CANDIDATES_JSON = Path(os.environ.get("P35_CANDIDATES", str(REPO_ROOT / "result/phase34/candidates.json")))
 SYNTAX_GAUSSIAN_NPZ = SCRATCH / "syntax_gaussian_layer_20.npz"
-USER_SENTS_JSON = SCRATCH / "user_sents_per_user.json"
+USER_SENTS_JSON = Path(os.environ.get("P35_USER_SENTS", str(SCRATCH / "user_sents_per_user.json")))
 USER_RESIDUAL_CACHE = SCRATCH / "user_qwen_residuals.pt"  # per-sentence cached
 
 OUT_SCORES = OUT_DIR / "scores.json"
@@ -167,7 +167,7 @@ def main():
 
     # === Step B: Per-user self sentence Qwen mean-pool (cache) ===
     cache = {}
-    if USER_RESIDUAL_CACHE.exists():
+    if USER_RESIDUAL_CACHE.exists() and os.environ.get("P35_FORCE_RERESIDUAL", "0") != "1":
         try:
             cache = torch.load(USER_RESIDUAL_CACHE, weights_only=False)
             print(f"[step-B] cache hit: {len(cache)} users")
@@ -230,10 +230,30 @@ def main():
     cand_resids = qwen_mean_pool_residuals(all_cands_flat, client, batch_size=8)
     print(f"[step-C] cand_resids shape={cand_resids.shape}, {time.time()-t0:.1f}s")
 
-    # === Step D: Syntax features (user + candidates, norm by self) ===
+    # === Step D: Syntax features (candidates + user self sents, ONE-TIME) ===
     print("[step-D] computing syntax features for all candidates...")
     cand_syntax = compute_syntax_features(all_cands_flat)
     print(f"[step-D] cand_syntax shape={cand_syntax.shape}")
+
+    # All user self sentences (flatten across all needed users)
+    all_user_sents_flat_list = []
+    user_sents_uid_order = []
+    for uid, sents in user_sents.items():
+        for s in sents:
+            all_user_sents_flat_list.append(s)
+            user_sents_uid_order.append(uid)
+    print(f"[step-D] computing syntax features for {len(all_user_sents_flat_list)} user self sents (one-time)...")
+    user_sents_syntax = compute_syntax_features(all_user_sents_flat_list)
+    print(f"[step-D] user_sents_syntax shape={user_sents_syntax.shape}")
+
+    # Index user_sents syntax back to per-uid arrays
+    user_sents_syntax_by_uid: dict[str, list[np.ndarray]] = {}
+    idx = 0
+    for uid, sents in user_sents.items():
+        n = len(sents)
+        user_sents_syntax_by_uid[uid] = [user_sents_syntax[idx + i] for i in range(n)]
+        idx += n
+    print(f"[step-D] cached user syntax for {len(user_sents_syntax_by_uid)} users")
 
     # per-record per-candidate S_residual and S_syntax
     # First: load syntax Gaussian from layer 20
@@ -332,10 +352,10 @@ def main():
             scores_syntax = np.zeros(len(cands))
 
         # S_syntax: length-controlled 14d syntax distance to user self mean (negative dist = higher score)
-        # compute user self 14d syntax features (raw, length-controlled)
         u_sents = user_sents.get(uid, [])
-        if u_sents:
-            X_u_raw = compute_syntax_features(u_sents)
+        u_sents_syn = user_sents_syntax_by_uid.get(uid, [])
+        if u_sents_syn:
+            X_u_raw = np.array(u_sents_syn)
             # same control orthogonalization for user self sents
             u_ctrl = np.stack([X_u_raw[:, 0], X_u_raw[:, 1],
                                np.array([count_attrs_covered(s, {}) for s in u_sents])], axis=1)
@@ -354,7 +374,6 @@ def main():
                 X_u_ctrl[:, d] = y - (u_ctrl_z @ beta)
             u_mean_ctrl = X_u_ctrl.mean(axis=0)
             # distance from each cand length-controlled syntax to user mean
-            # cand_syntax_ctrl rows for this record
             cand_ctrl_rows = []
             for k in range(len(cands)):
                 idx = flat_idx.index((rec_i, k))
@@ -394,6 +413,9 @@ def main():
         if full_cov_mask.any():
             scores_hybrid_07_filtered[~full_cov_mask] = -1e9
         sel_hybrid_07 = int(np.argmax(scores_hybrid_07_filtered))
+
+        if (rec_i + 1) % 10 == 0 or rec_i == len(cand_records) - 1:
+            print(f"[step-F] {rec_i + 1}/{len(cand_records)} records scored", flush=True)
 
         score_data.append({
             "user_id": uid,
@@ -466,12 +488,13 @@ def main():
             mu_u = user_resid_mu[uid]
             sigma_u = user_resid_sigma[uid]
             inv_sigma = np.linalg.pinv(sigma_u)
-            # user self length-controlled syntax mean
-            u_sents = user_sents.get(uid, [])
-            if u_sents:
-                X_u_raw = compute_syntax_features(u_sents)
+            # user self length-controlled syntax mean (use cached syntax features)
+            u_sents_syn = user_sents_syntax_by_uid.get(uid, [])
+            if u_sents_syn:
+                X_u_raw = np.array(u_sents_syn)
+                u_sents_list = user_sents.get(uid, [])
                 u_ctrl = np.stack([X_u_raw[:, 0], X_u_raw[:, 1],
-                                   np.array([count_attrs_covered(s, {}) for s in u_sents])], axis=1)
+                                   np.array([count_attrs_covered(s, {}) for s in u_sents_list])], axis=1)
                 u_ctrl_mean = u_ctrl.mean(axis=0)
                 u_ctrl_std = u_ctrl.std(axis=0) + 1e-8
                 u_ctrl_z = (u_ctrl - u_ctrl_mean) / u_ctrl_std
