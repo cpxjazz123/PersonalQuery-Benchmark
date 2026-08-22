@@ -41,3 +41,4 @@ __query_cache__/
 # Local runtime state
 .opencode/
 data/
+result/
