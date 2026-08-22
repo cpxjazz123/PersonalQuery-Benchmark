@@ -37,8 +37,8 @@ from .config import get_category_config
 
 
 _QUERY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "query_config.json")
-_SYNTAX_DEPTH_ROOT = Path("/home/wlia0047/ar57/wenyu/result/personal_query/05_syntactic_analysis")  # iter #199 fix: iter #172 deleted 03_syntactic_analysis/ but data persisted under 05_syntactic_analysis/ (115MB saved); schema (top-level users list + summary + timestamp) matches load_user_syntax_depths contract exactly
-_OUTPUT_ROOT = Path("/home/wlia0047/ar57/wenyu/result/personal_query/04_query")
+_SYNTAX_DEPTH_ROOT = Path("/home/wlia0047/ar57/wenyu/result/05_syntactic_analysis")  # iter #199 fix: iter #172 deleted 03_syntactic_analysis/ but data persisted under 05_syntactic_analysis/ (115MB saved); schema (top-level users list + summary + timestamp) matches load_user_syntax_depths contract exactly
+_OUTPUT_ROOT = Path("/home/wlia0047/ar57/wenyu/result/04_query")
 _OUTPUT_FILE_NAME = "query_by_syntax_depth_no_depth_check_10.json"
 
 NUM_CANDIDATES_PER_USER = 10

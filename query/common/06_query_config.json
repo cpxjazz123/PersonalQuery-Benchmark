@@ -2,8 +2,8 @@
   "_comment": "06_query 路径配置文件",
   "base_paths": {
     "root": "/home/wlia0047/ar57/wenyu",
-    "result": "/home/wlia0047/ar57/wenyu/result/personal_query",
-    "test_result": "/home/wlia0047/ar57/wenyu/result/personal_query",
+    "result": "/home/wlia0047/ar57/wenyu/result",
+    "test_result": "/home/wlia0047/ar57/wenyu/result",
     "workspace": "/home/wlia0047/ar57/wenyu"
   },
   "categories": {

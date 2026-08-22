@@ -52,7 +52,7 @@ def load_vades_profiles(category: str, tag: str = VADES_TAG) -> Dict[str, Dict[s
     effective_tag = os.environ.get("VADES_PROFILE_TAG", tag)
     p = (
         REPO_ROOT
-        / "result" / "personal_query" / "12_complexity_analysis_clause_features"
+        / "result" / "12_complexity_analysis_clause_features"
         / category / f"{effective_tag}_user_profiles.jsonl"
     )
     profiles: Dict[str, Dict[str, np.ndarray]] = {}
@@ -74,7 +74,7 @@ def load_feature_scaler(category: str, tag: str = VADES_TAG) -> Dict:
     """Load the StandardScaler used to standardize clause features in VADES."""
     p = (
         REPO_ROOT
-        / "result" / "personal_query" / "12_complexity_analysis_clause_features"
+        / "result" / "12_complexity_analysis_clause_features"
         / category / f"{tag}_feature_scaler.json"
     )
     with open(p) as f:
@@ -88,7 +88,7 @@ def load_candidate_feature_rows(category: str) -> List[dict]:
     """
     p = (
         REPO_ROOT
-        / "result" / "personal_query" / "12_complexity_analysis_clause_features"
+        / "result" / "12_complexity_analysis_clause_features"
         / category / "query_10_candidates_clause_features_joint_fisher_shared_pca_k3.jsonl"
     )
     if not p.exists():

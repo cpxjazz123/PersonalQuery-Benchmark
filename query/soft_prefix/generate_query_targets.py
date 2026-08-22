@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate y_plus_query training targets for copy-aware copy_aware_train.py.
 
-Inputs:  result/personal_query/attribute_extraction/Baby_Products/query_records.json
+Inputs:  result/attribute_extraction/Baby_Products/query_records.json
          (含 user_id / asin / attrs_used, 来自 build_query_records.py)
 
-Outputs: result/personal_query/attribute_extraction/Baby_Products/query_records_with_query.json
+Outputs: result/attribute_extraction/Baby_Products/query_records_with_query.json
          (注入 y_plus_query: 用 Qwen-7B batched vLLM 生成自然 shopping query,
          严格按 build_attr_prompt_lines 列出每个属性)
 
@@ -28,8 +28,8 @@ SCRATCH_LOG.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(REPO_ROOT))
 
 # === 硬编码路径 (Rule 3) ===
-RECORDS_IN = REPO_ROOT / "result/personal_query/attribute_extraction/Baby_Products/query_records.json"
-RECORDS_OUT = REPO_ROOT / "result/personal_query/attribute_extraction/Baby_Products/query_records_with_query.json"
+RECORDS_IN = REPO_ROOT / "result/attribute_extraction/Baby_Products/query_records.json"
+RECORDS_OUT = REPO_ROOT / "result/attribute_extraction/Baby_Products/query_records_with_query.json"
 GENERATION_LOG = SCRATCH_LOG / "generate_targets.log"
 
 # === 硬编码推理配置 ===

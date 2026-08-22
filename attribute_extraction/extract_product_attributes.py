@@ -34,7 +34,7 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # 硬编码输入/输出路径 (Rule 3)
 META_GZ = Path("/fs04/ar57/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl.gz")
-OUT_DIR = REPO_ROOT / "result/personal_query/attribute_extraction/Baby_Products"
+OUT_DIR = REPO_ROOT / "result/attribute_extraction/Baby_Products"
 PRODUCT_ATTRS_JSON = OUT_DIR / "product_attributes.json"
 
 # 字符串值长度上限: 超过此长度的 details 字段 (典型如 Care instructions /

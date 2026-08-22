@@ -162,15 +162,15 @@ if COVARIANCE_MODE in {"diagonal_gmm", "diagonal_student_t_gmm"} and GMM_COMPONE
 # (1) 训练/输入路径
 INPUT_DIR = (
     Path(os.environ["VADES_INPUT_DIR"]) if os.environ.get("VADES_INPUT_DIR")
-    else REPO_ROOT / "result" / "personal_query" / "12_complexity_analysis_clause_features" / CATEGORY
+    else REPO_ROOT / "result" / "12_complexity_analysis_clause_features" / CATEGORY
 )
 REVIEW_SOURCE_FILE = (
     Path(os.environ["VADES_REVIEW_SOURCE"]) if os.environ.get("VADES_REVIEW_SOURCE")
-    else REPO_ROOT / "result" / "personal_query" / "01_preference_extraction" / CATEGORY / "stage1_filtered_users_reviews.json"
+    else REPO_ROOT / "result" / "01_preference_extraction" / CATEGORY / "stage1_filtered_users_reviews.json"
 )
 SKIP_DEDUP = os.environ.get("VADES_SKIP_DEDUP", "0") == "1"
 CANDIDATE_QUERY_FILE = INPUT_DIR / "query_10_candidates_clause_features_joint_fisher_shared_pca_k3.jsonl"
-RAW_CANDIDATE_QUERY_FILE = REPO_ROOT / "result" / "personal_query" / "06_query" / CATEGORY / "query_by_expression_style_no_depth_check_10.json"
+RAW_CANDIDATE_QUERY_FILE = REPO_ROOT / "result" / "06_query" / CATEGORY / "query_by_expression_style_no_depth_check_10.json"
 SUMMARY_FILE = INPUT_DIR / f"{OUTPUT_TAG}_summary.json"
 DETAIL_FILE = INPUT_DIR / f"{OUTPUT_TAG}_epoch_details.jsonl"
 USER_PROFILE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_user_profiles.jsonl"
@@ -184,7 +184,7 @@ else:
     SENTENCE_EXTRACT_CACHE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_extracted_sentences.jsonl"
 SELECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_selected_query_records.jsonl"
 REJECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_rejected_query_records.jsonl"
-QUERY_FILE = REPO_ROOT / "result" / "personal_query" / "06_query" / CATEGORY / f"query_by_expression_style_{OUTPUT_TAG}.json"
+QUERY_FILE = REPO_ROOT / "result" / "06_query" / CATEGORY / f"query_by_expression_style_{OUTPUT_TAG}.json"
 ENCODER_CKPT = INPUT_DIR / f"vades_encoder_{OUTPUT_TAG}.pt"
 USER_TABLE_CKPT = INPUT_DIR / f"vades_user_table_{OUTPUT_TAG}.pt"
 
@@ -199,7 +199,7 @@ PROBE_FOLD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_style_vector_eval_fold_metrics.json
 PROBE_SUMMARY_FILE = INPUT_DIR / f"{OUTPUT_TAG}_style_vector_eval_summary.json"
 
 # (3) validate 路径常量 (独立的 INPUT_DIR/OUTPUT_TAG)
-VALIDATE_INPUT_DIR = REPO_ROOT / "result" / "personal_query" / "10_complexity_analysis_clause_features" / CATEGORY
+VALIDATE_INPUT_DIR = REPO_ROOT / "result" / "10_complexity_analysis_clause_features" / CATEGORY
 VALIDATE_SENTENCE_FILE = VALIDATE_INPUT_DIR / f"{OUTPUT_TAG}_sentences.jsonl"
 VALIDATE_USER_PROFILE_FILE = VALIDATE_INPUT_DIR / f"{OUTPUT_TAG}_user_profiles.jsonl"
 VALIDATE_SUMMARY_FILE = VALIDATE_INPUT_DIR / f"{OUTPUT_TAG}_summary.json"
@@ -219,8 +219,8 @@ VALIDATE_BASELINE_N_USERS = 100
 VALIDATE_BASELINE_N_REPLICATES = 30
 
 # (4) compare 路径常量 (复用 VALIDATE_INPUT_DIR, 即 10_complexity_analysis_clause_features)
-COMPARE_FEATURE_BASE = REPO_ROOT / "result" / "personal_query" / "10_complexity_analysis_clause_features" / CATEGORY
-COMPARE_OUTPUT_DIR = REPO_ROOT / "result" / "personal_query" / "10_complexity_analysis_clause_features" / "interpretability_paper" / CATEGORY
+COMPARE_FEATURE_BASE = REPO_ROOT / "result" / "10_complexity_analysis_clause_features" / CATEGORY
+COMPARE_OUTPUT_DIR = REPO_ROOT / "result" / "10_complexity_analysis_clause_features" / "interpretability_paper" / CATEGORY
 COMPARE_OUTPUT_JSON = COMPARE_OUTPUT_DIR / "prior_gaussian_vs_nongaussian.json"
 COMPARE_OUTPUT_PNG = COMPARE_OUTPUT_DIR / "prior_gaussian_vs_nongaussian.png"
 COMPARE_GROUPS = [
