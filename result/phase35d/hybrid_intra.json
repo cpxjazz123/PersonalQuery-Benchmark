@@ -1,0 +1,193 @@
+{
+  "intra_summary": {
+    "size>=2": {},
+    "size>=3": {},
+    "size>=4": {},
+    "size>=5": {
+      "pca64_diag+syntax_05": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca64_diag+syntax_07": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca64_diag+syntax_03": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca32_global+syntax_07": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca32_global+syntax_05": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca32_global+pca64_diag_07": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca32_global+pca64_diag_05": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca64_diag+pca64_global_07": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca64_diag+pca128_diag_05": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      },
+      "pca64_diag+pca32_diag_05": {
+        "n_users": 1,
+        "n_hit": 1,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 3.5
+      }
+    },
+    "size>=10": {
+      "pca64_diag+syntax_05": {
+        "n_users": 73,
+        "n_hit": 26,
+        "rank1_pct": 35.61643835616438,
+        "mean_own_rank": 23.93321917808219
+      },
+      "pca64_diag+syntax_07": {
+        "n_users": 73,
+        "n_hit": 25,
+        "rank1_pct": 34.24657534246575,
+        "mean_own_rank": 23.291095890410958
+      },
+      "pca64_diag+syntax_03": {
+        "n_users": 73,
+        "n_hit": 21,
+        "rank1_pct": 28.767123287671232,
+        "mean_own_rank": 24.590753424657535
+      },
+      "pca32_global+syntax_07": {
+        "n_users": 73,
+        "n_hit": 26,
+        "rank1_pct": 35.61643835616438,
+        "mean_own_rank": 22.440068493150687
+      },
+      "pca32_global+syntax_05": {
+        "n_users": 73,
+        "n_hit": 21,
+        "rank1_pct": 28.767123287671232,
+        "mean_own_rank": 23.226027397260275
+      },
+      "pca32_global+pca64_diag_07": {
+        "n_users": 73,
+        "n_hit": 20,
+        "rank1_pct": 27.397260273972602,
+        "mean_own_rank": 21.65582191780822
+      },
+      "pca32_global+pca64_diag_05": {
+        "n_users": 73,
+        "n_hit": 22,
+        "rank1_pct": 30.136986301369863,
+        "mean_own_rank": 21.674657534246574
+      },
+      "pca64_diag+pca64_global_07": {
+        "n_users": 73,
+        "n_hit": 27,
+        "rank1_pct": 36.986301369863014,
+        "mean_own_rank": 22.371575342465754
+      },
+      "pca64_diag+pca128_diag_05": {
+        "n_users": 73,
+        "n_hit": 23,
+        "rank1_pct": 31.506849315068493,
+        "mean_own_rank": 23.20205479452055
+      },
+      "pca64_diag+pca32_diag_05": {
+        "n_users": 73,
+        "n_hit": 23,
+        "rank1_pct": 31.506849315068493,
+        "mean_own_rank": 23.243150684931507
+      }
+    }
+  },
+  "hybrid_specs": [
+    {
+      "name": "pca64_diag+syntax_05",
+      "s_a": "pca64_diag",
+      "s_b": "syntax",
+      "w_a": 0.5
+    },
+    {
+      "name": "pca64_diag+syntax_07",
+      "s_a": "pca64_diag",
+      "s_b": "syntax",
+      "w_a": 0.7
+    },
+    {
+      "name": "pca64_diag+syntax_03",
+      "s_a": "pca64_diag",
+      "s_b": "syntax",
+      "w_a": 0.3
+    },
+    {
+      "name": "pca32_global+syntax_07",
+      "s_a": "pca32_global",
+      "s_b": "syntax",
+      "w_a": 0.7
+    },
+    {
+      "name": "pca32_global+syntax_05",
+      "s_a": "pca32_global",
+      "s_b": "syntax",
+      "w_a": 0.5
+    },
+    {
+      "name": "pca32_global+pca64_diag_07",
+      "s_a": "pca32_global",
+      "s_b": "pca64_diag",
+      "w_a": 0.7
+    },
+    {
+      "name": "pca32_global+pca64_diag_05",
+      "s_a": "pca32_global",
+      "s_b": "pca64_diag",
+      "w_a": 0.5
+    },
+    {
+      "name": "pca64_diag+pca64_global_07",
+      "s_a": "pca64_diag",
+      "s_b": "pca64_global",
+      "w_a": 0.7
+    },
+    {
+      "name": "pca64_diag+pca128_diag_05",
+      "s_a": "pca64_diag",
+      "s_b": "pca128_diag",
+      "w_a": 0.5
+    },
+    {
+      "name": "pca64_diag+pca32_diag_05",
+      "s_a": "pca64_diag",
+      "s_b": "pca32_diag",
+      "w_a": 0.5
+    }
+  ]
+}
