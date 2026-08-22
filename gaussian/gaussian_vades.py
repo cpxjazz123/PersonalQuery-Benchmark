@@ -96,14 +96,31 @@ USER_CHUNK_SIZE_TRAIN = int(os.environ.get("VADES_USER_CHUNK_SIZE_TRAIN", "256")
 LEARNING_RATE = 1e-3
 EARLY_STOP_PATIENCE = int(os.environ.get("VADES_EARLY_STOP", "5"))
 WEIGHT_DECAY = 1e-5
-USER_MATCH_WEIGHT = 1.0
-STYLE_RECON_WEIGHT = 0.8
-SENT_KL_WEIGHT = 0.05
-USER_PRIOR_KL_WEIGHT = 0.02
+USER_MATCH_WEIGHT = float(os.environ.get("VADES_USER_MATCH_WEIGHT", "1.0"))
+STYLE_RECON_WEIGHT = float(os.environ.get("VADES_STYLE_RECON_WEIGHT", "0.8"))
+SENT_KL_WEIGHT = float(os.environ.get("VADES_SENT_KL_WEIGHT", "0.05"))
+USER_PRIOR_KL_WEIGHT = float(os.environ.get("VADES_USER_PRIOR_KL_WEIGHT", "0.02"))
 LATENT_ALIGN_WEIGHT = float(os.environ.get("VADES_LATENT_ALIGN_WEIGHT", "1.0"))
 STYLE_DISTINCT_WEIGHT = float(os.environ.get("VADES_STYLE_DISTINCT_WEIGHT", "0.5"))
 STYLE_ANCHOR_WEIGHT = float(os.environ.get("VADES_STYLE_ANCHOR_WEIGHT", "0.3"))
 DISENTANGLE_N_CLUSTERS = int(os.environ.get("VADES_DISENTANGLE_K", "8"))
+# === Prototype 模式专用常量 (替代 learnable user_offsets) ===
+PROTOTYPE_NUM_CLUSTERS = int(os.environ.get("VADES_PROTOTYPE_K", "8"))
+LAMBDA_USER = float(os.environ.get("VADES_LAMBDA_USER", "1.0"))              # L_user 权重 (cosine to sg(p_u))
+LAMBDA_CONTRAST = float(os.environ.get("VADES_LAMBDA_CONTRAST", "0.5"))      # InfoNCE 跨用户对比损失权重
+LAMBDA_GMM = float(os.environ.get("VADES_LAMBDA_GMM", "0.05"))                # user_prior KL 权重 (prototype 模式专属)
+SUPPORT_FRAC = float(os.environ.get("VADES_SUPPORT_FRAC", "0.5"))            # 0.5 = 每用户 5 support + 5 query
+CONTRAST_TEMPERATURE = float(os.environ.get("VADES_CONTRAST_TEMP", "0.1"))   # InfoNCE 温度
+PROTOTYPE_USER_CHUNK = int(os.environ.get("VADES_PROTOTYPE_USER_CHUNK", "32"))  # 每 batch user 数
+PROTOTYPE_VARIANCE_INIT_BIAS = float(os.environ.get("VADES_PROTOTYPE_VAR_BIAS", "0.0"))  # logvar 偏置初值
+PROTOTYPE_VARIANT = os.environ.get("VADES_PROTOTYPE_VARIANT", "v4")  # v4=teacher_proj, v5=raw 直接 anchor
+# === v4 prototype 新增: teacher + 两阶段训练 ===
+LAMBDA_TEACHER = float(os.environ.get("VADES_LAMBDA_TEACHER", "10.0"))  # teacher loss 权重 (Stage 1)
+LAMBDA_TEACHER_STAGE2 = float(os.environ.get("VADES_LAMBDA_TEACHER_STAGE2", "1.0"))  # teacher loss 权重 (Stage 2, 降低)
+STAGE1_EPOCHS = int(os.environ.get("VADES_STAGE1_EPOCHS", "20"))  # Stage 1 epoch 数 (只 train teacher + contrastive)
+STAGE1_LAMBDA_RECON = float(os.environ.get("VADES_STAGE1_LAMBDA_RECON", "0.0"))  # Stage 1 关闭重建
+STAGE1_LAMBDA_KL = float(os.environ.get("VADES_STAGE1_LAMBDA_KL", "0.0"))  # Stage 1 关闭 sent KL
+SENTENCES_PER_USER = int(os.environ.get("VADES_SENTENCES_PER_USER", "4"))  # 每用户采样句数 (U×K batch)
 ABS_THRESHOLD_QUANTILE = float(os.environ.get("VADES_ABS_THRESHOLD_QUANTILE", "0.95"))
 MAX_USERS_OVERRIDE = os.environ.get("VADES_MAX_USERS")
 SKIP_POST_CLUSTERING = os.environ.get("VADES_SKIP_POST_CLUSTERING", "0") == "1"
@@ -111,7 +128,7 @@ COVARIANCE_MODE = os.environ.get("VADES_COVARIANCE_MODE", "diagonal_gmm")
 VALID_COVARIANCE_MODES = {
     "diagonal", "full", "diagonal_gmm",
     "diagonal_student_t", "diagonal_laplace", "diagonal_student_t_gmm",
-    "diagonal_logistic", "diagonal_disentangled",
+    "diagonal_logistic", "diagonal_prototype",
 }
 if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
     raise ValueError(
@@ -664,17 +681,43 @@ class UserDistributionTableStudentTGMM(nn.Module):
         return self._df()
 
 
-class UserDistributionTableDisentangled(nn.Module):
-    """Disentangled user prior: user_mu = style_center[user_cluster[u]] + user_offset[u].
+class TeacherProjector(nn.Module):
+    """v4 新增: 把 encoder mu (latent_dim) 投影到 raw feature 空间 (raw_dim).
 
-    - style_centers: [n_clusters, latent_dim] — shared across users in same cluster (style contribution)
-    - user_offsets: [num_users, latent_dim] — unique per user (identity contribution)
-    - user_cluster_ids: [num_users] — fixed cluster assignment (from KMeans on raw features)
-    - forward returns (mu, logvar) 同 diagonal 模式, 但 mu 是 point estimate
+    用作 teacher loss: L_teacher = MSE(projector(mu_q), r_u)
+    其中 r_u = mean(raw_features[user u]) 预计算的 raw user prototype.
 
-    Loss 额外加:
-    - style_distinct_loss: 风格中心彼此远离 (cosine)
-    - style_anchor_loss:   风格中心贴近用户平均特征 (用训练前 cluster anchors)
+    设计动机: VADES style_centers 会主导 encoder 让它学 generic style 而非 user-discriminative 特征.
+    引入 teacher signal 用 47d raw features (AUC=0.65 已验证) 作为老师, 强制 encoder 学 user 信息.
+    """
+
+    def __init__(self, latent_dim: int, teacher_dim: int):
+        super().__init__()
+        self.proj = nn.Sequential(
+            nn.Linear(latent_dim, latent_dim),
+            nn.ReLU(),
+            nn.Linear(latent_dim, teacher_dim),
+        )
+
+    def forward(self, mu: torch.Tensor) -> torch.Tensor:
+        return self.proj(mu)
+
+
+class UserDistributionTablePrototype(nn.Module):
+    """Support-set prototype user prior.
+
+    核心公式 (取代 learnable user_offsets):
+        p_u = (1/|S_u|) Σ_{x∈S_u} Encoder_mu(x)        # 用户支持集 prototype (外部计算传入)
+        μ_u = μ_cluster[cluster_u] + A · (p_u - μ_cluster[cluster_u])
+        logvar_u = softplus(B · p_u) + ε                 # 对角方差 (用户个性化)
+
+    - style_centers: [n_clusters, latent_dim] — 共享风格簇中心 (learnable)
+    - A: [latent_dim, latent_dim] — 残差投影 (learnable, 跨用户共享)
+    - B: [latent_dim, latent_dim] — 方差投影 (learnable, 跨用户共享)
+    - user_cluster_ids: [num_users] buffer — KMeans on raw features (固定)
+
+    state_dict 中**没有任何 per-user 可学习参数**。这强制 encoder 必须从 query latent 学到
+    user-discriminative 信号, 因为 user_table 失去了"查表"路径。
     """
 
     def __init__(
@@ -683,7 +726,7 @@ class UserDistributionTableDisentangled(nn.Module):
         latent_dim: int,
         user_cluster_ids: torch.Tensor,
         style_anchors: torch.Tensor | None = None,
-        fixed_logvar: float = -2.0,
+        variance_bias: float = 0.0,
     ):
         super().__init__()
         self.num_users = num_users
@@ -691,43 +734,72 @@ class UserDistributionTableDisentangled(nn.Module):
         n_clusters = int(user_cluster_ids.max().item()) + 1
         self.n_clusters = n_clusters
         self.register_buffer("user_cluster_ids", user_cluster_ids.to(torch.long))
-        # 风格中心: init = KMeans cluster centroids (若提供), 否则随机
+        # 共享风格簇中心 (init = KMeans cluster centroids if provided, else zeros)
         if style_anchors is not None:
-            assert style_anchors.shape == (n_clusters, latent_dim)
+            assert style_anchors.shape == (n_clusters, latent_dim), (
+                f"style_anchors shape {style_anchors.shape} != ({n_clusters}, {latent_dim})"
+            )
             self.style_centers = nn.Parameter(style_anchors.clone())
         else:
             self.style_centers = nn.Parameter(torch.zeros(n_clusters, latent_dim))
-        self.user_offsets = nn.Parameter(torch.zeros(num_users, latent_dim))
-        self.fixed_logvar = fixed_logvar
-        # V2: init user_offsets with std=0.5 (更大初值, 让 fixed_logvar=-2 不会马上 KL 收敛到 0)
-        nn.init.normal_(self.user_offsets, std=0.5)
+        # A: 残差投影 (init 为 identity, 让 μ_u ≈ p_u 起步)
+        self.A = nn.Parameter(torch.eye(latent_dim))
+        # B: 方差投影 (init 为 0, softplus(0)=log(2)≈0.693, logvar≈0.693+variance_bias)
+        self.B = nn.Parameter(torch.zeros(latent_dim, latent_dim))
+        self.variance_bias = float(variance_bias)
 
-    def forward(self, user_index: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        clusters = self.user_cluster_ids[user_index]
-        style = self.style_centers[clusters]
-        offset = self.user_offsets[user_index]
-        mu = style + offset
-        logvar = torch.full_like(mu, self.fixed_logvar)
-        return mu, logvar
+    def forward(self, p_u: torch.Tensor, cluster_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """p_u: [B, latent_dim] 用户支持集 prototype, cluster_ids: [B] 用户所属 cluster.
+
+        返回 (mu_u, logvar_u), 均为 [B, latent_dim]。
+        """
+        cluster_mu = self.style_centers[cluster_ids]  # [B, D]
+        delta = p_u - cluster_mu  # [B, D]
+        # μ_u = μ_cluster + A · delta (A @ delta.T 转置回来)
+        mu_u = cluster_mu + delta @ self.A.T  # [B, D]
+        # logvar_u = softplus(B · p_u) + bias
+        logvar_pre = p_u @ self.B.T  # [B, D]
+        logvar_u = torch.nn.functional.softplus(logvar_pre) + self.variance_bias
+        return mu_u, logvar_u
 
     def get_style_centers(self) -> torch.Tensor:
         return self.style_centers
 
     @property
     def user_mu(self) -> torch.Tensor:
-        """暴露全量 user_mu 矩阵 (style_centers[cluster] + user_offsets) 以兼容推理代码."""
-        all_idx = torch.arange(self.num_users, device=self.style_centers.device)
-        clusters = self.user_cluster_ids[all_idx]
-        return self.style_centers[clusters] + self.user_offsets
+        """为兼容下游代码: 暴露预计算缓存的 user_mu 矩阵 (在 inference 时由 main 填充)。
+
+        训练阶段无 per-user params, 此属性返回的 tensor 是在 infer_user_sentence_distributions
+        中通过 forward(p_u_all_users, cluster_ids_all_users) 预计算并 cache 到 self._cached_user_mu 的。
+        若未 cache, 返回 None (fail-fast 由调用方处理)。
+        """
+        cached = getattr(self, "_cached_user_mu", None)
+        if cached is None:
+            raise RuntimeError(
+                "UserDistributionTablePrototype.user_mu 未 cache — 必须先调用 "
+                "set_user_mu_cache(mu, logvar) 或 prototype_inference_all_users(encoder, support_set)"
+            )
+        return cached
 
     @property
     def user_logvar(self) -> torch.Tensor:
-        """暴露全量 user_logvar 矩阵 (fixed)."""
-        return torch.full(
-            (self.num_users, self.latent_dim),
-            self.fixed_logvar,
-            device=self.style_centers.device,
-        )
+        cached = getattr(self, "_cached_user_logvar", None)
+        if cached is None:
+            raise RuntimeError(
+                "UserDistributionTablePrototype.user_logvar 未 cache — 同 user_mu 约束"
+            )
+        return cached
+
+    def set_user_mu_cache(self, mu: torch.Tensor, logvar: torch.Tensor) -> None:
+        """由 main 训练流程在 infer_user_sentence_distributions 阶段调用, 缓存所有用户的 mu/logvar。"""
+        assert mu.shape == (self.num_users, self.latent_dim)
+        assert logvar.shape == (self.num_users, self.latent_dim)
+        self._cached_user_mu = mu.detach()
+        self._cached_user_logvar = logvar.detach()
+
+    def clear_user_mu_cache(self) -> None:
+        self._cached_user_mu = None
+        self._cached_user_logvar = None
 
 
 class SentenceEncoderFull(nn.Module):
@@ -1223,8 +1295,9 @@ def train_vades_user_distribution_model(
     )
     encoder.to(device)
     user_table.to(device)
+    optimizer_params = list(encoder.parameters()) + list(user_table.parameters())
     optimizer = torch.optim.Adam(
-        list(encoder.parameters()) + list(user_table.parameters()),
+        optimizer_params,
         lr=learning_rate, weight_decay=weight_decay,
     )
 
@@ -1245,6 +1318,19 @@ def train_vades_user_distribution_model(
     encoder_ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     user_table_ckpt_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # === v4/v5: teacher signal (v4 用 teacher_proj, v5 直接用 raw_user_proto) ===
+    teacher_proj: TeacherProjector | None = None
+    raw_user_protos: torch.Tensor | None = None
+    if LAMBDA_TEACHER > 0:
+        raw_dim = feature_matrix_raw.shape[1]
+        raw_user_protos = precompute_raw_user_protos(
+            feature_matrix_raw, user_index_tensor, train_mask_tensor, num_users,
+        )
+        if PROTOTYPE_VARIANT == "v4":
+            teacher_proj = TeacherProjector(LATENT_DIM, raw_dim).to(device)
+            optimizer.add_param_group({"params": list(teacher_proj.parameters())})
+        log(f"  prototype variant={PROTOTYPE_VARIANT}, teacher={LAMBDA_TEACHER} (stage2={LAMBDA_TEACHER_STAGE2}), raw_dim={raw_dim}")
+
     scaler = GradScaler(enabled=(device.type == "cuda"))
     encoder.train()
     user_table.train()
@@ -1253,29 +1339,144 @@ def train_vades_user_distribution_model(
         perm = train_indices[torch.randperm(train_indices.numel(), device=device)]
         total_loss = torch.zeros((), device=device)
         n_batches = 0
-        for chunk_start in range(0, perm.numel(), batch_size):
-            chunk_end = min(chunk_start + batch_size, perm.numel())
-            batch_idx = perm[chunk_start:chunk_end]
-            optimizer.zero_grad()
-            with autocast(enabled=(device.type == "cuda")):
-                losses = _compute_losses_for_batch(
-                    batch_idx,
-                    feature_tensor, user_index_tensor, num_users,
-                    encoder, user_table, feature_matrix_raw,
-                    encoder_dist=encoder_dist, covariance_mode=covariance_mode,
-                    user_match_weight=user_match_weight,
-                    style_recon_weight=style_recon_weight,
-                    sent_kl_weight=sent_kl_weight,
-                    user_prior_kl_weight=user_prior_kl_weight,
-                    latent_align_weight=latent_align_weight,
+        if covariance_mode == "diagonal_prototype":
+            # Prototype 模式: per-user batch (batch_size 被忽略, 用 PROTOTYPE_USER_CHUNK)
+            n_users = num_users
+            generator = torch.Generator(device="cpu").manual_seed(seed + epoch)
+            n_batches_proto = 0
+            # 一次性预计算 user → train 句索引 (避免每 batch 重建 30K Python dict)
+            user_to_indices_cache = _build_user_to_indices(train_mask_tensor, user_index_tensor)
+            # v4/v5: stage-aware loss weights (Stage 1: 关 recon/kl, 重 teacher/contrast)
+            # teacher_proj 存在与否不影响是否启用 teacher signal (v5 直接用 raw_user_proto, 不用投影层)
+            is_stage1 = (LAMBDA_TEACHER > 0) and (epoch <= STAGE1_EPOCHS)
+            if is_stage1:
+                stage_recon_weight = STAGE1_LAMBDA_RECON
+                stage_sent_kl_weight = STAGE1_LAMBDA_KL
+                stage_teacher_weight = LAMBDA_TEACHER
+            else:
+                stage_recon_weight = style_recon_weight
+                stage_sent_kl_weight = sent_kl_weight
+                stage_teacher_weight = LAMBDA_TEACHER_STAGE2 if LAMBDA_TEACHER > 0 else 0.0
+            if epoch == 1 or epoch == STAGE1_EPOCHS + 1:
+                log(f"  stage={'1 (teacher+contrast)' if is_stage1 else '2 (full VADES)'}, "
+                    f"teacher_w={stage_teacher_weight}, recon_w={stage_recon_weight}, kl_w={stage_sent_kl_weight}")
+            for batch_user_start in range(0, n_users, PROTOTYPE_USER_CHUNK):
+                batch_users, support_indices, query_indices = _sample_support_query_indices(
+                    train_mask_tensor, user_index_tensor,
+                    user_chunk=min(PROTOTYPE_USER_CHUNK, n_users - batch_user_start),
+                    support_frac=SUPPORT_FRAC,
+                    generator=generator,
+                    user_to_indices=user_to_indices_cache,
+                    sentences_per_user=SENTENCES_PER_USER,
                 )
-            loss = losses["loss"]
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(encoder.parameters(), 5.0)
-            torch.nn.utils.clip_grad_norm_(user_table.parameters(), 5.0)
-            scaler.step(optimizer)
-            scaler.update()
+                optimizer.zero_grad()
+                with autocast(enabled=(device.type == "cuda")):
+                    if LAMBDA_TEACHER > 0 and PROTOTYPE_VARIANT in ("v4", "v5", "v6"):
+                        # v4/v5/v6 path: teacher + stage-aware weights
+                        raw_dim = feature_matrix_raw.shape[1]
+                        if PROTOTYPE_VARIANT == "v6":
+                            # v6: aggregation-first — teacher/contrastive 在用户级 z_u 上
+                            losses = _compute_losses_for_prototype_v6(
+                                support_indices, query_indices, batch_users,
+                                feature_tensor, feature_matrix_raw,
+                                encoder, user_table,
+                                teacher_proj, raw_user_protos,
+                                LATENT_DIM, raw_dim,
+                                lambda_teacher=stage_teacher_weight,
+                                lambda_user=LAMBDA_USER,
+                                lambda_contrast=LAMBDA_CONTRAST,
+                                user_prior_kl_weight=LAMBDA_GMM,
+                                style_recon_weight=stage_recon_weight,
+                                sent_kl_weight=stage_sent_kl_weight,
+                                style_distinct_weight=STYLE_DISTINCT_WEIGHT,
+                                contrast_temperature=CONTRAST_TEMPERATURE,
+                            )
+                        elif PROTOTYPE_VARIANT == "v5":
+                            # v5: 无 teacher_proj, 直接用 raw_user_proto 作 anchor
+                            losses = _compute_losses_for_prototype_v5(
+                                support_indices, query_indices, batch_users,
+                                feature_tensor, feature_matrix_raw,
+                                encoder, user_table,
+                                raw_user_protos,
+                                LATENT_DIM, raw_dim,
+                                lambda_teacher=stage_teacher_weight,
+                                lambda_user=LAMBDA_USER,
+                                lambda_contrast=LAMBDA_CONTRAST,
+                                user_prior_kl_weight=LAMBDA_GMM,
+                                style_recon_weight=stage_recon_weight,
+                                sent_kl_weight=stage_sent_kl_weight,
+                                style_distinct_weight=STYLE_DISTINCT_WEIGHT,
+                                contrast_temperature=CONTRAST_TEMPERATURE,
+                            )
+                        else:
+                            # v4: teacher_proj + learned p_u (默认)
+                            losses = _compute_losses_for_prototype_v4(
+                                support_indices, query_indices, batch_users,
+                                feature_tensor, feature_matrix_raw,
+                                encoder, user_table,
+                                teacher_proj, raw_user_protos,
+                                LATENT_DIM, raw_dim,
+                                lambda_teacher=stage_teacher_weight,
+                                lambda_user=LAMBDA_USER,
+                                lambda_contrast=LAMBDA_CONTRAST,
+                                user_prior_kl_weight=LAMBDA_GMM,
+                                style_recon_weight=stage_recon_weight,
+                                sent_kl_weight=stage_sent_kl_weight,
+                                style_distinct_weight=STYLE_DISTINCT_WEIGHT,
+                                contrast_temperature=CONTRAST_TEMPERATURE,
+                            )
+                    else:
+                        losses = _compute_losses_for_prototype(
+                            support_indices, query_indices, batch_users,
+                            feature_tensor, feature_matrix_raw,
+                            encoder, user_table, LATENT_DIM,
+                            style_recon_weight=style_recon_weight,
+                            sent_kl_weight=sent_kl_weight,
+                            user_prior_kl_weight=LAMBDA_GMM,
+                            lambda_user=LAMBDA_USER,
+                            lambda_contrast=LAMBDA_CONTRAST,
+                            style_distinct_weight=STYLE_DISTINCT_WEIGHT,
+                            contrast_temperature=CONTRAST_TEMPERATURE,
+                        )
+                loss = losses["loss"]
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 5.0)
+                torch.nn.utils.clip_grad_norm_(user_table.parameters(), 5.0)
+                if teacher_proj is not None:
+                    torch.nn.utils.clip_grad_norm_(teacher_proj.parameters(), 5.0)
+                scaler.step(optimizer)
+                scaler.update()
+                total_loss = total_loss + loss.detach()
+                n_batches += 1
+                n_batches_proto += 1
+            log(f"  prototype: {n_batches_proto} user-batches/epoch")
+        else:
+            for chunk_start in range(0, perm.numel(), batch_size):
+                chunk_end = min(chunk_start + batch_size, perm.numel())
+                batch_idx = perm[chunk_start:chunk_end]
+                optimizer.zero_grad()
+                with autocast(enabled=(device.type == "cuda")):
+                    losses = _compute_losses_for_batch(
+                        batch_idx,
+                        feature_tensor, user_index_tensor, num_users,
+                        encoder, user_table, feature_matrix_raw,
+                        encoder_dist=encoder_dist, covariance_mode=covariance_mode,
+                        user_match_weight=user_match_weight,
+                        style_recon_weight=style_recon_weight,
+                        sent_kl_weight=sent_kl_weight,
+                        user_prior_kl_weight=user_prior_kl_weight,
+                        latent_align_weight=latent_align_weight,
+                    )
+                loss = losses["loss"]
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 5.0)
+                torch.nn.utils.clip_grad_norm_(user_table.parameters(), 5.0)
+                scaler.step(optimizer)
+                scaler.update()
+                total_loss = total_loss + loss.detach()
+                n_batches += 1
             total_loss = total_loss + loss.detach()
             n_batches += 1
         avg_loss = (total_loss / max(n_batches, 1)).item()
@@ -1298,6 +1499,9 @@ def train_vades_user_distribution_model(
             patience_left = early_stop_patience
             torch.save(encoder.state_dict(), encoder_ckpt_path)
             torch.save(user_table.state_dict(), user_table_ckpt_path)
+            if teacher_proj is not None:
+                teacher_ckpt_path = encoder_ckpt_path.parent / f"vades_teacher_{OUTPUT_TAG}.pt"
+                torch.save(teacher_proj.state_dict(), teacher_ckpt_path)
         else:
             patience_left -= 1
             if patience_left <= 0:
@@ -1307,6 +1511,10 @@ def train_vades_user_distribution_model(
     if best_epoch is not None:
         encoder.load_state_dict(torch.load(encoder_ckpt_path, map_location=device))
         user_table.load_state_dict(torch.load(user_table_ckpt_path, map_location=device))
+        if teacher_proj is not None:
+            teacher_ckpt_path = encoder_ckpt_path.parent / f"vades_teacher_{OUTPUT_TAG}.pt"
+            if teacher_ckpt_path.exists():
+                teacher_proj.load_state_dict(torch.load(teacher_ckpt_path, map_location=device))
         log(f"已加载最优 checkpoint (epoch={best_epoch})")
 
     summary_payload = {
@@ -1359,17 +1567,17 @@ def _build_encoder_and_user_table(
     elif covariance_mode == "diagonal_logistic":
         encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
         user_table = UserDistributionTableLogistic(num_users, latent_dim)
-    elif covariance_mode == "diagonal_disentangled":
+    elif covariance_mode == "diagonal_prototype":
         encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
-        # user_cluster_ids + style_anchors 由 main_train 在加载训练数据后注入
         if user_cluster_ids is None:
             raise ValueError(
-                "diagonal_disentangled 需要 main_train 提供 user_cluster_ids (KMeans on raw features)"
+                "diagonal_prototype 需要 main_train 提供 user_cluster_ids (KMeans on raw features)"
             )
-        user_table = UserDistributionTableDisentangled(
+        user_table = UserDistributionTablePrototype(
             num_users, latent_dim,
             user_cluster_ids=user_cluster_ids,
             style_anchors=style_anchors,
+            variance_bias=PROTOTYPE_VARIANCE_INIT_BIAS,
         )
     else:
         encoder = SentenceEncoder(input_dim, hidden_dim, latent_dim)
@@ -1461,24 +1669,16 @@ def _compute_losses_for_batch(
             log_p_xu = logistic_log_likelihood(mu, logvar, user_mu, user_log_s)
             user_match = F.cross_entropy(log_p_xu, user_idx)
         elif covariance_mode in {"diagonal_disentangled"}:
-            user_mu, user_logvar = user_table(all_user_idx)
-            user_prior_kl = standard_normal_kl(user_mu, user_logvar).mean()
-            log_p_xu = -diagonal_gaussian_kl(
-                mu.unsqueeze(1),
-                logvar.unsqueeze(1),
-                user_mu.unsqueeze(0),
-                user_logvar.unsqueeze(0),
+            raise ValueError(
+                "diagonal_disentangled 已被 UserDistributionTablePrototype 取代, "
+                "请使用 covariance_mode='diagonal_prototype'"
             )
-            user_match = F.cross_entropy(log_p_xu, user_idx)
-            # ===== disentangle 额外 loss (V2: 只保留 style_distinct_loss, 删 anchor_loss) =====
-            style_centers = user_table.get_style_centers()
-            # 风格中心彼此远离 (cosine 相似度)
-            n_c = style_centers.size(0)
-            sc_norm = F.normalize(style_centers, dim=-1)
-            sim_matrix = sc_norm @ sc_norm.t()
-            off_diag = sim_matrix - torch.eye(n_c, device=sim_matrix.device)
-            style_distinct_loss = (off_diag ** 2).sum() / max(1, n_c * (n_c - 1))
-            # V2: style_anchor_loss 已删 (让 user_offsets 自由承担 per-user variation)
+        elif covariance_mode in {"diagonal_prototype"}:
+            # prototype 模式不调用本函数; 由 _compute_losses_for_prototype 单独处理
+            raise ValueError(
+                "diagonal_prototype 必须通过 _compute_losses_for_prototype 计算 loss, "
+                "训练循环已在 prototype 分支路由"
+            )
         else:
             user_mu, user_logvar = user_table(all_user_idx)
             user_prior_kl = standard_normal_kl(user_mu, user_logvar).mean()
@@ -1524,6 +1724,707 @@ def _compute_losses_for_batch(
     return out
 
 
+def _build_user_to_indices(
+    train_mask: torch.Tensor,
+    user_index_tensor: torch.Tensor,
+) -> dict[int, list[int]]:
+    """一次性预计算 user → train 句子索引列表, 缓存到 epoch 外避免每 batch 重建 Python dict.
+
+    调用方应在 train 循环外调用一次 (即 train 启动时), 然后把 cache 传给 _sample_support_query_indices.
+    """
+    train_mask_bool = train_mask.bool()
+    train_indices = torch.nonzero(train_mask_bool, as_tuple=False).squeeze(-1)
+    user_to_indices: dict[int, list[int]] = {}
+    user_ids = user_index_tensor[train_indices].tolist()
+    idx_list = train_indices.tolist()
+    for u, idx in zip(user_ids, idx_list):
+        user_to_indices.setdefault(u, []).append(idx)
+    return user_to_indices
+
+
+def _sample_support_query_indices(
+    train_mask: torch.Tensor,
+    user_index_tensor: torch.Tensor,
+    user_chunk: int,
+    support_frac: float,
+    generator: torch.Generator | None = None,
+    user_to_indices: dict[int, list[int]] | None = None,
+    sentences_per_user: int = 0,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Per-user batch sampling: 选 batch_users (user_chunk), 每用户随机抽 support/query 句。
+
+    Args:
+        train_mask: [N_total_sentences] bool — True 表示该句可作为 support/query 候选
+            (在 prototype 模式下, train_mask 已限定前 10 个 train 句子/user, 不含 holdout)
+        user_index_tensor: [N_total_sentences] long — 每句所属用户索引
+        user_chunk: batch 内用户数
+        support_frac: support 句占该用户 train 句的比例 (0.5 = 5 support + 5 query)
+        generator: torch.Generator for reproducible sampling
+        user_to_indices: 可选, 外部缓存的 {user_id: [idx_list]}, 避免每 batch 重建.
+        sentences_per_user: 0 表示用全部 train 句; >0 则每用户随机抽 K 句再 split (v4 用, 限制 batch 大小).
+
+    Returns:
+        batch_users: [user_chunk] long — 本 batch 的用户索引
+        support_indices: [user_chunk * n_support] long — support 句的全局索引
+        query_indices: [user_chunk * n_query] long — query 句的全局索引
+    """
+    train_mask_bool = train_mask.bool()
+    # 找出所有 train 用户 (至少 1 个 train 句的用户)
+    train_user_ids = torch.unique(user_index_tensor[train_mask_bool])
+    if user_chunk > train_user_ids.numel():
+        raise ValueError(
+            f"user_chunk={user_chunk} > train_user_ids={train_user_ids.numel()}, 缩小 user_chunk 或检查数据"
+        )
+    # 随机采样 batch_users
+    perm = torch.randperm(train_user_ids.numel(), generator=generator)[:user_chunk]
+    batch_users = train_user_ids[perm]
+
+    # 对每个 batch_user, 取该用户所有 train 句子索引 (优先用 cache, 避免重建 dict)
+    if user_to_indices is None:
+        user_to_indices = _build_user_to_indices(train_mask_bool, user_index_tensor)
+
+    support_indices_list: list[int] = []
+    query_indices_list: list[int] = []
+    for u in batch_users.tolist():
+        u_indices = user_to_indices.get(int(u), [])
+        n_u = len(u_indices)
+        if n_u < 2:
+            # 用户 train 句不足 2 句, 跳过 (支持集和查询集各需 ≥1)
+            continue
+        # v4: 限制每用户 K 句 (随机子采样) 以控制 batch 大小
+        if sentences_per_user > 0 and sentences_per_user < n_u:
+            perm_full = torch.randperm(n_u, generator=generator).tolist()
+            u_indices = [u_indices[i] for i in perm_full[:sentences_per_user]]
+            n_u = sentences_per_user
+        n_support = max(1, int(round(n_u * support_frac)))
+        n_support = min(n_support, n_u - 1)  # 至少留 1 句做 query
+        n_query = n_u - n_support
+        # 随机洗牌
+        perm_u = torch.randperm(n_u, generator=generator).tolist()
+        u_support = [u_indices[i] for i in perm_u[:n_support]]
+        u_query = [u_indices[i] for i in perm_u[n_support:n_support + n_query]]
+        support_indices_list.extend(u_support)
+        query_indices_list.extend(u_query)
+
+    if not support_indices_list or not query_indices_list:
+        raise ValueError(
+            f"_sample_support_query_indices: batch_users={batch_users.tolist()} 中无足够 train 句, "
+            f"support={len(support_indices_list)}, query={len(query_indices_list)}"
+        )
+
+    support_indices = torch.as_tensor(support_indices_list, dtype=torch.long)
+    query_indices = torch.as_tensor(query_indices_list, dtype=torch.long)
+    return batch_users, support_indices, query_indices
+
+
+def _compute_losses_for_prototype(
+    support_indices: torch.Tensor,
+    query_indices: torch.Tensor,
+    batch_users: torch.Tensor,
+    feature_tensor: torch.Tensor,
+    feature_matrix_raw: np.ndarray,
+    encoder: nn.Module,
+    user_table: UserDistributionTablePrototype,
+    latent_dim: int,
+    style_recon_weight: float,
+    sent_kl_weight: float,
+    user_prior_kl_weight: float,
+    lambda_user: float,
+    lambda_contrast: float,
+    style_distinct_weight: float,
+    contrast_temperature: float,
+) -> dict[str, torch.Tensor]:
+    """Prototype 模式 loss 计算 (per-user batch)。
+
+    流程:
+      1. Encoder forward support → p_u (per batch user)
+      2. Encoder forward query → z_q, logvar_q, reconstruction
+      3. user_table(p_u, cluster_ids[batch_users]) → mu_u, logvar_u
+      4. 5 项 loss:
+         - recon_loss: decoder 重建 query 特征
+         - sent_kl: KL(q(z|x) || N(0,I))
+         - user_prior_kl: KL(N(mu_u, logvar_u) || N(0,I))
+         - L_user: 1 - cos(z_q, sg(p_u))  ← **encoder 唯一 user-discriminative 信号来源**
+         - L_contrastive: InfoNCE across batch_users (z_q vs p_u for all batch_users)
+         - style_distinct: style_centers 互相远离
+    """
+    device = feature_tensor.device
+
+    # === 1. Encoder forward support → p_u ===
+    x_support = feature_tensor[support_indices]
+    mu_support, logvar_support, _ = encoder(x_support)  # [B*n_support, D]
+    # 按 batch_users 聚合: 同一个用户的 support 句放一起
+    n_support_per_user = support_indices.numel() // batch_users.numel()
+    p_u = mu_support.view(batch_users.numel(), n_support_per_user, latent_dim).mean(dim=1)  # [B, D]
+
+    # === 2. Encoder forward query → z_q, logvar_q, reconstruction ===
+    x_query = feature_tensor[query_indices]
+    mu_q, logvar_q, reconstruction = encoder(x_query)  # [B*n_query, D]
+
+    raw_feature_targets = torch.as_tensor(
+        feature_matrix_raw[query_indices.cpu().numpy()],
+        dtype=torch.float32, device=device,
+    )
+
+    # === 3. user_table forward → mu_u, logvar_u ===
+    cluster_ids = user_table.user_cluster_ids[batch_users]  # [B]
+    mu_u, logvar_u = user_table(p_u, cluster_ids)  # [B, D]
+
+    # === 4. 标准 VAE 损失 (recon + sent_kl) ===
+    recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
+    sent_kl = standard_normal_kl(mu_q, logvar_q).mean()
+
+    # user_prior_kl: 在 prototype 模式下, mu_u 是 data-derived 不需 prior 正则 ——
+    # 否则 KL 把 mu_u 拉到 0, 导致 user_mu 坍缩. 改用 mu_u 的 L2 norm 约束防止过大.
+    # user_prior_kl_loss = standard_normal_kl(mu_u, logvar_u).mean()  # disabled
+    user_mu_norm = (mu_u ** 2).sum(dim=-1).sqrt().mean()
+    # 软约束: user_mu_norm 应保持在 ~5 左右 (与 encoder 输出同尺度)
+    user_prior_kl = (user_mu_norm - 5.0).pow(2)  # 让 mu_u 不坍缩也不爆炸
+
+    # === 5. L_user: z_q 接近 sg(p_u) (cosine 距离) ===
+    # z_q: [B*n_query, D], p_u_target: [B*n_query, D] (per-query 复制所属 user 的 p_u)
+    n_query_per_user = query_indices.numel() // batch_users.numel()
+    p_u_target = p_u.detach().unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, latent_dim)
+    z_q_norm = F.normalize(mu_q, dim=-1)
+    p_u_norm = F.normalize(p_u_target, dim=-1)
+    cos_sim = (z_q_norm * p_u_norm).sum(dim=-1)
+    L_user = (1.0 - cos_sim).mean()
+
+    # === 6. L_contrastive: InfoNCE across batch_users ===
+    # logits[query_i, user_j] = cos(z_q_i, p_u_j) / temperature
+    p_u_for_contrast = F.normalize(p_u, dim=-1)  # [B, D], 不用 detach (允许 encoder 学 query→contrast signal)
+    logits = (z_q_norm @ p_u_for_contrast.t()) / contrast_temperature  # [B*n_query, B]
+    # labels: 每个 query 的 batch 位置 = 其所属 user 在 batch_users 中的索引
+    # 因为 batch_users 是随机采样无重复, query i 所属 user 的 batch 位置 = i // n_query_per_user
+    B = batch_users.numel()
+    label_idx = (
+        torch.arange(B, device=device)
+        .unsqueeze(1)
+        .expand(-1, n_query_per_user)
+        .reshape(-1)
+        .long()
+    )  # [B*n_query]
+    L_contrastive = F.cross_entropy(logits, label_idx)
+
+    # === 7. style_distinct: style_centers 互相远离 (cosine) ===
+    style_centers = user_table.get_style_centers()
+    n_c = style_centers.size(0)
+    sc_norm = F.normalize(style_centers, dim=-1)
+    sim_matrix = sc_norm @ sc_norm.t()
+    off_diag = sim_matrix - torch.eye(n_c, device=sim_matrix.device)
+    style_distinct_loss = (off_diag ** 2).sum() / max(1, n_c * (n_c - 1))
+
+    # === 总 loss (注意: prototype 模式不使用 user_match, 而是 L_user + L_contrastive) ===
+    loss = (
+        style_recon_weight * recon_loss
+        + sent_kl_weight * sent_kl
+        + user_prior_kl_weight * user_prior_kl
+        + lambda_user * L_user
+        + lambda_contrast * L_contrastive
+        + style_distinct_weight * style_distinct_loss
+    )
+
+    return {
+        "loss": loss,
+        "user_match_loss": L_user,  # 命名兼容旧 detail 文件
+        "recon_loss": recon_loss,
+        "sent_kl": sent_kl,
+        "user_prior_kl": user_prior_kl,
+        "latent_align": torch.tensor(0.0, device=device),  # prototype 不用 latent_align
+        "L_user": L_user,
+        "L_contrastive": L_contrastive,
+        "style_distinct_loss": style_distinct_loss,
+    }
+
+
+def precompute_raw_user_protos(
+    feature_matrix_raw: np.ndarray,
+    user_index_tensor: torch.Tensor,
+    train_mask: torch.Tensor,
+    num_users: int,
+) -> torch.Tensor:
+    """v4 新增: 预计算 raw user prototype r_u = mean(raw_features[user u]).
+
+    用途: teacher loss L_teacher = MSE(teacher_proj(mu_q), r_u)
+    输入 feature_matrix_raw 是原始 47 维特征 (已验证 AUC=0.65), 用作"老师信号"避免 VADES
+    style_centers 把 encoder 学成 generic style.
+
+    Returns:
+        raw_user_protos: [num_users, raw_dim] float32 tensor (在 CPU 上, 调用方 .to(device))
+    """
+    train_mask_bool = train_mask.bool()
+    train_indices = torch.nonzero(train_mask_bool, as_tuple=False).squeeze(-1)
+    raw_dim = feature_matrix_raw.shape[1]
+    raw_protos = np.zeros((num_users, raw_dim), dtype=np.float32)
+    counts = np.zeros(num_users, dtype=np.int64)
+    user_ids_in_train = user_index_tensor[train_indices].cpu().numpy()
+    raw_feats = feature_matrix_raw[train_indices.cpu().numpy()]
+    np.add.at(raw_protos, user_ids_in_train, raw_feats)
+    np.add.at(counts, user_ids_in_train, 1)
+    valid = counts > 0
+    raw_protos[valid] /= counts[valid, None]
+    return torch.as_tensor(raw_protos, dtype=torch.float32)
+
+
+def _compute_losses_for_prototype_v4(
+    support_indices: torch.Tensor,
+    query_indices: torch.Tensor,
+    batch_users: torch.Tensor,
+    feature_tensor: torch.Tensor,
+    feature_matrix_raw: np.ndarray,
+    encoder: nn.Module,
+    user_table: UserDistributionTablePrototype,
+    teacher_proj: TeacherProjector,
+    raw_user_protos: torch.Tensor,
+    latent_dim: int,
+    raw_dim: int,
+    # Stage-aware weights (caller 根据 epoch 选择)
+    lambda_teacher: float,
+    lambda_user: float,
+    lambda_contrast: float,
+    user_prior_kl_weight: float,
+    style_recon_weight: float,
+    sent_kl_weight: float,
+    style_distinct_weight: float,
+    contrast_temperature: float,
+) -> dict[str, torch.Tensor]:
+    """v4 prototype loss: teacher + contrastive + 两阶段动态 weight.
+
+    Stage 1 (early epochs): 关闭 recon + sent_kl, 强化 teacher + contrastive, 让 encoder 学 user 信号.
+    Stage 2 (late epochs): 加入 recon + sent_kl + GMM, 降低 teacher 权重, 让 encoder 学风格重建.
+
+    Args:
+        raw_user_protos: [num_users, raw_dim] 预计算的用户 raw feature 原型 (老师信号).
+        teacher_proj: 把 encoder mu (latent_dim) 投到 raw_dim 的 MLP.
+        其他参数同 _compute_losses_for_prototype.
+    """
+    device = feature_tensor.device
+
+    # === 1. Encoder forward support → p_u ===
+    x_support = feature_tensor[support_indices]
+    mu_support, logvar_support, _ = encoder(x_support)  # [B*n_support, D]
+    n_support_per_user = support_indices.numel() // batch_users.numel()
+    p_u = mu_support.view(batch_users.numel(), n_support_per_user, latent_dim).mean(dim=1)  # [B, D]
+
+    # === 2. Encoder forward query → z_q, logvar_q, reconstruction ===
+    x_query = feature_tensor[query_indices]
+    mu_q, logvar_q, reconstruction = encoder(x_query)  # [B*n_query, D]
+
+    # === 3. Teacher loss: project encoder mu → raw space, 对照 raw user prototype ===
+    # teacher signal: 47d raw features AUC=0.65, 用作"老师"让 encoder 学 user-discriminative 特征
+    n_query_per_user = query_indices.numel() // batch_users.numel()
+    # batch_users 每个 user 的 raw proto (从 raw_user_protos 取)
+    batch_raw_protos = raw_user_protos[batch_users.cpu()].to(device)  # [B, raw_dim]
+    # 每个 query 重复所属 user 的 raw proto
+    raw_targets = batch_raw_protos.unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, raw_dim)
+    teacher_pred = teacher_proj(mu_q)  # [B*n_query, raw_dim]
+    L_teacher = F.mse_loss(teacher_pred, raw_targets)
+
+    # === 4. user_table forward → mu_u, logvar_u (动态 GMM) ===
+    cluster_ids = user_table.user_cluster_ids[batch_users]  # [B]
+    mu_u, logvar_u = user_table(p_u, cluster_ids)  # [B, D]
+    user_mu_norm = (mu_u ** 2).sum(dim=-1).sqrt().mean()
+    user_prior_kl = (user_mu_norm - 5.0).pow(2)  # 软约束防坍缩
+
+    # === 5. L_user: z_q 接近 sg(p_u) (cosine) ===
+    p_u_target = p_u.detach().unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, latent_dim)
+    z_q_norm = F.normalize(mu_q, dim=-1)
+    p_u_norm = F.normalize(p_u_target, dim=-1)
+    cos_sim = (z_q_norm * p_u_norm).sum(dim=-1)
+    L_user = (1.0 - cos_sim).mean()
+
+    # === 6. L_contrastive: InfoNCE across batch_users ===
+    p_u_for_contrast = F.normalize(p_u, dim=-1)
+    logits = (z_q_norm @ p_u_for_contrast.t()) / contrast_temperature  # [B*n_query, B]
+    B = batch_users.numel()
+    label_idx = (
+        torch.arange(B, device=device)
+        .unsqueeze(1)
+        .expand(-1, n_query_per_user)
+        .reshape(-1)
+        .long()
+    )
+    L_contrastive = F.cross_entropy(logits, label_idx)
+
+    # === 7. 重建 + KL (Stage 2 才用) ===
+    raw_feature_targets = torch.as_tensor(
+        feature_matrix_raw[query_indices.cpu().numpy()],
+        dtype=torch.float32, device=device,
+    )
+    recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
+    sent_kl = standard_normal_kl(mu_q, logvar_q).mean()
+
+    # === 8. style_distinct ===
+    style_centers = user_table.get_style_centers()
+    n_c = style_centers.size(0)
+    sc_norm = F.normalize(style_centers, dim=-1)
+    sim_matrix = sc_norm @ sc_norm.t()
+    off_diag_mask = ~torch.eye(n_c, dtype=torch.bool, device=device)
+    style_distinct_loss = sim_matrix[off_diag_mask].pow(2).mean()
+
+    # === 9. 总 loss (Stage-aware weights 由调用方控制, 已传入) ===
+    loss = (
+        lambda_teacher * L_teacher
+        + lambda_user * L_user
+        + lambda_contrast * L_contrastive
+        + user_prior_kl_weight * user_prior_kl
+        + style_recon_weight * recon_loss
+        + sent_kl_weight * sent_kl
+        + style_distinct_weight * style_distinct_loss
+    )
+
+    return {
+        "loss": loss,
+        "L_teacher": L_teacher,
+        "L_user": L_user,
+        "L_contrastive": L_contrastive,
+        "recon_loss": recon_loss,
+        "sent_kl": sent_kl,
+        "user_prior_kl": user_prior_kl,
+        "style_distinct_loss": style_distinct_loss,
+        "user_match_loss": L_user,  # 命名兼容旧 detail 文件
+        "latent_align": torch.tensor(0.0, device=device),
+    }
+
+
+def _compute_losses_for_prototype_v5(
+    support_indices: torch.Tensor,
+    query_indices: torch.Tensor,
+    batch_users: torch.Tensor,
+    feature_tensor: torch.Tensor,
+    feature_matrix_raw: np.ndarray,
+    encoder: nn.Module,
+    user_table: UserDistributionTablePrototype,
+    raw_user_protos: torch.Tensor,
+    latent_dim: int,
+    raw_dim: int,
+    # Stage-aware weights
+    lambda_teacher: float,
+    lambda_user: float,
+    lambda_contrast: float,
+    user_prior_kl_weight: float,
+    style_recon_weight: float,
+    sent_kl_weight: float,
+    style_distinct_weight: float,
+    contrast_temperature: float,
+) -> dict[str, torch.Tensor]:
+    """v5 prototype loss: 直接用 raw_user_proto 作 InfoNCE 正样本, 消除 teacher_proj 吸收.
+
+    v4 失败诊断 (epoch_details):
+      - L_teacher=0.40 (低), L_user=0.01 (极低), L_contrastive=1.79 (卡住)
+      - 现象: encoder mu 全部聚到同一点 (p_u collapse), teacher_proj 2-layer MLP 有足够容量
+              吸收 teacher loss 梯度, 没传递到 encoder.
+      - 验证: encoder probe = 0.02% (随机).
+
+    v5 修复:
+      1. 移除 teacher_proj. 改用直接 L_teacher = 1 - cos_sim(mu_q, raw_target) — 无投影层吸收梯度.
+      2. 用 raw_user_proto (数据驱动, 用户特异) 作 InfoNCE 正样本 — 不依赖 learned p_u (会 collapse).
+      3. 保留 learned p_u 仅供 user_table forward (动态 GMM).
+
+    Stage 1 (早期): L_teacher + L_contrastive + L_user, 关闭 recon/KL/GMM — 让 encoder 学 user 信号.
+    Stage 2 (后期): 加入全部 VADES losses.
+    """
+    device = feature_tensor.device
+
+    # === 1. Encoder forward support → p_u (给 GMM 用) ===
+    x_support = feature_tensor[support_indices]
+    mu_support, logvar_support, _ = encoder(x_support)
+    n_support_per_user = support_indices.numel() // batch_users.numel()
+    p_u = mu_support.view(batch_users.numel(), n_support_per_user, latent_dim).mean(dim=1)
+
+    # === 2. Encoder forward query → mu_q, logvar_q, reconstruction ===
+    x_query = feature_tensor[query_indices]
+    mu_q, logvar_q, reconstruction = encoder(x_query)
+
+    # === 3. user_table forward → mu_u (动态 GMM, 给 user_mu 派生) ===
+    cluster_ids = user_table.user_cluster_ids[batch_users]
+    mu_u, logvar_u = user_table(p_u, cluster_ids)
+    user_mu_norm = (mu_u ** 2).sum(dim=-1).sqrt().mean()
+    user_prior_kl = (user_mu_norm - 5.0).pow(2)
+
+    # === 4. L_teacher (无投影层): 直接对齐 mu_q 与 raw_user_proto 的方向 ===
+    n_query_per_user = query_indices.numel() // batch_users.numel()
+    batch_raw_protos = raw_user_protos[batch_users.cpu()].to(device)  # [B, raw_dim]
+    raw_targets = batch_raw_protos.unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, raw_dim)
+    # mu_q 是 latent_dim 维, raw_target 是 raw_dim 维. 需要先 normalize 再做 MSE
+    # 但维度不匹配, 所以用 cosine: 把 raw 也 normalize 后当 target, mu_q 也 normalize
+    # 然后 MSE 在 normalized 空间
+    mu_q_normed = F.normalize(mu_q, dim=-1)
+    raw_targets_normed = F.normalize(raw_targets, dim=-1)
+    # Cosine loss on direction: 1 - cos_sim
+    cos_teacher = (mu_q_normed * raw_targets_normed).sum(dim=-1)
+    L_teacher = (1.0 - cos_teacher).mean()
+
+    # === 5. L_user: mu_q 接近 p_u (cosine) ===
+    p_u_target = p_u.detach().unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, latent_dim)
+    p_u_norm = F.normalize(p_u_target, dim=-1)
+    L_user = (1.0 - (mu_q_normed * p_u_norm).sum(dim=-1)).mean()
+
+    # === 6. L_contrastive: InfoNCE 直接用 raw_user_proto 作正样本 (绕开 learned p_u collapse) ===
+    # logits[query_i, user_j] = cos_sim(mu_q_i, raw_user_proto_j) / T
+    raw_protos_normed = F.normalize(batch_raw_protos, dim=-1)  # [B, raw_dim]
+    # 因维度不同 (latent_dim vs raw_dim), 用一个小的共享投影 W
+    # 但为了避免 v4 的 teacher_proj 吸收问题, W 直接用 encoder 的 mu_head 权重 transpose 做投影
+    # 或者干脆用 random fixed projection (让对比只关注 mu_q 自身的 user-discriminative 结构)
+    # 实际方案: 维度相同时才能 dot. 这里 latent_dim=20=raw_dim=20, 不用投影!
+    # 检查 latent_dim == raw_dim
+    if latent_dim == raw_dim:
+        raw_for_contrast = raw_protos_normed  # [B, latent_dim]
+    else:
+        # 维度不匹配时用 identity-padded projection (zero-fill to max dim)
+        max_dim = max(latent_dim, raw_dim)
+        if latent_dim < max_dim:
+            mu_q_proj = F.pad(mu_q_normed, (0, max_dim - latent_dim))
+        else:
+            mu_q_proj = mu_q_normed[:, :max_dim]
+        if raw_dim < max_dim:
+            raw_for_contrast = F.pad(raw_protos_normed, (0, max_dim - raw_dim))
+        else:
+            raw_for_contrast = raw_protos_normed[:, :max_dim]
+        mu_q_for_contrast = mu_q_proj
+    if latent_dim == raw_dim:
+        mu_q_for_contrast = mu_q_normed
+    logits = (mu_q_for_contrast @ raw_for_contrast.t()) / contrast_temperature  # [B*n_query, B]
+    B = batch_users.numel()
+    label_idx = (
+        torch.arange(B, device=device)
+        .unsqueeze(1)
+        .expand(-1, n_query_per_user)
+        .reshape(-1)
+        .long()
+    )
+    L_contrastive = F.cross_entropy(logits, label_idx)
+
+    # === 7. 重建 + KL (Stage 2 才用) ===
+    raw_feature_targets = torch.as_tensor(
+        feature_matrix_raw[query_indices.cpu().numpy()],
+        dtype=torch.float32, device=device,
+    )
+    recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
+    sent_kl = standard_normal_kl(mu_q, logvar_q).mean()
+
+    # === 8. style_distinct ===
+    style_centers = user_table.get_style_centers()
+    n_c = style_centers.size(0)
+    sc_norm = F.normalize(style_centers, dim=-1)
+    sim_matrix = sc_norm @ sc_norm.t()
+    off_diag_mask = ~torch.eye(n_c, dtype=torch.bool, device=device)
+    style_distinct_loss = sim_matrix[off_diag_mask].pow(2).mean()
+
+    # === 9. 总 loss ===
+    loss = (
+        lambda_teacher * L_teacher
+        + lambda_user * L_user
+        + lambda_contrast * L_contrastive
+        + user_prior_kl_weight * user_prior_kl
+        + style_recon_weight * recon_loss
+        + sent_kl_weight * sent_kl
+        + style_distinct_weight * style_distinct_loss
+    )
+
+    return {
+        "loss": loss,
+        "L_teacher": L_teacher,
+        "L_user": L_user,
+        "L_contrastive": L_contrastive,
+        "recon_loss": recon_loss,
+        "sent_kl": sent_kl,
+        "user_prior_kl": user_prior_kl,
+        "style_distinct_loss": style_distinct_loss,
+        "user_match_loss": L_user,
+        "latent_align": torch.tensor(0.0, device=device),
+    }
+
+
+def _compute_losses_for_prototype_v6(
+    support_indices: torch.Tensor,
+    query_indices: torch.Tensor,
+    batch_users: torch.Tensor,
+    feature_tensor: torch.Tensor,
+    feature_matrix_raw: np.ndarray,
+    encoder: nn.Module,
+    user_table: UserDistributionTablePrototype,
+    teacher_proj: TeacherProjector | None,
+    raw_user_protos: torch.Tensor,
+    latent_dim: int,
+    raw_dim: int,
+    # Stage-aware weights
+    lambda_teacher: float,
+    lambda_user: float,
+    lambda_contrast: float,
+    user_prior_kl_weight: float,
+    style_recon_weight: float,
+    sent_kl_weight: float,
+    style_distinct_weight: float,
+    contrast_temperature: float,
+) -> dict[str, torch.Tensor]:
+    """v6 aggregation-first VADES: teacher/contrastive 在用户级聚合 prototype 上.
+
+    关键设计 (vs v5):
+      1. support 多句 → z_u = mean(encoder mu)  ← user-level stable prototype (消除单句噪声)
+      2. L_teacher 在 z_u 上 vs raw_user_proto (用户级对齐)
+      3. L_contrastive 在 batch 内 z_u 上 (用户级互证, 不是单句)
+      4. 每个 query sentence → L_user (接近自己用户的 z_u)
+      5. user_table(z_u, cluster) → mu_u (GMM 派生)
+
+    评估要求 (用户指令):
+      - 单句 probe 只作辅助诊断
+      - 用户级 z_u 的 AUC 必须达到 raw baseline 0.65
+      - self-cross gap CI > 0
+      - permutation p < 0.05
+      - 训练和评估必须使用同一个 latent 空间 (cosine/L2/Mahalanobis 一致)
+    """
+    device = feature_tensor.device
+
+    # === 1. Forward support → mu_support, aggregate to z_u ===
+    x_support = feature_tensor[support_indices]
+    mu_support, logvar_support, _ = encoder(x_support)  # [B*n_support, D]
+    n_support_per_user = support_indices.numel() // batch_users.numel()
+    B = batch_users.numel()
+    mu_support_grouped = mu_support.view(B, n_support_per_user, latent_dim)
+    # z_u = mean of support mu (user-level stable prototype, no single-sentence noise)
+    z_u = mu_support_grouped.mean(dim=1)  # [B, D]
+
+    # === 2. Forward query → mu_q for reconstruction + per-sentence L_user ===
+    x_query = feature_tensor[query_indices]
+    mu_q, logvar_q, reconstruction = encoder(x_query)  # [B*n_query, D]
+    n_query_per_user = query_indices.numel() // B
+
+    # === 3. user_table forward: mu_u = mu_cluster + A(z_u - mu_cluster) ===
+    cluster_ids = user_table.user_cluster_ids[batch_users]
+    mu_u, logvar_u = user_table(z_u, cluster_ids)  # [B, D]
+    user_mu_norm = (mu_u ** 2).sum(dim=-1).sqrt().mean()
+    user_prior_kl = (user_mu_norm - 5.0).pow(2)
+
+    # === 4. L_teacher on z_u (USER-level) vs raw_user_proto ===
+    raw_targets = raw_user_protos[batch_users.cpu()].to(device)  # [B, raw_dim]
+    if teacher_proj is not None:
+        teacher_pred = teacher_proj(z_u)  # [B, raw_dim]
+        L_teacher = F.mse_loss(teacher_pred, raw_targets)
+    else:
+        # 直接 cosine (与 v5 相同, 但作用于 aggregated z_u)
+        z_u_norm = F.normalize(z_u, dim=-1)
+        raw_targets_norm = F.normalize(raw_targets, dim=-1)
+        L_teacher = (1.0 - (z_u_norm * raw_targets_norm).sum(dim=-1)).mean()
+
+    # === 5. L_contrastive on z_u (USER-LEVEL across batch users) ===
+    z_u_norm = F.normalize(z_u, dim=-1)
+    logits = (z_u_norm @ z_u_norm.t()) / contrast_temperature  # [B, B]
+    labels = torch.arange(B, device=device)
+    L_contrastive = F.cross_entropy(logits, labels)
+
+    # === 6. L_user: 每个 query sentence 接近自己用户的 z_u (cosine, detach z_u) ===
+    z_u_target = z_u.detach().unsqueeze(1).expand(-1, n_query_per_user, -1).reshape(-1, latent_dim)
+    z_u_target_norm = F.normalize(z_u_target, dim=-1)
+    mu_q_norm = F.normalize(mu_q, dim=-1)
+    L_user = (1.0 - (mu_q_norm * z_u_target_norm).sum(dim=-1)).mean()
+
+    # === 7. Reconstruction (per query sentence) ===
+    raw_feature_targets = torch.as_tensor(
+        feature_matrix_raw[query_indices.cpu().numpy()],
+        dtype=torch.float32, device=device,
+    )
+    recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
+
+    # === 8. KL (per query sentence) ===
+    sent_kl = standard_normal_kl(mu_q, logvar_q).mean()
+
+    # === 9. style_distinct (cosine distinct on style_centers) ===
+    style_centers = user_table.get_style_centers()
+    n_c = style_centers.size(0)
+    sc_norm = F.normalize(style_centers, dim=-1)
+    sim_matrix = sc_norm @ sc_norm.t()
+    off_diag_mask = ~torch.eye(n_c, dtype=torch.bool, device=device)
+    style_distinct_loss = sim_matrix[off_diag_mask].pow(2).mean()
+
+    # === 10. Total loss (stage-aware weights 由调用方传入) ===
+    loss = (
+        lambda_teacher * L_teacher
+        + lambda_user * L_user
+        + lambda_contrast * L_contrastive
+        + user_prior_kl_weight * user_prior_kl
+        + style_recon_weight * recon_loss
+        + sent_kl_weight * sent_kl
+        + style_distinct_weight * style_distinct_loss
+    )
+
+    return {
+        "loss": loss,
+        "L_teacher": L_teacher,
+        "L_user": L_user,
+        "L_contrastive": L_contrastive,
+        "recon_loss": recon_loss,
+        "sent_kl": sent_kl,
+        "user_prior_kl": user_prior_kl,
+        "style_distinct_loss": style_distinct_loss,
+        "user_match_loss": L_user,
+        "latent_align": torch.tensor(0.0, device=device),
+    }
+
+
+def _get_user_table_num_users(user_table: nn.Module) -> int:
+    """统一获取 user_table 的 num_users, 兼容 nn.Embedding / Tensor / Prototype。"""
+    if isinstance(user_table, UserDistributionTablePrototype):
+        return int(user_table.num_users)
+    if isinstance(user_table.user_mu, nn.Embedding):
+        return int(user_table.user_mu.weight.shape[0])
+    return int(user_table.user_mu.shape[0])
+
+
+def precompute_prototype_user_mu(
+    encoder: SentenceEncoder,
+    user_table: UserDistributionTablePrototype,
+    dataset: dict,
+    feature_matrix_raw: np.ndarray,
+    user_ids: list[str],
+    device: torch.device,
+    encoder_dist: str,
+    train_mask: np.ndarray,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """对每个用户用其**全部训练句**计算 p_u, 再过 user_table → (mu_u, logvar_u)。
+
+    注意: 此函数与训练时随机采 support 不同 — 推理时用全部 10 train 句, 让 p_u 更稳定。
+    Returns:
+        mu_all: [num_users, latent_dim]
+        logvar_all: [num_users, latent_dim]
+    """
+    feature_matrix = dataset["scaled_features"].astype(np.float32)
+    user_indices = dataset["user_indices"]
+    train_mask_t = torch.as_tensor(train_mask, dtype=torch.bool, device=device)
+    feature_tensor = torch.as_tensor(feature_matrix, dtype=torch.float32, device=device)
+    user_index_tensor = torch.as_tensor(user_indices, dtype=torch.long, device=device)
+
+    train_indices = torch.nonzero(train_mask_t, as_tuple=False).squeeze(-1)
+    num_users = len(user_ids)
+
+    encoder.eval()
+    with torch.no_grad():
+        # 一次性 encoder forward 所有 train 句子
+        mu_out = []
+        for chunk_start in range(0, train_indices.numel(), USER_CHUNK_SIZE_TRAIN):
+            chunk_end = min(chunk_start + USER_CHUNK_SIZE_TRAIN, train_indices.numel())
+            batch_idx = train_indices[chunk_start:chunk_end]
+            x = feature_tensor[batch_idx]
+            mu_chunk, _, _ = encoder(x)
+            mu_out.append(mu_chunk)
+        mu_full = torch.cat(mu_out, dim=0)  # [n_train_sentences, D]
+        train_user_ids = user_index_tensor[train_indices]  # [n_train_sentences]
+
+        # 每个用户聚合 p_u = mean(mu_full[train_user_ids == u])
+        p_u_all = torch.zeros(num_users, mu_full.size(1), device=device, dtype=mu_full.dtype)
+        counts = torch.zeros(num_users, device=device, dtype=mu_full.dtype)
+        p_u_all.index_add_(0, train_user_ids.long(), mu_full)
+        counts.index_add_(0, train_user_ids.long(), torch.ones_like(train_user_ids, dtype=mu_full.dtype))
+        p_u_all = p_u_all / counts.clamp_min(1.0).unsqueeze(-1)
+
+        # user_table forward → (mu_u, logvar_u)
+        all_user_idx = torch.arange(num_users, device=device)
+        cluster_ids = user_table.user_cluster_ids[all_user_idx]
+        mu_all, logvar_all = user_table(p_u_all, cluster_ids)
+
+    return mu_all, logvar_all
+
+
 def _user_match_loss(mu: torch.Tensor, user_mu: torch.Tensor, user_L: torch.Tensor, weight: float) -> torch.Tensor:
     """对 full covariance 模式, user_match_loss 用 Mahalanobis 距离近似."""
     diff = mu - user_mu
@@ -1550,53 +2451,67 @@ def infer_user_sentence_distributions(
     """对每条 sentence 推断 μ; 对每个 user 聚合 μ."""
     feature_matrix = dataset["scaled_features"].astype(np.float32)
     user_indices = dataset["user_indices"]
+    feature_matrix_raw = dataset["feature_matrix"]
     feature_tensor = torch.as_tensor(feature_matrix, dtype=torch.float32, device=device)
     user_index_tensor = torch.as_tensor(user_indices, dtype=torch.long, device=device)
 
     encoder.eval()
     user_table.eval()
-    all_user_idx = torch.arange(
-        user_table.user_mu.weight.shape[0]
-        if isinstance(user_table.user_mu, nn.Embedding)
-        else user_table.user_mu.shape[0],
-        device=device,
-    )
-    with torch.no_grad():
-        mu_out = []
-        for chunk_start in range(0, feature_tensor.shape[0], USER_CHUNK_SIZE_TRAIN):
-            chunk_end = min(chunk_start + USER_CHUNK_SIZE_TRAIN, feature_tensor.shape[0])
-            batch_idx = torch.arange(chunk_start, chunk_end, device=device)
-            x = feature_tensor[batch_idx]
-            if encoder_dist == "student_t":
-                mu_chunk, _, _, _ = encoder(x)
-            elif covariance_mode == "full":
-                mu_chunk, _, _ = encoder(x)
-            else:
-                mu_chunk, _, _ = encoder(x)
-            mu_out.append(mu_chunk.detach().cpu().numpy())
-        mu_full = np.concatenate(mu_out, axis=0)
-        if covariance_mode == "full":
-            user_mu_tensor, user_L_tensor = user_table(all_user_idx)
-        elif covariance_mode in {"diagonal_gmm"}:
-            user_mu_k, user_logvar_k, mix_logits = user_table(all_user_idx)
-            mix_probs = F.softmax(mix_logits, dim=-1)
-            user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
-        elif covariance_mode in {"diagonal_student_t"}:
-            user_mu, user_log_scale, user_df = user_table(all_user_idx)
-            user_mu_tensor = user_mu
-        elif covariance_mode in {"diagonal_laplace"}:
-            user_mu, user_log_b = user_table(all_user_idx)
-            user_mu_tensor = user_mu
-        elif covariance_mode in {"diagonal_student_t_gmm"}:
-            user_mu_k, user_log_scale_k, user_df_k, mix_logits = user_table(all_user_idx)
-            mix_probs = F.softmax(mix_logits, dim=-1)
-            user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
-        elif covariance_mode in {"diagonal_logistic"}:
-            user_mu, user_log_s = user_table(all_user_idx)
-            user_mu_tensor = user_mu
-        else:
-            user_mu_tensor, _ = user_table(all_user_idx)
+    if covariance_mode == "diagonal_prototype":
+        # prototype 模式: 直接从全部 train 句计算 p_u, 经 user_table 派生 (mu_u, logvar_u)
+        train_mask_arr = dataset["train_mask"]
+        user_mu_tensor, user_logvar_tensor = precompute_prototype_user_mu(
+            encoder, user_table, dataset, feature_matrix_raw, user_ids, device, encoder_dist,
+            train_mask=train_mask_arr,
+        )
+        # cache 到 user_table 以兼容下游 (user_mu / user_logvar 属性访问)
+        user_table.set_user_mu_cache(user_mu_tensor, user_logvar_tensor)
+        all_user_idx = torch.arange(user_table.num_users, device=device)
+        mu_full = None  # prototype 模式不需要逐句 mu, 留 None
         user_mu_array = user_mu_tensor.detach().cpu().numpy()
+    else:
+        all_user_idx = torch.arange(
+            user_table.user_mu.weight.shape[0]
+            if isinstance(user_table.user_mu, nn.Embedding)
+            else user_table.user_mu.shape[0],
+            device=device,
+        )
+        with torch.no_grad():
+            mu_out = []
+            for chunk_start in range(0, feature_tensor.shape[0], USER_CHUNK_SIZE_TRAIN):
+                chunk_end = min(chunk_start + USER_CHUNK_SIZE_TRAIN, feature_tensor.shape[0])
+                batch_idx = torch.arange(chunk_start, chunk_end, device=device)
+                x = feature_tensor[batch_idx]
+                if encoder_dist == "student_t":
+                    mu_chunk, _, _, _ = encoder(x)
+                elif covariance_mode == "full":
+                    mu_chunk, _, _ = encoder(x)
+                else:
+                    mu_chunk, _, _ = encoder(x)
+                mu_out.append(mu_chunk.detach().cpu().numpy())
+            mu_full = np.concatenate(mu_out, axis=0)
+            if covariance_mode == "full":
+                user_mu_tensor, user_L_tensor = user_table(all_user_idx)
+            elif covariance_mode in {"diagonal_gmm"}:
+                user_mu_k, user_logvar_k, mix_logits = user_table(all_user_idx)
+                mix_probs = F.softmax(mix_logits, dim=-1)
+                user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
+            elif covariance_mode in {"diagonal_student_t"}:
+                user_mu, user_log_scale, user_df = user_table(all_user_idx)
+                user_mu_tensor = user_mu
+            elif covariance_mode in {"diagonal_laplace"}:
+                user_mu, user_log_b = user_table(all_user_idx)
+                user_mu_tensor = user_mu
+            elif covariance_mode in {"diagonal_student_t_gmm"}:
+                user_mu_k, user_log_scale_k, user_df_k, mix_logits = user_table(all_user_idx)
+                mix_probs = F.softmax(mix_logits, dim=-1)
+                user_mu_tensor = (user_mu_k * mix_probs.unsqueeze(-1)).sum(dim=1)
+            elif covariance_mode in {"diagonal_logistic"}:
+                user_mu, user_log_s = user_table(all_user_idx)
+                user_mu_tensor = user_mu
+            else:
+                user_mu_tensor, _ = user_table(all_user_idx)
+            user_mu_array = user_mu_tensor.detach().cpu().numpy()
 
     sentence_output: list[dict] = []
     user_profile_rows: list[dict] = []
@@ -1618,7 +2533,14 @@ def infer_user_sentence_distributions(
             )
             if sentence_idx_in_full is None:
                 continue
-            mu_vec = mu_full[sentence_idx_in_full]
+            if mu_full is not None:
+                mu_vec = mu_full[sentence_idx_in_full]
+            else:
+                # prototype 模式: 仍需逐句 mu (用于 V3 校准与评估)
+                x_single = feature_tensor[sentence_idx_in_full:sentence_idx_in_full + 1]
+                with torch.no_grad():
+                    mu_single, _, _ = encoder(x_single)
+                mu_vec = mu_single.detach().cpu().numpy().squeeze(0)
             sentence_output.append(
                 {
                     "user_id": user_id,
@@ -1704,11 +2626,9 @@ def calibrate_absolute_threshold_with_unseen_holdout(
             holdout_mu = holdout_features
 
         all_user_idx = torch.arange(
-        user_table.user_mu.weight.shape[0]
-        if isinstance(user_table.user_mu, nn.Embedding)
-        else user_table.user_mu.shape[0],
-        device=device,
-    )
+            _get_user_table_num_users(user_table),
+            device=device,
+        )
         user_match_scores = []
         user_match_labels = []
         if covariance_mode == "full":
@@ -1744,6 +2664,16 @@ def calibrate_absolute_threshold_with_unseen_holdout(
                 elif covariance_mode in {"diagonal_logistic"}:
                     user_mu, user_log_s = user_table(all_user_idx)
                     log_p = logistic_log_likelihood(mu_chunk, torch.zeros_like(mu_chunk), user_mu, user_log_s)
+                elif covariance_mode == "diagonal_prototype":
+                    # prototype 模式: 用 cache 的 (mu_u, logvar_u) 直接做 Gaussian KL
+                    user_mu = user_table.user_mu.to(mu_chunk.device)
+                    user_logvar = user_table.user_logvar.to(mu_chunk.device)
+                    log_p = -diagonal_gaussian_kl(
+                        mu_chunk.unsqueeze(1),
+                        torch.zeros_like(mu_chunk).unsqueeze(1),
+                        user_mu.unsqueeze(0),
+                        user_logvar.unsqueeze(0),
+                    )
                 else:
                     user_mu, user_logvar = user_table(all_user_idx)
                     log_p = -diagonal_gaussian_kl(
@@ -1814,9 +2744,7 @@ def rank_and_select_queries(
     user_id_to_profile = {row["user_id"]: row[PROBE_REPRESENTATION_FIELD] for row in user_profile_rows}
 
     all_user_idx = torch.arange(
-        user_table.user_mu.weight.shape[0]
-        if isinstance(user_table.user_mu, nn.Embedding)
-        else user_table.user_mu.shape[0],
+        _get_user_table_num_users(user_table),
         device=device,
     )
     with torch.no_grad():
@@ -1858,6 +2786,16 @@ def rank_and_select_queries(
             elif covariance_mode in {"diagonal_logistic"}:
                 user_mu, user_log_s = user_table(all_user_idx)
                 all_scores = logistic_log_likelihood(candidate_mu, torch.zeros_like(candidate_mu), user_mu, user_log_s).cpu().numpy()
+            elif covariance_mode == "diagonal_prototype":
+                # prototype 模式: 用 cache 的 (mu_u, logvar_u) 直接做 Gaussian KL
+                user_mu = user_table.user_mu.to(candidate_mu.device)
+                user_logvar = user_table.user_logvar.to(candidate_mu.device)
+                all_scores = -diagonal_gaussian_kl(
+                    candidate_mu.unsqueeze(1),
+                    torch.zeros_like(candidate_mu).unsqueeze(1),
+                    user_mu.unsqueeze(0),
+                    user_logvar.unsqueeze(0),
+                ).cpu().numpy()
             else:
                 user_mu, user_logvar = user_table(all_user_idx)
                 all_scores = -diagonal_gaussian_kl(
@@ -2489,16 +3427,20 @@ def main_train() -> None:
     candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
 
-    # ==== disentangle 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
+    # ==== disentangle / prototype 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
     user_cluster_ids_t: torch.Tensor | None = None
     style_anchors_t: torch.Tensor | None = None
-    if COVARIANCE_MODE == "diagonal_disentangled":
+    if COVARIANCE_MODE in {"diagonal_disentangled", "diagonal_prototype"}:
         # 用 raw feature matrix (per-sentence) + user_indices 聚合到 per-user mean, 再 KMeans
         raw_per_sent = dataset["feature_matrix"]  # [num_sentences, feat_dim]
         user_indices_np = dataset["user_indices"]  # [num_sentences]
+        if COVARIANCE_MODE == "diagonal_prototype":
+            n_clusters_arg = PROTOTYPE_NUM_CLUSTERS
+        else:
+            n_clusters_arg = DISENTANGLE_N_CLUSTERS
         cluster_ids_np, anchors_np = pre_cluster_users_for_disentangle(
             raw_per_sent, user_indices_np,
-            n_clusters=DISENTANGLE_N_CLUSTERS, seed=SEED,
+            n_clusters=n_clusters_arg, seed=SEED,
         )
         user_cluster_ids_t = torch.as_tensor(cluster_ids_np, dtype=torch.long)
         style_anchors_t = torch.as_tensor(anchors_np, dtype=torch.float32)
