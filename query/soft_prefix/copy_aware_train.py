@@ -275,6 +275,9 @@ def main() -> None:
     ap.add_argument("--category", default="Baby_Products")
     ap.add_argument("--base_model", default=QWEN_PATH)
     ap.add_argument("--dataset_path", default="", help="multi-product dataset json (user_id, asin, attrs)")
+    ap.add_argument("--records_path", default="",
+                    help="records with y_plus_query [{user_id, asin, attrs_used, y_plus_query}, ...]; "
+                         "跳过 syntax_depth 默认路径, 直接作为训练集")
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--num_tokens", type=int, default=4)
     ap.add_argument("--epochs", type=int, default=3)
@@ -296,24 +299,37 @@ def main() -> None:
 
     if args.dataset_path:
         raise ValueError("multi-product dataset has no natural query targets; train on the 04_query candidates (copy-aware) and use the dataset only for evaluation generation")
-    records_p = REPO_ROOT / "result" / "personal_query" / "query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
+    if args.records_path:
+        records_p = Path(args.records_path)
+    else:
+        records_p = REPO_ROOT / "result" / "personal_query" / "query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
     with open(records_p) as f:
         records = json.load(f)
     rows = []
-    for rec in records:
-        attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
-        candidates = rec.get("syntax_depth_queries", [])
-        if not attrs:
+    if args.records_path:
+        # records_with_query.json 直读 (user_id / asin / attrs_used / y_plus_query)
+        for rec in records:
+            attrs = rec.get("attrs_used") or {}
+            q = rec.get("y_plus_query") or ""
+            if not attrs or not q:
+                continue
+            rows.append({"user_id": rec["user_id"], "asin": rec["asin"],
+                         "attrs_used": attrs, "y_plus_query": q})
+    else:
+        for rec in records:
+            attrs = (rec.get("syntax_depth_query") or {}).get("attrs_used")
+            candidates = rec.get("syntax_depth_queries", [])
+            if not attrs:
+                for cand in candidates:
+                    if cand.get("attrs_used"):
+                        attrs = cand["attrs_used"]
+                        break
+            if not attrs:
+                continue
             for cand in candidates:
-                if cand.get("attrs_used"):
-                    attrs = cand["attrs_used"]
-                    break
-        if not attrs:
-            continue
-        for cand in candidates:
-            q = cand.get("query", "")
-            if q:
-                rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
+                q = cand.get("query", "")
+                if q:
+                    rows.append({"user_id": rec["user_id"], "asin": rec["asin"], "attrs_used": attrs, "y_plus_query": q})
     # E14 direction 1: merge syntactically diversified targets (richer
     # adverbs/clauses/coordination/modifiers) into the training set.
     diverse_path = REPO_ROOT / "result" / "personal_query" / "e14_syntax_diverse_targets.jsonl"
@@ -329,7 +345,14 @@ def main() -> None:
         rows = rows[: args.max_records]
     log(f"copy-aware rows: {len(rows)}")
 
-    profiles = load_vades_profiles(args.category)
+    profiles: dict = {}
+    try:
+        profiles = load_vades_profiles(args.category)
+    except FileNotFoundError:
+        # VADES profile 文件不存在 (预期内缺失): 走 zero vector fallback
+        # 实际 user condition 由 stat_vectors 提供 (34-dim), profiles 只是辅助
+        log("[vades] profile jsonl 不存在, 走 zero vector (stat_vectors 仍生效)")
+    log(f"loaded {len(profiles)} VADES profiles")
     split_ids = sorted({r["user_id"] for r in rows})
     rng = np.random.default_rng(args.seed)
     idx = rng.permutation(len(split_ids))

@@ -102,7 +102,13 @@ def load_candidate_feature_rows(category: str) -> List[dict]:
 
 
 def global_mean_vector(profiles: Dict[str, Dict[str, np.ndarray]]) -> np.ndarray:
-    """Global mean of L2-normalized user_mu vectors (itself re-normalized)."""
+    """Global mean of L2-normalized user_mu vectors (itself re-normalized).
+
+    空 profiles 返回 VADES_LATENT_DIM 维 zero vector (预期内缺失, 允许
+    UserVectorProvider 正常初始化, "vades" 模式下用户拿到 zero vec)。
+    """
+    if not profiles:
+        return np.zeros(VADES_LATENT_DIM, dtype=np.float32)
     mus = np.stack([p["user_mu"] for p in profiles.values()])
     return l2_normalize(mus.mean(axis=0))
 

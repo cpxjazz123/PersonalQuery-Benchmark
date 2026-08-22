@@ -47,14 +47,27 @@ def load_user_reviews(category: str, user_id: str) -> List[str]:
     p = REPO_ROOT / "result" / "personal_query" / "01_preference_extraction" / category / "stage1_filtered_users_reviews.json"
     data = json.load(open(p))
     texts: List[str] = []
-    for u in data["users"]:
-        if u["user_id"] != user_id:
-            continue
-        for r in u.get("results", []):
-            for txt in (r.get("target_reviews") or []):
-                if txt and isinstance(txt, str) and txt.strip():
-                    texts.append(txt[:1000])
-        break
+    # 支持两种 stage1 schema:
+    #  (a) dict 格式 {users: [{user_id, results: [{target_reviews: [...]}]}]}
+    #  (b) list 格式 [{user_id, asin, reviews: [{target_reviews: [...]}]}]
+    if isinstance(data, dict) and "users" in data:
+        for u in data["users"]:
+            if u.get("user_id") != user_id:
+                continue
+            for r in u.get("results", []):
+                for txt in (r.get("target_reviews") or []):
+                    if txt and isinstance(txt, str) and txt.strip():
+                        texts.append(txt[:1000])
+            break
+    elif isinstance(data, list):
+        for u in data:
+            if u.get("user_id") != user_id:
+                continue
+            for r in u.get("reviews", []):
+                for txt in (r.get("target_reviews") or []):
+                    if txt and isinstance(txt, str) and txt.strip():
+                        texts.append(txt[:1000])
+            break
     return texts
 
 
@@ -89,13 +102,23 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
     data = json.load(open(p))
     target = set(need_ids)
     texts_by_user: Dict[str, List[str]] = defaultdict(list)
-    for u in data["users"]:
-        if u["user_id"] not in target:
-            continue
-        for r in u.get("results", []):
-            for txt in (r.get("target_reviews") or []):
-                if txt and isinstance(txt, str) and txt.strip():
-                    texts_by_user[u["user_id"]].append(txt[:1000])
+    # 支持两种 stage1 schema (dict {users: [...]} 或 list [{user_id, reviews: [...]}])
+    if isinstance(data, dict) and "users" in data:
+        for u in data["users"]:
+            if u.get("user_id") not in target:
+                continue
+            for r in u.get("results", []):
+                for txt in (r.get("target_reviews") or []):
+                    if txt and isinstance(txt, str) and txt.strip():
+                        texts_by_user[u["user_id"]].append(txt[:1000])
+    elif isinstance(data, list):
+        for u in data:
+            if u.get("user_id") not in target:
+                continue
+            for r in u.get("reviews", []):
+                for txt in (r.get("target_reviews") or []):
+                    if txt and isinstance(txt, str) and txt.strip():
+                        texts_by_user[u["user_id"]].append(txt[:1000])
     del data
     # single nlp.pipe pass over ALL paragraphs (one pipe call, no per-user
     # overhead); paragraphs split into sentences; features per sentence via
@@ -146,4 +169,6 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
         _json.dump({"n_users": len(merged), "dim": STAT_DIM,
                     "vectors": {u: v.tolist() for u, v in merged.items()}},
                    open(CACHE_PATH, "w"))
-    return {u: merged[u] for u in user_ids}
+    # 缺失 user 返回 zero vector (stage1 主文件 300 records 可能不含全部 3000u 用户)
+    zero = np.zeros(STAT_DIM, dtype=np.float32)
+    return {u: merged.get(u, zero) for u in user_ids}

@@ -437,7 +437,7 @@ def main() -> None:
         records = []
         for r in raw:
             records.append({"user_id": r["user_id"], "asin": r["asin"],
-                            "attrs_used": r["attrs"]})
+                            "attrs_used": r.get("attrs", r.get("attrs_used"))})
         log(f"records from {args.records_path}: {len(records)}")
     else:
         records_p = REPO_ROOT / "result" / "personal_query" / "query" / args.category / "query_by_syntax_depth_no_depth_check_10.json"
@@ -448,7 +448,13 @@ def main() -> None:
     if args.limit:
         records = records[: args.limit]
 
-    profiles = load_vades_profiles(args.category)
+    profiles: dict = {}
+    try:
+        profiles = load_vades_profiles(args.category)
+    except FileNotFoundError:
+        # VADES profile 不存在时走 zero vector (stat_vectors 兜底)
+        log("[vades] profile jsonl 不存在, 走 zero vector")
+    log(f"loaded {len(profiles)} VADES profiles")
     provider = UserVectorProvider(args.vector_mode, profiles, [r["user_id"] for r in records], seed=42)
     if os.environ.get("CA_USE_STAT_VEC", "0") == "1":
         stat_vectors = build_user_stat_vectors(args.category, [r["user_id"] for r in records])
