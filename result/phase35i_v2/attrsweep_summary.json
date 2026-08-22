@@ -1,0 +1,86 @@
+{
+  "4": {
+    "n_users": 73,
+    "n_hit": 33,
+    "rank1_pct": 45.20547945205479,
+    "mean_own_rank": 10.308219178082192,
+    "median_own_rank": 6.25,
+    "p90_own_rank": 26.15,
+    "full_cov_rate": 65.06849315068493,
+    "avg_cov_rate": 89.6404109589041,
+    "n_cands": 296,
+    "avg_query_length": 28.934931506849313
+  },
+  "5": {
+    "n_users": 73,
+    "n_hit": 32,
+    "rank1_pct": 43.83561643835616,
+    "mean_own_rank": 10.11986301369863,
+    "median_own_rank": 6.75,
+    "p90_own_rank": 22.45,
+    "full_cov_rate": 59.24657534246576,
+    "avg_cov_rate": 86.43835616438355,
+    "n_cands": 296,
+    "avg_query_length": 31.70205479452055
+  },
+  "6": {
+    "n_users": 73,
+    "n_hit": 32,
+    "rank1_pct": 43.83561643835616,
+    "mean_own_rank": 10.092465753424657,
+    "median_own_rank": 7.5,
+    "p90_own_rank": 22.349999999999998,
+    "full_cov_rate": 41.0958904109589,
+    "avg_cov_rate": 84.1324200913242,
+    "n_cands": 296,
+    "avg_query_length": 31.095890410958905
+  },
+  "7": {
+    "n_users": 67,
+    "n_hit": 34,
+    "rank1_pct": 50.74626865671642,
+    "mean_own_rank": 9.76865671641791,
+    "median_own_rank": 6.5,
+    "p90_own_rank": 25.25,
+    "full_cov_rate": 25.37313432835821,
+    "avg_cov_rate": 81.8230277185501,
+    "n_cands": 272,
+    "avg_query_length": 35.600746268656714
+  },
+  "8": {
+    "n_users": 58,
+    "n_hit": 25,
+    "rank1_pct": 43.103448275862064,
+    "mean_own_rank": 9.14655172413793,
+    "median_own_rank": 6.25,
+    "p90_own_rank": 21.975,
+    "full_cov_rate": 24.137931034482758,
+    "avg_cov_rate": 81.08836206896551,
+    "n_cands": 236,
+    "avg_query_length": 33.89224137931034
+  },
+  "9": {
+    "n_users": 36,
+    "n_hit": 16,
+    "rank1_pct": 44.44444444444444,
+    "mean_own_rank": 5.111111111111111,
+    "median_own_rank": 4.875,
+    "p90_own_rank": 8.75,
+    "full_cov_rate": 20.833333333333336,
+    "avg_cov_rate": 81.86728395061729,
+    "n_cands": 148,
+    "avg_query_length": 37.84027777777778
+  },
+  "10": {
+    "n_users": 22,
+    "n_hit": 8,
+    "rank1_pct": 36.36363636363637,
+    "mean_own_rank": 6.193181818181818,
+    "median_own_rank": 5.75,
+    "p90_own_rank": 10.450000000000001,
+    "full_cov_rate": 5.681818181818182,
+    "avg_cov_rate": 75.22727272727275,
+    "n_cands": 92,
+    "avg_query_length": 41.92045454545455
+  }
+}
