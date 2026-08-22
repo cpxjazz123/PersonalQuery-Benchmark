@@ -40,8 +40,8 @@ def load_rewrites() -> dict[str, str]:
         for line in f:
             try:
                 d = json.loads(line)
-                if d.get("sentence") and d.get("rewrite"):
-                    out[d["sentence"]] = d["rewrite"]
+                if d.get("sentence_text") and d.get("rewrite"):
+                    out[d["sentence_text"]] = d["rewrite"]
             except Exception:
                 continue
     return out
@@ -103,15 +103,16 @@ def main() -> int:
               f"norm_mean={float((r**2).sum(axis=1).mean()**0.5):.2f}, "
               f"max_abs={float(abs(r).max()):.2f}")
 
-    # === 保存 (per layer 单独存一份, 加载端按 layer 选) ===
+    # === 释放 user/neutral 内存(避免后续 OOM) ===
+    del user_hidden, neutral_hidden
+
+    # === 保存: 仅存 residual (不存 user/neutral, 节省 ~4x 内存) ===
     save_kwargs = {
-        "sentences": sentences,
+        "sentences": np.asarray(sentences, dtype=object),
         "layers": np.asarray(LAYERS, dtype=np.int32),
         "hidden_dim": np.asarray([hidden_dim], dtype=np.int32),
     }
     for l in LAYERS:
-        save_kwargs[f"user_layer_{l}"] = user_hidden[l].astype("float32")
-        save_kwargs[f"neutral_layer_{l}"] = neutral_hidden[l].astype("float32")
         save_kwargs[f"residual_layer_{l}"] = residual[l]
     print(f"[main] saving {OUTPUT_FILE} ...")
     np.savez_compressed(OUTPUT_FILE, **save_kwargs)
