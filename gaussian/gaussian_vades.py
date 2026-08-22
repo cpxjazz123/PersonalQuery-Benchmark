@@ -129,11 +129,19 @@ VALID_COVARIANCE_MODES = {
     "diagonal", "full", "diagonal_gmm",
     "diagonal_student_t", "diagonal_laplace", "diagonal_student_t_gmm",
     "diagonal_logistic", "diagonal_prototype",
+    "diagonal_residual_llm",  # Qwen hidden 空间 residual = user_hidden - neutral_hidden
 }
 if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
     raise ValueError(
         f"VADES_COVARIANCE_MODE 必须是 {sorted(VALID_COVARIANCE_MODES)} 之一, 得到 {COVARIANCE_MODE}"
     )
+
+# === diagonal_residual_llm 模式专用常量 ===
+RESIDUAL_HIDDEN_NPZ = os.environ.get(
+    "VADES_RESIDUAL_HIDDEN_NPZ",
+    "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/residual_hidden.npz",
+)
+RESIDUAL_HIDDEN_LAYER = int(os.environ.get("VADES_RESIDUAL_HIDDEN_LAYER", "26"))  # Phase 14.F SOTA
 REGENERATION_MAX_ROUNDS = 10
 CANDIDATES_PER_ROUND = 10
 ENCODER_DIST = os.environ.get("VADES_ENCODER_DIST", "gaussian")
@@ -3429,6 +3437,33 @@ def main_train() -> None:
     feature_rows, feature_names = build_sentence_feature_rows(sentence_rows)
     candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
+
+    # ==== diagonal_residual_llm 模式: 用 Qwen hidden residual 替换 318d scaled_features ====
+    if COVARIANCE_MODE == "diagonal_residual_llm":
+        log(f"[diagonal_residual_llm] 加载 Qwen residual: {RESIDUAL_HIDDEN_NPZ} layer={RESIDUAL_HIDDEN_LAYER}")
+        residual_data = np.load(RESIDUAL_HIDDEN_NPZ, allow_pickle=True)
+        sent_to_residual = {}
+        for i, s in enumerate(residual_data["sentences"]):
+            sent_to_residual[str(s)] = residual_data[f"residual_layer_{RESIDUAL_HIDDEN_LAYER}"][i]
+        # 把 sentence_rows 里的 sentence_text 映射到 residual
+        sentence_texts = [row.get("sentence_text", "") for row in dataset["sentence_rows"]]
+        n_matched = sum(1 for s in sentence_texts if s in sent_to_residual)
+        if n_matched < len(sentence_texts) * 0.9:
+            raise ValueError(
+                f"[diagonal_residual_llm] 句子覆盖率不足: matched={n_matched}/{len(sentence_texts)} "
+                f"(< 90%), 请检查 residual_hidden.npz 与 sentence_rows 是否同源"
+            )
+        residual_matrix = np.stack([sent_to_residual[s] for s in sentence_texts], axis=0).astype(np.float64)
+        residual_scaler = StandardScaler()
+        scaled_residual = residual_scaler.fit_transform(residual_matrix).astype(np.float64)
+        dataset["scaled_features"] = scaled_residual
+        dataset["feature_matrix"] = residual_matrix
+        dataset["scaler"] = residual_scaler
+        dataset["residual_layer"] = RESIDUAL_HIDDEN_LAYER
+        dataset["residual_hidden_dim"] = residual_matrix.shape[1]
+        log(f"  residual shape: {residual_matrix.shape} (matched {n_matched}/{len(sentence_texts)} 句)")
+        log(f"  residual mean norm: {np.linalg.norm(residual_matrix, axis=1).mean():.3f}")
+        log(f"  scaled_residual mean norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
 
     # ==== disentangle / prototype 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
     user_cluster_ids_t: torch.Tensor | None = None
