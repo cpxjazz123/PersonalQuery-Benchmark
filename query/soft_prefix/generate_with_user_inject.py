@@ -70,6 +70,8 @@ GEN_REPETITION_PENALTY = float(os.environ.get("INJECT_GEN_REP_PENALTY", "1.05"))
 MAX_RECORDS = int(os.environ.get("INJECT_GEN_MAX_RECORDS", "500"))
 MAX_INPUT_LENGTH = 384
 PCA_SAMPLE_SEED = int(os.environ.get("INJECT_PCA_SEED", "42"))  # C 路线采样种子
+# 用户指令 2026-08-22: 屏蔽 CJK 字符 token, 防止注入风格偏移引入中文噪声
+MASK_CJK = os.environ.get("INJECT_MASK_CJK", "1") == "1"
 
 # Amazon-style 自然 search query 模板 (与 generate_query_targets.py 一致)
 GEN_SYSTEM = (
@@ -259,6 +261,7 @@ def main() -> int:
                 repetition_penalty=GEN_REPETITION_PENALTY,
                 batch_size=GEN_BATCH,
                 max_input_length=MAX_INPUT_LENGTH,
+                mask_cjk=MASK_CJK,
             )
         except Exception as exc:
             import traceback

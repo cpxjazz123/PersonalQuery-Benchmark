@@ -677,6 +677,7 @@ class QwenLocalClient:
         repetition_penalty: float = 1.0,
         batch_size: int = 16,
         max_input_length: int = 384,
+        mask_cjk: bool = False,
     ) -> list[str]:
         """Batched generation with per-row hidden-state bias injection.
 
@@ -694,11 +695,15 @@ class QwenLocalClient:
             repetition_penalty: 重复惩罚（transformers 4.40 支持）
             batch_size: 模型生成时的 batch size
             max_input_length: tokenize 截断长度
+            mask_cjk: True 时把 vocab 里所有 decode 后含 CJK 字符的 token 的
+                logit 设为 -inf, 防止注入风格偏移引入非英文噪声（用户指令
+                2026-08-22）。vocab 152K 一次性扫描 ~5s, 缓存到 _cjk_mask。
 
         返回: list[str]，长度 = len(user_texts)，已 trim 到第一换行
         """
         import threading
         import torch
+        import unicodedata
 
         if not user_texts:
             return []
@@ -775,6 +780,45 @@ class QwenLocalClient:
         # 业务侧用 get_hidden_states 提取时也用 right-padding，不能持久改）。
         orig_padding_side = tok.padding_side
         tok.padding_side = "left"
+
+        # CJK 字符屏蔽 mask (用户指令 2026-08-22): vocab 里 decode 后含 CJK 字符
+        # 的 token 都把 logit 设为 -inf, 防止注入风格偏移引入中文噪声。
+        # vocab 152K 一次性扫描 ~5s, 缓存到 _cjk_token_ids 属性。
+        logits_processor = None
+        if mask_cjk:
+            if not hasattr(self, "_cjk_token_ids") or self._cjk_token_ids is None:
+                cjk_ids: list[int] = []
+                for tid in range(len(tok)):
+                    s = tok.decode([tid])
+                    if not s:
+                        continue
+                    if any(
+                        '一' <= ch <= '鿿'            # CJK Unified Ideographs
+                        or '㐀' <= ch <= '䶿'        # CJK Ext A
+                        or '\U00020000' <= ch <= '\U0002a6df'  # CJK Ext B
+                        or '豈' <= ch <= '﫿'          # CJK Compatibility
+                        or '　' <= ch <= '〿'          # CJK Symbols/Punctuation (含日文)
+                        or '぀' <= ch <= 'ゟ'          # Hiragana
+                        or '゠' <= ch <= 'ヿ'          # Katakana
+                        or '가' <= ch <= '힯'          # Hangul Syllables
+                        for ch in s
+                    ):
+                        cjk_ids.append(tid)
+                self._cjk_token_ids = cjk_ids
+                _log(f"[QwenLocal-Hidden] CJK mask: {len(cjk_ids)} tokens masked out of {len(tok)}")
+            else:
+                _log(f"[QwenLocal-Hidden] CJK mask cache hit: {len(self._cjk_token_ids)} tokens")
+
+            class _CJKMaskProcessor:
+                """LogitsProcessor: 把 CJK token 的 logit 设为 -inf。"""
+                def __init__(self, token_ids: list[int]):
+                    self.token_ids = token_ids
+                def __call__(self, input_ids, scores):
+                    scores[:, self.token_ids] = -float("inf")
+                    return scores
+
+            logits_processor = [_CJKMaskProcessor(self._cjk_token_ids)]
+
         try:
             for L in injection_layers:
                 handles.append(
@@ -803,6 +847,7 @@ class QwenLocalClient:
                         repetition_penalty=repetition_penalty,
                         pad_token_id=tok.pad_token_id,
                         eos_token_id=tok.eos_token_id,
+                        logits_processor=logits_processor,
                     )
 
                 # 解码：只取 prompt 长度之后的新 token
