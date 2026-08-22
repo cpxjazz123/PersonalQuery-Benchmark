@@ -1,9 +1,0 @@
-{
-  "phase": "14",
-  "encoder": "AnnaWegmann/Style-Embedding (768d)",
-  "n_pairs": 30,
-  "n_conditions": 4,
-  "cov_pooled_method": "Ledoit-Wolf shrinkage",
-  "cov_shrinkage": 0.011084729805588722,
-  "verdict": "GO"
-}

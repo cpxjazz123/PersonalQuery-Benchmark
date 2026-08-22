@@ -1,23 +1,0 @@
-[13:02:08] users=100, layers=[8, 12, 16, 20, 24, 26, 27], construction sentences=987
-[13:02:47] reviews collected
-[13:03:07] held-out sentences: 800 (per-user min=8, max=8)
-[13:03:07] held-out rewrites: 800 cached, 0 to generate
-Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:35<01:46, 35.66s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:52<00:49, 24.67s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:57<00:15, 15.51s/it]Loading checkpoint shards: 100%|██████████| 4/4 [01:05<00:00, 12.67s/it]Loading checkpoint shards: 100%|██████████| 4/4 [01:05<00:00, 16.39s/it]
-[13:04:14] held-out rewrites done: total=800, empty/short=0
-[13:04:15] held-out hidden: 1596 cached, 0 to compute
-[13:04:41] held-out hidden saved (1596)
-[13:04:41] held-out pairs: min=8 max=8 total=800
-[13:04:50] === summary (held-out) ===
-[13:04:50] L8: top1=0.014 top5=0.055 (chance 0.010, perm-null 0.011) | own=0.003 other=0.003 (Δ=+0.000, frac_own>other=0.501) | sign>0 0.551
-[13:04:50] L12: top1=0.019 top5=0.087 (chance 0.010, perm-null 0.009) | own=0.030 other=0.022 (Δ=+0.008, frac_own>other=0.524) | sign>0 0.591
-[13:04:50] L16: top1=0.030 top5=0.091 (chance 0.010, perm-null 0.010) | own=0.051 other=0.029 (Δ=+0.021, frac_own>other=0.531) | sign>0 0.580
-[13:04:50] L20: top1=0.025 top5=0.086 (chance 0.010, perm-null 0.011) | own=0.044 other=0.037 (Δ=+0.007, frac_own>other=0.517) | sign>0 0.596
-[13:04:50] L24: top1=0.022 top5=0.075 (chance 0.010, perm-null 0.010) | own=0.157 other=0.030 (Δ=+0.127, frac_own>other=0.573) | sign>0 0.588
-[13:04:50] L26: top1=0.018 top5=0.076 (chance 0.010, perm-null 0.011) | own=0.153 other=0.030 (Δ=+0.122, frac_own>other=0.583) | sign>0 0.593
-[13:04:50] L27: top1=0.016 top5=0.071 (chance 0.010, perm-null 0.010) | own=0.114 other=0.028 (Δ=+0.086, frac_own>other=0.580) | sign>0 0.594
-[13:04:50] cross-method top1:
-[13:04:50]   mean_diff: L8=0.014 L12=0.019 L16=0.030 L20=0.025 L24=0.022 L26=0.018 L27=0.016
-[13:04:50]   logreg: L8=0.018 L12=0.046 L16=0.048 L20=0.041 L24=0.039 L26=0.031 L27=0.018
-[13:04:50]   pca: L8=0.010 L12=0.021 L16=0.015 L20=0.019 L24=0.010 L26=0.011 L27=0.013
-[13:04:50] DONE — wrote /fs04/ar57/wenyu/PersoanlQuery/result/e23_style_vector/style_vectors_heldout_validity.json (162.4s)

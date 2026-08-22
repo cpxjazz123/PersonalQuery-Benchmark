@@ -1,10 +1,0 @@
-[12:38:26] users=20, layers=[26, 27], alphas=[0.05, 0.1, 0.2, 0.4, 0.8]
-Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:02<00:06,  2.01s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.91s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.71s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.56s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:06<00:00,  1.66s/it]
-[12:38:34] tasks=220, cached=220, to generate=0
-[12:38:37] encoded
-[12:38:37] === grid (move_cos / frac>0 / repeat) ===
-[12:38:37]         a0.05      a0.1       a0.2       a0.4       a0.8       
-[12:38:37] L26    -0.109/0.35/0.00 -0.108/0.35/0.00 -0.167/0.25/0.00 -0.167/0.25/0.00 -0.167/0.25/0.00 
-[12:38:37] L27    +0.077/0.65/0.00 +0.075/0.65/0.00 +0.075/0.65/0.00 +0.073/0.65/0.01 +0.073/0.65/0.01 
-[12:38:37] DONE — wrote /fs04/ar57/wenyu/PersoanlQuery/result/e23_style_vector/steer_scan_fine.json (11.0s)

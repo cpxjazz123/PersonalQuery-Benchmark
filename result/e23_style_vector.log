@@ -1,24 +1,0 @@
-[11:34:14] model: /home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct
-[11:34:14] pass1: counting reviews per user...
-[11:34:54] users with >=30 reviews: 2330
-[11:34:55] pass2: loading review texts for candidates...
-[11:35:33] candidates with reviews: 240
-[11:36:13] eligible users (>= 10 sentences): 237
-[11:36:13] users=100, sentences total=1000, per-user counts=[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
-Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:02<00:07,  2.49s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.91s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:06<00:02,  2.04s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:07<00:00,  1.77s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:07<00:00,  1.89s/it]
-[11:36:22] layers total=28, extracting [8, 12, 16, 20, 24, 26, 27]
-[11:36:22] rewrites: 987 cached, 0 to generate
-[11:36:22] rewrite done: total=987, empty/short=0
-[11:36:22] hidden: 1973 cached, 0 to compute
-[11:36:57] computing style vectors (mean_diff / logreg / pca)...
-[11:36:57]   user 1/100
-[11:36:59]   user 21/100
-[11:37:00]   user 41/100
-[11:37:02]   user 61/100
-[11:37:03]   user 81/100
-[11:37:04]   user 100/100
-[11:37:04] computing sanity metrics...
-[11:37:08] DONE — style vectors written to /fs04/ar57/wenyu/PersoanlQuery/result/e23_style_vector/style_vectors_100u.npz
-[11:37:08]   layer metrics (layer27): {"user_neutral_cosine_mean": 0.9632, "user_neutral_cosine_std": 0.0251, "delta_norm_mean": 133.66, "stylevec_norm_mean": 66.397, "stylevec_pairwise_cosine_mean": 0.3421, "stylevec_pair_cos_lt_0.9": 0.9994, "stylevec_pair_cos_lt_0.5": 0.6545}
-[11:37:08] runtime 173.3s

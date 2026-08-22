@@ -1,38 +1,0 @@
-[21:37:42] ======================================================================
-[21:37:42] Phase 11.B: Gaussian sampling diversity test (4-control, 30 pairs)
-[21:37:42] ======================================================================
-[21:37:42] [1] Loading pairs ...
-[21:37:42]   pairs: 3
-[21:37:42] [2] Loading Phase 11.A Gaussian cache ...
-[21:37:52]   mu_768: (876, 768), sigma_lowrank: (876, 768, 768)
-[21:37:52]   valid users: 876/876
-[21:37:52] [3] Building per-pair info ...
-[21:37:52]   pair_info: 3
-[21:37:52] [4] Loading TinyStyler model ...
-Loading weights:   0%|          | 0/560 [00:00<?, ?it/s]Loading weights: 100%|██████████| 560/560 [00:00<00:00, 23939.36it/s]
-[transformers] The tied weights mapping and config for this model specifies to tie shared.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
-[21:38:52]   loaded
-[21:38:52] [5] Loading T5 tokenizer ...
-[21:38:52]   loaded
-[21:38:52] [6] Pre-tokenizing 3 prompts ...
-[21:38:52]   tokenized
-[21:38:52] [7] Building all candidates (30 pairs × 4 conds × 3 = 1200) ...
-[21:38:52]   sampled 3 s_u per user
-[21:38:52]   cand_jobs: 36
-[21:38:57]   [8/36] elapsed 5.1s, rate=1.57/s, ETA=18s
-[21:39:08]   generated 36 in 15.8s, rate=2.28/s
-[21:39:08] [8] Saving generations to /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_gaussian_samples_smoke.jsonl ...
-[21:39:08]   → /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_gaussian_samples_smoke.jsonl
-[21:39:08] [9] Computing diversity and style report ...
-Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 25830.67it/s]
-[21:39:11]   encoding 36 candidates ...
-[21:39:11]   summary by ctrl:
-[21:39:11]     sampled-z      : std_cos=0.1462+/-0.0665, mean_cos=0.1548
-[21:39:11]     mean-z         : std_cos=0.1689+/-0.0596, mean_cos=0.5743
-[21:39:11]     shuffled-z     : std_cos=0.1189+/-0.0988, mean_cos=0.7585
-[21:39:11]     injection-off  : std_cos=0.1602+/-0.0305, mean_cos=0.4939
-[21:39:11]   diversity gain (sampled/mean): 0.87x (FAIL)
-[21:39:11]   → /home/wlia0047/hj82_scratch2/wenyu/vades_prototype/phase11_b_diversity_report_smoke.json
-[21:39:11] ======================================================================
-[21:39:11] PHASE 11.B COMPLETE
-[21:39:11] ======================================================================
