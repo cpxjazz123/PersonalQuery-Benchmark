@@ -24,7 +24,7 @@ SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 SCRATCH.mkdir(parents=True, exist_ok=True)
 
 # === 配置 (硬编码, Rule 3) ===
-DATA_SOURCE = REPO_ROOT / "result/personal_query/01_preference_extraction/Baby_Products/stage1_filtered_users_reviews_3000u.json"
+DATA_SOURCE = REPO_ROOT / "result/stage1_filtered_users_reviews_3000u.json"
 OUTPUT_FILE = SCRATCH / "sentences_for_rewrite.jsonl"
 MAX_USERS = int(os.environ.get("VADES_NEUTRAL_MAX_USERS", "2918"))  # 默认全量
 SENTS_PER_USER = int(os.environ.get("VADES_NEUTRAL_SENTS_PER_USER", "15"))

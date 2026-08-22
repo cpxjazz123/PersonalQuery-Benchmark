@@ -162,15 +162,15 @@ if COVARIANCE_MODE in {"diagonal_gmm", "diagonal_student_t_gmm"} and GMM_COMPONE
 # (1) 训练/输入路径
 INPUT_DIR = (
     Path(os.environ["VADES_INPUT_DIR"]) if os.environ.get("VADES_INPUT_DIR")
-    else REPO_ROOT / "result" / "12_complexity_analysis_clause_features" / CATEGORY
+    else REPO_ROOT / "result"
 )
 REVIEW_SOURCE_FILE = (
     Path(os.environ["VADES_REVIEW_SOURCE"]) if os.environ.get("VADES_REVIEW_SOURCE")
-    else REPO_ROOT / "result" / "01_preference_extraction" / CATEGORY / "stage1_filtered_users_reviews.json"
+    else REPO_ROOT / "result" / "stage1_filtered_users_reviews_3000u.json"
 )
 SKIP_DEDUP = os.environ.get("VADES_SKIP_DEDUP", "0") == "1"
 CANDIDATE_QUERY_FILE = INPUT_DIR / "query_10_candidates_clause_features_joint_fisher_shared_pca_k3.jsonl"
-RAW_CANDIDATE_QUERY_FILE = REPO_ROOT / "result" / "06_query" / CATEGORY / "query_by_expression_style_no_depth_check_10.json"
+RAW_CANDIDATE_QUERY_FILE = REPO_ROOT / "result" / "query_by_expression_style_no_depth_check_10.json"
 SUMMARY_FILE = INPUT_DIR / f"{OUTPUT_TAG}_summary.json"
 DETAIL_FILE = INPUT_DIR / f"{OUTPUT_TAG}_epoch_details.jsonl"
 USER_PROFILE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_user_profiles.jsonl"
@@ -184,7 +184,7 @@ else:
     SENTENCE_EXTRACT_CACHE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_extracted_sentences.jsonl"
 SELECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_selected_query_records.jsonl"
 REJECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_rejected_query_records.jsonl"
-QUERY_FILE = REPO_ROOT / "result" / "06_query" / CATEGORY / f"query_by_expression_style_{OUTPUT_TAG}.json"
+QUERY_FILE = REPO_ROOT / "result" / f"query_by_expression_style_{OUTPUT_TAG}.json"
 ENCODER_CKPT = INPUT_DIR / f"vades_encoder_{OUTPUT_TAG}.pt"
 USER_TABLE_CKPT = INPUT_DIR / f"vades_user_table_{OUTPUT_TAG}.pt"
 

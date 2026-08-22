@@ -17,7 +17,7 @@ copy_aware_generate.py / copy_aware_train.py 需要的 records json:
 - 上限 MAX_ATTRS (默认 8, 避免 prompt 过长)
 
 产出 (硬编码, Rule 3):
-  result/attribute_extraction/Baby_Products/query_records.json
+  result/query_records.json
 """
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # 硬编码输入/输出路径 (Rule 3)
-STAGE1_REVIEWS = REPO_ROOT / "result/01_preference_extraction/Baby_Products/stage1_filtered_users_reviews_3000u.json"
-PRODUCT_ATTRS_JSON = REPO_ROOT / "result/attribute_extraction/Baby_Products/product_attributes.json"
-OUT_RECORDS = REPO_ROOT / "result/attribute_extraction/Baby_Products/query_records.json"
+STAGE1_REVIEWS = REPO_ROOT / "result/stage1_filtered_users_reviews_3000u.json"
+PRODUCT_ATTRS_JSON = REPO_ROOT / "result/product_attributes.json"
+OUT_RECORDS = REPO_ROOT / "result/query_records.json"
 
 # === 属性选择参数 (与 copy_aware_generate.py 保持一致) ===
 ATTR_PRIORITY = [

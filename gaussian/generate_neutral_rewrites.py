@@ -4,13 +4,12 @@
 为 VADES diagonal_residual_llm 模式做前置: 把每个用户评论句子改写成中立、plain 风格。
 残差 = user_hidden - neutral_hidden 将在 Qwen hidden 空间计算,不是 318d 句法空间。
 
-输入: result/personal_query/01_preference_extraction/Baby_Products/stage1_filtered_users_reviews_3000u.json
+输入: result/stage1_filtered_users_reviews_3000u.json
 输出: hj82_scratch2/wenyu/gaussian_vades/rewrites.jsonl
 """
 import gzip
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -23,12 +22,11 @@ SCRATCH.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(REPO_ROOT))
 
 # === 配置 (硬编码, 不接受 CLI 参数, Rule 3) ===
-DATA_SOURCE = REPO_ROOT / "result/personal_query/01_preference_extraction/Baby_Products/stage1_filtered_users_reviews_3000u.json"
+# 输入句子来源: extract_sentences_spacy.py 的产出 (Pipeline A 同源 spaCy 切句)
+SENTENCES_CACHE = SCRATCH / "sentences_for_rewrite.jsonl"
 OUTPUT_FILE = SCRATCH / "rewrites.jsonl"
 MAX_USERS = int(os.environ.get("VADES_NEUTRAL_MAX_USERS", "20"))  # smoke: 20 用户, ~300 句
 SENTS_PER_USER = int(os.environ.get("VADES_NEUTRAL_SENTS_PER_USER", "15"))
-MIN_WORDS = 5
-MAX_WORDS = 60
 REWRITE_BATCH = int(os.environ.get("VADES_NEUTRAL_REWRITE_BATCH", "16"))
 MAX_NEW = 128
 REWRITE_TEMPERATURE = 0.3
@@ -47,7 +45,7 @@ def load_existing_rewrites() -> dict[str, str]:
             for line in f:
                 try:
                     d = json.loads(line)
-                    s = d.get("sentence")
+                    s = d.get("sentence_text") or d.get("sentence")  # 兼容 extract_sentences_spacy.py 输出
                     r = d.get("rewrite")
                     if s and r:
                         cache[s] = r
@@ -62,52 +60,38 @@ def append_rewrites(rows: list[dict]) -> None:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-# === 提取用户句子 ===
+# === 加载 pre-extracted 句子 (来自 extract_sentences_spacy.py) ===
 def extract_user_sentences(limit_users: int = MAX_USERS, sents_per_user: int = SENTS_PER_USER) -> list[tuple[str, str, str]]:
-    """(user_id, sentence, asin) 三元组,过滤长度 5..60 words。
+    """(user_id, sentence, asin) 三元组。
 
-    注意: 不能 import spacy / thinc, 因为它们会触发 torch 初始化,导致后续 vLLM fork 失败。
-    这里只用 regex 切句, 牺牲一些边界情况(缩写/小数点)换取 vLLM 可启动。
+    输入: scratch2/sentences_for_rewrite.jsonl (由 extract_sentences_spacy.py 产生,
+          使用 Pipeline A 同源 spaCy 切句, 保证与 sentence_rows 文本完全一致)
+    不在本脚本内做句切分, 避免 spacy import 触发 torch init / vLLM fork 失败。
     """
-    print(f"[extract] 加载 {DATA_SOURCE}")
-    with open(DATA_SOURCE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    print(f"[extract] 总用户数: {len(data)}, 限制: {limit_users}")
+    if not SENTENCES_CACHE.exists():
+        raise FileNotFoundError(
+            f"[extract] 缺 {SENTENCES_CACHE}, 请先跑 gaussian/extract_sentences_spacy.py"
+        )
+    print(f"[extract] 加载 pre-extracted 句子: {SENTENCES_CACHE}")
     out: list[tuple[str, str, str]] = []
-    # 简单 regex 切句: 在 . ! ? 后跟空格处切;不处理 Mr./Dr./1.5 等边界情况(neutral rewrite 对此容忍)
-    sent_split = re.compile(r"(?<=[.!?])\s+")
-    kept_users = 0
-    for entry in data:
-        if kept_users >= limit_users:
-            break
-        user_id = entry.get("user_id", "?")
-        asin = entry.get("asin", "?")
-        # 把 reviews 列表(每个含 target_reviews)摊平
-        review_texts: list[str] = []
-        for rev in entry.get("reviews", []):
-            trg = rev.get("target_reviews", [])
-            if isinstance(trg, list):
-                review_texts.extend(trg)
-            elif isinstance(trg, str):
-                review_texts.append(trg)
-        if not review_texts:
-            continue
-        sents: list[str] = []
-        for t in review_texts:
-            for chunk in sent_split.split(t):
-                txt = chunk.strip()
-                if not txt:
+    seen_users: set[str] = set()
+    with open(SENTENCES_CACHE, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            uid = d.get("user_id")
+            sent = d.get("sentence_text") or d.get("sentence")  # 兼容 extract_sentences_spacy.py 输出
+            asin = d.get("asin", "?")
+            if not uid or not sent:
+                continue
+            if uid not in seen_users:
+                if len(seen_users) >= limit_users:
                     continue
-                n = len(txt.split())
-                if MIN_WORDS <= n <= MAX_WORDS:
-                    sents.append(txt)
-        if not sents:
-            continue
-        # 保留每个用户前 sents_per_user 句
-        for sent in sents[:sents_per_user]:
-            out.append((user_id, sent, asin))
-        kept_users += 1
-    print(f"[extract] 实际抽取 {kept_users} 用户, 共 {len(out)} 句")
+                seen_users.add(uid)
+            out.append((uid, sent, asin))
+    print(f"[extract] 实际加载 {len(seen_users)} 用户, {len(out)} 句")
     return out
 
 
@@ -178,7 +162,7 @@ def main() -> int:
             new_rows.append({
                 "user_id": uid,
                 "asin": asin,
-                "sentence": s,
+                "sentence_text": s,  # 与 Pipeline A 字段名一致
                 "rewrite": r,
             })
         # 增量写盘 (防中断丢失)

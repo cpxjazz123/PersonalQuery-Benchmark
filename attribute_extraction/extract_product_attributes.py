@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Fresh per-product structured attribute extraction from product METADATA.
 
-不依赖旧的 01_preference_extraction 产物; 直接从 meta_Baby_Products_2023
-(jsonl.gz) 的 details / store / title / main_category / price / rating
-抽取结构化属性。
+直接从 meta_Baby_Products_2023 (jsonl.gz) 的 details / store / title /
+main_category / price / rating 抽取结构化属性。
 
 抽取规则 (用户指令: 不规定字段, 只要是结构化的属性值都需要提取):
   - `details` dict 中所有 value 是 short string (len > 0, len <= MAX_STR_LEN)
@@ -18,7 +17,7 @@
       Rating Number: d["rating_number"]
 
 产出 (全部硬编码, 不接受 CLI 参数, Rule 3):
-  1) product_attributes.json
+  1) product_attributes.json (放 result/ 顶层, 2026-08-22 cleanup)
        {asin: {attr_name: attr_value, ...}, ...}
      缺失字段不填; 字段集合因 asin 而异。
 
@@ -34,7 +33,7 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # 硬编码输入/输出路径 (Rule 3)
 META_GZ = Path("/fs04/ar57/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl.gz")
-OUT_DIR = REPO_ROOT / "result/attribute_extraction/Baby_Products"
+OUT_DIR = REPO_ROOT / "result"  # 直接放 result/ 顶层
 PRODUCT_ATTRS_JSON = OUT_DIR / "product_attributes.json"
 
 # 字符串值长度上限: 超过此长度的 details 字段 (典型如 Care instructions /
