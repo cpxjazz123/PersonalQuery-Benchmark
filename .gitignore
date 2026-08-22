@@ -42,3 +42,6 @@ __query_cache__/
 .opencode/
 data/
 result/
+
+# No iteration docs going forward (per user request 2026-08-22)
+iterations/
