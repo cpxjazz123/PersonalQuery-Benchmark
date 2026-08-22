@@ -24,6 +24,30 @@ from torch import nn
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 REPO_ROOT = Path("/fs04/ar57/wenyu/PersoanlQuery")
+
+# === 硬编码全商品属性库 (802 字段版, attribute_extraction/extract_product_attributes.py 产出) ===
+PRODUCT_ATTRS_JSON = (
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+    / "result"
+    / "personal_query"
+    / "attribute_extraction"
+    / "Baby_Products"
+    / "product_attributes.json"
+)
+
+# === 属性选择策略: 关键商品属性优先, prompt 里只塞 top-K 避免过长 ===
+ATTR_PRIORITY = [
+    "Brand", "Main Category", "Item model number", "Manufacturer",
+    "Color", "Material", "Material Type", "Fabric Type", "Frame Material",
+    "Item Weight", "Product Dimensions", "Size", "Style", "Pattern", "Theme",
+    "Age Range (Description)", "Special Feature", "Target gender",
+    "Batteries required", "Number Of Items", "Is Discontinued By Manufacturer",
+    "Date First Available", "Country/Region of origin", "Country of Origin",
+    "Price", "Average Rating", "Rating Number",
+]
+MAX_ATTRS_IN_PROMPT = 8   # 一次 query 用到的属性数 (过大撑爆 prompt)
+MAX_ATTR_VALUE_LEN = 100  # 单值最大字符数 (跳过 care instructions 等长文)
+
 sys.path.insert(0, str(REPO_ROOT / "query"))
 sys.path.insert(0, str(REPO_ROOT / "query" / "soft_prefix"))
 
@@ -46,6 +70,95 @@ from copy_aware_train import build_messages  # noqa: E402
 
 def log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def load_product_attrs(path: Path = PRODUCT_ATTRS_JSON) -> dict[str, dict]:
+    """加载 product_attributes.json (802 字段版) -> {asin: {field: value, ...}, ...}.
+
+    文件 ~106MB, 一次加载到内存; 217k 商品 × 平均 14 字段, 内存占用 < 500MB。
+    """
+    log(f"[product_attrs] loading {path} ...")
+    if not path.exists():
+        log(f"[product_attrs] ✗ file not found, 返回空库 (records 必须自带 attrs_used)")
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        d = json.load(f)
+    log(f"[product_attrs] ✓ loaded {len(d)} products")
+    return d
+
+
+def select_top_attrs(
+    asin_attrs: dict,
+    max_n: int = MAX_ATTRS_IN_PROMPT,
+    priority: list[str] = ATTR_PRIORITY,
+    max_val_len: int = MAX_ATTR_VALUE_LEN,
+) -> dict:
+    """从单商品的全属性集合里, 按字段优先级 + 出现顺序挑选最多 max_n 个属性。
+
+    优先级字段先入 (Brand / Color / Material / Item Weight / Size 等),
+    剩余字段按 dict 插入顺序补齐 (product_attributes.json 已经按字段频率大致有序),
+    跳过空值 / 过长值 (care instructions 等非结构化长文本)。
+    返回 {field: value, ...} 形态, prompt-friendly key 名。
+    """
+    out: dict = {}
+    used: set[str] = set()
+    # 1) 优先级字段
+    for k in priority:
+        v = asin_attrs.get(k)
+        if not v:
+            continue
+        s = str(v).strip()
+        if not s or len(s) > max_val_len:
+            continue
+        out[k] = s
+        used.add(k)
+        if len(out) >= max_n:
+            return out
+    # 2) 其他字段按 dict 顺序补齐
+    for k, v in asin_attrs.items():
+        if k in used:
+            continue
+        if v is None:
+            continue
+        s = str(v).strip()
+        if not s or len(s) > max_val_len:
+            continue
+        out[k] = s
+        if len(out) >= max_n:
+            break
+    return out
+
+
+def merge_attrs_with_product_db(
+    existing: dict | None,
+    asin_attrs: dict | None,
+    max_n: int = MAX_ATTRS_IN_PROMPT,
+) -> dict:
+    """合并 record.attrs_used 与 product_attributes.json[asin] 的字段。
+
+    策略:
+      - existing 非空时, 优先保留 record 的字段 (训练时 ground-truth 用到的属性),
+        用 product_attrs 补齐缺的优先级字段。
+      - existing 为空时, 完全从 product_attrs 选 top-K。
+    """
+    if not asin_attrs:
+        return existing or {}
+    if not existing:
+        return select_top_attrs(asin_attrs, max_n=max_n)
+    # 补齐缺失的优先级字段 (上限 max_n)
+    if len(existing) >= max_n:
+        return existing
+    extra = select_top_attrs(
+        {k: v for k, v in asin_attrs.items() if k not in existing},
+        max_n=max_n - len(existing),
+    )
+    merged = dict(existing)
+    for k, v in extra.items():
+        if k not in merged:
+            merged[k] = v
+            if len(merged) >= max_n:
+                break
+    return merged
 
 
 class CopyAwareGenerator(nn.Module):
@@ -288,6 +401,10 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--offset", type=int, default=0)
     ap.add_argument("--records_path", default="", help="evaluation record list json (user_id, asin, attrs)")
+    ap.add_argument("--product_attrs_path", default=str(PRODUCT_ATTRS_JSON),
+                    help="full product attribute JSON {asin: {field: value}} (802 字段版)")
+    ap.add_argument("--max_attrs_in_prompt", type=int, default=MAX_ATTRS_IN_PROMPT,
+                    help="每个 query prompt 注入的属性数上限 (避免 prompt 过长)")
     ap.add_argument("--vector_mode", default="vades")
     args = ap.parse_args()
 
@@ -340,11 +457,17 @@ def main() -> None:
         stat_vectors = {}
         log("user condition: 高斯残差 profile 作为风格向量 (stat vectors 已禁用)")
 
+    # === 加载 802 字段版商品属性库 (record.attrs_used 缺失时 fallback) ===
+    product_attrs_db = load_product_attrs(Path(args.product_attrs_path))
+    # 运行时 max_attrs (本函数局部, 不污染模块常量)
+    max_attrs_in_prompt = args.max_attrs_in_prompt or MAX_ATTRS_IN_PROMPT
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
     batch_size = 16
     jobs = []
+    n_filled = 0  # 统计 record.attrs_used 缺失时由 product_attrs 补齐的条数
     for rec in records:
         uid, asin = rec["user_id"], rec["asin"]
         attrs = rec.get("attrs_used")
@@ -355,9 +478,15 @@ def main() -> None:
                 if cand.get("attrs_used"):
                     attrs = cand["attrs_used"]
                     break
-        if not attrs:
+        # === 新增: 用 product_attributes.json[asin] (802 字段版) 补齐 attrs ===
+        asin_attrs = product_attrs_db.get(asin)
+        merged_attrs = merge_attrs_with_product_db(attrs, asin_attrs, max_n=max_attrs_in_prompt)
+        if not merged_attrs:
             results.append({"user_id": uid, "asin": asin, "generated_query": None, "error": "no attrs"})
             continue
+        if (not attrs) or len(merged_attrs) > len(attrs or {}):
+            n_filled += 1
+        attrs = merged_attrs
         prompt_str = tokenizer.apply_chat_template(build_messages(attrs), tokenize=False, add_generation_prompt=True)
         vec, has_vector = provider.get(uid)
         # 默认不让 stat-vector 覆盖高斯风格向量; 设 CA_USE_STAT_VEC=1 才用统计向量
@@ -366,6 +495,7 @@ def main() -> None:
             vec = sv
             has_vector = True
         jobs.append((rec, attrs, prompt_str, vec, has_vector))
+    log(f"[product_attrs] {n_filled}/{len(records)} records 借助 product_attrs 补齐/扩展了属性")
     done = 0
     for start in range(0, len(jobs), batch_size):
         chunk = jobs[start:start + batch_size]
