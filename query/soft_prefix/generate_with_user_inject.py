@@ -73,13 +73,16 @@ PCA_SAMPLE_SEED = int(os.environ.get("INJECT_PCA_SEED", "42"))  # C 路线采样
 # 用户指令 2026-08-22: 屏蔽 CJK 字符 token, 防止注入风格偏移引入中文噪声
 MASK_CJK = os.environ.get("INJECT_MASK_CJK", "1") == "1"
 
-# Amazon-style 自然 search query 模板 (与 generate_query_targets.py 一致)
+# 第一人称自然语言 query 模板 (用户指令 2026-08-22: 不是关键词罗列, 是描述
+# 自己需求的第一人称 query)。Allow "I want / I'm looking for / Need a"
+# 这类搜索意图驱动表达, 2-4 个关键属性, < 80 字符。
 GEN_SYSTEM = (
-    "You write realistic Amazon-style search queries. Output ONLY the query "
-    "text — no preamble, no quotes, no sentence like 'I'm looking for'. "
-    "Match the style of an Amazon search bar input: short, intent-driven, "
-    "keywords joined by commas or natural phrasing. Mention only the most "
-    "important 2-4 attributes; not every field. Never start with 'I'."
+    "You write realistic first-person product search queries as if you are the "
+    "customer typing into a search box. Output ONLY the query text — no "
+    "preamble, no quotes. Express what YOU (the shopper) are looking for in "
+    "natural phrasing like 'I'm looking for', 'I want', 'I need', 'Searching "
+    "for', 'Looking for'. Mention only the most important 2-4 attributes; not "
+    "every field. Keep it short (< 80 chars)."
 )
 
 
