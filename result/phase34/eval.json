@@ -1,0 +1,448 @@
+{
+  "summary": {
+    "baseline": {
+      "n_records": 10,
+      "n_full_cov": 4,
+      "full_cov_pct": 40.0,
+      "syn_dist_mean": 5.4272749890498915,
+      "syn_dist_std": 1.4223307535435747,
+      "sent_leak_mean": 0.26865648870186076,
+      "fw_overlap_mean": 0.22014508367449545,
+      "n_hallu_records": 2,
+      "n_exemplar_echo": 0
+    },
+    "syntax": {
+      "n_records": 10,
+      "n_full_cov": 6,
+      "full_cov_pct": 60.0,
+      "syn_dist_mean": 5.812464934347849,
+      "syn_dist_std": 1.566673719788361,
+      "sent_leak_mean": 0.26802189629307477,
+      "fw_overlap_mean": 0.19314215969788723,
+      "n_hallu_records": 2,
+      "n_exemplar_echo": 0
+    },
+    "hybrid": {
+      "n_records": 10,
+      "n_full_cov": 6,
+      "full_cov_pct": 60.0,
+      "syn_dist_mean": 6.183048828252356,
+      "syn_dist_std": 1.8826306284316718,
+      "sent_leak_mean": 0.29689110320866885,
+      "fw_overlap_mean": 0.23367376775271512,
+      "n_hallu_records": 1,
+      "n_exemplar_echo": 0
+    }
+  },
+  "records_by_condition": {
+    "baseline": [
+      {
+        "user_id": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+        "asin": "B0BBM75S58",
+        "query": "I'm in need of a baby playpen made by Ajulkrio, specifically designed from Acrylonitrile Butadiene Styrene material, featuring an anti-rust alloy steel pipe frame and Oxford cloth, suitable for both babies and toddlers.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 6.502087321927729,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.29411764705882354,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+        "asin": "B09WRKYRQZ",
+        "query": "Looking for a cotton, pink/white swaddling blanket from Simple Joys by Carter's, part of their Amazon Fashion collection.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 3.5871914112841137,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.125,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+        "asin": "B001QC3CKG",
+        "query": "I'm looking for a Playtex Baby Nurser Gift Set featuring clear, silicone nipples for easy monitoring of feed intake without needing to remove the bottle liner, ensuring each bottle remains fresh and clean, eliminating the need for extensive cleaning after every use.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 8.14089391437724,
+        "sent_leak": 0.5238095238095238,
+        "fw_overlap": 0.23529411764705882,
+        "hallu_n": 1,
+        "hallu_words": [
+          "bottle"
+        ],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+        "asin": "B0BN6VXJHM",
+        "query": "The stylish, stainless steel wing glass from Corkcicle's Jasmine-themed collection offers a beautiful and practical addition to my home bar, perfect for enjoying refreshments that stay chilled longer.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 5.767106966648678,
+        "sent_leak": 0.5344827586206896,
+        "fw_overlap": 0.2857142857142857,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+        "asin": "B0BRQBD14R",
+        "query": "Andrea's professional style chain blade, featuring a curved edge, is designed for precision and elegance in beauty applications.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 4.504726182025614,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.23076923076923078,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+        "asin": "B0BQ5YSKYL",
+        "query": "Explore the charming Stcomart bunny basket baby product, crafted from unisex linen, featuring delightful designs suitable for both boys and girls, ensuring a timeless addition to your child's collection.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 4.522147439538033,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.2222222222222222,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+        "asin": "B001V9EVCM",
+        "query": "Looking for a Medela baby product in translucent color, BPA-free material, suitable for both genders, ideally it should handle larger milk volumes efficiently, be easy to clean and waterproof, yet ensure a sturdy but somewhat effortless filling process.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 7.295274160967142,
+        "sent_leak": 0.5256410256410257,
+        "fw_overlap": 0.4666666666666667,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+        "asin": "B0BQYQHF9G",
+        "query": "TYRY.HU baby accessory set includes a lion and elephant themed clip for pacifiers or small items, featuring secure clothing attachments.",
+        "cov": 2,
+        "n_attrs": 2,
+        "syn_dist": 4.648199799108493,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.15,
+        "hallu_n": 2,
+        "hallu_words": [
+          "clothing",
+          "accessory"
+        ],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+        "asin": "B0BSCVHKD2",
+        "query": "Bestvana's high-quality fashion pants offer unparalleled craftsmanship and comfort, ensuring every detail has been meticulously attended to without compromise.",
+        "cov": 2,
+        "n_attrs": 3,
+        "syn_dist": 3.8642684251337247,
+        "sent_leak": 0.55,
+        "fw_overlap": 0.125,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+        "asin": "B09W5MZSWP",
+        "query": "Looking for a large, Spring Blossoms colored muslin blanket from VIVANA, ideal for cozy and soft swaddling at home.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 5.440854269488152,
+        "sent_leak": 0.5526315789473684,
+        "fw_overlap": 0.06666666666666667,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      }
+    ],
+    "syntax": [
+      {
+        "user_id": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+        "asin": "B0BBM75S58",
+        "query": "I'm in need of a baby playpen made by Ajulkrio, specifically designed from Acrylonitrile Butadiene Styrene material, featuring an anti-rust alloy steel pipe frame and Oxford cloth, suitable for both babies and toddlers.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 6.502087321927729,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.29411764705882354,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+        "asin": "B09WRKYRQZ",
+        "query": "Looking for a cotton, pink/white swaddling blanket from Simple Joys by Carter's, part of their Amazon Fashion collection.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 3.5871914112841137,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.125,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+        "asin": "B001QC3CKG",
+        "query": "I'm looking for a Playtex Baby Nurser Gift Set featuring clear, silicone nipples for easy monitoring of feed intake without needing to remove the bottle liner, ensuring each bottle remains fresh and clean, eliminating the need for extensive cleaning after every use.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 8.14089391437724,
+        "sent_leak": 0.5238095238095238,
+        "fw_overlap": 0.23529411764705882,
+        "hallu_n": 1,
+        "hallu_words": [
+          "bottle"
+        ],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+        "asin": "B0BN6VXJHM",
+        "query": "The stylish, stainless steel wing glass from Corkcicle's Jasmine-themed collection offers a beautiful and practical addition to my home bar, perfect for enjoying refreshments that stay chilled longer.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 5.767106966648678,
+        "sent_leak": 0.5344827586206896,
+        "fw_overlap": 0.2857142857142857,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+        "asin": "B0BRQBD14R",
+        "query": "Andrea's professional style chain blade, featuring a curved edge, is designed for precision and elegance in beauty applications.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 4.504726182025614,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.23076923076923078,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+        "asin": "B0BQ5YSKYL",
+        "query": "Explore the charming Stcomart bunny basket baby product, crafted from unisex linen, featuring delightful designs suitable for both boys and girls, ensuring a timeless addition to your child's collection.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 4.522147439538033,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.2222222222222222,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+        "asin": "B001V9EVCM",
+        "query": "Looking for Medela's translucent, BPA free, unisex baby products that offer improved efficiency for pumping over five ounces and are convenient for cleaning and use in daycares.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 6.262606929967257,
+        "sent_leak": 0.537037037037037,
+        "fw_overlap": 0.1111111111111111,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+        "asin": "B0BQYQHF9G",
+        "query": "TYRY.HU baby accessory set includes a lion and elephant themed clip for pacifiers or small items, featuring secure clothing attachments.",
+        "cov": 2,
+        "n_attrs": 2,
+        "syn_dist": 4.648199799108493,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.15,
+        "hallu_n": 2,
+        "hallu_words": [
+          "clothing",
+          "accessory"
+        ],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+        "asin": "B0BSCVHKD2",
+        "query": "I'm looking for a high-quality training pant from BESTVANA, part of their Amazon Fashion collection, known for craftsmanship, design, and comfort that matches the standards set by their previous products.",
+        "cov": 3,
+        "n_attrs": 3,
+        "syn_dist": 8.748835109113186,
+        "sent_leak": 0.532258064516129,
+        "fw_overlap": 0.21052631578947367,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+        "asin": "B09W5MZSWP",
+        "query": "Looking for a large, Spring Blossoms colored muslin blanket from VIVANA, ideal for cozy and soft swaddling at home.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 5.440854269488152,
+        "sent_leak": 0.5526315789473684,
+        "fw_overlap": 0.06666666666666667,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      }
+    ],
+    "hybrid": [
+      {
+        "user_id": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+        "asin": "B0BBM75S58",
+        "query": "I'm searching for an Ajulkrio brand baby playpen made of Acrylonitrile Butadiene Styrene material with anti-rust alloy steel pipes and Oxford cloth, suitable for both babies and toddlers. My previous experience involved assembling a difficult dog crate, which led me to explore alternatives like this playpen. Unfortunately, my initial attempt at using it was quite challenging and disappointing.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 9.777321812546546,
+        "sent_leak": 0.3008474576271186,
+        "fw_overlap": 0.42105263157894735,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+        "asin": "B09WRKYRQZ",
+        "query": "Looking for a cotton, pink/white swaddling blanket from Simple Joys by Carter's, part of their Amazon Fashion collection.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 3.5871914112841137,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.125,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+        "asin": "B001QC3CKG",
+        "query": "Searching for a practical and safe baby gift set, I'm interested in the Playtex Baby Nurser Gift Set featuring clear, silicone nipples designed for easy cleaning and maintenance.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 5.613714365071437,
+        "sent_leak": 0.5357142857142857,
+        "fw_overlap": 0.26666666666666666,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+        "asin": "B0BN6VXJHM",
+        "query": "The stylish, stainless steel wing glass from Corkcicle's Jasmine-themed collection offers a beautiful and practical addition to my home bar, perfect for enjoying refreshments that stay chilled longer.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 5.767106966648678,
+        "sent_leak": 0.5344827586206896,
+        "fw_overlap": 0.2857142857142857,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+        "asin": "B0BRQBD14R",
+        "query": "Andrea's professional beauty kit featuring a curved blade and chain style, designed for precision in styling tasks.",
+        "cov": 3,
+        "n_attrs": 5,
+        "syn_dist": 4.30337030509936,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.25,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+        "asin": "B0BQ5YSKYL",
+        "query": "Looking for a unisex baby gift, I'm interested in a Stcomart bunny basket made from linen material, featuring adorable designs that cater to both boys and girls, with distinct color linings on each side and a charming white pom-pom tail as a finishing touch.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 5.91085088867526,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.2857142857142857,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+        "asin": "B001V9EVCM",
+        "query": "Looking for Medela's translucent, BPA free, unisex baby products that offer improved efficiency for pumping over five ounces and are convenient for cleaning and use in daycares.",
+        "cov": 5,
+        "n_attrs": 5,
+        "syn_dist": 6.262606929967257,
+        "sent_leak": 0.537037037037037,
+        "fw_overlap": 0.1111111111111111,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+        "asin": "B0BQYQHF9G",
+        "query": "TYRY.HU's baby accessory set includes a pair of soft plush clips, featuring one with a lion and another with an elephant motif, designed to loop around pacifiers, teethers, IDs, or clip onto clothes securely.",
+        "cov": 2,
+        "n_attrs": 2,
+        "syn_dist": 7.505080171008163,
+        "sent_leak": 0.5285714285714286,
+        "fw_overlap": 0.23809523809523808,
+        "hallu_n": 2,
+        "hallu_words": [
+          "clothes",
+          "accessory"
+        ],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+        "asin": "B0BSCVHKD2",
+        "query": "I'm looking for a high-quality training pant from BESTVANA, part of their Amazon Fashion collection, known for craftsmanship, design, and comfort that matches the standards set by their previous products.",
+        "cov": 3,
+        "n_attrs": 3,
+        "syn_dist": 8.748835109113186,
+        "sent_leak": 0.532258064516129,
+        "fw_overlap": 0.21052631578947367,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      },
+      {
+        "user_id": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+        "asin": "B09W5MZSWP",
+        "query": "I'm looking for a VIVANA brand muslin blanket in the Amazon Home collection, preferably in a size large and featuring a Spring Blossoms color scheme.",
+        "cov": 4,
+        "n_attrs": 5,
+        "syn_dist": 4.354410323109558,
+        "sent_leak": 0.0,
+        "fw_overlap": 0.14285714285714285,
+        "hallu_n": 0,
+        "hallu_words": [],
+        "exemplar_echo": false
+      }
+    ]
+  }
+}
