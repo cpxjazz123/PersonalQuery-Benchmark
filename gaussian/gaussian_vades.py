@@ -129,7 +129,14 @@ VALID_COVARIANCE_MODES = {
     "diagonal", "full", "diagonal_gmm",
     "diagonal_student_t", "diagonal_laplace", "diagonal_student_t_gmm",
     "diagonal_logistic", "diagonal_prototype",
+    "diagonal_residual",  # 318d raw space global neutral residual
 }
+# === diagonal_residual 模式专用常量 ===
+RESIDUAL_NEUTRAL_MODE = os.environ.get("VADES_RESIDUAL_NEUTRAL", "global_mean")  # global_mean / cluster_mean
+RESIDUAL_NEUTRAL_CACHE = os.environ.get(
+    "VADES_RESIDUAL_NEUTRAL_CACHE",
+    "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/global_neutral.npy",
+)
 if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
     raise ValueError(
         f"VADES_COVARIANCE_MODE 必须是 {sorted(VALID_COVARIANCE_MODES)} 之一, 得到 {COVARIANCE_MODE}"
@@ -1177,6 +1184,24 @@ def build_training_dataset(sentence_rows: list[dict], feature_names: list[str]) 
         "grouped_rows": grouped_rows,
     }
     return user_ids, dataset
+
+
+def compute_global_neutral_ref(feature_matrix: np.ndarray) -> np.ndarray:
+    """全局 318d 句法特征的 per-dim mean 作为中性 reference。
+
+    注意:必须在 raw (pre-StandardScaler) 空间计算,因 StandardScaler 后 mean=0 残差无意义。
+    """
+    return feature_matrix.mean(axis=0).astype(np.float64)
+
+
+def apply_residual(features: np.ndarray, neutral: np.ndarray) -> np.ndarray:
+    """计算 residual = features - neutral (broadcast over rows)。"""
+    return features - neutral[None, :]
+
+
+def restore_from_residual(residuals: np.ndarray, neutral: np.ndarray) -> np.ndarray:
+    """还原 raw 318d 特征 = residuals + neutral。"""
+    return residuals + neutral[None, :]
 
 
 # ============================================================
@@ -3426,6 +3451,31 @@ def main_train() -> None:
     feature_rows, feature_names = build_sentence_feature_rows(sentence_rows)
     candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
+
+    # ==== diagonal_residual 模式: 算 global neutral 并把 scaled_features 替换成 scaled_residual ====
+    if COVARIANCE_MODE == "diagonal_residual":
+        log("[diagonal_residual] 计算 global neutral reference...")
+        feature_matrix_raw = dataset["feature_matrix"]  # [num_sentences, feat_dim]
+        cache_path = Path(RESIDUAL_NEUTRAL_CACHE)
+        if cache_path.exists():
+            global_neutral = np.load(cache_path).astype(np.float64)
+            log(f"  加载缓存 neutral: {cache_path}, norm={np.linalg.norm(global_neutral):.3f}")
+        else:
+            global_neutral = compute_global_neutral_ref(feature_matrix_raw)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            np.save(cache_path, global_neutral)
+            log(f"  已计算并保存 neutral: {cache_path}, norm={np.linalg.norm(global_neutral):.3f}")
+        # raw 空间做 residual, 然后再 StandardScaler(让 encoder 输入 zero-mean unit-var)
+        residual = apply_residual(feature_matrix_raw, global_neutral)
+        residual_scaler = StandardScaler()
+        scaled_residual = residual_scaler.fit_transform(residual).astype(np.float64)
+        # 替换 scaled_features; feature_matrix 仍保留 raw 供 v4 prototype teacher 用
+        dataset["scaled_features"] = scaled_residual
+        dataset["scaler"] = residual_scaler
+        dataset["global_neutral"] = global_neutral
+        dataset["residual_mode"] = True
+        log(f"  residual mean norm: {np.linalg.norm(residual, axis=1).mean():.3f}")
+        log(f"  scaled_residual mean norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
 
     # ==== disentangle / prototype 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
     user_cluster_ids_t: torch.Tensor | None = None
