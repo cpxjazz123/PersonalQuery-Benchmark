@@ -1,0 +1,201 @@
+{
+  "intra_summary": {
+    "size>=2": {},
+    "size>=3": {},
+    "size>=4": {},
+    "size>=5": {},
+    "size>=10": {
+      "softmax_diag64_τ0.1": {
+        "n_users": 73,
+        "n_hit": 33,
+        "rank1_pct": 45.20547945205479,
+        "mean_own_rank": 47.20804794520548,
+        "median_own_rank": 38.625,
+        "p90_own_rank": 93.975
+      },
+      "softmax_g32_τ0.1": {
+        "n_users": 73,
+        "n_hit": 35,
+        "rank1_pct": 47.94520547945205,
+        "mean_own_rank": 42.33904109589041,
+        "median_own_rank": 34.125,
+        "p90_own_rank": 93.925
+      },
+      "softmax_diag64_τ0.3": {
+        "n_users": 73,
+        "n_hit": 34,
+        "rank1_pct": 46.57534246575342,
+        "mean_own_rank": 47.18407534246575,
+        "median_own_rank": 38.5625,
+        "p90_own_rank": 93.2125
+      },
+      "softmax_g32_τ0.3": {
+        "n_users": 73,
+        "n_hit": 36,
+        "rank1_pct": 49.31506849315068,
+        "mean_own_rank": 41.961472602739725,
+        "median_own_rank": 34.4375,
+        "p90_own_rank": 90.08749999999999
+      },
+      "softmax_diag64_τ0.5": {
+        "n_users": 73,
+        "n_hit": 33,
+        "rank1_pct": 45.20547945205479,
+        "mean_own_rank": 47.01541095890411,
+        "median_own_rank": 38.6875,
+        "p90_own_rank": 93.1
+      },
+      "softmax_g32_τ0.5": {
+        "n_users": 73,
+        "n_hit": 37,
+        "rank1_pct": 50.68493150684932,
+        "mean_own_rank": 41.76027397260274,
+        "median_own_rank": 32.875,
+        "p90_own_rank": 84.46249999999999
+      },
+      "softmax_diag64_τ1.0": {
+        "n_users": 73,
+        "n_hit": 32,
+        "rank1_pct": 43.83561643835616,
+        "mean_own_rank": 46.57705479452055,
+        "median_own_rank": 38.375,
+        "p90_own_rank": 95.45
+      },
+      "softmax_g32_τ1.0": {
+        "n_users": 73,
+        "n_hit": 37,
+        "rank1_pct": 50.68493150684932,
+        "mean_own_rank": 41.82277397260274,
+        "median_own_rank": 33.375,
+        "p90_own_rank": 81.59999999999998
+      },
+      "softmax_diag64_τ2.0": {
+        "n_users": 73,
+        "n_hit": 32,
+        "rank1_pct": 43.83561643835616,
+        "mean_own_rank": 45.82534246575342,
+        "median_own_rank": 38.5,
+        "p90_own_rank": 94.9875
+      },
+      "softmax_g32_τ2.0": {
+        "n_users": 73,
+        "n_hit": 35,
+        "rank1_pct": 47.94520547945205,
+        "mean_own_rank": 41.946917808219176,
+        "median_own_rank": 33.5,
+        "p90_own_rank": 82.59999999999998
+      },
+      "softmax_diag64_τ5.0": {
+        "n_users": 73,
+        "n_hit": 29,
+        "rank1_pct": 39.726027397260275,
+        "mean_own_rank": 44.9708904109589,
+        "median_own_rank": 36.4375,
+        "p90_own_rank": 94.9875
+      },
+      "softmax_g32_τ5.0": {
+        "n_users": 73,
+        "n_hit": 36,
+        "rank1_pct": 49.31506849315068,
+        "mean_own_rank": 42.12157534246575,
+        "median_own_rank": 33.3125,
+        "p90_own_rank": 84.01249999999997
+      },
+      "softmax_diag64_τ10.0": {
+        "n_users": 73,
+        "n_hit": 28,
+        "rank1_pct": 38.35616438356164,
+        "mean_own_rank": 44.5625,
+        "median_own_rank": 36.875,
+        "p90_own_rank": 93.68749999999999
+      },
+      "softmax_g32_τ10.0": {
+        "n_users": 73,
+        "n_hit": 36,
+        "rank1_pct": 49.31506849315068,
+        "mean_own_rank": 42.136986301369866,
+        "median_own_rank": 33.5625,
+        "p90_own_rank": 84.03749999999998
+      },
+      "softmax_hybrid_diag_g32_07_τ0.3": {
+        "n_users": 73,
+        "n_hit": 34,
+        "rank1_pct": 46.57534246575342,
+        "mean_own_rank": 46.15068493150685,
+        "median_own_rank": 36.6875,
+        "p90_own_rank": 94.69999999999999
+      },
+      "softmax_hybrid_50_τ0.3": {
+        "n_users": 73,
+        "n_hit": 34,
+        "rank1_pct": 46.57534246575342,
+        "mean_own_rank": 45.2833904109589,
+        "median_own_rank": 34.625,
+        "p90_own_rank": 94.28749999999998
+      },
+      "softmax_hybrid_diag_g32_07_τ1.0": {
+        "n_users": 73,
+        "n_hit": 33,
+        "rank1_pct": 45.20547945205479,
+        "mean_own_rank": 45.42123287671233,
+        "median_own_rank": 38.125,
+        "p90_own_rank": 95.675
+      },
+      "softmax_hybrid_50_τ1.0": {
+        "n_users": 73,
+        "n_hit": 32,
+        "rank1_pct": 43.83561643835616,
+        "mean_own_rank": 44.3638698630137,
+        "median_own_rank": 34.875,
+        "p90_own_rank": 93.58749999999999
+      },
+      "softmax_hybrid_diag_g32_07_τ5.0": {
+        "n_users": 73,
+        "n_hit": 31,
+        "rank1_pct": 42.465753424657535,
+        "mean_own_rank": 44.06763698630137,
+        "median_own_rank": 37.6875,
+        "p90_own_rank": 89.325
+      },
+      "softmax_hybrid_50_τ5.0": {
+        "n_users": 73,
+        "n_hit": 31,
+        "rank1_pct": 42.465753424657535,
+        "mean_own_rank": 43.3861301369863,
+        "median_own_rank": 35.1875,
+        "p90_own_rank": 86.3
+      },
+      "margin_diag64": {
+        "n_users": 73,
+        "n_hit": 34,
+        "rank1_pct": 46.57534246575342,
+        "mean_own_rank": 47.34931506849315,
+        "median_own_rank": 38.625,
+        "p90_own_rank": 94.52499999999999
+      },
+      "HN_diag_a1": {
+        "n_users": 73,
+        "n_hit": 32,
+        "rank1_pct": 43.83561643835616,
+        "mean_own_rank": 46.57705479452055,
+        "median_own_rank": 38.375,
+        "p90_own_rank": 95.45
+      },
+      "pca64_diag_alone": {
+        "n_users": 73,
+        "n_hit": 21,
+        "rank1_pct": 28.767123287671232,
+        "mean_own_rank": 46.5,
+        "median_own_rank": 40.125,
+        "p90_own_rank": 85.88749999999999
+      }
+    }
+  },
+  "n_intra": {
+    "size>=2": 0,
+    "size>=3": 0,
+    "size>=4": 0,
+    "size>=5": 0,
+    "size>=10": 1679
+  }
+}
