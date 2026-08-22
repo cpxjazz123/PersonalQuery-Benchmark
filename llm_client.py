@@ -652,6 +652,173 @@ class QwenLocalClient:
     def _hidden_backend(self):
         return _HiddenBackend.get(self.model_name)
 
+    # ---------- hidden state injection during generation ----------
+    # 业务侧用：把 per-row 风格向量（user_mu 投影到 hidden_dim）作为 bias 注入
+    # 指定 transformer layer 的 hidden state，引导生成靠近用户风格。
+    # 走 transformers _HiddenBackend 的 model.generate + forward hook，batched
+    # (Rule 4)，不暴露 transformers 给业务代码（Rule 8）。
+    #
+    # 使用限制：
+    #   - 当前 vllm 0.27.1 在 pq_env 引擎初始化失败（type object is not
+    #     subscriptable），本接口走 transformers path，无 vllm PagedAttention
+    #     优化，单 batch 速度低于 vllm；高频生成仍建议走 vllm 路径。
+    #   - frequency_penalty / presence_penalty 是 vllm 扩展参数，transformers
+    #     4.40 不支持；如需去模板套话，prompt 层用 system 约束更稳定。
+    def generate_with_hidden_injection(
+        self,
+        system_text: str,
+        user_texts: list[str],
+        injection_per_row: list,
+        injection_layers: list[int],
+        injection_alpha: float = 1.0,
+        max_new_tokens: int = 96,
+        temperature: float = 0.5,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        batch_size: int = 16,
+        max_input_length: int = 384,
+    ) -> list[str]:
+        """Batched generation with per-row hidden-state bias injection.
+
+        参数:
+            system_text: system prompt 文本（同一 batch 共享）
+            user_texts: 用户 prompt 列表
+            injection_per_row: 长度 = len(user_texts) 的 list，每项是
+                shape=(hidden_dim,) 的 1-D tensor 或 None；None 表示该行
+                不注入（用作 D_off baseline）
+            injection_layers: 0-indexed layer indices，注入 bias 到该层
+                decoder layer 的 output hidden state 上（broadcast over T）
+            injection_alpha: scalar multiplier on bias，控制注入强度
+            max_new_tokens: 每条生成的最大新 token 数
+            temperature / top_p: 采样参数
+            repetition_penalty: 重复惩罚（transformers 4.40 支持）
+            batch_size: 模型生成时的 batch size
+            max_input_length: tokenize 截断长度
+
+        返回: list[str]，长度 = len(user_texts)，已 trim 到第一换行
+        """
+        import threading
+        import torch
+
+        if not user_texts:
+            return []
+        if len(injection_per_row) != len(user_texts):
+            raise ValueError(
+                f"injection_per_row length ({len(injection_per_row)}) != "
+                f"user_texts length ({len(user_texts)})"
+            )
+        hidden_backend = self._hidden_backend
+        m = hidden_backend.model
+        tok = hidden_backend.tokenizer
+        device = hidden_backend.device
+        n_layers = m.config.num_hidden_layers
+        for L in injection_layers:
+            if not (0 <= L < n_layers):
+                raise ValueError(
+                    f"layer {L} out of range [0, {n_layers}); model has "
+                    f"{n_layers} layers"
+                )
+
+        # 应用 chat template (transformers 4.40 AutoTokenizer 支持 apply_chat_template)
+        full_prompts = [
+            tok.apply_chat_template(
+                [{"role": "system", "content": system_text},
+                 {"role": "user", "content": u}],
+                tokenize=False, add_generation_prompt=True,
+            )
+            for u in user_texts
+        ]
+
+        # 预乘 alpha 并搬上 GPU/dtype
+        # hidden_backend.dtype 是字符串 ("bfloat16" 等), 需先 map 成 torch.dtype
+        _DTYPE_MAP = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+        target_dtype = _DTYPE_MAP.get(hidden_backend.dtype)
+        if target_dtype is None:
+            raise ValueError(
+                f"unsupported hidden backend dtype: {hidden_backend.dtype!r}"
+            )
+        biases: list = []
+        for b in injection_per_row:
+            if b is None:
+                biases.append(None)
+            else:
+                t = b.to(device=device, dtype=target_dtype)
+                if injection_alpha != 1.0:
+                    t = t * float(injection_alpha)
+                biases.append(t)
+
+        # 线程本地上下文:每个 chunk 重新设置 ctx.biases
+        ctx = threading.local()
+
+        def make_hook(L_idx: int):
+            def hook(module, input, output):
+                # Qwen2DecoderLayer.forward 返回 (hidden_states, present_kv)
+                # 或仅 hidden_states（use_cache=False）
+                if isinstance(output, tuple):
+                    h = output[0]
+                else:
+                    h = output
+                # h shape: (B, T, H)
+                bs_local = ctx.biases  # 当前 chunk 的 per-row biases
+                for b_idx, bias in enumerate(bs_local):
+                    if bias is not None:
+                        h[b_idx] = h[b_idx] + bias  # broadcast over T
+                if isinstance(output, tuple):
+                    return (h,) + output[1:]
+                return h
+            return hook
+
+        handles = []
+        # decoder-only 模型必须用 left-padding，否则首步预测会落在 padding token
+        # 位置上（model.generate 仍会输出文本但内容断裂 — 参见 Rule 4 注意事项）。
+        # 这里临时把 padding_side 切成 "left"，生成完恢复为原值（默认 right，
+        # 业务侧用 get_hidden_states 提取时也用 right-padding，不能持久改）。
+        orig_padding_side = tok.padding_side
+        tok.padding_side = "left"
+        try:
+            for L in injection_layers:
+                handles.append(
+                    m.model.layers[L].register_forward_hook(make_hook(L))
+                )
+
+            all_texts: list[str] = []
+            for st in range(0, len(full_prompts), batch_size):
+                chunk = full_prompts[st:st + batch_size]
+                chunk_biases = biases[st:st + batch_size]
+                ctx.biases = chunk_biases
+
+                enc = tok(
+                    chunk, return_tensors="pt", padding=True,
+                    truncation=True, max_length=max_input_length,
+                ).to(device)
+
+                do_sample = temperature > 0
+                with torch.no_grad():
+                    out_ids = m.generate(
+                        **enc,
+                        max_new_tokens=max_new_tokens,
+                        do_sample=do_sample,
+                        temperature=temperature if do_sample else 1.0,
+                        top_p=top_p if do_sample else 1.0,
+                        repetition_penalty=repetition_penalty,
+                        pad_token_id=tok.pad_token_id,
+                        eos_token_id=tok.eos_token_id,
+                    )
+
+                # 解码：只取 prompt 长度之后的新 token
+                prompt_len = enc["input_ids"].shape[1]
+                new_ids = out_ids[:, prompt_len:]
+                for row in new_ids:
+                    text = tok.decode(row, skip_special_tokens=True).strip()
+                    text = text.split("\n")[0].strip()  # 防御性截断
+                    all_texts.append(text)
+
+            return all_texts
+        finally:
+            for h in handles:
+                h.remove()
+            tok.padding_side = orig_padding_side  # 恢复成原 padding_side
+
 
 # 工厂函数（与 14_llm_rerank/common/llm_rerank_common.py 中的 get_llm_client 兼容）
 def create_qwen_local_client(
