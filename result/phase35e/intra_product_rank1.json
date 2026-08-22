@@ -1,0 +1,131 @@
+{
+  "pool_sizes_top10": [
+    [
+      "B000BNCA4K",
+      208
+    ],
+    [
+      "B000066665",
+      144
+    ],
+    [
+      "B00068O22S",
+      96
+    ],
+    [
+      "B0009MFUZE",
+      96
+    ],
+    [
+      "B0009RNXNA",
+      96
+    ],
+    [
+      "B000MVQBG4",
+      80
+    ],
+    [
+      "B000GB0NZK",
+      64
+    ],
+    [
+      "B001OC5UNK",
+      48
+    ],
+    [
+      "B000V88HJM",
+      48
+    ],
+    [
+      "B000056OUO",
+      48
+    ]
+  ],
+  "intra_summary": {
+    "size>=2": {},
+    "size>=3": {},
+    "size>=4": {},
+    "size>=5": {},
+    "size>=10": {
+      "diag_3584": {
+        "n_users": 74,
+        "n_hit": 21,
+        "rank1_pct": 28.37837837837838,
+        "mean_own_rank": 47.679054054054056
+      },
+      "pca32_diag": {
+        "n_users": 74,
+        "n_hit": 23,
+        "rank1_pct": 31.08108108108108,
+        "mean_own_rank": 47.52449324324324
+      },
+      "pca32_lw": {
+        "n_users": 74,
+        "n_hit": 18,
+        "rank1_pct": 24.324324324324326,
+        "mean_own_rank": 47.986486486486484
+      },
+      "pca32_global": {
+        "n_users": 74,
+        "n_hit": 25,
+        "rank1_pct": 33.78378378378378,
+        "mean_own_rank": 44.460304054054056
+      },
+      "pca64_diag": {
+        "n_users": 74,
+        "n_hit": 22,
+        "rank1_pct": 29.72972972972973,
+        "mean_own_rank": 45.972972972972975
+      },
+      "pca64_lw": {
+        "n_users": 74,
+        "n_hit": 20,
+        "rank1_pct": 27.027027027027028,
+        "mean_own_rank": 48.06503378378378
+      },
+      "pca64_global": {
+        "n_users": 74,
+        "n_hit": 22,
+        "rank1_pct": 29.72972972972973,
+        "mean_own_rank": 45.4383445945946
+      },
+      "pca128_diag": {
+        "n_users": 74,
+        "n_hit": 25,
+        "rank1_pct": 33.78378378378378,
+        "mean_own_rank": 45.6410472972973
+      },
+      "pca128_lw": {
+        "n_users": 74,
+        "n_hit": 20,
+        "rank1_pct": 27.027027027027028,
+        "mean_own_rank": 48.05912162162162
+      },
+      "pca128_global": {
+        "n_users": 74,
+        "n_hit": 17,
+        "rank1_pct": 22.972972972972975,
+        "mean_own_rank": 47.11317567567568
+      },
+      "syntax": {
+        "n_users": 74,
+        "n_hit": 16,
+        "rank1_pct": 21.62162162162162,
+        "mean_own_rank": 48.835304054054056
+      },
+      "oracle_syntax": {
+        "n_users": 74,
+        "n_hit": 4,
+        "rank1_pct": 5.405405405405405,
+        "mean_own_rank": 7.5
+      }
+    }
+  },
+  "n_intra": {
+    "size>=2": 0,
+    "size>=3": 0,
+    "size>=4": 0,
+    "size>=5": 0,
+    "size>=10": 888
+  }
+}

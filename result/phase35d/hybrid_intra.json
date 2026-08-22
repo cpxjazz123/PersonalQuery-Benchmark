@@ -3,128 +3,67 @@
     "size>=2": {},
     "size>=3": {},
     "size>=4": {},
-    "size>=5": {
-      "pca64_diag+syntax_05": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca64_diag+syntax_07": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca64_diag+syntax_03": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca32_global+syntax_07": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca32_global+syntax_05": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca32_global+pca64_diag_07": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca32_global+pca64_diag_05": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca64_diag+pca64_global_07": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca64_diag+pca128_diag_05": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      },
-      "pca64_diag+pca32_diag_05": {
-        "n_users": 1,
-        "n_hit": 1,
-        "rank1_pct": 100.0,
-        "mean_own_rank": 3.5
-      }
-    },
+    "size>=5": {},
     "size>=10": {
       "pca64_diag+syntax_05": {
-        "n_users": 73,
-        "n_hit": 26,
-        "rank1_pct": 35.61643835616438,
-        "mean_own_rank": 23.93321917808219
+        "n_users": 74,
+        "n_hit": 21,
+        "rank1_pct": 28.37837837837838,
+        "mean_own_rank": 46.476351351351354
       },
       "pca64_diag+syntax_07": {
-        "n_users": 73,
+        "n_users": 74,
         "n_hit": 25,
-        "rank1_pct": 34.24657534246575,
-        "mean_own_rank": 23.291095890410958
+        "rank1_pct": 33.78378378378378,
+        "mean_own_rank": 45.60304054054054
       },
       "pca64_diag+syntax_03": {
-        "n_users": 73,
+        "n_users": 74,
         "n_hit": 21,
-        "rank1_pct": 28.767123287671232,
-        "mean_own_rank": 24.590753424657535
+        "rank1_pct": 28.37837837837838,
+        "mean_own_rank": 47.52533783783784
       },
       "pca32_global+syntax_07": {
-        "n_users": 73,
-        "n_hit": 26,
-        "rank1_pct": 35.61643835616438,
-        "mean_own_rank": 22.440068493150687
+        "n_users": 74,
+        "n_hit": 22,
+        "rank1_pct": 29.72972972972973,
+        "mean_own_rank": 44.897804054054056
       },
       "pca32_global+syntax_05": {
-        "n_users": 73,
-        "n_hit": 21,
-        "rank1_pct": 28.767123287671232,
-        "mean_own_rank": 23.226027397260275
+        "n_users": 74,
+        "n_hit": 22,
+        "rank1_pct": 29.72972972972973,
+        "mean_own_rank": 45.95945945945946
       },
       "pca32_global+pca64_diag_07": {
-        "n_users": 73,
-        "n_hit": 20,
-        "rank1_pct": 27.397260273972602,
-        "mean_own_rank": 21.65582191780822
+        "n_users": 74,
+        "n_hit": 25,
+        "rank1_pct": 33.78378378378378,
+        "mean_own_rank": 43.773648648648646
       },
       "pca32_global+pca64_diag_05": {
-        "n_users": 73,
-        "n_hit": 22,
-        "rank1_pct": 30.136986301369863,
-        "mean_own_rank": 21.674657534246574
+        "n_users": 74,
+        "n_hit": 24,
+        "rank1_pct": 32.432432432432435,
+        "mean_own_rank": 44.24662162162162
       },
       "pca64_diag+pca64_global_07": {
-        "n_users": 73,
-        "n_hit": 27,
-        "rank1_pct": 36.986301369863014,
-        "mean_own_rank": 22.371575342465754
+        "n_users": 74,
+        "n_hit": 30,
+        "rank1_pct": 40.54054054054054,
+        "mean_own_rank": 44.79054054054054
       },
       "pca64_diag+pca128_diag_05": {
-        "n_users": 73,
-        "n_hit": 23,
-        "rank1_pct": 31.506849315068493,
-        "mean_own_rank": 23.20205479452055
+        "n_users": 74,
+        "n_hit": 28,
+        "rank1_pct": 37.83783783783784,
+        "mean_own_rank": 45.34037162162162
       },
       "pca64_diag+pca32_diag_05": {
-        "n_users": 73,
+        "n_users": 74,
         "n_hit": 23,
-        "rank1_pct": 31.506849315068493,
-        "mean_own_rank": 23.243150684931507
+        "rank1_pct": 31.08108108108108,
+        "mean_own_rank": 46.65878378378378
       }
     }
   },
