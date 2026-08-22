@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -157,12 +158,18 @@ class CopyAwareGenerator(nn.Module):
         do_sample: bool = False,
         temperature: float = 0.9,
         top_k: int = 20,
+        cjk_mask: Optional[torch.Tensor] = None,
     ) -> List[str]:
         """Batched stepwise decoding over the mixed distribution.
 
         All samples share one forward per step (right-padded prompts,
         per-sample position ids / attention masks / attribute spans). The
         copy head already supports [B, ...]; only this loop needed batching.
+
+        cjk_mask: optional [V] bool tensor; True = banned token. Applied to
+        the mixed logits before sampling (also preempts top-k masking). When
+        None (default), no constraint is applied. Used by Phase 10.9.4e to
+        forbid Chinese / Japanese / Korean characters in generated queries.
         """
         bsz = len(prompt_strs)
         target_dtype = next(self.base.parameters()).dtype
@@ -245,6 +252,9 @@ class CopyAwareGenerator(nn.Module):
             self._src_hidden = src_hidden
             p_copy, copy_logits = self.copy_head(gen_hidden, src_hidden, src_mask_t, src_ids_t)
             mixed = mixed_logits(gen_logits.unsqueeze(1), p_copy, copy_logits)[:, 0]
+            # hard constraint: forbid tokens whose decoded surface contains CJK / JP / KR
+            if cjk_mask is not None:
+                mixed = mixed.masked_fill(cjk_mask.to(mixed.device, dtype=torch.bool), float("-inf"))
             if do_sample:
                 m = mixed / max(temperature, 1e-4)
                 if top_k > 0:
@@ -323,8 +333,12 @@ def main() -> None:
 
     profiles = load_vades_profiles(args.category)
     provider = UserVectorProvider(args.vector_mode, profiles, [r["user_id"] for r in records], seed=42)
-    stat_vectors = build_user_stat_vectors(args.category, [r["user_id"] for r in records])
-    log(f"user condition: {cfg.get('user_dim', 30)}-dim statistic vectors ({len(stat_vectors)} users cached)")
+    if os.environ.get("CA_USE_STAT_VEC", "0") == "1":
+        stat_vectors = build_user_stat_vectors(args.category, [r["user_id"] for r in records])
+        log(f"user condition: {cfg.get('user_dim', 30)}-dim statistic vectors ({len(stat_vectors)} users cached)")
+    else:
+        stat_vectors = {}
+        log("user condition: 高斯残差 profile 作为风格向量 (stat vectors 已禁用)")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -346,8 +360,9 @@ def main() -> None:
             continue
         prompt_str = tokenizer.apply_chat_template(build_messages(attrs), tokenize=False, add_generation_prompt=True)
         vec, has_vector = provider.get(uid)
+        # 默认不让 stat-vector 覆盖高斯风格向量; 设 CA_USE_STAT_VEC=1 才用统计向量
         sv = stat_vectors.get(uid)
-        if sv is not None:
+        if sv is not None and os.environ.get("CA_USE_STAT_VEC", "0") == "1":
             vec = sv
             has_vector = True
         jobs.append((rec, attrs, prompt_str, vec, has_vector))

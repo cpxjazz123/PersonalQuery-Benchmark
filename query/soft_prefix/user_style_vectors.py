@@ -9,6 +9,7 @@ E5 mean is kept as a control route only (B4).
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -16,6 +17,9 @@ import numpy as np
 
 REPO_ROOT = Path("/fs04/ar57/wenyu/PersoanlQuery")
 VADES_TAG = "vades_lite_sentence_user_distribution_train10_holdout10"
+# 覆盖默认 profile tag: 用用户高斯分布(残差拟合)代替 318d 句法 VADES。
+# 例如: residual_llm_20u_gaussian
+VADES_PROFILE_TAG = os.environ.get("VADES_PROFILE_TAG", VADES_TAG)
 FEATURE_KEYS = [
     "max_dependency_depth", "mean_dependency_depth", "dependency_tree_height",
     "depth_variance", "acl_count", "relcl_count", "ccomp_count", "xcomp_count",
@@ -39,11 +43,17 @@ def l2_normalize(vec: np.ndarray) -> np.ndarray:
 
 
 def load_vades_profiles(category: str, tag: str = VADES_TAG) -> Dict[str, Dict[str, np.ndarray]]:
-    """Load user_mu/user_logvar from VADES user profiles jsonl."""
+    """Load user_mu/user_logvar from VADES user profiles jsonl.
+
+    默认读 318d 句法 VADES 的 tag; 设 VADES_PROFILE_TAG 可改用
+    用户高斯分布(残差拟合)的 profile, 例如 residual_llm_20u_gaussian。
+    残差 profile 可能没有 user_logvar 字段, 缺省按零向量处理。
+    """
+    effective_tag = os.environ.get("VADES_PROFILE_TAG", tag)
     p = (
         REPO_ROOT
         / "result" / "personal_query" / "12_complexity_analysis_clause_features"
-        / category / f"{tag}_user_profiles.jsonl"
+        / category / f"{effective_tag}_user_profiles.jsonl"
     )
     profiles: Dict[str, Dict[str, np.ndarray]] = {}
     with open(p) as f:
@@ -51,10 +61,12 @@ def load_vades_profiles(category: str, tag: str = VADES_TAG) -> Dict[str, Dict[s
             row = json.loads(line)
             if "user_mu" not in row:
                 continue
-            profiles[row["user_id"]] = {
-                "user_mu": np.asarray(row["user_mu"], dtype=np.float32),
-                "user_logvar": np.asarray(row["user_logvar"], dtype=np.float32),
-            }
+            mu = np.asarray(row["user_mu"], dtype=np.float32)
+            if "user_logvar" in row and row["user_logvar"]:
+                logvar = np.asarray(row["user_logvar"], dtype=np.float32)
+            else:
+                logvar = np.zeros_like(mu)
+            profiles[row["user_id"]] = {"user_mu": mu, "user_logvar": logvar}
     return profiles
 
 
