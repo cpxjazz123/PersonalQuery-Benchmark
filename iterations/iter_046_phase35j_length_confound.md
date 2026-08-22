@@ -140,12 +140,30 @@
 
 ---
 
-## Phase 35.J-2 Forced Generation (待评)
+## Phase 35.J-2 Forced Generation (已完成)
 
 > 生成时强制 N=7 + L=36-50,K=8 / record,验证 100% 是否在样本量放大后稳态
 
-- 强制 gen 已完成: 544 cands / 68 records,样本 L=36-50 hit rate 待统计
-- scoring 待跑(已加入任务清单)
+**结果** (544 cands / 67 records / 16 asins):
+- n_records: 67, pool avg: 6.40
+- **Rank-1: 64.2% (lift 2.87x)** ★ vs free-gen K=4 raw 50.7%
+- mean_rank: 14.79
+- **avg L: 60.7** (target 36-50,但 generator 漂移到 51-80 桶)
+- avg cov: 69.8%
+
+**核心发现**:
+1. **K=8 forced gen > K=4 free-gen (+13.5pp)** — 候选数 + 强制 N=7 优化
+2. **实际 L=60.7 漂移到 L=51-80 桶** — Length-controlled 实验已显示 L=51-80 lift 2.23x (N=7),符合预期
+3. **Length-Matched 100% 在样本量放大后确实降至 64.2%** — 不是 artifact,但 100% 是 n=15 子集巧合
+4. **2.87x lift > 2.49x controlled lift** (K=8 > K=4 候选数效应 + 强制 N=7 主题)
+
+**对照**:
+| 配置 | Rank-1 | lift | n_records |
+|------|--------|------|-----------|
+| V2 N=7 K=4 free-gen (SOTA) | 50.7% | 2.27x | 67 |
+| V2 N=7 K=4 L=36-50 length-matched (artifact) | 100% | ~2x | 15 |
+| V2 N=7 K=4 L=36-50 length-controlled (full pool) | 69.6% | 2.49x | 23 |
+| **Forced N=7 K=8 L=36-50 prompt (actual L=60.7)** | **64.2%** | **2.87x** | **67** |
 
 ---
 
