@@ -42,15 +42,46 @@ ATTR_PRIORITY = [
     "Date First Available", "Country/Region of origin", "Country of Origin",
     "Price", "Average Rating", "Rating Number",
 ]
-MAX_ATTRS = 4   # Amazon search 一般 3-5 关键词; 8 个属性 prompt 过长 + 像属性拼接
+MAX_ATTRS = 5   # 用户指令 2026-08-22: 统一使用 5 个属性词
 MAX_ATTR_VALUE_LEN = 100
 MAX_RECORDS = int(__import__("os").environ.get("BUILD_QUERY_RECORDS_MAX", "500"))
+
+# 用户指令 2026-08-22: 排除带数字的属性值 (避免 Item Weight / Item model
+# number "BWL001" / Price / Date First Available 出现在 query 里)
+EXCLUDE_NUMERIC_ATTRS = True
+_NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
+                     "item model number", "date first available",
+                     "package dimensions", "product dimensions",
+                     "minimum weight recommendation",
+                     "maximum weight recommendation",
+                     "batteries required", "is discontinued by manufacturer"}
+
+
+def has_digit(s: str) -> bool:
+    return any(ch.isdigit() for ch in s)
 
 
 def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS,
                      priority: list[str] = ATTR_PRIORITY,
-                     max_val_len: int = MAX_ATTR_VALUE_LEN) -> dict:
-    """与 copy_aware_generate.py::select_top_attrs 一致的字段选择逻辑。"""
+                     max_val_len: int = MAX_ATTR_VALUE_LEN,
+                     exclude_numeric: bool = EXCLUDE_NUMERIC_ATTRS) -> dict:
+    """与 copy_aware_generate.py::select_top_attrs 一致的字段选择逻辑。
+
+    exclude_numeric=True 时跳过: 1) 含数字的 value, 2) 字段名本身就是
+    数值类的 keyword (price/weight/model number/dimensions/date/batteries/
+    is discontinued/rating)。
+    """
+    def _skip(k: str, s: str) -> bool:
+        if not s or len(s) > max_val_len:
+            return True
+        if exclude_numeric:
+            k_low = k.lower()
+            if any(nk in k_low for nk in _NUMERIC_KEYWORDS):
+                return True
+            if has_digit(s):
+                return True
+        return False
+
     out: dict = {}
     used: set[str] = set()
     for k in priority:
@@ -58,7 +89,7 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS,
         if not v:
             continue
         s = str(v).strip()
-        if not s or len(s) > max_val_len:
+        if _skip(k, s):
             continue
         out[k] = s
         used.add(k)
@@ -70,7 +101,7 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS,
         if v is None:
             continue
         s = str(v).strip()
-        if not s or len(s) > max_val_len:
+        if _skip(k, s):
             continue
         out[k] = s
         if len(out) >= max_n:

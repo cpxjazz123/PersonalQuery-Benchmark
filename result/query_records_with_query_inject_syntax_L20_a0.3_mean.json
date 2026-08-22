@@ -1,0 +1,499 @@
+[
+  {
+    "user_id": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+    "asin": "B0BBM75S58",
+    "attrs_used": {
+      "Brand": "Ajulkrio",
+      "Main Category": "Baby",
+      "Material Type": "Acrylonitrile Butadiene Styrene",
+      "Style": "Playpen for babies and toddlers",
+      "material_composition": "Anti-rust alloy steel pipe,Oxford cloth"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 16,
+    "y_plus_query_inject": "Searching for a playpen that perfectly suits babies and toddlers, I'm looking at the Ajulkrio product under the main category of baby items; it's made of an eco-friendly material - Acrylonitrile Butadiene Styrene, ensuring safety and durability, complemented by anti-rust alloy steel pipes for added strength, all wrapped up in Oxford cloth for a soft touch and enhanced comfort.",
+    "n_candidates": 4,
+    "n_attrs_covered": 3,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for the Ajulkrio playpen designed specifically for babies and toddlers, made of durable Acrylonitrile Butadiene Styrene material and featuring an anti-rust alloy steel pipe frame paired with Oxford cloth for added durability and comfort.",
+      "Looking for an Ajulkrio playpen designed specifically for babies and toddlers, I'm interested in finding one made from Acrylonitrile Butadiene Styrene material that ensures safety and comfort, featuring anti-rust alloy steel pipes and Oxford cloth for durability and easy cleaning.",
+      "Searching for a playpen that perfectly suits babies and toddlers, I'm looking at the Ajulkrio product under the main category of baby items; it's made of an eco-friendly material - Acrylonitrile Butadiene Styrene, ensuring safety and durability, complemented by anti-rust alloy steel pipes for added strength, all wrapped up in Oxford cloth for a soft touch and enhanced comfort.",
+      "I'm searching for an Ajulkrio brand playpen designed specifically for babies and toddlers, made from a combination of anti-rust alloy steel pipes and Oxford cloth material, ideal for providing a safe environment as they explore their surroundings."
+    ],
+    "all_candidates_scores": [
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+    "asin": "B09WRKYRQZ",
+    "attrs_used": {
+      "Brand": "Simple Joys by Carter's",
+      "Main Category": "AMAZON FASHION",
+      "Manufacturer": "Simple Joys by Carter's",
+      "Color": "Pink/White",
+      "Material": "Cotton"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 11,
+    "y_plus_query_inject": "Searching for items from the Brand Simple Joys by Carter's within the Main Category of Amazon Fashion, particularly interested in products featuring the Color Pink/White made entirely out of Material Cotton.",
+    "n_candidates": 4,
+    "n_attrs_covered": 5,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for adorable and comfortable clothing, I'm looking for items from the Simple Joys by Carter's brand available under the Amazon Fashion main category, ideally featuring a charming pink and white color palette made from soft, pure cotton material.",
+      "I'm searching for a simple yet stylish outfit from Simple Joys by Carter's, specifically looking at their range under the main category of Amazon Fashion; I particularly want something featuring a charming blend of Pink and White colors made entirely out of soft, breathable Cotton fabric.",
+      "Searching for a delightful piece from the Simple Joys by Carter's brand under the main fashion category, I'm looking for a charming outfit featuring a blend of pink and white colors made entirely from soft cotton material.",
+      "Searching for items from the Brand Simple Joys by Carter's within the Main Category of Amazon Fashion, particularly interested in products featuring the Color Pink/White made entirely out of Material Cotton."
+    ],
+    "all_candidates_scores": [
+      [
+        5,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        -1,
+        0
+      ],
+      [
+        3,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+    "asin": "B001QC3CKG",
+    "attrs_used": {
+      "Brand": "Playtex Baby",
+      "Main Category": "Baby",
+      "Color": "Clear",
+      "Material Type": "Silicone nipples",
+      "Style": "Nurser Gift Set"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 22,
+    "y_plus_query_inject": "Searching for a delightful gift set tailored for little ones, I'm looking for a Playtex Baby product that stands out with its clear, versatile design; featuring silicone nipples renowned for their softness and safety, making it a perfect choice for nurturing tender moments.",
+    "n_candidates": 4,
+    "n_attrs_covered": 4,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for a delightful gift set tailored for little ones, I'm looking for a Playtex Baby product that stands out with its clear, versatile design; featuring silicone nipples renowned for their softness and safety, making it a perfect choice for nurturing tender moments.",
+      "Searching for the perfect gift set for a new parent, I'm looking for a Playtex Baby product that features clear silicone nipples in a stylish nurser set design.",
+      "Searching for a thoughtful gift set for new parents, I'm looking for a high-quality Playtex Baby item that features clear silicone nipples, perfect for both ease of monitoring baby's feeding progress and ensuring hygiene.",
+      "Searching for a delightful baby gift set, I'm looking for a Playtex Baby product that features clear silicone nipples, perfect for gentle feeding sessions and easy monitoring of infant's expression while nurturing tiny ones."
+    ],
+    "all_candidates_scores": [
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+    "asin": "B0BN6VXJHM",
+    "attrs_used": {
+      "Brand": "Corkcicle",
+      "Main Category": "Amazon Home",
+      "Color": "Jasmine",
+      "Material": "Stainless Steel",
+      "Theme": "Characters"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 18,
+    "y_plus_query_inject": "Searching for a unique piece to elevate my home decor, I'm looking for a Corkcicle item from the Amazon Home collection, ideally in a charming Jasmine color, made of durable Stainless Steel, and featuring an intriguing Characters theme that adds a personalized touch.",
+    "n_candidates": 4,
+    "n_attrs_covered": 5,
+    "n_hallucinations": 1,
+    "hallucination_words": [
+      "decor"
+    ],
+    "all_candidates": [
+      "Searching for a unique home accessory, I'm looking at the Corkcicle product line on Amazon Home, specifically interested in items like stainless steel tumblers that come in an elegant Jasmine color and feature engaging character themes.",
+      "Searching for a unique piece to elevate my home decor, I'm looking for a Corkcicle item from the Amazon Home collection, ideally in a charming Jasmine color, made of durable Stainless Steel, and featuring an intriguing Characters theme that adds a personalized touch.",
+      "Searching for a unique home accessory, I'm looking at the Corkcicle Stainless Steel Water Bottle with a stunning Jasmine color and a charming Characters theme, exclusively available on Amazon Home.",
+      "Searching for a unique home accessory from Corkcicle, I'm looking for a stainless steel tumbler in a beautiful Jasmine color that features delightful character themes."
+    ],
+    "all_candidates_scores": [
+      [
+        5,
+        -1,
+        0
+      ],
+      [
+        5,
+        -2,
+        0
+      ],
+      [
+        4,
+        -2,
+        0
+      ],
+      [
+        3,
+        -2,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+    "asin": "B0BRQBD14R",
+    "attrs_used": {
+      "Brand": "Andrea",
+      "Main Category": "All Beauty",
+      "Manufacturer": "Andrea",
+      "Style": "Chain,Professional",
+      "Blade Edge": "Curved"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 9,
+    "y_plus_query_inject": "Searching for items from Andrea's brand within the All Beauty main category, I'm particularly interested in products featuring a professional style and a curved blade edge, ideally designed for precision and elegance.",
+    "n_candidates": 4,
+    "n_attrs_covered": 4,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for items from Andrea's brand within the All Beauty main category, I'm particularly interested in products featuring a professional style and a curved blade edge, ideally designed for precision and elegance.",
+      "Andrea's professional curved-edge chain blade beauty tool is exactly what I'm looking for on Amazon.",
+      "Searching for a professional beauty tool from Andrea, I'm looking for a product that features a stylish chain and a curved blade edge for precision.",
+      "Searching for beautiful and professional chain accessories from Andrea, I'm specifically looking for those with a sleek curved blade edge designed to enhance my style quotient."
+    ],
+    "all_candidates_scores": [
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        3,
+        -1,
+        0
+      ],
+      [
+        3,
+        -1,
+        0
+      ],
+      [
+        3,
+        -1,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+    "asin": "B0BQ5YSKYL",
+    "attrs_used": {
+      "Brand": "Stcomart",
+      "Main Category": "Baby",
+      "Material Type": "Linen",
+      "Style": "bunny basket",
+      "Target gender": "Unisex"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 13,
+    "y_plus_query_inject": "Searching for a charming unisex bunny basket made from linen, designed by Stcomart specifically for baby needs.",
+    "n_candidates": 4,
+    "n_attrs_covered": 5,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for a charming bunny basket from Stcomart, suitable for both boys and girls, made entirely out of linen for your baby's nursery.",
+      "Looking for a unisex bunny-themed linen baby basket from the brand Stcomart?",
+      "I'm searching for a unisex bunny-themed linen baby basket from the brand Stcomart to gently store my baby's essentials.",
+      "Searching for a charming unisex bunny basket made from linen, designed by Stcomart specifically for baby needs."
+    ],
+    "all_candidates_scores": [
+      [
+        5,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+    "asin": "B001V9EVCM",
+    "attrs_used": {
+      "Brand": "Medela",
+      "Main Category": "Baby",
+      "Color": "Translucent",
+      "Material Type": "BPA Free",
+      "Target gender": "Unisex"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 25,
+    "y_plus_query_inject": "Searching for Medela products specifically designed for unisex use, focusing on baby essentials marked in a translucent color and made from BPA-free materials.",
+    "n_candidates": 4,
+    "n_attrs_covered": 4,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for Medela's translucent, BPA-free baby products suitable for both boys and girls.",
+      "Searching for Medela products specifically designed for unisex use, focusing on baby essentials marked in a translucent color and made from BPA-free materials.",
+      "I'm looking for a Medela baby product that is translucent in color, made of BPA-free material, and suitable for both boys and girls.",
+      "Searching for a Medela product tailored for babies, featuring a translucent design, made entirely from BPA-free material, and suitable for both boys and girls."
+    ],
+    "all_candidates_scores": [
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+    "asin": "B0BQYQHF9G",
+    "attrs_used": {
+      "Brand": "TYRY.HU",
+      "Main Category": "Baby"
+    },
+    "n_attrs": 2,
+    "n_product_attrs": 9,
+    "y_plus_query_inject": "Looking for a TYRY.HU brand baby item that could be just what I need for my little one's collection?",
+    "n_candidates": 4,
+    "n_attrs_covered": 2,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Looking for a TYRY.HU brand baby item that could be just what I need for my little one's collection?",
+      "Searching for products from the brand TYRY.HU specifically designed for baby needs, I'm looking to explore their wide range of items tailored perfectly for infants and toddlers.",
+      "I'm searching for a TYRY.HU baby product that would make a thoughtful gift for a new parent, ideally something from their infant clothing line to welcome the little one stylishly.",
+      "Searching for TYRY.HU brand items specifically designed for babies within their main category offerings."
+    ],
+    "all_candidates_scores": [
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        2,
+        -1,
+        0
+      ],
+      [
+        1,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+    "asin": "B0BSCVHKD2",
+    "attrs_used": {
+      "Brand": "BESTVANA",
+      "Main Category": "AMAZON FASHION",
+      "Manufacturer": "BESTVANA"
+    },
+    "n_attrs": 3,
+    "n_product_attrs": 8,
+    "y_plus_query_inject": "Searching for stylish and high-quality fashion pieces from the renowned brand BESTVANA exclusively on Amazon Fashion, where every garment is crafted by their own manufacturer, BESTVANA.",
+    "n_candidates": 4,
+    "n_attrs_covered": 3,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Searching for items from the brand BESTVANA within the fashion section on Amazon, I aim to find stylish and high-quality apparel that matches my unique style preferences.",
+      "Searching for stylish and high-quality fashion pieces from the renowned brand BESTVANA exclusively on Amazon Fashion, where every garment is crafted by their own manufacturer, BESTVANA.",
+      "Searching for top picks from the BESTVANA brand within the expansive world of AMAZON FASHION, I aim to explore their exclusive collection meticulously crafted by the expert hands of BESTVANA's manufacturer.",
+      "Searching for stylish clothing items from the reputable brand BESTVANA within the vast selection of Amazon Fashion offerings."
+    ],
+    "all_candidates_scores": [
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        3,
+        -1,
+        0
+      ],
+      [
+        2,
+        0,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  },
+  {
+    "user_id": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+    "asin": "B09W5MZSWP",
+    "attrs_used": {
+      "Brand": "VIVANA",
+      "Main Category": "Amazon Home",
+      "Manufacturer": "VIVANA",
+      "Color": "Spring Blossoms.",
+      "Size": "Large"
+    },
+    "n_attrs": 5,
+    "n_product_attrs": 20,
+    "y_plus_query_inject": "Searching for a large item from the Amazon Home collection by VIVANA, ideally in a color reminiscent of blooming spring blossoms.",
+    "n_candidates": 4,
+    "n_attrs_covered": 5,
+    "n_hallucinations": 0,
+    "hallucination_words": [],
+    "all_candidates": [
+      "Looking for a large item from the Amazon Home collection, I'm specifically interested in finding a piece by the brand VIVANA that matches the delightful Spring Blossoms color scheme.",
+      "Searching for a large item from the Amazon Home collection by VIVANA, featuring a beautiful spring blossoms color scheme.",
+      "I'm searching for a large-sized home decor item from VIVANA, featuring a beautiful Spring Blossoms color scheme exclusively at Amazon Home.",
+      "Searching for a large item from the Amazon Home collection by VIVANA, ideally in a color reminiscent of blooming spring blossoms."
+    ],
+    "all_candidates_scores": [
+      [
+        5,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0
+      ],
+      [
+        4,
+        -1,
+        0
+      ]
+    ],
+    "syntax_layer": 20,
+    "syntax_z_mode": "mean",
+    "syntax_alpha": 0.3,
+    "syntax_n_keep": 5
+  }
+]

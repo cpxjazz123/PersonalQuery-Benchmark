@@ -81,8 +81,8 @@ GEN_SYSTEM = (
     "customer typing into a search box. Output ONLY the query text — no "
     "preamble, no quotes. Express what YOU (the shopper) are looking for in "
     "natural phrasing like 'I'm looking for', 'I want', 'I need', 'Searching "
-    "for', 'Looking for'. Mention only the most important 2-4 attributes; not "
-    "every field. Keep it short (< 80 chars)."
+    "for', 'Looking for'. Mention ALL 5 provided attributes in the query — "
+    "each must appear naturally in the sentence. Keep it short (< 120 chars)."
 )
 
 
