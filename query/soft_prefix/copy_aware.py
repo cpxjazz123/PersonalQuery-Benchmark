@@ -32,11 +32,20 @@ import torch.nn.functional as F
 
 
 def build_attr_prompt_lines(attrs_used: Dict[str, str]) -> str:
-    """Structured attribute input; each attribute on its own line so spans are
-    easy to locate. Value text is verbatim."""
+    """Structured attribute input; each attribute VALUE on its own line.
+
+    KEY LABELS (e.g. "A1:") are intentionally OMITTED so the model has no
+    label token it can echo into the generated query (the "A1"/"A2" leakage
+    observed at inference). The copy head still locates value spans by exact
+    string match in the prompt, so dropping the labels is safe.
+    """
     lines = ["Product attributes:"]
-    for key in sorted(attrs_used, key=lambda k: int(k[1:])):
-        lines.append(f"{key}: {attrs_used[key]}")
+    try:
+        keys = sorted(attrs_used, key=lambda k: int(k[1:]))
+    except (ValueError, IndexError):
+        keys = list(attrs_used.keys())
+    for key in keys:
+        lines.append(f"{attrs_used[key]}")
     lines.append("Write a natural shopping query that mentions every attribute.")
     return "\n".join(lines)
 
