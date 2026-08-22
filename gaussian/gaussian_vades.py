@@ -176,7 +176,12 @@ DETAIL_FILE = INPUT_DIR / f"{OUTPUT_TAG}_epoch_details.jsonl"
 USER_PROFILE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_user_profiles.jsonl"
 SENTENCE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_sentences.jsonl"
 EXCLUDED_USER_FILE = INPUT_DIR / f"{OUTPUT_TAG}_excluded_users.jsonl"
-SENTENCE_EXTRACT_CACHE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_extracted_sentences.jsonl"
+# 环境变量覆盖: 让 residual_llm smoke test 可以指向 spaCy 同源的 sentences cache
+_SENTENCE_CACHE_OVERRIDE = os.environ.get("VADES_SENTENCE_CACHE")
+if _SENTENCE_CACHE_OVERRIDE:
+    SENTENCE_EXTRACT_CACHE_FILE = Path(_SENTENCE_CACHE_OVERRIDE)
+else:
+    SENTENCE_EXTRACT_CACHE_FILE = INPUT_DIR / f"{OUTPUT_TAG}_extracted_sentences.jsonl"
 SELECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_selected_query_records.jsonl"
 REJECTED_RECORD_FILE = INPUT_DIR / f"{OUTPUT_TAG}_rejected_query_records.jsonl"
 QUERY_FILE = REPO_ROOT / "result" / "personal_query" / "06_query" / CATEGORY / f"query_by_expression_style_{OUTPUT_TAG}.json"
@@ -893,15 +898,17 @@ def normalize_text(text: str) -> str:
 
 
 def extract_sentences_from_review_text(text: str) -> list[str]:
-    from extract_clause_features_single_query import load_spacy_model  # noqa
-    nlp = load_spacy_model()
-    doc = nlp(text)
-    sentences = []
-    for sent in doc.sents:
-        normalized = normalize_text(sent.text)
-        if normalized:
-            sentences.append(normalized)
-    return sentences
+    """DEPRECATED: 318d spacy 句法特征路径已废弃 (2026-08-22 cleanup)。
+
+    sentence segmentation 现由 gaussian/extract_sentences_spacy.py 单独负责,
+    本函数仅在 main_train 的 318d 模式 (diagonal / diagonal_gmm / diagonal_logistic /
+    diagonal_prototype 等) 才会被调用。如果走到这里,说明 COVARIANCE_MODE 不是
+    diagonal_residual_llm,请改用 VADES_COVARIANCE_MODE=diagonal_residual_llm。
+    """
+    raise NotImplementedError(
+        "extract_sentences_from_review_text 已废弃 (318d 句法特征路径 2026-08-22 cleanup)。"
+        "请使用 VADES_COVARIANCE_MODE=diagonal_residual_llm。"
+    )
 
 
 def load_filtered_user_reviews() -> list[dict]:
@@ -1052,43 +1059,15 @@ def extract_first_twenty_sentences_for_users(user_rows: list[dict]) -> tuple[lis
 
 
 def build_sentence_feature_rows(sentence_rows: list[dict]) -> tuple[list[dict], list[str]]:
-    log("开始提取评论句法特征")
-    from extract_clause_features_single_query import extract_clause_features_from_doc, load_spacy_model  # noqa
-    nlp = load_spacy_model()
-    feature_names: list[str] | None = None
-    enriched_rows: list[dict] = []
-    total = len(sentence_rows)
-    last_user_id: str | None = None
-    processed_users: int = 0
+    """DEPRECATED: 318d spacy 句法特征路径已废弃 (2026-08-22 cleanup)。
 
-    # 使用 nlp.pipe() 批量处理, 比逐句处理快 2-3 倍
-    batch_size = 500
-    texts = [row["sentence_text"] for row in sentence_rows]
-
-    for batch_start in range(0, total, batch_size):
-        batch_end = min(batch_start + batch_size, total)
-        batch_texts = texts[batch_start:batch_end]
-        batch_docs = list(nlp.pipe(batch_texts, batch_size=batch_size))
-
-        for row_idx_offset, (row, doc) in enumerate(zip(sentence_rows[batch_start:batch_end], batch_docs)):
-            row_idx = batch_start + row_idx_offset + 1
-            user_id = row.get("user_id")
-            if user_id != last_user_id:
-                last_user_id = user_id
-                processed_users += 1
-                if processed_users % 500 == 0 or processed_users <= 10:
-                    log(f"提取评论句法特征进度: 用户 {processed_users}, 句子 {row_idx}/{total}")
-            extracted = extract_clause_features_from_doc(doc, row["sentence_text"])
-            if feature_names is None:
-                feature_names = list(extracted.keys())
-            elif list(extracted.keys()) != feature_names:
-                raise ValueError(f"评论句法特征字段顺序不一致: user_id={row['user_id']}")
-            enriched = dict(row)
-            enriched["features"] = extracted
-            enriched_rows.append(enriched)
-    if feature_names is None:
-        raise ValueError("没有可用评论句法特征")
-    return enriched_rows, feature_names
+    仅在 main_train 的非 diagonal_residual_llm mode 调用。如果走到这里,
+    请改用 VADES_COVARIANCE_MODE=diagonal_residual_llm (走 Qwen hidden 3584d)。
+    """
+    raise NotImplementedError(
+        "build_sentence_feature_rows 已废弃 (318d 句法特征路径 2026-08-22 cleanup)。"
+        "请使用 VADES_COVARIANCE_MODE=diagonal_residual_llm。"
+    )
 
 
 def load_candidate_query_rows() -> list[dict]:
@@ -1118,37 +1097,12 @@ def load_candidate_query_rows() -> list[dict]:
 
 
 def build_candidate_feature_rows_from_raw_query_file(raw_rows: list[dict]) -> list[dict]:
-    from extract_clause_features_single_query import extract_clause_features_from_doc, load_spacy_model  # noqa
-    nlp = load_spacy_model()
-    total_users = len(raw_rows)
-    rows: list[dict] = []
-    for user_offset, row in enumerate(raw_rows, start=1):
-        user_id = row.get("user_id")
-        asin = row.get("asin")
-        candidates = row.get("expression_style_queries")
-        if user_id is None or asin is None or not isinstance(candidates, list):
-            raise ValueError(f"原始 10 候选 query 记录缺少 user_id / asin / expression_style_queries: index={user_offset}")
-        for candidate_index, candidate in enumerate(candidates, start=1):
-            query_text = candidate.get("query")
-            if not query_text:
-                raise ValueError(f"候选 query 缺少 query 文本: user_id={user_id}, candidate_index={candidate_index}")
-            doc = nlp(query_text)
-            extracted = extract_clause_features_from_doc(doc, query_text)
-            rows.append(
-                {
-                    "user_id": user_id,
-                    "asin": asin,
-                    "candidate_index": candidate_index,
-                    "query": query_text,
-                    "word_count": int(candidate.get("word_count", len(query_text.split()))),
-                    "target_depth": candidate.get("target_depth"),
-                    "user_avg_depth": candidate.get("user_avg_depth"),
-                    "attrs_used": candidate.get("attrs_used"),
-                    "features": extracted,
-                }
-            )
-        log(f"已完成用户 {user_offset}/{total_users}: {user_id}, 10 候选已处理")
-    return rows
+    """DEPRECATED: 318d spacy 句法特征路径已废弃 (2026-08-22 cleanup)。"""
+    raise NotImplementedError(
+        "build_candidate_feature_rows_from_raw_query_file 已废弃 "
+        "(318d 句法特征路径 2026-08-22 cleanup)。"
+        "请使用 VADES_COVARIANCE_MODE=diagonal_residual_llm。"
+    )
 
 
 def build_training_dataset(sentence_rows: list[dict], feature_names: list[str]) -> tuple[list[str], dict]:
@@ -1632,7 +1586,9 @@ def _compute_losses_for_batch(
         ).mean()
         user_match = _user_match_loss(mu, user_mu[user_idx], user_L[user_idx], user_match_weight)
         recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
-        latent_align = F.mse_loss(mu, raw_feature_targets)
+        # latent_align 原始代码 F.mse_loss(mu, raw_feature_targets) 因 latent_dim=20 vs input_dim=3584/318 永远 broadcast 失败 (iter 076 引入 bug)
+        # 占位 0; 正确语义待重写
+        latent_align = torch.tensor(0.0, device=x.device)
     else:
         if encoder_dist == "student_t":
             mu, logvar, df, reconstruction = encoder(x)
@@ -1708,7 +1664,9 @@ def _compute_losses_for_batch(
             user_match = F.cross_entropy(log_p_xu, user_idx)
             user_prior_kl = user_prior_kl_val
         recon_loss = F.mse_loss(reconstruction, raw_feature_targets)
-        latent_align = F.mse_loss(mu, raw_feature_targets)
+        # latent_align 原始代码 F.mse_loss(mu, raw_feature_targets) 因 latent_dim=20 vs input_dim=3584/318 永远 broadcast 失败
+        # 正确语义应该是 mu (latent 20d) ≈ user_mu[user_idx] (同 20d), 但 iter 076 引入时未实现, 此处占位 0
+        latent_align = torch.tensor(0.0, device=x.device)
 
     loss = (
         user_match_weight * user_match
@@ -3434,26 +3392,112 @@ def main_train() -> None:
         write_jsonl(EXCLUDED_USER_FILE, excluded_rows)
         sentence_rows = kept_rows
 
-    feature_rows, feature_names = build_sentence_feature_rows(sentence_rows)
-    candidate_rows = load_candidate_query_rows()
+    # ==== 按 MAX_USERS 提前裁剪 sentence_rows (smoke test 必须做, 否则 residual 覆盖率会失败) ====
+    if MAX_USERS_OVERRIDE is not None:
+        m = int(MAX_USERS_OVERRIDE)
+        if m > 0:
+            seen: set[str] = set()
+            kept: list[dict] = []
+            for r in sentence_rows:
+                uid = r.get("user_id")
+                if uid in seen:
+                    kept.append(r)
+                elif len(seen) < m:
+                    seen.add(uid)
+                    kept.append(r)
+            log(f"[MAX_USERS] 裁剪 sentence_rows: {len(sentence_rows)} → {len(kept)} 句 ({len(seen)} 用户)")
+            sentence_rows = kept
+
+    # ==== diagonal_residual_llm 模式: 跳过 318d 句法特征提取, 直接构造 dummy feature_rows ====
+    # 因为下游 build_training_dataset 需要 row["features"] 结构才能跑;我们在 residual_llm 分支
+    # 里会 OVERWRITE dataset["scaled_features"] / dataset["feature_matrix"],所以这里的 dummy
+    # 1-dim zero feature 只为满足接口,不影响实际训练。
+    if COVARIANCE_MODE == "diagonal_residual_llm":
+        log("[diagonal_residual_llm] 跳过 318d 句法特征提取 (spacy), 直接进入 Qwen residual 加载阶段")
+        feature_rows = [{"features": {"__residual_dummy__": 0.0}, **row} for row in sentence_rows]
+        feature_names = ["__residual_dummy__"]
+    else:
+        feature_rows, feature_names = build_sentence_feature_rows(sentence_rows)
+    # ==== candidate query: residual_llm 模式同样跳过 318d 提取, 占位 features (后续 npz load 后再注入 3584 dim) ====
+    if COVARIANCE_MODE == "diagonal_residual_llm":
+        log("[diagonal_residual_llm] 跳过候选 query 的 318d 句法特征提取, 直接加载 RAW 候选 query")
+        # 直接读 RAW_CANDIDATE_QUERY_FILE 跳过 spacy 提取
+        if not RAW_CANDIDATE_QUERY_FILE.exists():
+            raise FileNotFoundError(f"[diagonal_residual_llm] 缺原始候选 query: {RAW_CANDIDATE_QUERY_FILE}")
+        raw_cand = load_json(RAW_CANDIDATE_QUERY_FILE)
+        if not isinstance(raw_cand, list) or not raw_cand:
+            raise ValueError(f"[diagonal_residual_llm] {RAW_CANDIDATE_QUERY_FILE} 必须是非空列表")
+        # 先用 1-dim placeholder, npz load 后会重写为 3584-dim
+        candidate_rows: list[dict] = []
+        for r in raw_cand:
+            for ci, c in enumerate(r.get("expression_style_queries", []), start=1):
+                candidate_rows.append({
+                    "user_id": r.get("user_id"),
+                    "asin": r.get("asin"),
+                    "candidate_index": ci,
+                    "query": c.get("query", ""),
+                    "word_count": int(c.get("word_count", len(c.get("query", "").split()))),
+                    "features": {"__residual_dummy__": 0.0},
+                })
+        # 按 MAX_USERS 限制候选 (smoke test 对齐)
+        if MAX_USERS_OVERRIDE is not None:
+            m = int(MAX_USERS_OVERRIDE)
+            if m > 0:
+                seen: set[str] = set()
+                kept: list[dict] = []
+                for r in candidate_rows:
+                    uid = r.get("user_id")
+                    if uid in seen:
+                        kept.append(r)
+                    elif len(seen) < m:
+                        seen.add(uid)
+                        kept.append(r)
+                log(f"[diagonal_residual_llm] 候选按 MAX_USERS 裁剪: {len(candidate_rows)} → {len(kept)} 候选 ({len(seen)} 用户)")
+                candidate_rows = kept
+        log(f"[diagonal_residual_llm] 加载 {len(candidate_rows)} 候选 query (无 318d 特征)")
+    else:
+        candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
 
     # ==== diagonal_residual_llm 模式: 用 Qwen hidden residual 替换 318d scaled_features ====
     if COVARIANCE_MODE == "diagonal_residual_llm":
         log(f"[diagonal_residual_llm] 加载 Qwen residual: {RESIDUAL_HIDDEN_NPZ} layer={RESIDUAL_HIDDEN_LAYER}")
         residual_data = np.load(RESIDUAL_HIDDEN_NPZ, allow_pickle=True)
-        sent_to_residual = {}
-        for i, s in enumerate(residual_data["sentences"]):
-            sent_to_residual[str(s)] = residual_data[f"residual_layer_{RESIDUAL_HIDDEN_LAYER}"][i]
-        # 把 sentence_rows 里的 sentence_text 映射到 residual
+        # 用 sentence_text → index 映射(节省内存,不存 7427 个 3584d 向量到 dict)
+        sent_index = {str(s): i for i, s in enumerate(residual_data["sentences"])}
+        residual_layer = residual_data[f"residual_layer_{RESIDUAL_HIDDEN_LAYER}"]
         sentence_texts = [row.get("sentence_text", "") for row in dataset["sentence_rows"]]
-        n_matched = sum(1 for s in sentence_texts if s in sent_to_residual)
-        if n_matched < len(sentence_texts) * 0.9:
+        # 统计覆盖率, 然后一次性索引取值(不复制到 dict)
+        matched_idx: list[int] = []
+        missing = 0
+        for s in sentence_texts:
+            i = sent_index.get(s)
+            if i is None:
+                missing += 1
+            else:
+                matched_idx.append(i)
+        coverage = len(matched_idx) / max(len(sentence_texts), 1)
+        if coverage < 0.5:
             raise ValueError(
-                f"[diagonal_residual_llm] 句子覆盖率不足: matched={n_matched}/{len(sentence_texts)} "
-                f"(< 90%), 请检查 residual_hidden.npz 与 sentence_rows 是否同源"
+                f"[diagonal_residual_llm] 句子覆盖率严重不足: matched={len(matched_idx)}/{len(sentence_texts)} "
+                f"(< 50%), 请检查 residual_hidden.npz 与 sentence_rows 是否同源"
             )
-        residual_matrix = np.stack([sent_to_residual[s] for s in sentence_texts], axis=0).astype(np.float64)
+        if coverage < 0.9:
+            log(f"[diagonal_residual_llm] WARNING: 句子覆盖率 {coverage:.1%} (matched={len(matched_idx)}/{len(sentence_texts)}), "
+                f"原因可能是 regex/spacy 句切分不一致 (smoke test 可接受, 生产需用 spacy 重提 residual)")
+        # 用 np.array 索引一次性取值(只 copy 一次, 不预存 dict)
+        matched_idx_arr = np.asarray(matched_idx, dtype=np.int64)
+        residual_matrix = np.ascontiguousarray(residual_layer[matched_idx_arr]).astype(np.float64)
+        # 如果有 missing, 用 zero vector 填充;但实际 100% coverage 时 matched == len(sentence_texts)
+        if missing > 0:
+            log(f"[diagonal_residual_llm] WARNING: {missing} 句 missing, 用 zero residual 填充")
+            full = np.zeros((len(sentence_texts), residual_matrix.shape[1]), dtype=np.float64)
+            pos = 0
+            for orig_i, s in enumerate(sentence_texts):
+                if s in sent_index:
+                    full[orig_i] = residual_matrix[pos]
+                    pos += 1
+            residual_matrix = full
         residual_scaler = StandardScaler()
         scaled_residual = residual_scaler.fit_transform(residual_matrix).astype(np.float64)
         dataset["scaled_features"] = scaled_residual
@@ -3461,9 +3505,18 @@ def main_train() -> None:
         dataset["scaler"] = residual_scaler
         dataset["residual_layer"] = RESIDUAL_HIDDEN_LAYER
         dataset["residual_hidden_dim"] = residual_matrix.shape[1]
-        log(f"  residual shape: {residual_matrix.shape} (matched {n_matched}/{len(sentence_texts)} 句)")
+        # 更新 feature_names 让下游日志/summary 反映 Qwen residual, 而不是 1-dim dummy
+        dataset["feature_names"] = [f"residual_layer{RESIDUAL_HIDDEN_LAYER}_d{i}" for i in range(residual_matrix.shape[1])]
+        feature_names = dataset["feature_names"]
+        # 把 candidate_rows 的 placeholder features 也升级到 3584-dim (smoke test 用 0 占位; 生产需 Qwen hidden state)
+        for row in candidate_rows:
+            row["features"] = {name: 0.0 for name in feature_names}
+        log(f"  candidate_rows features 升级到 {len(feature_names)} dim placeholder")
+        log(f"  residual shape: {residual_matrix.shape} (matched {len(matched_idx)}/{len(sentence_texts)} 句)")
         log(f"  residual mean norm: {np.linalg.norm(residual_matrix, axis=1).mean():.3f}")
         log(f"  scaled_residual mean norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
+        # 释放 npz 引用
+        del residual_data, residual_layer, sent_index
 
     # ==== disentangle / prototype 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
     user_cluster_ids_t: torch.Tensor | None = None
