@@ -211,7 +211,7 @@ def main() -> int:
     # === 2) 加载 user style vector (B 路线, 直接 mean) ===
     if not USER_STYLE_VECTORS_JSONL.exists():
         raise FileNotFoundError(
-            f"{USER_STYLE_VECTORS_JSONL} 不存在, 先跑 query/soft_prefix/build_user_style_vector_real.py"
+            f"{USER_STYLE_VECTORS_JSONL} 不存在, 先跑 gen_query/soft_prefix/build_user_style_vector_real.py"
         )
     profiles: dict[str, dict[int, list[float]]] = {}
     with open(USER_STYLE_VECTORS_JSONL, "r", encoding="utf-8") as f:

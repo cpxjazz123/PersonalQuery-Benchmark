@@ -170,14 +170,14 @@ def main() -> int:
     if INJECT_MODE == "direct_mean":
         if not USER_STYLE_VECTORS_JSONL.exists():
             raise FileNotFoundError(
-                f"{USER_STYLE_VECTORS_JSONL} 不存在, 先跑 query/soft_prefix/build_user_style_vector_real.py"
+                f"{USER_STYLE_VECTORS_JSONL} 不存在, 先跑 gen_query/soft_prefix/build_user_style_vector_real.py"
             )
         provider = DirectMeanProvider(USER_STYLE_VECTORS_JSONL, INJECT_LAYERS)
         print(f"[main] DirectMeanProvider: {len(provider.profiles)} users, layers={INJECT_LAYERS}")
     elif INJECT_MODE == "pca_gaussian":
         if not PCA_MODEL_NPZ.exists():
             raise FileNotFoundError(
-                f"{PCA_MODEL_NPZ} 不存在, 先跑 query/soft_prefix/build_user_style_vector_real.py"
+                f"{PCA_MODEL_NPZ} 不存在, 先跑 gen_query/soft_prefix/build_user_style_vector_real.py"
             )
         provider = PCAGaussianProvider(PCA_MODEL_NPZ, INJECT_LAYERS, seed=PCA_SAMPLE_SEED)
         print(f"[main] PCAGaussianProvider: {len(provider.user_ids)} users, "

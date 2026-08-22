@@ -25,7 +25,7 @@ for run in "${RUNS[@]}"; do
   INJECT_MASK_CJK=1 \
   INJECT_OUT_SUFFIX=$suffix \
   /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-    /home/wlia0047/ar57/wenyu/PersoanlQuery/query/soft_prefix/generate_with_user_inject.py \
+    /home/wlia0047/ar57/wenyu/PersoanlQuery/gen_query/soft_prefix/generate_with_user_inject.py \
     > "$log" 2>&1
   echo "  done. tail:"
   tail -6 "$log" | sed 's/^/    /'

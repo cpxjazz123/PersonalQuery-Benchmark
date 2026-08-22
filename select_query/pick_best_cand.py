@@ -23,6 +23,8 @@ Inputs (all hardcoded):
 
 Output:
   - /home/wlia0047/hj82_scratch2/wenyu/syntax_subspace/best_cands.json
+    (note: scratch2 dir still uses old name 'syntax_subspace'; this script lives in
+    the renamed select_query/ project dir)
     [{record_id, user_id, asin, best_k, best_query, best_score, all_scores}, ...]
 
 Reference baseline (Phase 35.I-v2 SOTA): intra-product Rank-1 = 50.7%
