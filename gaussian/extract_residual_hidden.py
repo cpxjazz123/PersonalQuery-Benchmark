@@ -26,8 +26,8 @@ SCRATCH.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(REPO_ROOT))
 
 # === 配置 (硬编码, Rule 3) ===
-REWRITES_FILE = SCRATCH / "rewrites.jsonl"
-OUTPUT_FILE = SCRATCH / "residual_hidden.npz"
+REWRITES_FILE = SCRATCH / "rewrites_10k.jsonl"
+OUTPUT_FILE = SCRATCH / "residual_hidden_10k.npz"
 HIDDEN_BATCH = int(os.environ.get("VADES_HIDDEN_BATCH", "16"))
 HIDDEN_MAX_LENGTH = int(os.environ.get("VADES_HIDDEN_MAX_LENGTH", "128"))
 # Qwen2-7B 共 28 层 (0-27); 选 Phase 14.F SOTA layer 26 + 中间层 16 + 后层 20

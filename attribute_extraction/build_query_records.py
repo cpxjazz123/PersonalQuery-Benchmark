@@ -28,9 +28,15 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # 硬编码输入/输出路径 (Rule 3)
-STAGE1_REVIEWS = REPO_ROOT / "result/stage1_filtered_users_reviews_3000u.json"
+# 默认 10K 路径 (Stage 0 输出); 也可用 BUILD_STAGE1_REVIEWS env-var 覆盖到 3000u baseline
+STAGE1_REVIEWS = Path(
+    __import__("os").environ.get(
+        "BUILD_STAGE1_REVIEWS",
+        "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage1_filtered_users_reviews_10000u.json"
+    )
+)
 PRODUCT_ATTRS_JSON = REPO_ROOT / "result/product_attributes.json"
-OUT_RECORDS = REPO_ROOT / "result/query_records.json"
+OUT_RECORDS = REPO_ROOT / "result/query_records_10k.json"
 
 # === 属性选择参数 (与 copy_aware_generate.py 保持一致) ===
 ATTR_PRIORITY = [
@@ -44,7 +50,7 @@ ATTR_PRIORITY = [
 ]
 MAX_ATTRS = 5   # 用户指令 2026-08-22: 统一使用 5 个属性词
 MAX_ATTR_VALUE_LEN = 100
-MAX_RECORDS = int(__import__("os").environ.get("BUILD_QUERY_RECORDS_MAX", "500"))
+MAX_RECORDS = int(__import__("os").environ.get("BUILD_QUERY_RECORDS_MAX", "10000"))
 
 # 用户指令 2026-08-22: 排除带数字的属性值 (避免 Item Weight / Item model
 # number "BWL001" / Price / Date First Available 出现在 query 里)
@@ -123,24 +129,33 @@ def main() -> None:
     n_no_product_attrs = 0
     for rec in reviews:
         uid = rec.get("user_id")
-        asin = rec.get("asin")
-        if not uid or not asin:
+        primary_asin = rec.get("asin")
+        if not uid or not primary_asin:
             continue
-        asin_attrs = product_attrs.get(asin)
-        if not asin_attrs:
-            n_no_product_attrs += 1
-            continue
-        attrs = select_top_attrs(asin_attrs)
-        if not attrs:
+        # Try primary asin first, then fall back to alt_asins (if provided by Stage 0)
+        candidate_asins = [primary_asin] + list(rec.get("alt_asins", []))
+        attrs = None
+        chosen_asin = None
+        for asin in candidate_asins:
+            asin_attrs = product_attrs.get(asin)
+            if not asin_attrs:
+                continue
+            a = select_top_attrs(asin_attrs)
+            if a:
+                attrs = a
+                chosen_asin = asin
+                n_product_attrs = len(asin_attrs)
+                break
+        if attrs is None:
             n_no_product_attrs += 1
             continue
         n_with_attrs += 1
         records.append({
             "user_id": uid,
-            "asin": asin,
+            "asin": chosen_asin,
             "attrs_used": attrs,
             "n_attrs": len(attrs),
-            "n_product_attrs": len(asin_attrs),
+            "n_product_attrs": n_product_attrs,
         })
         if len(records) >= MAX_RECORDS:
             break

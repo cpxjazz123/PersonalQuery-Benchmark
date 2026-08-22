@@ -23,9 +23,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 # === 配置 (硬编码, 不接受 CLI 参数, Rule 3) ===
 # 输入句子来源: extract_sentences_spacy.py 的产出 (Pipeline A 同源 spaCy 切句)
-SENTENCES_CACHE = SCRATCH / "sentences_for_rewrite.jsonl"
-OUTPUT_FILE = SCRATCH / "rewrites.jsonl"
-MAX_USERS = int(os.environ.get("VADES_NEUTRAL_MAX_USERS", "20"))  # smoke: 20 用户, ~300 句
+SENTENCES_CACHE = SCRATCH / "sentences_for_rewrite_10k.jsonl"
+OUTPUT_FILE = SCRATCH / "rewrites_10k.jsonl"
+MAX_USERS = int(os.environ.get("VADES_NEUTRAL_MAX_USERS", "10000"))  # 10K users
 SENTS_PER_USER = int(os.environ.get("VADES_NEUTRAL_SENTS_PER_USER", "15"))
 REWRITE_BATCH = int(os.environ.get("VADES_NEUTRAL_REWRITE_BATCH", "16"))
 MAX_NEW = 128

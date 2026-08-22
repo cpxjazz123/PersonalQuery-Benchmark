@@ -41,8 +41,8 @@ SCRATCH.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(REPO_ROOT))
 
 # === 硬编码路径 (Rule 3) ===
-RECORDS_IN = REPO_ROOT / "result/query_records.json"
-OUT_SUFFIX = os.environ.get("STRICT_OUT_SUFFIX", "strict_v1")
+RECORDS_IN = REPO_ROOT / "result/query_records_10k.json"
+OUT_SUFFIX = os.environ.get("STRICT_OUT_SUFFIX", "strict_10k")
 RECORDS_OUT = REPO_ROOT / "result" / f"query_records_with_query_inject_{OUT_SUFFIX}.json"
 USER_STYLE_VECTORS_JSONL = SCRATCH / "user_style_vectors_real.jsonl"
 
@@ -50,12 +50,12 @@ USER_STYLE_VECTORS_JSONL = SCRATCH / "user_style_vectors_real.jsonl"
 K_SAMPLES = int(os.environ.get("STRICT_K", "4"))  # 每个 record 生成 K 个候选
 INJECT_LAYERS = [int(x) for x in os.environ.get("STRICT_LAYERS", "16").split(",")]
 INJECT_ALPHA = float(os.environ.get("STRICT_ALPHA", "0.0"))
-GEN_BATCH = int(os.environ.get("STRICT_BATCH", "4"))
+GEN_BATCH = int(os.environ.get("STRICT_BATCH", "8"))
 GEN_MAX_NEW = int(os.environ.get("STRICT_MAX_NEW", "128"))
 GEN_TEMP = float(os.environ.get("STRICT_TEMP", "0.7"))  # 中等温度
 GEN_TOP_P = float(os.environ.get("STRICT_TOP_P", "0.95"))
 GEN_REP_PENALTY = float(os.environ.get("STRICT_REP_PENALTY", "1.1"))
-MAX_RECORDS = int(os.environ.get("STRICT_MAX_RECORDS", "10"))
+MAX_RECORDS = int(os.environ.get("STRICT_MAX_RECORDS", "0"))  # 0 = no limit
 MAX_INPUT_LENGTH = 384
 MASK_CJK = os.environ.get("STRICT_MASK_CJK", "1") == "1"
 
