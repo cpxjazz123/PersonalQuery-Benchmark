@@ -53,8 +53,11 @@ from user_stat_vector import STAT_DIM  # noqa: E402
 QWEN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 HIDDEN_DIM = 3584  # overridden by the loaded model's config.hidden_size
 SYSTEM_PROMPT = (
-    "You are a shopping query writer. Write one short natural shopping query "
-    "that mentions every listed attribute of the product."
+    "You write realistic Amazon-style search queries. Output ONLY the query "
+    "text — no preamble, no quotes, no sentence like 'I'm looking for'. "
+    "Match the style of an Amazon search bar input: short, intent-driven, "
+    "keywords joined by commas or natural phrasing. Mention only the most "
+    "important 2-4 attributes; not every field. Never start with 'I'."
 )
 
 

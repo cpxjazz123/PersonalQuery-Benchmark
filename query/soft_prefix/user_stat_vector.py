@@ -17,16 +17,23 @@ from typing import Dict, List
 import numpy as np
 
 REPO_ROOT = Path("/fs04/ar57/wenyu/PersoanlQuery")
-sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
 
-from extract_clause_features_single_query import (  # noqa: E402
-    load_spacy_model,
-    extract_clause_features_from_doc,
-)
-from opener_stats import (  # noqa: E402
-    OPENER_CLASSES,
-    opener_class_of,
-)
+# === opener classification (10 classes) ===
+# Inlined here after E18 cleanup removed syntactic_analysis/opener_stats.py.
+# Categories follow the original E14 schema (10 sentence-opener patterns);
+# cache file `user_stat_vectors.json` 已以 dim=34 持久化, 重算时保持 10 类。
+OPENER_CLASSES = [
+    "i", "you", "we", "they", "it",
+    "the", "a", "this", "that", "other",
+]
+
+
+def opener_class_of(first_token_text: str) -> str:
+    """Map a sentence's first lowercased token to an OPENER_CLASS bucket."""
+    t = (first_token_text or "").strip().lower()
+    if t in OPENER_CLASSES:
+        return t
+    return "other"
 
 FEATURES20 = [
     "max_dependency_depth", "mean_dependency_depth", "dependency_tree_height",
@@ -92,6 +99,13 @@ def build_user_stat_vectors(category: str, user_ids: List[str], max_sentences: i
             missing = [u for u in user_ids if u not in cached_vectors]
             if not missing:
                 return cached_vectors
+    # === lazy import (only触发 when cache miss, E18 cleanup removed
+    #     syntactic_analysis/opener_stats.py + extract_clause_features_single_query) ===
+    sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
+    from extract_clause_features_single_query import (  # noqa: E402
+        load_spacy_model,
+        extract_clause_features_from_doc,
+    )
     nlp = load_spacy_model()
     # only recompute users missing from the cache, then MERGE (never clobber)
     need_ids = [u for u in user_ids if u not in cached_vectors]

@@ -42,10 +42,8 @@ ATTR_PRIORITY = [
     "Date First Available", "Country/Region of origin", "Country of Origin",
     "Price", "Average Rating", "Rating Number",
 ]
-MAX_ATTRS = 8
+MAX_ATTRS = 4   # Amazon search 一般 3-5 关键词; 8 个属性 prompt 过长 + 像属性拼接
 MAX_ATTR_VALUE_LEN = 100
-
-# 评测规模上限 (避免一次性产出过大 record)
 MAX_RECORDS = int(__import__("os").environ.get("BUILD_QUERY_RECORDS_MAX", "500"))
 
 

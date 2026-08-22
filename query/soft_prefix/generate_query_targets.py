@@ -35,13 +35,20 @@ GENERATION_LOG = SCRATCH_LOG / "generate_targets.log"
 # === 硬编码推理配置 ===
 GEN_BATCH = int(os.environ.get("CA_GEN_BATCH", "32"))
 GEN_MAX_NEW = 96
-GEN_TEMP = 0.7
+GEN_TEMP = 0.5
 GEN_TOP_P = 0.95
+GEN_FREQ_PENALTY = 0.3  # 减少 "I'm looking for..." 这种模板套话
+GEN_PRES_PENALTY = 0.1
 MAX_RECORDS = int(os.environ.get("CA_GEN_MAX_RECORDS", "500"))
 
+# Amazon-style 自然 search query 模板训练目标: 短 (< 80 字符)、搜索意图驱动、
+# 不啰嗦、不用 "I'm looking for / Can you recommend" 等模板。
 GEN_SYSTEM = (
-    "You are a shopping query writer. Write one short natural shopping query "
-    "that mentions every listed attribute of the product."
+    "You write realistic Amazon-style search queries. Output ONLY the query "
+    "text — no preamble, no quotes, no sentence like 'I'm looking for'. "
+    "Match the style of an Amazon search bar input: short, intent-driven, "
+    "keywords joined by commas or natural phrasing. Mention only the most "
+    "important 2-4 attributes; not every field. Never start with 'I'."
 )
 
 
@@ -52,7 +59,7 @@ def build_user_content(attrs: dict) -> str:
         s = str(v).strip() if v else ""
         if s:
             lines.append(s)
-    lines.append("Write a natural shopping query that mentions every attribute.")
+    lines.append("Write a short Amazon-style search query (no preamble).")
     return "\n".join(lines)
 
 
@@ -69,6 +76,8 @@ def batch_generate_queries(prompts: list[str]) -> list[str]:
         max_tokens=GEN_MAX_NEW,
         temperature=GEN_TEMP,
         top_p=GEN_TOP_P,
+        frequency_penalty=GEN_FREQ_PENALTY,
+        presence_penalty=GEN_PRES_PENALTY,
     )
     full_prompts = [
         backend.tokenizer.apply_chat_template(
