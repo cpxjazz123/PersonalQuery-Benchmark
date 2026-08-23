@@ -130,6 +130,7 @@ VALID_COVARIANCE_MODES = {
     "diagonal_student_t", "diagonal_laplace", "diagonal_student_t_gmm",
     "diagonal_logistic", "diagonal_prototype",
     "diagonal_residual_llm",  # Qwen hidden 空间 residual = user_hidden - neutral_hidden
+    "diagonal_residual",       # 318d 句法特征 residual = user_318d - global_mean_318d
 }
 if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
     raise ValueError(
@@ -3517,6 +3518,24 @@ def main_train() -> None:
         log(f"  scaled_residual mean norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
         # 释放 npz 引用
         del residual_data, residual_layer, sent_index
+
+    # ==== diagonal_residual 模式: 318d 句法特征 residual = user_318d - global_mean ====
+    if COVARIANCE_MODE == "diagonal_residual":
+        log("[diagonal_residual] 计算 318d 句法特征 global mean reference...")
+        raw_matrix = dataset["feature_matrix"]  # [num_sentences, 318]
+        global_neutral = raw_matrix.mean(axis=0)  # [318]
+        residual_matrix = raw_matrix - global_neutral[None, :]  # [num_sentences, 318]
+        scaler = StandardScaler()
+        scaled_residual = scaler.fit_transform(residual_matrix).astype(np.float64)
+        dataset["scaled_features"] = scaled_residual
+        dataset["feature_matrix"] = residual_matrix
+        dataset["scaler"] = scaler
+        feat_dim = residual_matrix.shape[1]
+        dataset["feature_names"] = [f"residual_318d_d{i}" for i in range(feat_dim)]
+        log(f"  raw_matrix norm: {np.linalg.norm(raw_matrix, axis=1).mean():.3f}")
+        log(f"  global_neutral norm: {np.linalg.norm(global_neutral):.3f}")
+        log(f"  residual norm: {np.linalg.norm(residual_matrix, axis=1).mean():.3f}")
+        log(f"  scaled_residual norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
 
     # ==== disentangle / prototype 模式预聚类: 把 user_cluster_ids + style_anchors 注入 user table ====
     user_cluster_ids_t: torch.Tensor | None = None
