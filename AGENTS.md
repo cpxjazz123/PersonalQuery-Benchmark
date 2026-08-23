@@ -99,3 +99,28 @@
       ```
     - 验证 cwd：`pwd` 应输出 `/home/wlia0047/ar57/wenyu/PersoanlQuery`，否则视为违规
     - 例外：仅 `git` / `cat` / `Edit` 操作 git tracked 文件可走 `/fs04/...` 路径（IDE 兼容），但 Python 进程一律走 `/home/wlia0047/...`
+
+11. **`/result/` 目录只允许存放生成的产物，脚本必须放在对应的功能目录下**：
+    - `/home/wlia0047/ar57/wenyu/PersoanlQuery/result/`（以及其任何子目录）**只允许存放生成的产物**：
+      - 实验 result 文件：`*.json`、`*.jsonl`、`*.npz`、`*.pt`、`*.csv`、`*.log`
+      - 各 phase 的子目录（如 `result/phase35b/`）只放该 phase 的产物（scores.json、eval_summary.json、intra_product_rank1.json、pca_components.npz 等）
+    - **禁止**在 `result/` 任何位置（包括 `result/phase15/scripts/`、`result/phase16/scripts/` 等模式）放 `.py` 或 `.sh` 脚本
+    - 脚本必须直接放在对应功能模块目录下，按业务归属划分（已存在目录）：
+      | 功能模块 | 路径 | 用途 |
+      |----------|------|------|
+      | query 生成 | `gen_query/` | generate_strict_nohallu.py、build_user_style_vectors_*.py 等 |
+      | query 选择 | `select_query/` | pick_best_cand_*.py、eval_query_quality_*.py、eval_rank1_*.py 等 |
+      | VADES Gaussian | `gaussian/` | gaussian_vades.py、build_raw_candidate_queries.py、build_real_user_style_vectors.py 等 |
+      | 用户筛选 / records | `attribute_extraction/` | build_query_records.py、filter_10k_active_users.py 等 |
+      | 句法特征 | `syntactic_analysis/` | spacy/feature 相关脚本 |
+      | 评测 / 训练编排 | 项目根或子模块根 | run_pipeline_10k.sh 等 orchestrator |
+    - 历史遗留：当前 `result/phase15/scripts/` 下有 7 个脚本（filter_10k_active_users、build_raw_candidate_queries、build_user_style_vectors_stub_10k、build_real_user_style_vectors、eval_rank1_10k、eval_query_quality_10k、run_pipeline_10k.sh）**必须迁移**：
+      - `filter_10k_active_users.py` → `attribute_extraction/filter_10k_active_users.py`
+      - `build_raw_candidate_queries.py` → `gaussian/build_raw_candidate_queries.py`
+      - `build_user_style_vectors_stub_10k.py` → `gen_query/build_user_style_vectors_stub.py`
+      - `build_real_user_style_vectors.py` → `gaussian/build_real_user_style_vectors.py`
+      - `eval_rank1_10k.py` → `select_query/eval_rank1_intra_pool.py`
+      - `eval_query_quality_10k.py` → `select_query/eval_query_quality.py`
+      - `run_pipeline_10k.sh` → 项目根 `run_pipeline_10k.sh`（顶层 orchestrator）
+    - 新增脚本时**先按功能归属决定目录**，再写代码；不允许新建 `result/phaseXX/scripts/` 这种"phase 子目录里再嵌套 scripts"的反模式
+    - 与规则 10 的关系：规则 10 管"运行 cwd"（必须在 `/home/wlia0047/ar57/wenyu/PersoanlQuery`），规则 11 管"项目内脚本的目录组织"（按功能模块而非按 phase）

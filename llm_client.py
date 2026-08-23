@@ -17,6 +17,9 @@
 """
 
 import os
+import pickle
+import selectors
+import socket
 import threading
 import time
 import traceback
@@ -881,4 +884,143 @@ def create_qwen_local_client(
     return QwenLocalClient(model=model, with_vllm=with_vllm)
 
 
-__all__ = ["QwenLocalClient", "create_qwen_local_client", "DEFAULT_QWEN_MODEL_PATH"]
+class QwenHiddenServerClient:
+    """Client that connects to a long-running qwen_hidden_server process.
+
+    Usage:
+        client = QwenHiddenServerClient(socket_path="/path/to/server.sock")
+        # All methods delegate to the server process
+        results = client.generate_with_hidden_injection(
+            system_text="...",
+            user_texts=["prompt1", "prompt2"],
+            injection_per_row=[bias_t1, bias_t2],
+            injection_layers=[16],
+            injection_alpha=1.0,
+            max_new_tokens=128,
+            temperature=0.7,
+            top_p=0.95,
+            repetition_penalty=1.1,
+            batch_size=2,
+            max_input_length=256,
+            mask_cjk=True,
+        )
+        client.close()
+    """
+
+    def __init__(self, socket_path: str = "/home/wlia0047/hj82_scratch2/wenyu/tmp/qwen_hidden_server.sock"):
+        self.socket_path = socket_path
+        self._sock: Optional[socket.socket] = None
+        self._counter = 0
+        self._lock = threading.Lock()
+
+    def _ensure_connected(self) -> None:
+        if self._sock is None:
+            self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self._sock.settimeout(300)  # 5 min timeout per call
+            self._sock.connect(self.socket_path)
+
+    def _call(self, method: str, kwargs: dict) -> list:
+        with self._lock:
+            self._counter += 1
+            req_id = self._counter
+            request = {"id": req_id, "method": method, "kwargs": kwargs}
+            self._ensure_connected()
+            try:
+                self._sock.sendall(pickle.dumps(request))
+                response_bytes = b""
+                while True:
+                    chunk = self._sock.recv(65536)
+                    if not chunk:
+                        break
+                    response_bytes += chunk
+                response = pickle.loads(response_bytes)
+                if response.get("error"):
+                    raise RuntimeError(f"server error: {response['error']}")
+                return response.get("result")
+            except Exception as exc:
+                # On error, close socket so next call reconnects fresh
+                try:
+                    self._sock.close()
+                except Exception:
+                    pass
+                self._sock = None
+                raise
+
+    def ping(self) -> bool:
+        """Health check."""
+        try:
+            result = self._call("_ping", {})
+            return result == "pong"
+        except Exception:
+            return False
+
+    def close(self) -> None:
+        if self._sock:
+            try:
+                self._sock.close()
+            except Exception:
+                pass
+            self._sock = None
+
+    # === Delegate all generation / hidden methods to server ===
+
+    def generate_with_hidden_injection(
+        self,
+        system_text: str,
+        user_texts: list[str],
+        injection_per_row: list,
+        injection_layers: list[int],
+        injection_alpha: float = 1.0,
+        max_new_tokens: int = 96,
+        temperature: float = 0.5,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        batch_size: int = 16,
+        max_input_length: int = 384,
+        mask_cjk: bool = False,
+    ) -> list[str]:
+        # injection_per_row must be a list of torch.Tensors (not numpy arrays)
+        # Serialize them as raw bytes to avoid pickle issues with custom tensors
+        import io
+        import torch
+        serialized = []
+        for item in injection_per_row:
+            if item is None:
+                serialized.append(None)
+            elif isinstance(item, torch.Tensor):
+                buf = io.BytesIO()
+                torch.save(item, buf)
+                serialized.append(buf.getvalue())
+            else:
+                serialized.append(item)
+        kwargs = {
+            "system_text": system_text,
+            "user_texts": user_texts,
+            "injection_per_row": serialized,
+            "injection_layers": injection_layers,
+            "injection_alpha": injection_alpha,
+            "max_new_tokens": max_new_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "repetition_penalty": repetition_penalty,
+            "batch_size": batch_size,
+            "max_input_length": max_input_length,
+            "mask_cjk": mask_cjk,
+        }
+        raw_results = self._call("generate_with_hidden_injection", kwargs)
+        # Server already deserialized tensors; raw_results is already list[str]
+        return raw_results
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+__all__ = [
+    "QwenLocalClient",
+    "create_qwen_local_client",
+    "QwenHiddenServerClient",
+    "DEFAULT_QWEN_MODEL_PATH",
+]

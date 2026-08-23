@@ -105,7 +105,7 @@ def main() -> int:
         components = {int(k): v for k, v in pca_data["components"].item().items()}
         means = {int(k): v for k, v in pca_data["means"].item().items()}
     else:
-        print(f"[PCA] computing PCA{D} from {all_resids.shape[0]} residuals...")
+        print(f"[PCA] computing PCA{PCA_D} from {all_resids.shape[0]} residuals...")
         from sklearn.decomposition import PCA
         X = all_resids.astype(np.float32)
         pca = PCA(n_components=PCA_D, random_state=42)
@@ -171,7 +171,10 @@ def main() -> int:
         hidden_dict = client.get_hidden_states(
             chunk, layers=LAYERS, max_length=MAX_INPUT_LENGTH, batch_size=QWEN_BATCH
         )
-        for q, h in zip(chunk, hidden_dict[LAYERS[0]].cpu().numpy()):
+        h_layer = hidden_dict[LAYERS[0]]
+        if hasattr(h_layer, "cpu"):
+            h_layer = h_layer.cpu().numpy()
+        for q, h in zip(chunk, h_layer):
             query_residual[q] = h
         done = min(i + QWEN_BATCH, len(queries_list))
         print(f"  [encode] {done}/{len(queries_list)}  ({time.time()-t0:.1f}s)", flush=True)

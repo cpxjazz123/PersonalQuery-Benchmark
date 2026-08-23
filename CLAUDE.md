@@ -141,10 +141,36 @@
     - 例外：仅 `git` / `cat` / `Edit` 操作 git tracked 文件可走 `/fs04/...` 路径（IDE 兼容），但 Python 进程一律走 `/home/wlia0047/...`
 
 12. **可运行脚本必须放在项目主目录 `/home/wlia0047/ar57/wenyu/PersoanlQuery` 下（禁止放在 `hj82_scratch2` 等外部目录）**：
-    - 所有 `.py` 可运行脚本必须位于 `/home/wlia0047/ar57/wenyu/PersoanlQuery/` 内（包括任何子目录，如 `query_gen/`、`result/phase15/scripts/`、`gaussian/` 等），"主目录"指项目根及其子目录树
+    - 所有 `.py` 可运行脚本必须位于 `/home/wlia0047/ar57/wenyu/PersoanlQuery/` 内（包括任何子目录，如 `gen_query/`、`gaussian/`、`attribute_extraction/`、`syntactic_analysis/`、`select_query/` 等），"主目录"指项目根及其子目录树
     - **禁止**将可运行脚本放在 `/home/wlia0047/hj82_scratch2/wenyu/vades_prototype/` 或 `/home/wlia0047/hj82_scratch2/wenyu/postfilter/`、`e29_paper/`、`gaussian_cluster/`、`disentangle/` 等任何外部目录
     - `hj82_scratch2/wenyu/` 只允许存放 **运行时产物**：log / cache / jsonl / json / npz / pt / txt / png，**不允许存放 .py 可运行脚本**
     - 历史遗留在 scratch2 的脚本（实测 247 个 .py，集中在 `vades_prototype/` 207 个 + `postfilter/` 28 + `e29_paper/` 8 + `gaussian_cluster/` 3 + `disentangle/` 1）必须迁移回项目内对应位置并 `git add -f` + `git commit` + `git push` 闭环
-    - 新增脚本必须直接写在项目内的对应子目录（按 phase 编号归档到 `result/phaseXX/scripts/` 或模块目录），**禁止**先放 scratch2 再"将来迁移"
+    - 新增脚本必须直接写在项目内的对应子目录（按 phase 编号归档到 `result/phaseXX/` 下或对应模块目录），**禁止**先放 scratch2 再"将来迁移"
     - 迁移后须同步更新所有引用旧路径的脚本（import 路径、PATH 拼接、文档说明）指向新位置
     - 与规则 10 的分工：规则 10 管**运行时产物**路径（log/result），规则 12 管**脚本本体**路径；前者 scratch2，后者项目内
+
+13. **`/result/` 目录只允许存放生成的产物，脚本必须放在对应的功能目录下**：
+    - `/home/wlia0047/ar57/wenyu/PersoanlQuery/result/`（以及其任何子目录）**只允许存放生成的产物**：
+      - 实验 result 文件：`*.json`、`*.jsonl`、`*.npz`、`*.pt`、`*.csv`、`*.log`
+      - 各 phase 的子目录（如 `result/phase35b/`）只放该 phase 的产物（scores.json、eval_summary.json、intra_product_rank1.json、pca_components.npz 等）
+    - **禁止**在 `result/` 任何位置（包括 `result/phase15/scripts/`、`result/phase16/scripts/` 等模式）放 `.py` 或 `.sh` 脚本
+    - 脚本必须直接放在对应功能模块目录下，按业务归属划分（已存在目录）：
+      | 功能模块 | 路径 | 用途 |
+      |----------|------|------|
+      | query 生成 | `gen_query/` | generate_strict_nohallu.py、build_user_style_vectors_*.py 等 |
+      | query 选择 | `select_query/` | pick_best_cand_*.py、eval_query_quality_*.py、eval_rank1_*.py 等 |
+      | VADES Gaussian | `gaussian/` | gaussian_vades.py、build_raw_candidate_queries.py、build_real_user_style_vectors.py 等 |
+      | 用户筛选 / records | `attribute_extraction/` | build_query_records.py、filter_10k_active_users.py 等 |
+      | 句法特征 | `syntactic_analysis/` | spacy/feature 相关脚本 |
+      | 评测 / 训练编排 | 项目根或子模块根 | run_pipeline_10k.sh 等 orchestrator |
+    - 历史遗留：当前 `result/phase15/scripts/` 下有 7 个脚本（filter_10k_active_users、build_raw_candidate_queries、build_user_style_vectors_stub_10k、build_real_user_style_vectors、eval_rank1_10k、eval_query_quality_10k、run_pipeline_10k.sh）**必须迁移**：
+      - `filter_10k_active_users.py` → `attribute_extraction/filter_10k_active_users.py`
+      - `build_raw_candidate_queries.py` → `gaussian/build_raw_candidate_queries.py`
+      - `build_user_style_vectors_stub_10k.py` → `gen_query/build_user_style_vectors_stub.py`
+      - `build_real_user_style_vectors.py` → `gaussian/build_real_user_style_vectors.py`
+      - `eval_rank1_10k.py` → `select_query/eval_rank1_intra_pool.py`
+      - `eval_query_quality_10k.py` → `select_query/eval_query_quality.py`
+      - `run_pipeline_10k.sh` → 项目根 `run_pipeline_10k.sh`（顶层 orchestrator）
+    - 新增脚本时**先按功能归属决定目录**，再写代码；不允许新建 `result/phaseXX/scripts/` 这种"phase 子目录里再嵌套 scripts"的反模式
+    - 与规则 10 的分工：规则 10 管**运行时产物**路径（log/result → scratch2 或 result/），规则 13 管**项目内脚本**的目录组织（按功能模块而非按 phase）；前者管路径，后者管组织
+    - 与规则 12 的关系：规则 12 规定"脚本必须在项目内"（不在 scratch2），规则 13 在此基础上进一步规定"脚本必须按功能模块组织"（不在 result/ 下）

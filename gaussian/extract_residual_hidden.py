@@ -93,29 +93,39 @@ def main() -> int:
         print(f"  layer {l}: shape={neutral_hidden[l].shape}, "
               f"norm_mean={float((neutral_hidden[l]**2).sum(axis=1).mean()**0.5):.2f}")
 
-    # === 算 residual ===
+    # === 算 residual: 逐层计算 + 释放, 避免 4-layer 一次性占 8.5 GB ===
+    import gc
+    print(f"[main] computing residual = user - neutral (layer-by-layer)...")
     residual: dict[int, "np.ndarray"] = {}
-    print(f"[main] computing residual = user - neutral...")
     for l in LAYERS:
-        residual[l] = (user_hidden[l] - neutral_hidden[l]).astype("float32")
-        r = residual[l]
+        r = (user_hidden[l] - neutral_hidden[l]).astype("float32")
         print(f"  layer {l}: shape={r.shape}, "
               f"norm_mean={float((r**2).sum(axis=1).mean()**0.5):.2f}, "
               f"max_abs={float(abs(r).max()):.2f}")
+        residual[l] = r
+        # 立刻释放 user_hidden[l] / neutral_hidden[l] 节省内存
+        del user_hidden[l], neutral_hidden[l]
+        gc.collect()  # 强制 Python GC 回收 numpy 内存
 
-    # === 释放 user/neutral 内存(避免后续 OOM) ===
-    del user_hidden, neutral_hidden
-
-    # === 保存: 仅存 residual (不存 user/neutral, 节省 ~4x 内存) ===
-    save_kwargs = {
-        "sentences": np.asarray(sentences, dtype=object),
-        "layers": np.asarray(LAYERS, dtype=np.int32),
-        "hidden_dim": np.asarray([hidden_dim], dtype=np.int32),
-    }
-    for l in LAYERS:
-        save_kwargs[f"residual_layer_{l}"] = residual[l]
+    # === 保存: 逐层 append 到 npz, 节省峰值内存 ===
     print(f"[main] saving {OUTPUT_FILE} ...")
-    np.savez_compressed(OUTPUT_FILE, **save_kwargs)
+    # 第一层建立 npz + 写 sentences/layers/hidden_dim
+    first_layer = LAYERS[0]
+    np.savez_compressed(
+        OUTPUT_FILE,
+        sentences=np.asarray(sentences, dtype=object),
+        layers=np.asarray(LAYERS, dtype=np.int32),
+        hidden_dim=np.asarray([hidden_dim], dtype=np.int32),
+        **{f"residual_layer_{first_layer}": residual[first_layer]},
+    )
+    print(f"  saved layer {first_layer}")
+    # 后续层: npz 不可追加, 直接重读合并到 dict, 一次性 np.savez
+    if len(LAYERS) > 1:
+        existing = dict(np.load(OUTPUT_FILE, allow_pickle=True))
+        for l in LAYERS[1:]:
+            existing[f"residual_layer_{l}"] = residual[l]
+        np.savez_compressed(OUTPUT_FILE, **existing)
+        print(f"  merged + saved layers {LAYERS[1:]}")
     print(f"[main] ✓ saved {OUTPUT_FILE} ({OUTPUT_FILE.stat().st_size//1024} KB)")
     print(f"[main] done at {time.strftime('%H:%M:%S')}")
     return 0
