@@ -4989,6 +4989,431 @@ def main_syntax_subspace_stage3a() -> None:
         json.dump(payload, f, indent=2)
     log(f"\n[stage3a] 已写入 {out}")
 
+def main_syntax_subspace_stage5b() -> None:
+    """Stage 5B: Fair HP-tuned family selection with ranking metrics + bootstrap CI.
+
+    关键改进 vs Stage 5:
+      - 用户 50/50 split (val / test, fixed seed)
+      - 每个 family 独立 HP grid 调参 (validation NLL 选择 best HP)
+      - Test set 报告: NLL / Median Margin / MRR_random / MRR_hard / AUROC / PairAcc
+      - Bootstrap CI: per-user mean margin difference vs Gaussian
+
+    HP grids:
+      - Gaussian:  λ ∈ {0.1, 0.3, 0.5, 0.7}
+      - Laplace:   λ ∈ {0.1, 0.3, 0.5, 0.7}
+      - Student-t: ν ∈ {3, 5, 10, 20, 50, 100} (λ=0.3 fixed)
+      - GMM:       K ∈ {1, 2, 3} (diag Gaussian, reg_covar=1e-3)
+      - KDE:       bw × {0.5, 0.75, 1.0, 1.5, 2.0} (Scott reference)
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.mixture import GaussianMixture
+    from sklearn.neighbors import KernelDensity
+    from sklearn.metrics import roc_auc_score
+    import scipy.special as sc
+    import hashlib as _hl
+
+    N_FIXED = 35
+    N_SEEDS = 20
+    N_TEST_POS = 20
+    N_RANDOM_NEG = 99
+    N_HARD_NEG = 25
+    N_VAL_USERS = 50
+    N_TEST_USERS = 50
+    VAR_EPS = 1e-3
+    B_EPS = 1e-3
+    SEED_USER_SPLIT = 2024
+    SEED_NEG = 7777
+    N_BOOTSTRAP = 1000
+
+    # ==== Data + PCA48 (frozen) ====
+    P0 = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P0["X_scaled"][P0["train_idx"]])
+    scaler = P0["scaler"]
+    fnames = P0["feature_names_ordered"]
+    log(f"[stage5b] 冻结 PCA48 fit (EV={pca.explained_variance_ratio_.sum():.4f})")
+
+    DENSE_SENTS = os.environ.get("PQ_SYNTAX_SENTS_DENSE",
+                                 str(RESIDUAL_SCRATCH / "sentences_for_rewrite_10k_dense.jsonl"))
+    DENSE_FEAT = os.environ.get("PQ_SYNTAX_FEAT_DENSE",
+                                str(RESIDUAL_SCRATCH / "sentences_318d_cache_dense.jsonl.gz"))
+    Pd = _syntax_subspace_prepare(sents_path=DENSE_SENTS, feat_cache_path=DENSE_FEAT,
+                                  feature_names_ordered=fnames)
+    X_raw = Pd["X"]
+    Z = pca.transform(scaler.transform(X_raw))
+    global_var = Z.var(axis=0)
+    user_to_indices = Pd["user_to_indices"]
+    user_id_list = Pd["user_id_list"]
+    log(f"[stage5b] dense Z shape {Z.shape}")
+
+    cand_users = sorted([u for u in user_id_list if len(user_to_indices[u]) >= (N_TEST_POS + N_FIXED)])
+    log(f"[stage5b] cand_users: {len(cand_users)}")
+
+    # 50/50 user split (deterministic)
+    rng_split = np.random.default_rng(SEED_USER_SPLIT)
+    perm = rng_split.permutation(len(cand_users))
+    val_users = sorted([cand_users[i] for i in perm[:N_VAL_USERS]])
+    test_users = sorted([cand_users[i] for i in perm[N_VAL_USERS:N_VAL_USERS + N_TEST_USERS]])
+    log(f"[stage5b] val_users={len(val_users)}  test_users={len(test_users)}")
+
+    all_users = sorted(set(val_users) | set(test_users))
+
+    def _uid_seed(uid):
+        return int(_hl.md5(str(uid).encode()).hexdigest(), 16) % (2 ** 31)
+
+    test_pos_z, pool_idx = {}, {}
+    for u in all_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(_uid_seed(u))
+        perm_u = rng_u.permutation(len(idx_u))
+        test_pos_z[u] = Z[idx_u[perm_u[:N_TEST_POS]]]
+        pool_idx[u] = list(idx_u[perm_u[N_TEST_POS:]])
+
+    all_eval_z = np.concatenate([Z[user_to_indices[u]] for u in all_users], axis=0)
+    all_eval_uid = np.concatenate([np.array([u] * len(user_to_indices[u])) for u in all_users])
+
+    rng_neg = np.random.default_rng(SEED_NEG)
+    random_neg_z, hard_neg_z = {}, {}
+    for u in all_users:
+        mask = all_eval_uid != u
+        cand_z = all_eval_z[mask]
+        sel = rng_neg.choice(len(cand_z), size=min(N_RANDOM_NEG, len(cand_z)), replace=False)
+        random_neg_z[u] = cand_z[sel]
+        pos_center = test_pos_z[u].mean(axis=0)
+        d = np.linalg.norm(random_neg_z[u] - pos_center[None, :], axis=1)
+        order = np.argsort(d)
+        hard_neg_z[u] = random_neg_z[u][order[:N_HARD_NEG]]
+    log(f"[stage5b] eval pool ready (neg={N_RANDOM_NEG} rnd, {N_HARD_NEG} hard)")
+
+    # ==== Family fit + logp (parametric) ====
+    global_b = np.mean(np.abs(Z - Z.mean(axis=0)[None, :]), axis=0)
+
+    def _fit_gaussian(Z_train, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - lam) * sample_var + lam * global_var
+        else:
+            var = global_var.copy()
+        return {"mu": mu, "var": np.maximum(var, VAR_EPS)}
+
+    def _logp_gaussian(z, p):
+        mu, var = p["mu"], p["var"]
+        return -0.5 * (np.log(2 * np.pi * var).sum() + ((z - mu[None, :]) ** 2 / var[None, :]).sum(axis=1))
+
+    def _fit_laplace(Z_train, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_b = np.mean(np.abs(Z_train - mu[None, :]), axis=0)
+            b = (1 - lam) * sample_b + lam * global_b
+        else:
+            b = global_b.copy()
+        return {"mu": mu, "b": np.maximum(b, B_EPS)}
+
+    def _logp_laplace(z, p):
+        mu, b = p["mu"], p["b"]
+        return -np.log(2 * b).sum() - (np.abs(z - mu[None, :]) / b[None, :]).sum(axis=1)
+
+    def _fit_student_t(Z_train, df, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - lam) * sample_var + lam * global_var
+        else:
+            var = global_var.copy()
+        return {"mu": mu, "var": np.maximum(var, VAR_EPS), "df": df}
+
+    def _logp_student_t(z, p):
+        mu, var, df = p["mu"], p["var"], p["df"]
+        diff_sq = (z - mu[None, :]) ** 2 / var[None, :]
+        return (
+            sc.gammaln((df + 1) / 2) - sc.gammaln(df / 2)
+            - 0.5 * np.log(df * np.pi * var)
+            - (df + 1) / 2 * np.log(1 + diff_sq / df)
+        ).sum(axis=1)
+
+    def _fit_gmm(Z_train, K, seed):
+        gmm = GaussianMixture(
+            n_components=K, covariance_type="diag",
+            max_iter=50, random_state=seed,
+            reg_covar=VAR_EPS, init_params="kmeans",
+        )
+        gmm.fit(Z_train)
+        return gmm
+
+    def _logp_gmm(z, gmm):
+        return gmm.score_samples(z)
+
+    def _fit_kde(Z_train, bw_factor):
+        # Scott bandwidth (isotropic). sklearn 1.7+ KernelDensity only accepts scalar bw.
+        n, d = Z_train.shape
+        # Use mean of per-dim std as Scott's reference sigma (matches sklearn's "scott" string for
+        # diagonal-covariance Gaussian kernel, which uses mean(std) internally).
+        sigma = float(Z_train.std(axis=0).mean())
+        scott_bw = np.power(n, -1.0 / (d + 4)) * sigma
+        bw = scott_bw * bw_factor
+        kde = KernelDensity(kernel="gaussian", bandwidth=float(bw))
+        kde.fit(Z_train)
+        return kde
+
+    def _logp_kde(z, kde):
+        return kde.score_samples(z)
+
+    HP_GRIDS = {
+        "gaussian":  [{"lam": l} for l in [0.1, 0.3, 0.5, 0.7]],
+        "laplace":   [{"lam": l} for l in [0.1, 0.3, 0.5, 0.7]],
+        "student_t": [{"df": d, "lam": 0.3} for d in [3, 5, 10, 20, 50, 100]],
+        "gmm":       [{"K": k} for k in [1, 2, 3]],
+        "kde":       [{"bw_factor": b} for b in [0.5, 0.75, 1.0, 1.5, 2.0]],
+    }
+
+    FAMILY_NAMES = {
+        "gaussian":  "Gaussian (diag)",
+        "laplace":   "Laplace (diag)",
+        "student_t": "Student-t (diag)",
+        "gmm":       "GMM (diag Gaussian)",
+        "kde":       "KDE (gaussian)",
+    }
+
+    def _fit_dispatch(family_key, Z_train, hp, seed):
+        if family_key == "gaussian":
+            return _fit_gaussian(Z_train, lam=hp["lam"])
+        if family_key == "laplace":
+            return _fit_laplace(Z_train, lam=hp["lam"])
+        if family_key == "student_t":
+            return _fit_student_t(Z_train, df=hp["df"], lam=hp["lam"])
+        if family_key == "gmm":
+            return _fit_gmm(Z_train, K=hp["K"], seed=seed)
+        if family_key == "kde":
+            return _fit_kde(Z_train, bw_factor=hp["bw_factor"])
+        raise ValueError(f"unknown family: {family_key}")
+
+    def _logp_dispatch(family_key, z, params):
+        if family_key == "gaussian":
+            return _logp_gaussian(z, params)
+        if family_key == "laplace":
+            return _logp_laplace(z, params)
+        if family_key == "student_t":
+            return _logp_student_t(z, params)
+        if family_key == "gmm":
+            return _logp_gmm(z, params)
+        if family_key == "kde":
+            return _logp_kde(z, params)
+        raise ValueError(f"unknown family: {family_key}")
+
+    # ==== Per-user eval (1 seed) ====
+    def _eval_user_set(user_set, family_key, hp, seed, fast=False):
+        """Returns dict[uid] -> {nll, mrr_random, mrr_hard, pair_acc, margin_random, auroc, margins_per_query}.
+
+        fast=True: skip ranking metrics, only NLL (used for Phase 1 HP sweep).
+        """
+        rng_s = np.random.default_rng(seed * 1000 + N_FIXED)
+        per_user = {}
+        for u in user_set:
+            pool = pool_idx[u]
+            if len(pool) < N_FIXED:
+                continue
+            sel = rng_s.choice(pool, size=N_FIXED, replace=False)
+            Z_train = Z[sel]
+            params = _fit_dispatch(family_key, Z_train, hp, seed)
+
+            pos = test_pos_z[u]
+            logp_pos = _logp_dispatch(family_key, pos, params)
+            nll = float((-logp_pos).mean())
+
+            if fast:
+                per_user[u] = {"nll": nll}
+                continue
+
+            # 20 queries in random pool
+            mrr_r_list, pa_list, margin_r_list, auroc_list = [], [], [], []
+            for j in range(N_TEST_POS):
+                pool_z = np.concatenate([[pos[j]], random_neg_z[u]], axis=0)
+                logp = _logp_dispatch(family_key, pool_z, params)
+                order = np.argsort(-logp)
+                rank = int(np.where(order == 0)[0][0])
+                mrr_r_list.append(1.0 / (rank + 1))
+                pa_list.append(float((logp[0] > logp[1:]).mean()))
+                margin_r_list.append(float(logp[0] - logp[1:].mean()))
+                # per-query AUROC: 1 pos vs 99 neg
+                y_q = np.array([1] + [0] * 99)
+                auroc_list.append(float(roc_auc_score(y_q, logp)))
+
+            # Hard pool MRR (no AUROC needed; just rank)
+            mrr_h_list = []
+            for j in range(N_TEST_POS):
+                pool_z = np.concatenate([[pos[j]], hard_neg_z[u]], axis=0)
+                logp = _logp_dispatch(family_key, pool_z, params)
+                order = np.argsort(-logp)
+                rank = int(np.where(order == 0)[0][0])
+                mrr_h_list.append(1.0 / (rank + 1))
+
+            auroc = float(np.mean(auroc_list))
+
+            per_user[u] = {
+                "nll": nll,
+                "mrr_random": float(np.mean(mrr_r_list)),
+                "mrr_hard": float(np.mean(mrr_h_list)),
+                "pair_acc": float(np.mean(pa_list)),
+                "margin_random": float(np.mean(margin_r_list)),
+                "auroc": auroc,
+                "_margins_per_query": np.array(margin_r_list),
+            }
+        return per_user
+
+    # ==== HP sweep on val set ====
+    log("\n[stage5b] === Phase 1: HP sweep on val set ===")
+    val_results = {}
+    for family_key, hp_list in HP_GRIDS.items():
+        log(f"\n  family={family_key}")
+        hp_perf = []
+        for hp in hp_list:
+            seed_nlls = []
+            for seed in range(N_SEEDS):
+                per_user = _eval_user_set(val_users, family_key, hp, seed, fast=True)
+                nlls = [per_user[u]["nll"] for u in val_users if u in per_user]
+                seed_nlls.append(float(np.mean(nlls)))
+            hp_perf.append({"hp": hp, "val_nll": float(np.mean(seed_nlls))})
+        hp_perf.sort(key=lambda x: x["val_nll"])
+        best = hp_perf[0]
+        log(f"    best HP: {best['hp']}  val_nll={best['val_nll']:.3f}")
+        for h in hp_perf:
+            mark = " ← best" if h is best else ""
+            log(f"      HP={h['hp']}  val_nll={h['val_nll']:.3f}{mark}")
+        val_results[family_key] = {"hp_grid": hp_perf, "best_hp": best["hp"]}
+
+    # ==== Final eval on test set ====
+    log("\n[stage5b] === Phase 2: Final test eval with best HP ===")
+    test_rows = []
+    # per-user mean margin per family (for bootstrap)
+    family_user_margin = {}
+    family_user_nll = {}
+
+    for family_key in HP_GRIDS:
+        best_hp = val_results[family_key]["best_hp"]
+        log(f"\n  family={family_key}  best HP={best_hp}")
+
+        # Collect across seeds
+        all_nll, all_mrr_r, all_mrr_h, all_pa, all_margin, all_auroc = [], [], [], [], [], []
+        per_seed_user_margin = []  # list of dict[uid] -> margin
+        per_seed_user_nll = []
+
+        for seed in range(N_SEEDS):
+            per_user = _eval_user_set(test_users, family_key, best_hp, seed)
+            seed_margin = {}
+            seed_nll = {}
+            for u in test_users:
+                if u not in per_user:
+                    continue
+                d = per_user[u]
+                all_nll.append(d["nll"])
+                all_mrr_r.append(d["mrr_random"])
+                all_mrr_h.append(d["mrr_hard"])
+                all_pa.append(d["pair_acc"])
+                all_margin.append(d["margin_random"])
+                all_auroc.append(d["auroc"])
+                seed_margin[u] = d["margin_random"]
+                seed_nll[u] = d["nll"]
+            per_seed_user_margin.append(seed_margin)
+            per_seed_user_nll.append(seed_nll)
+
+        # Per-user mean across seeds (for bootstrap)
+        user_keys = sorted(test_users)
+        user_mean_margin = {u: float(np.mean([pm[u] for pm in per_seed_user_margin if u in pm]))
+                            for u in user_keys}
+        user_mean_nll = {u: float(np.mean([pn[u] for pn in per_seed_user_nll if u in pn]))
+                         for u in user_keys}
+        family_user_margin[family_key] = user_mean_margin
+        family_user_nll[family_key] = user_mean_nll
+
+        row = {
+            "family": family_key,
+            "family_name": FAMILY_NAMES[family_key],
+            "best_hp": best_hp,
+            "nll_mean": float(np.mean(all_nll)),
+            "nll_std": float(np.std(all_nll)),
+            "mrr_random_mean": float(np.mean(all_mrr_r)),
+            "mrr_hard_mean": float(np.mean(all_mrr_h)),
+            "pair_acc_mean": float(np.mean(all_pa)),
+            "margin_mean": float(np.mean(all_margin)),
+            "margin_median": float(np.median(all_margin)),
+            "margin_p10": float(np.percentile(all_margin, 10)),
+            "margin_p25": float(np.percentile(all_margin, 25)),
+            "margin_p75": float(np.percentile(all_margin, 75)),
+            "margin_p90": float(np.percentile(all_margin, 90)),
+            "auroc_mean": float(np.mean(all_auroc)),
+            "auroc_std": float(np.std(all_auroc)),
+        }
+        test_rows.append(row)
+        log(f"    NLL={row['nll_mean']:.3f}±{row['nll_std']:.3f}  "
+            f"MedianMargin={row['margin_median']:.3f}  "
+            f"MRR_rand={row['mrr_random_mean']:.3f}  MRR_hard={row['mrr_hard_mean']:.3f}  "
+            f"AUROC={row['auroc_mean']:.4f}±{row['auroc_std']:.4f}  PairAcc={row['pair_acc_mean']:.4f}")
+
+    # ==== Bootstrap CI: per-user mean margin difference vs Gaussian ====
+    log("\n[stage5b] === Phase 3: Bootstrap CI vs Gaussian ===")
+    gaussian_user_margin = family_user_margin["gaussian"]
+    common_users = sorted(set(gaussian_user_margin.keys()) &
+                          set.intersection(*[set(m.keys()) for m in family_user_margin.values()]))
+    log(f"  common users for bootstrap: {len(common_users)}")
+
+    rng_boot = np.random.default_rng(42)
+    bootstrap_results = {}
+    for family_key in HP_GRIDS:
+        if family_key == "gaussian":
+            continue
+        diffs = np.array([family_user_margin[family_key][u] - gaussian_user_margin[u] for u in common_users])
+        mean_diff = float(np.mean(diffs))
+        # Bootstrap
+        boot_means = np.empty(N_BOOTSTRAP)
+        for b in range(N_BOOTSTRAP):
+            idx = rng_boot.integers(0, len(diffs), size=len(diffs))
+            boot_means[b] = float(np.mean(diffs[idx]))
+        ci_lo = float(np.percentile(boot_means, 2.5))
+        ci_hi = float(np.percentile(boot_means, 97.5))
+        significant = ci_lo > 0 or ci_hi < 0  # excludes 0
+        log(f"  {family_key:>10} vs gaussian: mean_diff={mean_diff:+.3f}  "
+            f"95%CI=[{ci_lo:+.3f}, {ci_hi:+.3f}]  {'SIG' if significant else 'n.s.'}")
+        bootstrap_results[family_key] = {
+            "mean_diff": mean_diff,
+            "ci_lo": ci_lo,
+            "ci_hi": ci_hi,
+            "significant": significant,
+            "n_users": len(common_users),
+        }
+
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage5b_fair_tuning.json"
+    with open(out, "w") as f:
+        json.dump({
+            "config": {
+                "N_FIXED": N_FIXED, "N_SEEDS": N_SEEDS,
+                "N_TEST_POS": N_TEST_POS, "N_RANDOM_NEG": N_RANDOM_NEG, "N_HARD_NEG": N_HARD_NEG,
+                "N_VAL_USERS": len(val_users), "N_TEST_USERS": len(test_users),
+                "SEED_USER_SPLIT": SEED_USER_SPLIT, "N_BOOTSTRAP": N_BOOTSTRAP,
+                "HP_GRIDS": {k: [dict(h) for h in v] for k, v in HP_GRIDS.items()},
+            },
+            "val_results": val_results,
+            "test_rows": test_rows,
+            "bootstrap_vs_gaussian": bootstrap_results,
+            "nll_min": min(r["nll_mean"] for r in test_rows),
+            "mrr_hard_max": max(r["mrr_hard_mean"] for r in test_rows),
+            "auroc_max": max(r["auroc_mean"] for r in test_rows),
+        }, f, indent=2)
+    log(f"\n[stage5b] 已写入 {out}")
+
+    log("\n[stage5b] === Summary (best HP per family) ===")
+    log(f"{'Family':<22} {'Best HP':<26} {'NLL':>8} {'MedMargin':>10} "
+        f"{'MRR_rand':>9} {'MRR_hard':>9} {'AUROC':>8} {'PairAcc':>8}")
+    for r in test_rows:
+        log(f"{r['family_name']:<22} {str(r['best_hp']):<26} "
+            f"{r['nll_mean']:>8.3f} {r['margin_median']:>10.3f} "
+            f"{r['mrr_random_mean']:>9.3f} {r['mrr_hard_mean']:>9.3f} "
+            f"{r['auroc_mean']:>8.4f} {r['pair_acc_mean']:>8.4f}")
+
+
 def main_syntax_subspace_stage4() -> None:
     """Stage 4: History-size Saturation Experiment (同一批用户, 冻结 PCA48 + 冻结 PC importance).
 
@@ -5984,6 +6409,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage4", help="Stage 4: History-size Saturation (冻结 PCA48, 同批用户, n∈5..25, 20 seeds)")
     sub.add_parser("syntax_subspace_stage4b", help="Stage 4B: Corrected candidate pool (20 pos + random/hard neg, PairAcc/Margin)")
     sub.add_parser("syntax_subspace_stage5", help="Stage 5: Distribution Family Selection (d*=48, n*=35 frozen, Gaussian/Laplace/Student-t/GMM/KDE)")
+    sub.add_parser("syntax_subspace_stage5b", help="Stage 5B: Fair HP tuning (50/50 val/test split) + ranking metrics (MRR/AUROC) + bootstrap CI vs Gaussian")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -6010,6 +6436,8 @@ def main() -> None:
         main_syntax_subspace_stage4b()
     elif cmd == "syntax_subspace_stage5":
         main_syntax_subspace_stage5()
+    elif cmd == "syntax_subspace_stage5b":
+        main_syntax_subspace_stage5b()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
