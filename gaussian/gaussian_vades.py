@@ -5487,6 +5487,328 @@ def main_syntax_subspace_stage4b() -> None:
             f"{r['rank1_random']:>7.4f} {r['rank1_hard']:>7.4f} {r['pair_acc']:>7.4f} {r['margin']:>7.4f}")
 
 
+def main_syntax_subspace_stage5() -> None:
+    """Stage 5: Distribution Family Selection (d*=48, n*=35 frozen).
+
+    冻结 PCA48 (Stage 1) + 冻结 n=35 (Stage 4B), 公平对比 5 种 distribution family:
+      1. Gaussian (diagonal, λ=0.3 shrinkage)
+      2. Laplace (diagonal, b = mean|x-mu|, λ=0.3)
+      3. Student-t (diagonal, df=5 fixed)
+      4. GMM K=2 (sklearn GaussianMixture, diag, reg_covar=1e-3)
+      5. KDE (sklearn KernelDensity, gaussian kernel, scott bandwidth)
+
+    与 Stage4B 区别:
+      - n 固定 35
+      - 循环 over family
+      - NLL/PairAcc/Margin 是核心 (NLL 是 distribution-fit 真信号)
+      - 输出 5-row 对比表
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.mixture import GaussianMixture
+    from sklearn.neighbors import KernelDensity
+    import scipy.special as sc
+
+    N_FIXED = 35
+    N_SEEDS = 20
+    N_TEST_POS = 20
+    N_RANDOM_NEG = 99
+    N_HARD_NEG = 25
+    N_EVAL_USERS = 2000
+    LAMBDA_SHRINK = 0.3
+    VAR_EPS = 1e-3
+    B_EPS = 1e-3
+    STUDENT_T_DF = 5
+    STAGE2_JSON = RESIDUAL_SCRATCH / "syntax_subspace_stage2_pc48.json"
+
+    P0 = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P0["X_scaled"][P0["train_idx"]])
+    scaler = P0["scaler"]
+    fnames = P0["feature_names_ordered"]
+    log(f"[stage5] 冻结 PCA48 fit (EV={pca.explained_variance_ratio_.sum():.4f})")
+
+    # 稠密数据
+    DENSE_SENTS = os.environ.get("PQ_SYNTAX_SENTS_DENSE",
+                                 str(RESIDUAL_SCRATCH / "sentences_for_rewrite_10k_dense.jsonl"))
+    DENSE_FEAT = os.environ.get("PQ_SYNTAX_FEAT_DENSE",
+                                str(RESIDUAL_SCRATCH / "sentences_318d_cache_dense.jsonl.gz"))
+    Pd = _syntax_subspace_prepare(sents_path=DENSE_SENTS, feat_cache_path=DENSE_FEAT,
+                                  feature_names_ordered=fnames)
+    X_raw = Pd["X"]
+    Z = pca.transform(scaler.transform(X_raw))
+    global_var = Z.var(axis=0)
+    user_to_indices = Pd["user_to_indices"]
+    user_id_list = Pd["user_id_list"]
+    log(f"[stage5] dense Z shape {Z.shape}")
+
+    cand_users = [u for u in user_id_list if len(user_to_indices[u]) >= (N_TEST_POS + N_FIXED)]
+    rng_sel = np.random.default_rng(2024)
+    eval_users = list(rng_sel.choice(cand_users, size=min(N_EVAL_USERS, len(cand_users)), replace=False))
+    eval_users = sorted(eval_users)
+    log(f"[stage5] eval users = {len(eval_users)} (cand ≥ {N_TEST_POS + N_FIXED} 共 {len(cand_users)})")
+
+    # 固定每用户 20 test positives (跨 seed 不变)
+    import hashlib as _hl
+    def _uid_seed(uid):
+        return int(_hl.md5(str(uid).encode()).hexdigest(), 16) % (2 ** 31)
+
+    test_pos_z = {}
+    pool_idx = {}
+    for u in eval_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(_uid_seed(u))
+        perm = rng_u.permutation(len(idx_u))
+        test_local = perm[:N_TEST_POS]
+        train_local = perm[N_TEST_POS:]
+        test_pos_z[u] = Z[idx_u[test_local]]
+        pool_idx[u] = list(idx_u[train_local])
+
+    all_eval_z = np.concatenate([Z[user_to_indices[u]] for u in eval_users], axis=0)
+    all_eval_uid = np.concatenate([np.array([u] * len(user_to_indices[u])) for u in eval_users])
+    log(f"[stage5] all_eval_z {all_eval_z.shape}")
+
+    rng_neg = np.random.default_rng(7777)
+    random_neg_z = {}
+    for u in eval_users:
+        mask = all_eval_uid != u
+        cand_z = all_eval_z[mask]
+        sel = rng_neg.choice(len(cand_z), size=min(N_RANDOM_NEG, len(cand_z)), replace=False)
+        random_neg_z[u] = cand_z[sel]
+    log(f"[stage5] random_neg 已采样 ({N_RANDOM_NEG} neg/user)")
+
+    hard_neg_z = {}
+    for u in eval_users:
+        pos_center = test_pos_z[u].mean(axis=0)
+        d = np.linalg.norm(random_neg_z[u] - pos_center[None, :], axis=1)
+        order = np.argsort(d)
+        hard_neg_z[u] = random_neg_z[u][order[:N_HARD_NEG]]
+    log(f"[stage5] hard_neg 已选 ({N_HARD_NEG} neg/user)")
+
+    # ====== Family-specific fit + logp ======
+
+    # 1. Gaussian (diagonal, shrinkage λ)
+    def _fit_gaussian(Z_train):
+        n, d = Z_train.shape
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - LAMBDA_SHRINK) * sample_var + LAMBDA_SHRINK * global_var
+        else:
+            var = global_var.copy()
+        var = np.maximum(var, VAR_EPS)
+        return {"mu": mu, "var": var}
+
+    def _logp_gaussian(z, params):
+        mu, var = params["mu"], params["var"]
+        d = z.shape[1]
+        return -0.5 * (np.log(2 * np.pi * var).sum() + ((z - mu[None, :]) ** 2 / var[None, :]).sum(axis=1))
+
+    # 2. Laplace (diagonal, b scale)
+    global_b = np.mean(np.abs(Z - Z.mean(axis=0)[None, :]), axis=0)
+
+    def _fit_laplace(Z_train):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_b = np.mean(np.abs(Z_train - mu[None, :]), axis=0)
+            b = (1 - LAMBDA_SHRINK) * sample_b + LAMBDA_SHRINK * global_b
+        else:
+            b = global_b.copy()
+        b = np.maximum(b, B_EPS)
+        return {"mu": mu, "b": b}
+
+    def _logp_laplace(z, params):
+        mu, b = params["mu"], params["b"]
+        return -np.log(2 * b).sum() - (np.abs(z - mu[None, :]) / b[None, :]).sum(axis=1)
+
+    # 3. Student-t (diagonal, df fixed = 5)
+    def _fit_student_t(Z_train):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - LAMBDA_SHRINK) * sample_var + LAMBDA_SHRINK * global_var
+        else:
+            var = global_var.copy()
+        var = np.maximum(var, VAR_EPS)
+        return {"mu": mu, "var": var, "df": STUDENT_T_DF}
+
+    def _logp_student_t(z, params):
+        mu, var, df = params["mu"], params["var"], params["df"]
+        df_half = df / 2
+        diff_sq = (z - mu[None, :]) ** 2 / var[None, :]
+        # logp per dim, sum across dims
+        logp_per_dim = (
+            sc.gammaln((df + 1) / 2) - sc.gammaln(df_half)
+            - 0.5 * np.log(df * np.pi * var)
+            - (df + 1) / 2 * np.log(1 + diff_sq / df)
+        )
+        return logp_per_dim.sum(axis=1)
+
+    # 4. GMM K=2 (diagonal Gaussian via sklearn)
+    def _fit_gmm(Z_train, seed=0):
+        gmm = GaussianMixture(
+            n_components=2, covariance_type="diag",
+            max_iter=50, random_state=seed,
+            reg_covar=VAR_EPS, init_params="kmeans",
+        )
+        gmm.fit(Z_train)
+        return gmm
+
+    def _logp_gmm(z, gmm):
+        return gmm.score_samples(z)
+
+    # 5. KDE (sklearn KernelDensity, gaussian, scott bandwidth)
+    def _fit_kde(Z_train):
+        kde = KernelDensity(kernel="gaussian", bandwidth="scott")
+        kde.fit(Z_train)
+        return kde
+
+    def _logp_kde(z, kde):
+        return kde.score_samples(z)
+
+    FAMILIES = [
+        ("gaussian",  "Gaussian (diag, λ=0.3)",          _fit_gaussian,  _logp_gaussian),
+        ("laplace",   "Laplace (diag, λ=0.3)",           _fit_laplace,   _logp_laplace),
+        ("student_t", "Student-t (diag, df=5, λ=0.3)",   _fit_student_t, _logp_student_t),
+        ("gmm2",      "GMM K=2 (diag Gaussian)",         None,           None),  # special-case below
+        ("kde",       "KDE (gaussian, scott bw)",         None,           None),  # special-case below
+    ]
+
+    def _fit_dispatch(family_key, Z_train, seed=0):
+        if family_key == "gaussian":
+            return _fit_gaussian(Z_train)
+        if family_key == "laplace":
+            return _fit_laplace(Z_train)
+        if family_key == "student_t":
+            return _fit_student_t(Z_train)
+        if family_key == "gmm2":
+            return _fit_gmm(Z_train, seed=seed)
+        if family_key == "kde":
+            return _fit_kde(Z_train)
+        raise ValueError(f"unknown family: {family_key}")
+
+    def _logp_dispatch(family_key, z, params):
+        if family_key == "gaussian":
+            return _logp_gaussian(z, params)
+        if family_key == "laplace":
+            return _logp_laplace(z, params)
+        if family_key == "student_t":
+            return _logp_student_t(z, params)
+        if family_key == "gmm2":
+            return _logp_gmm(z, params)
+        if family_key == "kde":
+            return _logp_kde(z, params)
+        raise ValueError(f"unknown family: {family_key}")
+
+    # 主循环: family × seed × user
+    rows = []
+    for family_key, family_name, _, _ in FAMILIES:
+        log(f"\n[stage5] === family={family_key} ({family_name}) ===")
+        per_seed = {"nll": [], "pair_acc": [], "margin": []}
+        for seed in range(N_SEEDS):
+            rng_s = np.random.default_rng(seed * 1000 + N_FIXED)
+            params_all = {}
+            for u in eval_users:
+                pool = pool_idx[u]
+                if len(pool) < N_FIXED:
+                    continue
+                sel = rng_s.choice(pool, size=N_FIXED, replace=False)
+                Z_train = Z[sel]
+                params_all[u] = _fit_dispatch(family_key, Z_train, seed=seed)
+
+            # NLL on held-out positives
+            nlls = []
+            for u in eval_users:
+                if u not in params_all:
+                    continue
+                pos = test_pos_z[u]
+                logp = _logp_dispatch(family_key, pos, params_all[u])
+                nlls.extend((-logp).tolist())
+            m_nll = float(np.mean(nlls))
+            per_seed["nll"].append(m_nll)
+
+            # PairAcc + Margin: 1 pos + 99 neg
+            pair_acc_all, margin_all = [], []
+            for u in eval_users:
+                if u not in params_all:
+                    continue
+                pos = test_pos_z[u]
+                params = params_all[u]
+                for j in range(N_TEST_POS):
+                    q_pos = pos[j]
+                    pool_z = np.concatenate([[q_pos], random_neg_z[u]], axis=0)
+                    logp = _logp_dispatch(family_key, pool_z, params)
+                    pair_acc_all.append(float((logp[0] > logp[1:]).mean()))
+                    margin_all.append(float(logp[0] - logp[1:].mean()))
+            per_seed["pair_acc"].append(float(np.mean(pair_acc_all)))
+            per_seed["margin"].append(float(np.mean(margin_all)))
+
+        row = {
+            "family": family_key,
+            "family_name": family_name,
+            "nll": float(np.mean(per_seed["nll"])),
+            "nll_se": float(np.std(per_seed["nll"]) / np.sqrt(N_SEEDS)),
+            "pair_acc": float(np.mean(per_seed["pair_acc"])),
+            "pair_acc_se": float(np.std(per_seed["pair_acc"]) / np.sqrt(N_SEEDS)),
+            "margin": float(np.mean(per_seed["margin"])),
+            "margin_se": float(np.std(per_seed["margin"]) / np.sqrt(N_SEEDS)),
+        }
+        rows.append(row)
+        log(f"  NLL={row['nll']:.3f}±{row['nll_se']:.3f}  "
+            f"PairAcc={row['pair_acc']:.4f}±{row['pair_acc_se']:.4f}  "
+            f"Margin={row['margin']:.4f}±{row['margin_se']:.4f}")
+
+    # 决策 best family: NLL 最低 + Margin 最高
+    nll_min = min(r["nll"] for r in rows)
+    margin_max = max(r["margin"] for r in rows)
+    pair_max = max(r["pair_acc"] for r in rows)
+
+    log(f"\n[stage5] NLL_min={nll_min:.3f}  PairAcc_max={pair_max:.4f}  Margin_max={margin_max:.4f}")
+
+    # Best family = min NLL (核心分布拟合指标)
+    best_family = min(rows, key=lambda r: r["nll"])["family"]
+    log(f"[stage5] best family (NLL) = {best_family}")
+
+    # 决策规则: 同时满足 NLL ≤ 5%·range AND PairAcc ≥ 95%·max
+    nll_5 = rows[0]["nll"] - nll_min  # 用第一行 (Gaussian baseline) 作参考
+    # 实际应是 max - min
+    nll_range = max(r["nll"] for r in rows) - nll_min
+    cand_families = []
+    for r in rows:
+        cond1 = (r["nll"] - nll_min) <= 0.10 * nll_range if nll_range > 0 else True
+        cond2 = r["pair_acc"] >= 0.95 * pair_max
+        if cond1 and cond2:
+            cand_families.append(r["family"])
+    log(f"[stage5] families in 10% NLL range AND 95% PairAcc: {cand_families}")
+
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage5_distribution_family.json"
+    with open(out, "w") as f:
+        json.dump({
+            "config": {
+                "N_FIXED": N_FIXED, "N_SEEDS": N_SEEDS,
+                "N_TEST_POS": N_TEST_POS, "N_RANDOM_NEG": N_RANDOM_NEG, "N_HARD_NEG": N_HARD_NEG,
+                "LAMBDA_SHRINK": LAMBDA_SHRINK, "VAR_EPS": VAR_EPS, "STUDENT_T_DF": STUDENT_T_DF,
+                "n_eval_users": len(eval_users),
+                "families": [f[0] for f in FAMILIES],
+            },
+            "rows": rows,
+            "nll_min": nll_min,
+            "margin_max": margin_max,
+            "pair_acc_max": pair_max,
+            "best_family_nll": best_family,
+            "candidate_families": cand_families,
+        }, f, indent=2)
+    log(f"\n[stage5] 已写入 {out}")
+
+    log("\n[stage5] === Summary (family vs metrics) ===")
+    log(f"{'Family':<28} {'NLL':>9} {'±SE':>6} {'PairAcc':>9} {'±SE':>6} {'Margin':>9} {'±SE':>6}")
+    for r in rows:
+        log(f"{r['family_name']:<28} {r['nll']:>9.3f} {r['nll_se']:>6.3f} "
+            f"{r['pair_acc']:>9.4f} {r['pair_acc_se']:>6.4f} "
+            f"{r['margin']:>9.4f} {r['margin_se']:>6.4f}")
+
+
 def main_syntax_subspace() -> None:
     """Syntax Subspace Selection Experiment — Stage 1: 9 维度 scan (Q1: 多少维足够).
 
@@ -5661,6 +5983,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage3a", help="Stage 3A: PC48-96 增量 syntax/content 分析 + PC0 长度控制 sanity")
     sub.add_parser("syntax_subspace_stage4", help="Stage 4: History-size Saturation (冻结 PCA48, 同批用户, n∈5..25, 20 seeds)")
     sub.add_parser("syntax_subspace_stage4b", help="Stage 4B: Corrected candidate pool (20 pos + random/hard neg, PairAcc/Margin)")
+    sub.add_parser("syntax_subspace_stage5", help="Stage 5: Distribution Family Selection (d*=48, n*=35 frozen, Gaussian/Laplace/Student-t/GMM/KDE)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -5685,6 +6008,8 @@ def main() -> None:
         main_syntax_subspace_stage4()
     elif cmd == "syntax_subspace_stage4b":
         main_syntax_subspace_stage4b()
+    elif cmd == "syntax_subspace_stage5":
+        main_syntax_subspace_stage5()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
