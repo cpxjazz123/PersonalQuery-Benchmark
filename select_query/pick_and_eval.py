@@ -84,8 +84,15 @@ def stage1_pick_best() -> list[dict]:
     # PCA
     if PCA_OUT.exists():
         pca_data = np.load(PCA_OUT, allow_pickle=True)
-        components = {int(k): v for k, v in pca_data["components"].item().items()}
-        means = {int(k): v for k, v in pca_data["means"].item().items()}
+        comp_arr = pca_data["components"]
+        mean_arr = pca_data["means"]
+        # Old dict format: {dim: array}; new array format: (dim, hidden)
+        if comp_arr.ndim == 1 and isinstance(comp_arr.item(), dict):
+            components = {int(k): v for k, v in comp_arr.item().items()}
+            means = {int(k): v for k, v in mean_arr.item().items()}
+        else:
+            components = {PCA_D: comp_arr.astype(np.float32)}
+            means = {PCA_D: mean_arr.astype(np.float32)}
     else:
         from sklearn.decomposition import PCA
         X = all_resids.astype(np.float32)
@@ -94,8 +101,8 @@ def stage1_pick_best() -> list[dict]:
         components = {PCA_D: pca.components_.astype(np.float32)}
         means = {PCA_D: pca.mean_.astype(np.float32)}
         np.savez_compressed(PCA_OUT,
-                            components=np.array([{PCA_D: components[PCA_D]}], dtype=object),
-                            means=np.array([{PCA_D: means[PCA_D]}], dtype=object))
+                            components=comp_arr,
+                            means=mean_arr)
         print(f"[PCA] explained_var={pca.explained_variance_ratio_.sum():.3f}")
 
     # Project users
@@ -301,8 +308,14 @@ def stage3_eval_rank1(results: list[dict]) -> None:
 
     # Load PCA
     pca_data = np.load(PCA_OUT, allow_pickle=True)
-    components = {int(k): v for k, v in pca_data["components"].item().items()}
-    means = {int(k): v for k, v in pca_data["means"].item().items()}
+    comp_arr = pca_data["components"]
+    mean_arr = pca_data["means"]
+    if comp_arr.ndim == 1 and isinstance(comp_arr.item(), dict):
+        components = {int(k): v for k, v in comp_arr.item().items()}
+        means = {int(k): v for k, v in mean_arr.item().items()}
+    else:
+        components = {PCA_D: comp_arr.astype(np.float32)}
+        means = {PCA_D: mean_arr.astype(np.float32)}
 
     # Build user residual profiles from residuals.npz
     cache = np.load(RESIDUAL_NPZ, allow_pickle=True)
