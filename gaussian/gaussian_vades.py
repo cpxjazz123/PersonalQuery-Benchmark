@@ -137,7 +137,8 @@ if COVARIANCE_MODE not in VALID_COVARIANCE_MODES:
         f"VADES_COVARIANCE_MODE 必须是 {sorted(VALID_COVARIANCE_MODES)} 之一, 得到 {COVARIANCE_MODE}"
     )
 
-# === diagonal_residual_llm 模式专用常量 ===
+# === diagonal_residual / diagonal_residual_llm 模式专用常量 ===
+RESIDUAL_SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 RESIDUAL_HIDDEN_NPZ = os.environ.get(
     "VADES_RESIDUAL_HIDDEN_NPZ",
     "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/residual_hidden.npz",
@@ -1107,8 +1108,16 @@ def build_candidate_feature_rows_from_raw_query_file(raw_rows: list[dict]) -> li
 
 
 def build_training_dataset(sentence_rows: list[dict], feature_names: list[str]) -> tuple[list[str], dict]:
+    def _conv(v):
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        try:
+            return float(s) if s else 0.0
+        except ValueError:
+            return 0.0  # 跳过 string fields 如 "opener", "stype"
     feature_matrix = np.asarray(
-        [[float(row["features"][name]) for name in feature_names] for row in sentence_rows],
+        [[_conv(row["features"].get(name, 0.0)) for name in feature_names] for row in sentence_rows],
         dtype=np.float64,
     )
     scaler = StandardScaler()
@@ -3384,7 +3393,48 @@ def main_train() -> None:
     filter_users_with_duplicate_reviews()
     user_rows = load_filtered_user_reviews()
 
-    if SENTENCE_EXTRACT_CACHE_FILE.exists():
+    if COVARIANCE_MODE == "diagonal_residual":
+        # 对角 residual 模式：直接对用户原始评论提取 318d 句法特征
+        spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
+        feat_cache = RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
+        if not spacy_sents.exists():
+            raise FileNotFoundError(f"diagonal_residual 模式需要: {spacy_sents}")
+        log(f"[diagonal_residual] 加载 spaCy 句子: {spacy_sents}")
+        import hashlib
+        import gzip
+        feat_map = {}
+        if feat_cache.exists():
+            with gzip.open(feat_cache, "rt", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    rec = json.loads(line)
+                    feat_map[rec["k"]] = rec["v"]
+            log(f"[diagonal_residual] 加载 318d 特征缓存: {len(feat_map)} 条")
+        else:
+            log(f"[diagonal_residual] 警告: 特征缓存不存在: {feat_cache}，将用 zero features")
+        sents_raw = load_jsonl(spacy_sents)
+        sentence_rows = []
+        for row in sents_raw:
+            text = row.get("sentence_text", "")
+            k = hashlib.sha1(text.strip().lower().encode("utf-8")).hexdigest()
+            feats = feat_map.get(k, {})
+            sentence_rows.append({**row, "features": feats})
+        # feature_names 从第一条有特征的记录获取
+        sample = next((r for r in sentence_rows if r["features"]), None)
+        feature_names = list(sample["features"].keys()) if sample else []
+        log(f"[diagonal_residual] 构建 sentence_rows: {len(sentence_rows)} 条, feat_dim={len(feature_names)}")
+        user_rows = None  # 跳过 extract_first_twenty_sentences_for_users
+
+    elif COVARIANCE_MODE == "diagonal_residual_llm":
+        # 跳过 regex/spacy 句法提取，直接加载 spaCy 产出的 sentences
+        spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
+        if not spacy_sents.exists():
+            raise FileNotFoundError(f"diagonal_residual 模式需要: {spacy_sents}")
+        log(f"[{COVARIANCE_MODE}] 加载 spaCy 句子: {spacy_sents}")
+        sentence_rows = load_jsonl(spacy_sents)
+    elif SENTENCE_EXTRACT_CACHE_FILE.exists():
         log(f"已存在提取的句子缓存, 跳过抽取: {SENTENCE_EXTRACT_CACHE_FILE}")
         sentence_rows = load_jsonl(SENTENCE_EXTRACT_CACHE_FILE)
     else:
@@ -3413,10 +3463,16 @@ def main_train() -> None:
     # 因为下游 build_training_dataset 需要 row["features"] 结构才能跑;我们在 residual_llm 分支
     # 里会 OVERWRITE dataset["scaled_features"] / dataset["feature_matrix"],所以这里的 dummy
     # 1-dim zero feature 只为满足接口,不影响实际训练。
-    if COVARIANCE_MODE == "diagonal_residual_llm":
-        log("[diagonal_residual_llm] 跳过 318d 句法特征提取 (spacy), 直接进入 Qwen residual 加载阶段")
-        feature_rows = [{"features": {"__residual_dummy__": 0.0}, **row} for row in sentence_rows]
-        feature_names = ["__residual_dummy__"]
+    if COVARIANCE_MODE in {"diagonal_residual_llm", "diagonal_residual"}:
+        if COVARIANCE_MODE == "diagonal_residual_llm":
+            log("[diagonal_residual_llm] 跳过 318d 句法特征提取, 直接进入 Qwen residual 加载阶段")
+            feature_rows = [{"features": {"__residual_dummy__": 0.0}, **row} for row in sentence_rows]
+            feature_names = ["__residual_dummy__"]
+        else:
+            # diagonal_residual: sentence_rows 已在上面注入 318d features
+            log("[diagonal_residual] 使用已注入的 318d 特征")
+            feature_rows = sentence_rows
+            # feature_names 已在上面确定
     else:
         feature_rows, feature_names = build_sentence_feature_rows(sentence_rows)
     # ==== candidate query: residual_llm 模式同样跳过 318d 提取, 占位 features (后续 npz load 后再注入 3584 dim) ====
@@ -3456,6 +3512,10 @@ def main_train() -> None:
                 log(f"[diagonal_residual_llm] 候选按 MAX_USERS 裁剪: {len(candidate_rows)} → {len(kept)} 候选 ({len(seen)} 用户)")
                 candidate_rows = kept
         log(f"[diagonal_residual_llm] 加载 {len(candidate_rows)} 候选 query (无 318d 特征)")
+    elif COVARIANCE_MODE == "diagonal_residual":
+        # diagonal_residual 暂不生成候选 query，设为空列表
+        candidate_rows = []
+        log("[diagonal_residual] 候选 query 暂为空，跳过候选 query 加载")
     else:
         candidate_rows = load_candidate_query_rows()
     user_ids, dataset = build_training_dataset(feature_rows, feature_names)
@@ -3608,17 +3668,24 @@ def main_train() -> None:
         user_index_tensor=torch.as_tensor(dataset["user_indices"], dtype=torch.long, device=DEVICE),
     )
 
-    selected_records, rejected_records = rank_and_select_queries(
-        candidate_rows,
-        sentence_output,
-        user_profile_rows,
-        feature_names,
-        user_table,
-        DEVICE,
-        encoder,
-        covariance_mode=COVARIANCE_MODE,
-        abs_threshold_value=calibration_summary["abs_threshold_value"],
-        max_rounds=REGENERATION_MAX_ROUNDS,
+    if COVARIANCE_MODE == "diagonal_residual":
+        log("[diagonal_residual] 跳过候选 query ranking（无候选 query）")
+        selected_records, rejected_records = [], []
+    elif candidate_rows is None or len(candidate_rows) == 0:
+        log("candidate_rows 为空，跳过 ranking 阶段")
+        selected_records, rejected_records = [], []
+    else:
+        selected_records, rejected_records = rank_and_select_queries(
+            candidate_rows,
+            sentence_output,
+            user_profile_rows,
+            feature_names,
+            user_table,
+            DEVICE,
+            encoder,
+            covariance_mode=COVARIANCE_MODE,
+            abs_threshold_value=calibration_summary["abs_threshold_value"],
+            max_rounds=REGENERATION_MAX_ROUNDS,
         candidates_per_round=CANDIDATES_PER_ROUND,
         selected_record_file=SELECTED_RECORD_FILE,
         rejected_record_file=REJECTED_RECORD_FILE,
