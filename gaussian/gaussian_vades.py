@@ -5414,6 +5414,365 @@ def main_syntax_subspace_stage5b() -> None:
             f"{r['auroc_mean']:>8.4f} {r['pair_acc_mean']:>8.4f}")
 
 
+def main_syntax_subspace_stage5c() -> None:
+    """Stage 5C: Latent Style Gaussianity via aggregation.
+
+    建模对象转换:不再拟合"单句 residual" z_{u,i},而是拟合"用户稳定风格状态"。
+    设 z_{u,i} = s_u + ε_{u,i}; 多个独立表达平均 s̄ = (1/m) Σ z_{u,i} 在 m 增大时
+    由 multivariate CLT 渐近 Gaussian。
+
+    m ∈ {1, 2, 3, 5, 7, 10}:
+      m=1  单句(对照 Stage 5B;预计 Laplace 最优)
+      m≥2  m 条历史评论平均作为 latent style state
+
+    每个用户:
+      train 35 条 → bootstrap B=200 个 m-means → fit families
+      held-out 20 条 → bootstrap B_test=50 个 m-means → eval NLL
+
+    5 families 同 Stage 5B(Gaussian / Laplace / Student-t / GMM K∈{1,2,3} / KDE bw×{0.5..2.0})
+    Gaussianity(只对 Gaussian):
+      Q-Q corr vs χ²_48
+      95% coverage error: P(D² ≤ χ²_{48,.95}) - 0.95
+      seed std(20 seeds,稳定性)
+
+    找 m* = min m 使得:
+      (a) Gaussian held-out NLL 最低或并列最低
+      (b) Q-Q corr ≥ .95
+      (c) |coverage_95 - 0.95| ≤ 5pp
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.mixture import GaussianMixture
+    from sklearn.neighbors import KernelDensity
+    from scipy import stats as sst
+    from scipy.special import gammaln
+    import hashlib as _hl
+
+    N_FIXED = 35
+    N_TEST = 20
+    M_LIST = [1, 2, 3, 5, 7, 10]
+    B_BOOT_TRAIN = 200
+    B_BOOT_TEST = 50
+    N_SEEDS = 10
+    N_VAL_USERS = 30
+    N_TEST_USERS = 30
+    VAR_EPS = 1e-3
+    B_EPS = 1e-3
+    SEED_USER_SPLIT = 2024
+
+    # ==== Data + PCA48 (frozen, 与 Stage 5B 共用) ====
+    P0 = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P0["X_scaled"][P0["train_idx"]])
+    scaler = P0["scaler"]
+    fnames = P0["feature_names_ordered"]
+    log(f"[stage5c] 冻结 PCA48 fit (EV={pca.explained_variance_ratio_.sum():.4f})")
+
+    DENSE_SENTS = os.environ.get("PQ_SYNTAX_SENTS_DENSE",
+                                 str(RESIDUAL_SCRATCH / "sentences_for_rewrite_10k_dense.jsonl"))
+    DENSE_FEAT = os.environ.get("PQ_SYNTAX_FEAT_DENSE",
+                                str(RESIDUAL_SCRATCH / "sentences_318d_cache_dense.jsonl.gz"))
+    Pd = _syntax_subspace_prepare(sents_path=DENSE_SENTS, feat_cache_path=DENSE_FEAT,
+                                  feature_names_ordered=fnames)
+    X_raw = Pd["X"]
+    Z = pca.transform(scaler.transform(X_raw))
+    global_var = Z.var(axis=0)
+    user_to_indices = Pd["user_to_indices"]
+    user_id_list = Pd["user_id_list"]
+    log(f"[stage5c] dense Z shape {Z.shape}")
+
+    cand_users = sorted([u for u in user_id_list if len(user_to_indices[u]) >= (N_TEST + N_FIXED)])
+    log(f"[stage5c] cand_users: {len(cand_users)}")
+
+    rng_split = np.random.default_rng(SEED_USER_SPLIT)
+    perm = rng_split.permutation(len(cand_users))
+    val_users = sorted([cand_users[i] for i in perm[:N_VAL_USERS]])
+    test_users = sorted([cand_users[i] for i in perm[N_VAL_USERS:N_VAL_USERS + N_TEST_USERS]])
+    log(f"[stage5c] val_users={len(val_users)}  test_users={len(test_users)}")
+
+    all_users = sorted(set(val_users) | set(test_users))
+
+    def _uid_seed(uid):
+        return int(_hl.md5(str(uid).encode()).hexdigest(), 16) % (2 ** 31)
+
+    # Per-user: train(35) / held-out(20) split
+    train_z, test_z = {}, {}
+    for u in all_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(_uid_seed(u))
+        perm_u = rng_u.permutation(len(idx_u))
+        train_z[u] = Z[idx_u[perm_u[:N_FIXED]]]
+        test_z[u] = Z[idx_u[perm_u[N_FIXED:N_FIXED + N_TEST]]]
+
+    # ==== Aggregation m-means ====
+    agg_train = {m: {} for m in M_LIST}
+    agg_test = {m: {} for m in M_LIST}
+    for m in M_LIST:
+        for u in all_users:
+            rng_b = np.random.default_rng(_uid_seed(u) + m * 31)
+            n_t = train_z[u].shape[0]
+            idx_train = rng_b.integers(0, n_t, size=(B_BOOT_TRAIN, m))
+            agg_train[m][u] = train_z[u][idx_train].mean(axis=1)
+            n_v = test_z[u].shape[0]
+            idx_test = rng_b.integers(0, n_v, size=(B_BOOT_TEST, m))
+            agg_test[m][u] = test_z[u][idx_test].mean(axis=1)
+    log(f"[stage5c] aggregation ready: m={M_LIST}  B_train={B_BOOT_TRAIN}  B_test={B_BOOT_TEST}")
+
+    # ==== Family fit + logp ====
+    global_b = np.mean(np.abs(Z - Z.mean(axis=0)[None, :]), axis=0)
+
+    def _fit_gaussian(Z_train, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - lam) * sample_var + lam * global_var
+        else:
+            var = global_var.copy()
+        return {"mu": mu, "var": np.maximum(var, VAR_EPS)}
+
+    def _logp_gaussian(z, p):
+        mu, var = p["mu"], p["var"]
+        return -0.5 * (np.log(2 * np.pi * var).sum()
+                       + ((z - mu[None, :]) ** 2 / var[None, :]).sum(axis=1))
+
+    def _fit_laplace(Z_train, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_b = np.mean(np.abs(Z_train - mu[None, :]), axis=0)
+            b = (1 - lam) * sample_b + lam * global_b
+        else:
+            b = global_b.copy()
+        return {"mu": mu, "b": np.maximum(b, B_EPS)}
+
+    def _logp_laplace(z, p):
+        mu, b = p["mu"], p["b"]
+        diff = np.abs(z - mu[None, :]) / b[None, :]
+        return -np.log(2 * b[None, :]).sum(axis=1) - diff.sum(axis=1)
+
+    def _fit_student_t(Z_train, df, lam):
+        n = Z_train.shape[0]
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var = (1 - lam) * sample_var + lam * global_var
+        else:
+            var = global_var.copy()
+        return {"mu": mu, "var": np.maximum(var, VAR_EPS), "df": df}
+
+    def _logp_student_t(z, p):
+        mu, var, df = p["mu"], p["var"], p["df"]
+        d = mu.shape[0]
+        z_std = (z - mu[None, :]) / np.sqrt(var[None, :])
+        quad = (z_std ** 2).sum(axis=1)
+        log_norm = (gammaln(0.5 * (df + d)) - gammaln(0.5 * df)
+                    - 0.5 * d * np.log(df * np.pi)
+                    - 0.5 * np.log(var).sum())
+        log_kernel = -0.5 * (df + d) * np.log(1.0 + quad / df)
+        return log_norm + log_kernel
+
+    def _fit_gmm(Z_train, K, seed):
+        gmm = GaussianMixture(
+            n_components=K, covariance_type="diag",
+            max_iter=50, random_state=seed,
+            reg_covar=VAR_EPS, init_params="kmeans",
+        )
+        gmm.fit(Z_train)
+        return gmm
+
+    def _logp_gmm(z, gmm):
+        return gmm.score_samples(z)
+
+    def _fit_kde(Z_train, bw_factor):
+        n, d = Z_train.shape
+        sigma = float(Z_train.std(axis=0).mean())
+        scott_bw = np.power(n, -1.0 / (d + 4)) * sigma
+        bw = scott_bw * bw_factor
+        kde = KernelDensity(kernel="gaussian", bandwidth=float(bw))
+        kde.fit(Z_train)
+        return kde
+
+    def _logp_kde(z, kde):
+        return kde.score_samples(z)
+
+    def _fit_dispatch(family_key, Z_train, hp, seed):
+        if family_key == "gaussian":
+            return _fit_gaussian(Z_train, lam=hp["lam"])
+        if family_key == "laplace":
+            return _fit_laplace(Z_train, lam=hp["lam"])
+        if family_key == "student_t":
+            return _fit_student_t(Z_train, df=hp["df"], lam=hp["lam"])
+        if family_key == "gmm":
+            return _fit_gmm(Z_train, K=hp["K"], seed=seed)
+        if family_key == "kde":
+            return _fit_kde(Z_train, bw_factor=hp["bw_factor"])
+        raise ValueError(f"unknown family: {family_key}")
+
+    def _logp_dispatch(family_key, z, params):
+        if family_key == "gaussian":
+            return _logp_gaussian(z, params)
+        if family_key == "laplace":
+            return _logp_laplace(z, params)
+        if family_key == "student_t":
+            return _logp_student_t(z, params)
+        if family_key == "gmm":
+            return _logp_gmm(z, params)
+        if family_key == "kde":
+            return _logp_kde(z, params)
+        raise ValueError(f"unknown family: {family_key}")
+
+    HP_GRIDS = {
+        "gaussian":  [{"lam": l} for l in [0.1, 0.3, 0.5, 0.7]],
+        "laplace":   [{"lam": l} for l in [0.1, 0.3, 0.5, 0.7]],
+        "student_t": [{"df": d, "lam": 0.3} for d in [3, 5, 10, 20, 50, 100]],
+        "gmm":       [{"K": k} for k in [1, 2, 3]],
+        "kde":       [{"bw_factor": b} for b in [0.5, 0.75, 1.0, 1.5, 2.0]],
+    }
+
+    def _eval_user_m(user, family_key, hp, seed, m, return_gaussianity=False):
+        Z_train = agg_train[m][user]
+        Z_test = agg_test[m][user]
+        params = _fit_dispatch(family_key, Z_train, hp, seed)
+        logp_test = _logp_dispatch(family_key, Z_test, params)
+        nll = float((-logp_test).mean())
+        result = {
+            "nll": nll,
+            "logp_test_mean": float(logp_test.mean()),
+            "logp_test_std": float(logp_test.std()),
+        }
+        if return_gaussianity and family_key == "gaussian":
+            mu = params["mu"]
+            var = params["var"]
+            d = mu.shape[0]
+            z_centered = (Z_test - mu[None, :]) / np.sqrt(var[None, :])
+            D_sq = (z_centered ** 2).sum(axis=1)
+            sorted_D = np.sort(D_sq)
+            n_qq = len(sorted_D)
+            probs = (np.arange(n_qq) + 0.5) / n_qq
+            chi_q = sst.chi2.ppf(probs, df=d)
+            qq_corr = float(np.corrcoef(sorted_D, chi_q)[0, 1])
+            chi2_95 = sst.chi2.ppf(0.95, df=d)
+            coverage_95 = float(np.mean(D_sq <= chi2_95))
+            result["qq_corr"] = qq_corr
+            result["coverage_95"] = coverage_95
+            result["D_sq_median"] = float(np.median(D_sq))
+            result["D_sq_mean"] = float(np.mean(D_sq))
+        return result
+
+    # ==== Phase 1: HP sweep on val set per m ====
+    log("\n[stage5c] === Phase 1: HP sweep on val set per m ===")
+    val_hp_results = {m: {} for m in M_LIST}
+
+    for m in M_LIST:
+        log(f"\n  === m={m} ===")
+        for family_key, hp_list in HP_GRIDS.items():
+            hp_perf = []
+            for hp in hp_list:
+                seed_nlls = []
+                for seed in range(N_SEEDS):
+                    seed_nll = []
+                    for u in val_users:
+                        r = _eval_user_m(u, family_key, hp, seed, m)
+                        seed_nll.append(r["nll"])
+                    seed_nlls.append(float(np.mean(seed_nll)))
+                hp_perf.append({"hp": hp, "val_nll": float(np.mean(seed_nlls))})
+            hp_perf.sort(key=lambda x: x["val_nll"])
+            best = hp_perf[0]
+            log(f"    family={family_key}  best={best['hp']}  val_nll={best['val_nll']:.3f}")
+            for h in hp_perf:
+                log(f"      HP={h['hp']}  val_nll={h['val_nll']:.3f}")
+            val_hp_results[m][family_key] = {"hp_grid": hp_perf, "best_hp": best["hp"]}
+
+    # ==== Phase 2: Test eval with best HP per family per m ====
+    log("\n[stage5c] === Phase 2: Test eval with best HP per m ===")
+    test_results = {m: {} for m in M_LIST}
+
+    for m in M_LIST:
+        log(f"\n  === m={m} ===")
+        for family_key in HP_GRIDS:
+            best_hp = val_hp_results[m][family_key]["best_hp"]
+            nlls, qq_corrs, covs_95 = [], [], []
+            for seed in range(N_SEEDS):
+                for u in test_users:
+                    r = _eval_user_m(u, family_key, best_hp, seed, m,
+                                     return_gaussianity=(family_key == "gaussian"))
+                    nlls.append(r["nll"])
+                    if family_key == "gaussian":
+                        qq_corrs.append(r["qq_corr"])
+                        covs_95.append(r["coverage_95"])
+            entry = {
+                "best_hp": best_hp,
+                "nll_mean": float(np.mean(nlls)),
+                "nll_std": float(np.std(nlls)),
+            }
+            if family_key == "gaussian":
+                entry["qq_corr_mean"] = float(np.mean(qq_corrs))
+                entry["qq_corr_std"] = float(np.std(qq_corrs))
+                entry["coverage_95_mean"] = float(np.mean(covs_95))
+                entry["coverage_95_std"] = float(np.std(covs_95))
+            test_results[m][family_key] = entry
+            extra = (f"  QQ={entry.get('qq_corr_mean', float('nan')):.3f}  "
+                     f"Cov95={entry.get('coverage_95_mean', float('nan')):.3f}"
+                     if family_key == "gaussian" else "")
+            log(f"    family={family_key:<10}  HP={best_hp}  "
+                f"NLL={entry['nll_mean']:.3f}±{entry['nll_std']:.3f}{extra}")
+
+    # ==== Summary ====
+    log("\n[stage5c] === Summary table (test NLL by m and family) ===")
+    header = f"{'m':<3} {'Gaussian':>10} {'Laplace':>10} {'Student-t':>10} {'GMM':>10} {'KDE':>10} | {'QQ corr':>8} {'Cov95':>7}"
+    log(header)
+    for m in M_LIST:
+        row = f"{m:<3} "
+        for fam in ["gaussian", "laplace", "student_t", "gmm", "kde"]:
+            row += f"{test_results[m][fam]['nll_mean']:>10.3f} "
+        qq = test_results[m]["gaussian"].get("qq_corr_mean")
+        cov = test_results[m]["gaussian"].get("coverage_95_mean")
+        row += f"| {qq:>8.3f} {cov:>7.3f}"
+        log(row)
+
+    # ==== Output ====
+    out = {
+        "config": {
+            "N_FIXED": N_FIXED, "N_TEST": N_TEST,
+            "M_LIST": M_LIST,
+            "B_BOOT_TRAIN": B_BOOT_TRAIN, "B_BOOT_TEST": B_BOOT_TEST,
+            "N_SEEDS": N_SEEDS,
+            "N_VAL_USERS": len(val_users), "N_TEST_USERS": len(test_users),
+            "SEED_USER_SPLIT": SEED_USER_SPLIT,
+            "PCA_DIM": 48,
+            "HP_GRIDS": {k: [dict(h) for h in v] for k, v in HP_GRIDS.items()},
+        },
+        "val_hp_results": {
+            str(m): {fam: {
+                "hp_grid": val_hp_results[m][fam]["hp_grid"],
+                "best_hp": val_hp_results[m][fam]["best_hp"]
+            } for fam in HP_GRIDS} for m in M_LIST
+        },
+        "test_results": {
+            str(m): {fam: dict(test_results[m][fam]) for fam in HP_GRIDS}
+            for m in M_LIST
+        },
+        "summary": [
+            {
+                "m": m,
+                "gaussian_nll": test_results[m]["gaussian"]["nll_mean"],
+                "laplace_nll": test_results[m]["laplace"]["nll_mean"],
+                "student_t_nll": test_results[m]["student_t"]["nll_mean"],
+                "gmm_nll": test_results[m]["gmm"]["nll_mean"],
+                "kde_nll": test_results[m]["kde"]["nll_mean"],
+                "gaussian_qq_corr": test_results[m]["gaussian"].get("qq_corr_mean"),
+                "gaussian_cov95": test_results[m]["gaussian"].get("coverage_95_mean"),
+                "best_family_nll": min(HP_GRIDS.keys(), key=lambda f: test_results[m][f]["nll_mean"]),
+            }
+            for m in M_LIST
+        ],
+    }
+    out_path = RESIDUAL_SCRATCH / "syntax_subspace_stage5c_latent_gaussianity.json"
+    with open(out_path, "w") as f:
+        json.dump(out, f, indent=2, default=str)
+    log(f"\n[stage5c] 已写入 {out_path}")
+
+
 def main_syntax_subspace_stage4() -> None:
     """Stage 4: History-size Saturation Experiment (同一批用户, 冻结 PCA48 + 冻结 PC importance).
 
@@ -6410,6 +6769,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage4b", help="Stage 4B: Corrected candidate pool (20 pos + random/hard neg, PairAcc/Margin)")
     sub.add_parser("syntax_subspace_stage5", help="Stage 5: Distribution Family Selection (d*=48, n*=35 frozen, Gaussian/Laplace/Student-t/GMM/KDE)")
     sub.add_parser("syntax_subspace_stage5b", help="Stage 5B: Fair HP tuning (50/50 val/test split) + ranking metrics (MRR/AUROC) + bootstrap CI vs Gaussian")
+    sub.add_parser("syntax_subspace_stage5c", help="Stage 5C: Latent Style Gaussianity (m in {1,2,3,5,7,10} aggregation; Q-Q corr + 95% coverage)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -6438,6 +6798,8 @@ def main() -> None:
         main_syntax_subspace_stage5()
     elif cmd == "syntax_subspace_stage5b":
         main_syntax_subspace_stage5b()
+    elif cmd == "syntax_subspace_stage5c":
+        main_syntax_subspace_stage5c()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
