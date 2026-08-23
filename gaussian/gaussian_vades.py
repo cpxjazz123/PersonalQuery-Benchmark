@@ -4985,6 +4985,245 @@ def main_syntax_subspace_stage3a() -> None:
         json.dump(payload, f, indent=2)
     log(f"\n[stage3a] 已写入 {out}")
 
+def main_syntax_subspace_stage4() -> None:
+    """Stage 4: History-size Saturation Experiment (同一批用户, 冻结 PCA48 + 冻结 PC importance).
+
+    核心问题: 需要多少条历史评论, 才能稳定估计并充分利用 48d 句法子空间?
+
+    设计要点 (与用户提案一致, 按数据实际 cap 适配):
+      - 数据: sentences_for_rewrite_10k.jsonl, 每用户最多 30 条有效句 (实测 max=30)
+        => 固定留出 N_TEST=5 条作 held-out test (永不参与 Gaussian 拟合),
+           训练池 = 25 条, n ∈ {5,10,15,20,25}
+      - 同一批用户: 固定子集 N_EVAL_USERS=2000 (≥30 条的用户)
+      - 冻结 PCA48: 与 Stage1/2/3 完全一致 (StandardScaler + PCA(48) fit on 5000 训练句)
+      - 冻结 PC importance w_j: 来自 Stage2 leave-one-PC-out 的 |ΔProbe_j| 归一化
+      - 每个 (用户, n, seed) 用 n 条历史估计 Gaussian N(mu, diag Sigma w/ shrinkage)
+      - 20 个随机 subsampling seeds, 避免抽样随机性
+
+    指标组:
+      G1 Held-out Mahal↓ / NLL↓ (test set 完全相同跨 n)
+      G2 Reliable-PC Count: R_j(n)=Corr(mu_{u,j}^{(n,a)}, mu_{u,j}^{(n,b)}) 跨用户;
+          reliable if R_j>=0.8; 报告 Reliable/48 与 Critical/13
+      G3 Cov 稳定性: mean Cond(Sigma)↓ + mean ||Sigma^(a)-Sigma^(b)||_F↓
+      G4 Downstream: 固定 candidate pool (5 自身 test + 25 他用户 test),
+          以用户 n-Gaussian 对数似然重排, 得 Rank@1↑ / MRR↑
+      Utilization: U(n)=sum_j w_j R_j(n)  (syntax-weighted 48d 利用率)
+      n* = min n 满足 Rank@1>=0.95*max, U>=0.95, NLL 进入最低 5% 区间
+    """
+    from sklearn.decomposition import PCA
+    import hashlib
+    import collections
+
+    # ---- 固定配置 (硬编码, 按数据 cap 适配) ----
+    N_LIST = [5, 10, 15, 20, 25]
+    N_SEEDS = 20
+    N_TEST = 5
+    N_EVAL_USERS = 2000
+    LAMBDA_SHRINK = 0.3
+    VAR_EPS = 1e-3
+    CRIT_N = 13
+    RELIABLE_THR = 0.8
+
+    STAGE2_JSON = RESIDUAL_SCRATCH / "syntax_subspace_stage2_pc48.json"
+
+    P = _syntax_subspace_prepare()
+    X_scaled = P["X_scaled"]
+    train_idx = P["train_idx"]
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+
+    # 冻结 PCA48
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(X_scaled[train_idx])
+    Z = pca.transform(X_scaled)  # [N, 48] 每句 z
+    global_var = Z.var(axis=0)   # [48] shrinkage 先验 (对角线)
+    log(f"[stage4] PCA(48) fit done; Z shape {Z.shape}; global_var[0..2]={global_var[:3]}")
+
+    # ---- 选同一批用户 (≥30 条) + 固定子集 ----
+    cand_users = [u for u in user_id_list if len(user_to_indices[u]) >= 30]
+    rng_sel = np.random.default_rng(2024)
+    eval_users = list(rng_sel.choice(cand_users, size=min(N_EVAL_USERS, len(cand_users)), replace=False))
+    eval_users = sorted(eval_users)
+    log(f"[stage4] eval users = {len(eval_users)} (cand >=30 用户共 {len(cand_users)})")
+
+    def _uid_seed(uid):
+        return int(hashlib.md5(str(uid).encode()).hexdigest(), 16) % (2 ** 31)
+
+    # 每个用户: 固定 hold-out 5 条 test + 训练池
+    test_z = {}      # uid -> [N_TEST, 48]
+    pool_idx = {}    # uid -> list of sentence indices (训练池)
+    for u in eval_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(_uid_seed(u))
+        perm = rng_u.permutation(len(idx_u))
+        test_local = perm[:N_TEST]
+        train_local = perm[N_TEST:]
+        test_z[u] = Z[idx_u[test_local]]
+        pool_idx[u] = list(idx_u[train_local])
+
+    # 固定 downstream candidate pool: 每用户 5 自身 test + 25 他用户 test (取相邻 5 个 eval 用户)
+    cand_pos = {}   # uid -> [5,48]
+    cand_neg = {}   # uid -> [25,48]
+    Eu = eval_users
+    for i, u in enumerate(Eu):
+        negs = []
+        for k in range(1, 6):
+            ou = Eu[(i + k) % len(Eu)]
+            negs.append(test_z[ou])
+        cand_neg[u] = np.concatenate(negs, axis=0)  # [25,48]
+        cand_pos[u] = test_z[u]                     # [5,48]
+
+    # 冻结 PC importance w_j (来自 Stage2)
+    if not STAGE2_JSON.exists():
+        raise FileNotFoundError(f"缺少 Stage2 结果: {STAGE2_JSON} (请先跑 syntax_subspace_stage2)")
+    s2 = json.load(open(STAGE2_JSON))
+    tbl = {t["pc"]: t for t in s2["table"]}
+    dprobe = np.array([tbl[j]["d_probe"] for j in range(48)], dtype=np.float64)
+    w = np.abs(dprobe) / (np.abs(dprobe).sum() + 1e-12)  # [48]
+    crit_pcs = sorted(range(48), key=lambda j: -np.abs(dprobe[j]))[:CRIT_N]
+    log(f"[stage4] PC importance w loaded; top3 w = {w[np.argsort(-w)[:3]]}; crit_pcs={crit_pcs}")
+
+    # ---- 主循环: 存 mu/var 用于可靠性 & cov 稳定性 ----
+    Nn = len(N_LIST)
+    Nsu = len(eval_users)
+    MU = [np.zeros((Nsu, 48, N_SEEDS), dtype=np.float32) for _ in range(Nn)]
+    VAR = [np.zeros((Nsu, 48, N_SEEDS), dtype=np.float32) for _ in range(Nn)]
+
+    # 聚合累加器 (G1/G4)
+    maha_sum = np.zeros(Nn); nll_sum = np.zeros(Nn)
+    rank1_sum = np.zeros(Nn); mrr_sum = np.zeros(Nn)
+    cnt_un = np.zeros(Nn)
+
+    for ni, n in enumerate(N_LIST):
+        for ui, u in enumerate(eval_users):
+            pool = pool_idx[u]
+            if len(pool) < n:
+                continue
+            for s in range(N_SEEDS):
+                rng_s = np.random.default_rng((_uid_seed(u) * 131 + n * 17 + s * 1009) & 0x7fffffff)
+                samp = rng_s.choice(pool, size=n, replace=False)
+                zt = Z[samp]  # [n,48]
+                mu = zt.mean(axis=0)
+                cov = zt.var(axis=0)
+                var = (1 - LAMBDA_SHRINK) * cov + LAMBDA_SHRINK * global_var + VAR_EPS
+                MU[ni][ui, :, s] = mu.astype(np.float32)
+                VAR[ni][ui, :, s] = var.astype(np.float32)
+                # G1 held-out
+                tz = test_z[u]  # [N_TEST,48]
+                d = (tz - mu[None, :]) ** 2 / var[None, :]
+                maha = d.sum(axis=1).mean()
+                nll = (0.5 * (np.log(2 * np.pi) + np.log(var) + d).sum(axis=1)).mean()
+                maha_sum[ni] += maha; nll_sum[ni] += nll
+                # G4 downstream
+                cand = np.concatenate([cand_pos[u], cand_neg[u]], axis=0)  # [30,48]
+                cd = (cand - mu[None, :]) ** 2 / var[None, :]
+                loglik = -0.5 * (np.log(2 * np.pi) + np.log(var) + cd).sum(axis=1)  # [30]
+                order = np.argsort(-loglik)  # 降序, 0=最好
+                # 正向: positions 0..4 是 positives
+                rank1_hit = int(order[0] < 5)
+                rank1_sum[ni] += rank1_hit
+                mrr_u = 0.0
+                for p in range(5):
+                    rk = int(np.where(order == p)[0][0]) + 1
+                    mrr_u += 1.0 / rk
+                mrr_sum[ni] += mrr_u / 5.0
+                cnt_un[ni] += 1
+
+    maha_mean = maha_sum / cnt_un
+    nll_mean = nll_sum / cnt_un
+    rank1_mean = rank1_sum / cnt_un
+    mrr_mean = mrr_sum / cnt_un
+    log(f"[stage4] G1/G4 done. Mahal={np.round(maha_mean,3)} NLL={np.round(nll_mean,2)} "
+        f"Rank1={np.round(rank1_mean,4)} MRR={np.round(mrr_mean,4)}")
+
+    # ---- G2 Reliable-PC + Utilization ----
+    seed_pairs = [(s, s + 1) for s in range(0, N_SEEDS - 1, 2)]  # 10 pairs
+    R = np.zeros((Nn, 48))  # R[ni, j]
+    for ni in range(Nn):
+        M = MU[ni]  # [U,48,S]
+        for j in range(48):
+            rs = []
+            for a, b in seed_pairs:
+                xa = M[:, j, a]; xb = M[:, j, b]
+                if xa.std() < 1e-9 or xb.std() < 1e-9:
+                    rs.append(1.0 if np.allclose(xa, xb) else 0.0)
+                else:
+                    rs.append(float(np.corrcoef(xa, xb)[0, 1]))
+            R[ni, j] = np.mean(rs)
+    reliable = (R >= RELIABLE_THR)
+    reliable_count = reliable.sum(axis=1)            # /48
+    crit_rel = np.array([reliable[:, j].sum() for j in crit_pcs])  # 每 crit PC 是否 reliable
+    # crit_rel 是 per-PC reliable(跨 n), 取 "各 n 下 critical PCs reliable 数" = sum over crit pcs of reliable[ni,j]
+    crit_reliable_count = np.array([int(reliable[ni, crit_pcs].sum()) for ni in range(Nn)])
+    U = (w[None, :] * R).sum(axis=1)  # [Nn]
+    log(f"[stage4] G2 done. Reliable/48={reliable_count} Critical/13={crit_reliable_count} U={np.round(U,4)}")
+
+    # ---- G3 Cov 稳定性 ----
+    cond_mean = np.zeros(Nn)
+    frob_mean = np.zeros(Nn)
+    for ni in range(Nn):
+        V = VAR[ni]  # [U,48,S]
+        # Cond = max(var)/min(var) per user, 跨 seeds 取均值
+        c = (V.max(axis=1) / V.min(axis=1)).mean()  # 对 seed 维先 mean? 用全部 seed 的 var
+        cond_mean[ni] = float(c)
+        # Frobenius diff between seed pairs
+        fd = []
+        for a, b in seed_pairs:
+            diff = V[:, :, a] - V[:, :, b]
+            fd.append(np.sqrt((diff ** 2).sum(axis=1)).mean())
+        frob_mean[ni] = float(np.mean(fd))
+    log(f"[stage4] G3 done. Cond={np.round(cond_mean,2)} FrobDiff={np.round(frob_mean,4)}")
+
+    # ---- n* 规则 ----
+    rank_max = rank1_mean.max()
+    nll_min = nll_mean.min()
+    nll_low5 = nll_mean <= (nll_min + 0.05 * (nll_mean.max() - nll_min) + 1e-9)
+    n_star = None
+    for ni, n in enumerate(N_LIST):
+        ok_rank = rank1_mean[ni] >= 0.95 * rank_max
+        ok_u = U[ni] >= 0.95
+        ok_nll = nll_low5[ni]
+        if ok_rank and ok_u and ok_nll:
+            n_star = n
+            break
+    log(f"[stage4] n* = {n_star} (Rank@1max={rank_max:.4f})")
+
+    # ---- 输出 ----
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage4_history_saturation.json"
+    rows = []
+    for ni, n in enumerate(N_LIST):
+        rows.append({
+            "n": n,
+            "mahal": float(maha_mean[ni]), "nll": float(nll_mean[ni]),
+            "cond": float(cond_mean[ni]), "frob_diff": float(frob_mean[ni]),
+            "reliable_pc": int(reliable_count[ni]), "critical_pc": int(crit_reliable_count[ni]),
+            "utilization": float(U[ni]), "rank1": float(rank1_mean[ni]), "mrr": float(mrr_mean[ni]),
+        })
+    payload = {
+        "config": {"N_LIST": N_LIST, "N_SEEDS": N_SEEDS, "N_TEST": N_TEST,
+                   "N_EVAL_USERS": len(eval_users), "LAMBDA_SHRINK": LAMBDA_SHRINK,
+                   "RELIABLE_THR": RELIABLE_THR, "CRIT_N": CRIT_N,
+                   "note": "data cap=30 sents/user => test=5, n_max=25"},
+        "rows": rows,
+        "n_star": n_star,
+        "per_pc_R": {str(n): R[ni].tolist() for ni, n in enumerate(N_LIST)},
+        "w_importance": w.tolist(),
+        "crit_pcs": crit_pcs,
+    }
+    with open(out, "w") as f:
+        json.dump(payload, f, indent=2)
+    log(f"\n[stage4] 已写入 {out}")
+
+    # 打印汇总表
+    log("\n[stage4] === History-size Saturation (d*=48, frozen PCA48) ===")
+    log(f"{'n':>3} {'Mahal':>7} {'NLL':>8} {'Cond':>8} {'FrobD':>7} "
+        f"{'RelPC/48':>8} {'CritPC/13':>9} {'Utliz':>7} {'Rank1':>7} {'MRR':>7}")
+    for r in rows:
+        log(f"{r['n']:>3} {r['mahal']:>7.3f} {r['nll']:>8.2f} {r['cond']:>8.2f} {r['frob_diff']:>7.4f} "
+            f"{r['reliable_pc']:>6}/48 {r['critical_pc']:>5}/13 {r['utilization']:>7.4f} "
+            f"{r['rank1']:>7.4f} {r['mrr']:>7.4f}")
+    log(f"[stage4] n* = {n_star}")
+
 def main_syntax_subspace() -> None:
     """Syntax Subspace Selection Experiment — Stage 1: 9 维度 scan (Q1: 多少维足够).
 
@@ -5157,6 +5396,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace", help="Stage 1: 9 维度 syntax subspace scan (Q1 多少维足够)")
     sub.add_parser("syntax_subspace_stage2", help="Stage 2: leave-one-PC-out on d*=48 (识别 syntax vs leakage PC)")
     sub.add_parser("syntax_subspace_stage3a", help="Stage 3A: PC48-96 增量 syntax/content 分析 + PC0 长度控制 sanity")
+    sub.add_parser("syntax_subspace_stage4", help="Stage 4: History-size Saturation (冻结 PCA48, 同批用户, n∈5..25, 20 seeds)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -5177,6 +5417,8 @@ def main() -> None:
         main_syntax_subspace_stage2()
     elif cmd == "syntax_subspace_stage3a":
         main_syntax_subspace_stage3a()
+    elif cmd == "syntax_subspace_stage4":
+        main_syntax_subspace_stage4()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
