@@ -4367,11 +4367,15 @@ def main_eval_bucket() -> None:
     log(f"[eval_bucket] 已写入 {out}")
 
 
-def _syntax_subspace_prepare() -> dict:
+def _syntax_subspace_prepare(sents_path=None, feat_cache_path=None, feature_names_ordered=None) -> dict:
     """Stage 1 / Stage 2 共用的数据准备 (加载 182d cache + 标准化 + 切分).
 
+    参数:
+      sents_path / feat_cache_path: 覆盖默认路径 (用于稠密数据, 不影响原始 30-cap 文件)
+      feature_names_ordered: 传入则强制使用该 182d 特征顺序 (保证与冻结 PCA 一致)
+
     返回 dict, 含:
-      X_scaled / Y_probes / user_ids / asins / train_idx / scaler /
+      X (原始 182d) / X_scaled / Y_probes / user_ids / asins / train_idx / scaler /
       rewrites_by_user_text / user_to_indices / user_id_list / pair_idx / raw_dist /
       top_asins / asin_to_label / label_y / leak_train / leak_test /
       probe_train_idx / probe_test_idx / PROBE_TARGETS / feature_names_ordered / rng
@@ -4380,8 +4384,8 @@ def _syntax_subspace_prepare() -> dict:
     import hashlib as _hl
     import collections
 
-    spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
-    feat_cache = RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
+    spacy_sents = Path(sents_path) if sents_path else RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
+    feat_cache = Path(feat_cache_path) if feat_cache_path else RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
     rewrites_path = RESIDUAL_SCRATCH / "rewrites_10k.jsonl"
     if not spacy_sents.exists():
         raise FileNotFoundError(f"缺少: {spacy_sents}")
@@ -4516,7 +4520,7 @@ def _syntax_subspace_prepare() -> dict:
     probe_test_idx = train_idx[probe_split:]
 
     return {
-        "X_scaled": X_scaled, "Y_probes": Y_probes, "user_ids": user_ids, "asins": asins,
+        "X": X, "X_scaled": X_scaled, "Y_probes": Y_probes, "user_ids": user_ids, "asins": asins,
         "train_idx": train_idx, "scaler": scaler,
         "rewrites_by_user_text": rewrites_by_user_text,
         "user_to_indices": user_to_indices, "user_id_list": user_id_list,
@@ -5014,10 +5018,10 @@ def main_syntax_subspace_stage4() -> None:
     import hashlib
     import collections
 
-    # ---- 固定配置 (硬编码, 按数据 cap 适配) ----
-    N_LIST = [5, 10, 15, 20, 25]
+    # ---- 固定配置 (硬编码) ----
+    N_LIST = [5, 10, 15, 20, 25, 30, 35, 40]
     N_SEEDS = 20
-    N_TEST = 5
+    N_TEST = 10
     N_EVAL_USERS = 2000
     LAMBDA_SHRINK = 0.3
     VAR_EPS = 1e-3
@@ -5026,21 +5030,30 @@ def main_syntax_subspace_stage4() -> None:
 
     STAGE2_JSON = RESIDUAL_SCRATCH / "syntax_subspace_stage2_pc48.json"
 
-    P = _syntax_subspace_prepare()
-    X_scaled = P["X_scaled"]
-    train_idx = P["train_idx"]
-    user_to_indices = P["user_to_indices"]
-    user_id_list = P["user_id_list"]
-
-    # 冻结 PCA48
+    # 冻结 PCA48 + StandardScaler: 来自原始 30-cap 数据, 与 Stage1/2/3 完全一致
+    P0 = _syntax_subspace_prepare()
     pca = PCA(n_components=48, random_state=42)
-    pca.fit(X_scaled[train_idx])
-    Z = pca.transform(X_scaled)  # [N, 48] 每句 z
+    pca.fit(P0["X_scaled"][P0["train_idx"]])
+    scaler = P0["scaler"]
+    fnames = P0["feature_names_ordered"]
+    log(f"[stage4] 冻结 PCA48 fit (baseline EV={pca.explained_variance_ratio_.sum():.4f})")
+
+    # 稠密数据: 从完整 review 重新抽句 (同一批 10k 用户, 更深历史), 用相同冻结 PCA 映射
+    DENSE_SENTS = os.environ.get("PQ_SYNTAX_SENTS_DENSE",
+                                 str(RESIDUAL_SCRATCH / "sentences_for_rewrite_10k_dense.jsonl"))
+    DENSE_FEAT = os.environ.get("PQ_SYNTAX_FEAT_DENSE",
+                                str(RESIDUAL_SCRATCH / "sentences_318d_cache_dense.jsonl.gz"))
+    Pd = _syntax_subspace_prepare(sents_path=DENSE_SENTS, feat_cache_path=DENSE_FEAT,
+                                  feature_names_ordered=fnames)
+    X_raw = Pd["X"]
+    Z = pca.transform(scaler.transform(X_raw))  # [N,48] 同一冻结 48d 空间
     global_var = Z.var(axis=0)   # [48] shrinkage 先验 (对角线)
-    log(f"[stage4] PCA(48) fit done; Z shape {Z.shape}; global_var[0..2]={global_var[:3]}")
+    user_to_indices = Pd["user_to_indices"]
+    user_id_list = Pd["user_id_list"]
+    log(f"[stage4] 稠密数据 PCA(48) 映射完成; Z shape {Z.shape}; global_var[0..2]={global_var[:3]}")
 
     # ---- 选同一批用户 (≥30 条) + 固定子集 ----
-    cand_users = [u for u in user_id_list if len(user_to_indices[u]) >= 30]
+    cand_users = [u for u in user_id_list if len(user_to_indices[u]) >= (N_TEST + max(N_LIST))]
     rng_sel = np.random.default_rng(2024)
     eval_users = list(rng_sel.choice(cand_users, size=min(N_EVAL_USERS, len(cand_users)), replace=False))
     eval_users = sorted(eval_users)
@@ -5203,7 +5216,7 @@ def main_syntax_subspace_stage4() -> None:
         "config": {"N_LIST": N_LIST, "N_SEEDS": N_SEEDS, "N_TEST": N_TEST,
                    "N_EVAL_USERS": len(eval_users), "LAMBDA_SHRINK": LAMBDA_SHRINK,
                    "RELIABLE_THR": RELIABLE_THR, "CRIT_N": CRIT_N,
-                   "note": "data cap=30 sents/user => test=5, n_max=25"},
+                   "note": "dense re-extraction from full reviews (same 10k users); test=10, n_max=40; PCA48 + PC-importance frozen from original 30-cap data"},
         "rows": rows,
         "n_star": n_star,
         "per_pc_R": {str(n): R[ni].tolist() for ni, n in enumerate(N_LIST)},

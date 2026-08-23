@@ -22,9 +22,9 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
-DATA_SOURCE = SCRATCH / "stage1_filtered_users_reviews_10000u.json"
-SENTS_OUT = SCRATCH / "sentences_for_rewrite_10k.jsonl"
-FEAT_CACHE = SCRATCH / "sentences_318d_cache.jsonl.gz"
+DATA_SOURCE = Path(os.environ.get("PQ_DATA_SOURCE", str(SCRATCH / "stage1_filtered_users_reviews_10000u.json")))
+SENTS_OUT = Path(os.environ.get("PQ_SENTS_OUT", str(SCRATCH / "sentences_for_rewrite_10k.jsonl")))
+FEAT_CACHE = Path(os.environ.get("PQ_FEAT_CACHE", str(SCRATCH / "sentences_318d_cache.jsonl.gz")))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Stage 1: spaCy 切句
@@ -33,7 +33,7 @@ def stage1_extract_sentences():
     """spaCy 批量切句，输出 sentences_for_rewrite_10k.jsonl。"""
     import spacy
     nlp = spacy.load("en_core_web_sm")
-    MIN_WORDS, MAX_WORDS, SENTS_PER_USER = 5, 60, 15
+    MIN_WORDS, MAX_WORDS, SENTS_PER_USER = 5, 60, int(os.environ.get("PQ_SENTS_PER_USER", "15"))
 
     def normalize_text(text: str) -> str:
         import re
