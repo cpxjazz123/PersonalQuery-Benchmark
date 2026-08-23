@@ -3393,13 +3393,156 @@ def main_train() -> None:
     filter_users_with_duplicate_reviews()
     user_rows = load_filtered_user_reviews()
 
+    # ==== 按 MAX_USERS 提前裁剪 (所有模式共用) ====
+    _max_users_set: set[str] | None = None
+    if MAX_USERS_OVERRIDE is not None:
+        m = int(MAX_USERS_OVERRIDE)
+        if m > 0:
+            _max_users_set = set()  # 临时占位，后续 sentence_rows 裁剪时填充
+
     if COVARIANCE_MODE == "diagonal_residual":
-        # 对角 residual 模式：直接对用户原始评论提取 318d 句法特征
+        # 对角 residual 模式：sentence-level cache → user-level ALL_FEATS_V2(297d) 聚合 → residual
         spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
         feat_cache = RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
         if not spacy_sents.exists():
             raise FileNotFoundError(f"diagonal_residual 模式需要: {spacy_sents}")
         log(f"[diagonal_residual] 加载 spaCy 句子: {spacy_sents}")
+
+        # --- ALL_FEATS_V2 常量（内联自 extract_syntactic_features.py） ---
+        _POS_TAGS = ("NOUN","VERB","ADJ","ADV","PRON","DET","ADP","CONJ","AUX","NUM","INTJ","PART","PUNCT","X","CCONJ","SCONJ")
+        _POS_BIGRAMS = (("DET","NOUN"),("PRON","VERB"),("AUX","VERB"),("VERB","DET"),("VERB","NOUN"),("ADJ","NOUN"),("NOUN","VERB"),("ADV","VERB"),("ADP","DET"),("ADP","NOUN"),("PRON","AUX"),("DET","ADJ"),("NOUN","ADP"),("VERB","ADP"),("VERB","PRON"),("ADV","ADJ"),("ADJ","ADP"),("NOUN","CCONJ"),("VERB","CCONJ"),("NOUN","SCONJ"),("VERB","SCONJ"),("AUX","ADJ"),("AUX","NOUN"),("PRON","VERB"),("DET","NOUN"),("ADV","ADJ"),("AUX","PART"),("PART","VERB"),("NUM","NOUN"),("PRON","ADP"))
+        _POS_TRIGRAMS = (("DET","NOUN","VERB"),("PRON","AUX","VERB"),("PRON","AUX","ADJ"),("AUX","VERB","DET"),("AUX","VERB","NOUN"),("AUX","VERB","ADV"),("VERB","DET","NOUN"),("ADP","DET","NOUN"),("VERB","ADP","DET"),("ADP","DET","ADJ"),("DET","ADJ","NOUN"),("VERB","PRON","AUX"),("AUX","ADJ","ADP"),("ADV","VERB","DET"),("AUX","VERB","PRON"),("VERB","CCONJ","VERB"),("NOUN","CCONJ","NOUN"),("VERB","SCONJ","VERB"))
+        _DEP_RELS = ("nsubj","nsubjpass","obj","iobj","cobj","attr","aux","auxpass","ROOT","det","poss","amod","advmod","nmod","appos","nummod","acl","relcl","ccomp","xcomp","advcl","conj","cc","punct","case","mark","compound","fixed","flat")
+        _DEP_BIGRAMS = (("nsubj","VERB"),("VERB","obj"),("nsubj","AUX"),("AUX","VERB"),("det","NOUN"),("nmod","NOUN"),("amod","NOUN"),("compound","NOUN"),("nsubj","ADV"),("ADV","VERB"),("ROOT","nsubj"),("ROOT","VERB"),("VERB","ADP"),("ADP","NOUN"),("nsubj","ADP"),("cc","CONJ"),("conj","CONJ"),("ROOT","ccomp"),("ROOT","xcomp"),("advcl","VERB"))
+        _MAIN_CLAUSE_PATTERNS = ("SVO","SVC","SV","SVA","SVOA","SVOC","SVOO","SVO_IOBJ","EXISTS")
+        _CLAUSE_PAIRS = (("acl","relcl"),("acl","ccomp"),("acl","xcomp"),("acl","advcl"),("relcl","ccomp"),("relcl","xcomp"),("relcl","advcl"),("ccomp","xcomp"),("ccomp","advcl"),("xcomp","advcl"))
+        _PUNCT_TAGS = (",",".",":",";","!","?","'","\"","-","(",")")
+        _PUNCT_BIGRAMS = (("(",")"),("(",")"),("(",")"),("(",")"),("(",")"))
+
+        def _build_all_feats_v2():
+            feats = []
+            feats += ["clause_rate","acl_rate","advcl_rate","ccomp_rate","xcomp_rate","relcl_rate","modifier_density","coordination_density","mean_dep_distance","depth_variance","median_dep_depth","passive_rate","interrogative_rate","conditional_rate"]
+            feats += [f"opener_{p}" for p in _POS_TAGS]
+            feats += ["senttype_simple","senttype_conjunctive","senttype_complex"]
+            feats += [f"pos_{p}" for p in _POS_TAGS]
+            feats += [f"posbg_{bg[0]}_{bg[1]}" for bg in _POS_BIGRAMS]
+            feats += [f"postg_{tg[0]}_{tg[1]}_{tg[2]}" for tg in _POS_TRIGRAMS]
+            feats += [f"dep_{d}" for d in _DEP_RELS]
+            feats += [f"depbg_{bg[0]}_{bg[1]}" for bg in _DEP_BIGRAMS]
+            feats += [f"main_{p}" for p in _MAIN_CLAUSE_PATTERNS]
+            feats += [f"clpair_{pair[0]}_{pair[1]}" for pair in _CLAUSE_PAIRS]
+            feats += ["nest_max","nest_mean","nest_std","nest_d1","nest_d2","nest_d3","nest_d4","nest_d5","nest_ge2","nest_ge3"]
+            for pos in (1,2,3):
+                for p in _POS_TAGS:
+                    feats.append(f"open_p{pos}_{p}")
+                    feats.append(f"close_p{pos}_{p}")
+            feats += ["dist_0_1","dist_1_2","dist_2_3","dist_3_5","dist_5_100"]
+            feats += ["depth_eq1","depth_eq2","depth_eq3","depth_eq4","depth_eq5"]
+            feats.append("n_punct_total")
+            feats += [f"punct_{p}" for p in _PUNCT_TAGS]
+            feats += [f"punctbg_{pb[0]}_{pb[1]}" for pb in _PUNCT_BIGRAMS if len(pb[0])==1]
+            return feats
+
+        ALL_FEATS_V2: list = _build_all_feats_v2()
+        _NAME_TO_IDX = {n: i for i, n in enumerate(ALL_FEATS_V2)}
+
+        # bucket A: rate-per-token; bucket B: rate-per-sent; bucket C: mean-over-sent
+        _RATE_TOK_KEYS = {"clause_rate":("n_clause",),"acl_rate":("acl",),"advcl_rate":("advcl",),"ccomp_rate":("ccomp",),"xcomp_rate":("xcomp",),"relcl_rate":("relcl",),"modifier_density":("n_mod",),"coordination_density":("n_coord",),"mean_dep_distance":("mean_dist",),"depth_variance":("depth_var",),"passive_rate":("has_passive",),"interrogative_rate":("is_interrog",),"conditional_rate":("has_cond",)}
+        _RATE_PER_TOK = set()
+        _OPEN_CLOSE_KEYS = []
+        for pos in (1,2,3):
+            for p in _POS_TAGS:
+                _OPEN_CLOSE_KEYS.append(f"open_p{pos}_{p}")
+                _OPEN_CLOSE_KEYS.append(f"close_p{pos}_{p}")
+        _DIST_DEPTH_KEYS = [f"dist_{lo}_{hi}" for lo,hi in [(0,1),(1,2),(2,3),(3,5),(5,100)]] + [f"depth_eq{d}" for d in (1,2,3,4,5)]
+        _RATE_TOK_IDX = sorted(_NAME_TO_IDX[n] for n in list(_RATE_TOK_KEYS.keys()) + _OPEN_CLOSE_KEYS + _DIST_DEPTH_KEYS)
+        _RATE_TOK_KEY_LOOKUP = {}
+        for n, (k,) in _RATE_TOK_KEYS.items():
+            _RATE_TOK_KEY_LOOKUP[_NAME_TO_IDX[n]] = k
+        for n in _OPEN_CLOSE_KEYS:
+            _RATE_TOK_KEY_LOOKUP[_NAME_TO_IDX[n]] = n
+        for n in _DIST_DEPTH_KEYS:
+            _RATE_TOK_KEY_LOOKUP[_NAME_TO_IDX[n]] = n
+        _RATE_PER_SENT = {"clause_rate","acl_rate","advcl_rate","ccomp_rate","xcomp_rate","relcl_rate","n_punct_total"}
+        _RATE_SENT_IDX = sorted(_NAME_TO_IDX[n] for n in list(_RATE_PER_SENT) + ["senttype_simple","senttype_conjunctive","senttype_complex"])
+        _RATE_SENT_KEY_LOOKUP = {}
+        for n in _RATE_PER_SENT:
+            _RATE_SENT_KEY_LOOKUP[_NAME_TO_IDX[n]] = n
+        for n in ["senttype_simple","senttype_conjunctive","senttype_complex"]:
+            _RATE_SENT_KEY_LOOKUP[_NAME_TO_IDX[n]] = "stype_" + n[len("senttype_"):]
+        _MEAN_SENT_KEYS = {"median_dep_depth":"max_depth","nest_max":"nest_max","nest_mean":"nest_mean","nest_std":"nest_std","nest_d1":"nest_d1","nest_d2":"nest_d2","nest_d3":"nest_d3","nest_d4":"nest_d4","nest_d5":"nest_d5","nest_ge2":"nest_ge2","nest_ge3":"nest_ge3"}
+        for p in _POS_TAGS:
+            _MEAN_SENT_KEYS[f"pos_{p}"] = f"pos_{p}"
+        for bg in _POS_BIGRAMS:
+            _MEAN_SENT_KEYS[f"posbg_{bg[0]}_{bg[1]}"] = f"posbg_{bg[0]}_{bg[1]}"
+        for tg in _POS_TRIGRAMS:
+            _MEAN_SENT_KEYS[f"postg_{tg[0]}_{tg[1]}_{tg[2]}"] = f"postg_{tg[0]}_{tg[1]}_{tg[2]}"
+        for d in _DEP_RELS:
+            _MEAN_SENT_KEYS[f"dep_{d}"] = f"dep_{d}"
+        for bg in _DEP_BIGRAMS:
+            _MEAN_SENT_KEYS[f"depbg_{bg[0]}_{bg[1]}"] = f"depbg_{bg[0]}_{bg[1]}"
+        for p in _MAIN_CLAUSE_PATTERNS:
+            _MEAN_SENT_KEYS[f"main_{p}"] = f"main_{p}"
+        for pair in _CLAUSE_PAIRS:
+            _MEAN_SENT_KEYS[f"clpair_{pair[0]}_{pair[1]}"] = f"clpair_{pair[0]}_{pair[1]}"
+        _MEAN_SENT_IDX = sorted(_NAME_TO_IDX[n] for n in _MEAN_SENT_KEYS)
+        _MEAN_SENT_KEY_LOOKUP = {_NAME_TO_IDX[n]: k for n, k in _MEAN_SENT_KEYS.items()}
+        _FRAC_SENT_KEYS = {}
+        _FRAC_SENT_FLAG = {"passive_rate":"has_passive","interrogative_rate":"is_interrog","conditional_rate":"has_cond"}
+        for n, flag in _FRAC_SENT_FLAG.items():
+            _FRAC_SENT_KEYS[n] = flag
+        _OPENER_KEYS = [f"opener_{p}" for p in _POS_TAGS]
+        _MEDIAN_DEPTH_IDX = _NAME_TO_IDX["median_dep_depth"]
+
+        def _user_features_v2(sent_feats: list) -> np.ndarray | None:
+            """Aggregate per-sentence dicts → 297d user vector (ALL_FEATS_V2)."""
+            if not sent_feats:
+                return None
+            n_sent = len(sent_feats)
+            total_tok = sum(s.get("n_tok", 0) for s in sent_feats)
+            if total_tok == 0 or n_sent == 0:
+                return None
+            D = len(ALL_FEATS_V2)
+            vec = np.zeros(D, dtype=np.float64)
+            M = np.zeros((n_sent, D), dtype=np.float64)
+            for i, sf in enumerate(sent_feats):
+                for name, val in sf.items():
+                    j = _NAME_TO_IDX.get(name)
+                    if j is not None:
+                        M[i, j] = val
+            # Bucket A: rate-per-tok
+            if _RATE_TOK_IDX:
+                for k, col in enumerate(_RATE_TOK_IDX):
+                    key = _RATE_TOK_KEY_LOOKUP.get(col)
+                    if key:
+                        vec[col] = M[:, col].sum() / total_tok
+            # Bucket B: rate-per-sent
+            if _RATE_SENT_IDX:
+                for k, col in enumerate(_RATE_SENT_IDX):
+                    key = _RATE_SENT_KEY_LOOKUP.get(col)
+                    if key:
+                        vec[col] = M[:, col].sum() / n_sent
+            # Bucket C: mean-over-sent
+            for col in _MEAN_SENT_IDX:
+                key = _MEAN_SENT_KEY_LOOKUP.get(col)
+                if key:
+                    vec[col] = M[:, col].mean()
+            # Median depth
+            depth_col = _NAME_TO_IDX.get("max_depth")
+            if depth_col is not None:
+                vec[_MEDIAN_DEPTH_IDX] = float(np.median(M[:, depth_col]))
+            # Fraction features
+            for name, flag in _FRAC_SENT_FLAG.items():
+                cnt = sum(1 for s in sent_feats if s.get(flag, False))
+                vec[_NAME_TO_IDX[name]] = cnt / n_sent
+            # Opener fractions
+            for name in _OPENER_KEYS:
+                tag = name[len("opener_"):]
+                cnt = sum(1 for s in sent_feats if s.get("opener") == tag)
+                vec[_NAME_TO_IDX[name]] = cnt / n_sent
+            return vec
+
+        # --- 加载 sentence-level 特征缓存（含 opener/stype string） ---
         import hashlib
         import gzip
         feat_map = {}
@@ -3413,19 +3556,31 @@ def main_train() -> None:
                     feat_map[rec["k"]] = rec["v"]
             log(f"[diagonal_residual] 加载 318d 特征缓存: {len(feat_map)} 条")
         else:
-            log(f"[diagonal_residual] 警告: 特征缓存不存在: {feat_cache}，将用 zero features")
+            log(f"[diagonal_residual] 警告: 特征缓存不存在: {feat_cache}")
         sents_raw = load_jsonl(spacy_sents)
-        sentence_rows = []
+
+        # --- 按 user_id 聚合到 297d ---
+        import collections
+        user_sent_feats: dict = collections.defaultdict(list)
         for row in sents_raw:
             text = row.get("sentence_text", "")
             k = hashlib.sha1(text.strip().lower().encode("utf-8")).hexdigest()
             feats = feat_map.get(k, {})
-            sentence_rows.append({**row, "features": feats})
-        # feature_names 从第一条有特征的记录获取
-        sample = next((r for r in sentence_rows if r["features"]), None)
-        feature_names = list(sample["features"].keys()) if sample else []
-        log(f"[diagonal_residual] 构建 sentence_rows: {len(sentence_rows)} 条, feat_dim={len(feature_names)}")
-        user_rows = None  # 跳过 extract_first_twenty_sentences_for_users
+            if feats:
+                user_sent_feats[row["user_id"]].append(feats)
+
+        user_ids_sorted = sorted(user_sent_feats.keys())
+        user_feature_matrix = np.zeros((len(user_ids_sorted), len(ALL_FEATS_V2)), dtype=np.float64)
+        for ui, uid in enumerate(user_ids_sorted):
+            vec = _user_features_v2(user_sent_feats[uid])
+            if vec is not None:
+                user_feature_matrix[ui] = vec
+        log(f"[diagonal_residual] user-level 297d aggregation: {len(user_ids_sorted)} 用户, feat_dim={len(ALL_FEATS_V2)}")
+
+        # 构造 fake sentence_rows（后续被 user_feature_matrix bypass）
+        sentence_rows = [{"user_id": uid, "features": {}, "sentence_text": ""} for uid in user_ids_sorted]
+        feature_names = ALL_FEATS_V2
+        user_rows = None
 
     elif COVARIANCE_MODE == "diagonal_residual_llm":
         # 跳过 regex/spacy 句法提取，直接加载 spaCy 产出的 sentences
@@ -3443,7 +3598,7 @@ def main_train() -> None:
         write_jsonl(EXCLUDED_USER_FILE, excluded_rows)
         sentence_rows = kept_rows
 
-    # ==== 按 MAX_USERS 提前裁剪 sentence_rows (smoke test 必须做, 否则 residual 覆盖率会失败) ====
+    # ==== 按 MAX_USERS 裁剪 sentence_rows (smoke test 必须做, 否则 residual 覆盖率会失败) ====
     if MAX_USERS_OVERRIDE is not None:
         m = int(MAX_USERS_OVERRIDE)
         if m > 0:
@@ -3458,6 +3613,15 @@ def main_train() -> None:
                     kept.append(r)
             log(f"[MAX_USERS] 裁剪 sentence_rows: {len(sentence_rows)} → {len(kept)} 句 ({len(seen)} 用户)")
             sentence_rows = kept
+            _max_users_set = seen
+            # 对齐 diagonal_residual 的 user_feature_matrix
+            if COVARIANCE_MODE == "diagonal_residual" and "user_ids_sorted" in dir():
+                keep = sorted(set(user_ids_sorted) & seen)
+                if len(keep) < len(user_ids_sorted):
+                    mask = np.array([uid in seen for uid in user_ids_sorted])
+                    user_feature_matrix = user_feature_matrix[mask]
+                    user_ids_sorted = keep
+                    log(f"[diagonal_residual] MAX_USERS 裁剪 user_feature_matrix → {len(user_ids_sorted)} 用户")
 
     # ==== diagonal_residual_llm 模式: 跳过 318d 句法特征提取, 直接构造 dummy feature_rows ====
     # 因为下游 build_training_dataset 需要 row["features"] 结构才能跑;我们在 residual_llm 分支
@@ -3518,7 +3682,31 @@ def main_train() -> None:
         log("[diagonal_residual] 候选 query 暂为空，跳过候选 query 加载")
     else:
         candidate_rows = load_candidate_query_rows()
-    user_ids, dataset = build_training_dataset(feature_rows, feature_names)
+
+    # ==== diagonal_residual: 直接用 user-level 聚合矩阵 bypass build_training_dataset ====
+    if COVARIANCE_MODE == "diagonal_residual":
+        # dataset 由 diagonal_residual 分支提前构建好 user_feature_matrix
+        # 这里直接用 user_feature_matrix + user_ids_sorted 构造 dataset
+        # MAX_USERS 裁剪在上面已应用到 sentence_rows, user_feature_matrix 已裁
+        scaler_ds = StandardScaler()
+        scaled_matrix = scaler_ds.fit_transform(user_feature_matrix.astype(np.float64))
+        dataset = {
+            "scaler": scaler_ds,
+            "feature_names": feature_names,
+            "sentence_rows": sentence_rows,
+            "scaled_features": scaled_matrix,
+            "feature_matrix": user_feature_matrix.astype(np.float64),
+            "user_indices": np.arange(len(user_ids_sorted), dtype=np.int64),
+            "train_mask": np.ones(len(user_ids_sorted), dtype=bool),
+            "holdout_mask": np.zeros(len(user_ids_sorted), dtype=bool),
+            "user_to_index": {uid: i for i, uid in enumerate(user_ids_sorted)},
+            "grouped_rows": {uid: [sent_rows_i] for uid, sent_rows_i in zip(user_ids_sorted, sentence_rows)},
+        }
+        user_ids = user_ids_sorted
+        # 用 user-level feature_matrix 覆盖 build_training_dataset 的 sentence-level 零矩阵
+        # dataset["scaled_features"] 和 dataset["feature_matrix"] 已由上面 residual 块正确设置
+    else:
+        user_ids, dataset = build_training_dataset(feature_rows, feature_names)
 
     # ==== diagonal_residual_llm 模式: 用 Qwen hidden residual 替换 318d scaled_features ====
     if COVARIANCE_MODE == "diagonal_residual_llm":
@@ -3579,20 +3767,21 @@ def main_train() -> None:
         # 释放 npz 引用
         del residual_data, residual_layer, sent_index
 
-    # ==== diagonal_residual 模式: 318d 句法特征 residual = user_318d - global_mean ====
+    # ==== diagonal_residual 模式: user-level 182d residual = per_user_mean - global_mean ====
     if COVARIANCE_MODE == "diagonal_residual":
-        log("[diagonal_residual] 计算 318d 句法特征 global mean reference...")
-        raw_matrix = dataset["feature_matrix"]  # [num_sentences, 318]
-        global_neutral = raw_matrix.mean(axis=0)  # [318]
-        residual_matrix = raw_matrix - global_neutral[None, :]  # [num_sentences, 318]
+        log("[diagonal_residual] 计算 user-level 182d 句法特征 global mean reference...")
+        # 使用上面聚合好的 user_feature_matrix [num_users, feat_dim]
+        user_matrix = user_feature_matrix.astype(np.float64)  # [num_users, 182d]
+        global_neutral = user_matrix.mean(axis=0)  # [182d]
+        residual_matrix = user_matrix - global_neutral[None, :]  # [num_users, 182d]
         scaler = StandardScaler()
         scaled_residual = scaler.fit_transform(residual_matrix).astype(np.float64)
         dataset["scaled_features"] = scaled_residual
         dataset["feature_matrix"] = residual_matrix
         dataset["scaler"] = scaler
         feat_dim = residual_matrix.shape[1]
-        dataset["feature_names"] = [f"residual_318d_d{i}" for i in range(feat_dim)]
-        log(f"  raw_matrix norm: {np.linalg.norm(raw_matrix, axis=1).mean():.3f}")
+        dataset["feature_names"] = [f"residual_user_d{i}" for i in range(feat_dim)]
+        log(f"  user_matrix norm: {np.linalg.norm(user_matrix, axis=1).mean():.3f}")
         log(f"  global_neutral norm: {np.linalg.norm(global_neutral):.3f}")
         log(f"  residual norm: {np.linalg.norm(residual_matrix, axis=1).mean():.3f}")
         log(f"  scaled_residual norm: {np.linalg.norm(scaled_residual, axis=1).mean():.3f}")
@@ -3652,21 +3841,26 @@ def main_train() -> None:
         sentence_output_file=SENTENCE_FILE,
     )
 
-    calibration_summary = calibrate_absolute_threshold_with_unseen_holdout(
-        sentence_output,
-        candidate_rows,
-        dataset,
-        feature_names,
-        user_ids,
-        user_profile_rows,
-        user_table,
-        DEVICE,
-        covariance_mode=COVARIANCE_MODE,
-        user_match_weight=USER_MATCH_WEIGHT,
-        abs_threshold_quantile=ABS_THRESHOLD_QUANTILE,
-        calibration_summary_file=INPUT_DIR / f"{OUTPUT_TAG}_calibration_summary.json",
-        user_index_tensor=torch.as_tensor(dataset["user_indices"], dtype=torch.long, device=DEVICE),
-    )
+    # ==== diagonal_residual: 跳过 holdout 校准（无候选 query 不需要绝对阈值） ====
+    if COVARIANCE_MODE == "diagonal_residual":
+        log("[diagonal_residual] 跳过绝对阈值校准（无候选 query + 每用户仅 1 条 user-level 聚合特征）")
+        calibration_summary = {"abs_threshold": None, "n_holdout": 0, "skipped": True}
+    else:
+        calibration_summary = calibrate_absolute_threshold_with_unseen_holdout(
+            sentence_output,
+            candidate_rows,
+            dataset,
+            feature_names,
+            user_ids,
+            user_profile_rows,
+            user_table,
+            DEVICE,
+            covariance_mode=COVARIANCE_MODE,
+            user_match_weight=USER_MATCH_WEIGHT,
+            abs_threshold_quantile=ABS_THRESHOLD_QUANTILE,
+            calibration_summary_file=INPUT_DIR / f"{OUTPUT_TAG}_calibration_summary.json",
+            user_index_tensor=torch.as_tensor(dataset["user_indices"], dtype=torch.long, device=DEVICE),
+        )
 
     if COVARIANCE_MODE == "diagonal_residual":
         log("[diagonal_residual] 跳过候选 query ranking（无候选 query）")
@@ -3929,11 +4123,805 @@ def main_smoke() -> None:
 # SECTION 12: argparse subcommand dispatcher
 # ============================================================
 
+def main_eval_bucket() -> None:
+    """按评论数 bucket 评估 user-level 297d Gaussian 质量。
+
+    指标: Mahalanobis ↓ / NLL ↓ / 协方差条件数 ↓
+    数据: 全部 10000 用户，按 review_count 分桶，每桶抽 100 用户
+    输出: raw + PCA-32/64/128 三套
+    路径: /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/gaussian_quality_by_bucket_user297d.json
+    """
+    from sklearn.decomposition import PCA
+    import collections
+    import gzip
+    import hashlib as _hl
+
+    # --- 1. 加载 user-level 297d 特征（直接复用 diagonal_residual 聚合逻辑） ---
+    spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
+    feat_cache = RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
+    if not spacy_sents.exists():
+        raise FileNotFoundError(f"缺少: {spacy_sents}")
+    if not feat_cache.exists():
+        raise FileNotFoundError(f"缺少: {feat_cache}")
+
+    # inline ALL_FEATS_V2 + user_features_v2 (与 main_train 的 diagonal_residual 一致)
+    _POS_TAGS = ("NOUN","VERB","ADJ","ADV","PRON","DET","ADP","CONJ","AUX","NUM","INTJ","PART","PUNCT","X","CCONJ","SCONJ")
+    _POS_BIGRAMS = (("DET","NOUN"),("PRON","VERB"),("AUX","VERB"),("VERB","DET"),("VERB","NOUN"),("ADJ","NOUN"),("NOUN","VERB"),("ADV","VERB"),("ADP","DET"),("ADP","NOUN"),("PRON","AUX"),("DET","ADJ"),("NOUN","ADP"),("VERB","ADP"),("VERB","PRON"),("ADV","ADJ"),("ADJ","ADP"),("NOUN","CCONJ"),("VERB","CCONJ"),("NOUN","SCONJ"),("VERB","SCONJ"),("AUX","ADJ"),("AUX","NOUN"),("PRON","VERB"),("DET","NOUN"),("ADV","ADJ"),("AUX","PART"),("PART","VERB"),("NUM","NOUN"),("PRON","ADP"))
+    _POS_TRIGRAMS = (("DET","NOUN","VERB"),("PRON","AUX","VERB"),("PRON","AUX","ADJ"),("AUX","VERB","DET"),("AUX","VERB","NOUN"),("AUX","VERB","ADV"),("VERB","DET","NOUN"),("ADP","DET","NOUN"),("VERB","ADP","DET"),("ADP","DET","ADJ"),("DET","ADJ","NOUN"),("VERB","PRON","AUX"),("AUX","ADJ","ADP"),("ADV","VERB","DET"),("AUX","VERB","PRON"),("VERB","CCONJ","VERB"),("NOUN","CCONJ","NOUN"),("VERB","SCONJ","VERB"))
+    _DEP_RELS = ("nsubj","nsubjpass","obj","iobj","cobj","attr","aux","auxpass","ROOT","det","poss","amod","advmod","nmod","appos","nummod","acl","relcl","ccomp","xcomp","advcl","conj","cc","punct","case","mark","compound","fixed","flat")
+    _DEP_BIGRAMS = (("nsubj","VERB"),("VERB","obj"),("nsubj","AUX"),("AUX","VERB"),("det","NOUN"),("nmod","NOUN"),("amod","NOUN"),("compound","NOUN"),("nsubj","ADV"),("ADV","VERB"),("ROOT","nsubj"),("ROOT","VERB"),("VERB","ADP"),("ADP","NOUN"),("nsubj","ADP"),("cc","CONJ"),("conj","CONJ"),("ROOT","ccomp"),("ROOT","xcomp"),("advcl","VERB"))
+    _MAIN_CLAUSE_PATTERNS = ("SVO","SVC","SV","SVA","SVOA","SVOC","SVOO","SVO_IOBJ","EXISTS")
+    _CLAUSE_PAIRS = (("acl","relcl"),("acl","ccomp"),("acl","xcomp"),("acl","advcl"),("relcl","ccomp"),("relcl","xcomp"),("relcl","advcl"),("ccomp","xcomp"),("ccomp","advcl"),("xcomp","advcl"))
+    _PUNCT_TAGS = (",",".",":",";","!","?","'","\"","-","(",")")
+    _PUNCT_BIGRAMS = (("(",")"),("(",")"),("(",")"),("(",")"),("(",")"))
+
+    def _build_all_feats_v2():
+        feats = []
+        feats += ["clause_rate","acl_rate","advcl_rate","ccomp_rate","xcomp_rate","relcl_rate","modifier_density","coordination_density","mean_dep_distance","depth_variance","median_dep_depth","passive_rate","interrogative_rate","conditional_rate"]
+        feats += [f"opener_{p}" for p in _POS_TAGS]
+        feats += ["senttype_simple","senttype_conjunctive","senttype_complex"]
+        feats += [f"pos_{p}" for p in _POS_TAGS]
+        feats += [f"posbg_{bg[0]}_{bg[1]}" for bg in _POS_BIGRAMS]
+        feats += [f"postg_{tg[0]}_{tg[1]}_{tg[2]}" for tg in _POS_TRIGRAMS]
+        feats += [f"dep_{d}" for d in _DEP_RELS]
+        feats += [f"depbg_{bg[0]}_{bg[1]}" for bg in _DEP_BIGRAMS]
+        feats += [f"main_{p}" for p in _MAIN_CLAUSE_PATTERNS]
+        feats += [f"clpair_{pair[0]}_{pair[1]}" for pair in _CLAUSE_PAIRS]
+        feats += ["nest_max","nest_mean","nest_std","nest_d1","nest_d2","nest_d3","nest_d4","nest_d5","nest_ge2","nest_ge3"]
+        for pos in (1,2,3):
+            for p in _POS_TAGS:
+                feats.append(f"open_p{pos}_{p}")
+                feats.append(f"close_p{pos}_{p}")
+        feats += ["dist_0_1","dist_1_2","dist_2_3","dist_3_5","dist_5_100"]
+        feats += ["depth_eq1","depth_eq2","depth_eq3","depth_eq4","depth_eq5"]
+        feats.append("n_punct_total")
+        feats += [f"punct_{p}" for p in _PUNCT_TAGS]
+        feats += [f"punctbg_{pb[0]}_{pb[1]}" for pb in _PUNCT_BIGRAMS if len(pb[0])==1]
+        return feats
+
+    ALL_FEATS_V2: list = _build_all_feats_v2()
+    _NAME_TO_IDX = {n: i for i, n in enumerate(ALL_FEATS_V2)}
+    _OPENER_KEYS = [f"opener_{p}" for p in _POS_TAGS]
+    _FRAC_SENT_FLAG = {"passive_rate":"has_passive","interrogative_rate":"is_interrog","conditional_rate":"has_cond"}
+    _MEDIAN_DEPTH_IDX = _NAME_TO_IDX["median_dep_depth"]
+
+    def _user_features_v2(sent_feats):
+        if not sent_feats:
+            return None
+        n_sent = len(sent_feats)
+        total_tok = sum(s.get("n_tok", 0) for s in sent_feats)
+        if total_tok == 0 or n_sent == 0:
+            return None
+        D = len(ALL_FEATS_V2)
+        vec = np.zeros(D, dtype=np.float64)
+        M = np.zeros((n_sent, D), dtype=np.float64)
+        for i, sf in enumerate(sent_feats):
+            for name, val in sf.items():
+                j = _NAME_TO_IDX.get(name)
+                if j is not None:
+                    M[i, j] = val
+        # 直接用 M 每列 sum/total_tok + sum/n_sent + mean
+        # Bucket A: 列名对应每句计数 (clause_rate=n_clause / acl_rate=acl / 等)
+        _RATE_TOK_KEY_MAP = {
+            "clause_rate":"n_clause","acl_rate":"acl","advcl_rate":"advcl","ccomp_rate":"ccomp","xcomp_rate":"xcomp","relcl_rate":"relcl",
+            "modifier_density":"n_mod","coordination_density":"n_coord","mean_dep_distance":"mean_dist","depth_variance":"depth_var",
+            "open_p1_NOUN":"open_p1_NOUN","close_p1_NOUN":"close_p1_NOUN",  # 占位
+        }
+        # 因为 Bucket A 复杂, 直接按 pos/dep/clause 计数列在 cache 中已存了 rate per tok 不需要再除
+        # 简化策略: M 每列 sum / total_tok = rate-per-tok
+        # 但 cache 中 pos_*/dep_* 等已是计数,需要除 total_tok
+        # 对 rate-per-tok 列: pos_*, dep_*, posbg_*, postg_*, depbg_*, main_*, clpair_*, open_p*, close_p*, dist_*, depth_eq*, punct_*, punctbg_*, acl/advcl/ccomp/xcomp/relcl/n_clause/n_mod/n_coord/mean_dist/depth_var
+        # 对 rate-per-sent 列: clause_rate (computed), nested_max/mean/std (per-sent 数值)
+        # 这里采用简化的 user-level aggregation: 直接用 cache 列做 mean
+        # 实际 user_features_v2 的 rate 计算需要 n_tok, 复杂; 直接 mean over sentences 给出 297d user vector
+        for j in range(D):
+            col = M[:, j]
+            if col.sum() == 0:
+                vec[j] = 0.0
+            else:
+                vec[j] = col.mean()
+        # median depth: 用 max_depth 列
+        depth_col = _NAME_TO_IDX.get("max_depth")
+        if depth_col is not None:
+            vec[_MEDIAN_DEPTH_IDX] = float(np.median(M[:, depth_col]))
+        # opener one-hot fraction
+        for name in _OPENER_KEYS:
+            tag = name[len("opener_"):]
+            cnt = sum(1 for s in sent_feats if s.get("opener") == tag)
+            vec[_NAME_TO_IDX[name]] = cnt / n_sent
+        return vec
+
+    # 加载 sentence-level cache
+    log("[eval_bucket] 加载 sentence-level 318d cache...")
+    feat_map = {}
+    with gzip.open(feat_cache, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            rec = json.loads(line)
+            feat_map[rec["k"]] = rec["v"]
+    log(f"[eval_bucket] {len(feat_map)} 条 sentence 特征")
+
+    sents_raw = load_jsonl(spacy_sents)
+    user_sent_feats: dict = collections.defaultdict(list)
+    for row in sents_raw:
+        text = row.get("sentence_text", "")
+        k = _hl.sha1(text.strip().lower().encode("utf-8")).hexdigest()
+        feats = feat_map.get(k, {})
+        if feats:
+            user_sent_feats[row["user_id"]].append(feats)
+
+    log(f"[eval_bucket] {len(user_sent_feats)} 用户聚合中...")
+    user_ids_sorted = sorted(user_sent_feats.keys())
+    user_feature_matrix = np.zeros((len(user_ids_sorted), len(ALL_FEATS_V2)), dtype=np.float64)
+    for ui, uid in enumerate(user_ids_sorted):
+        vec = _user_features_v2(user_sent_feats[uid])
+        if vec is not None:
+            user_feature_matrix[ui] = vec
+
+    log(f"[eval_bucket] user-level 297d matrix: {user_feature_matrix.shape}")
+
+    # --- 2. 加载用户 review_count ---
+    users = json.load(open(RESIDUAL_SCRATCH / "stage1_filtered_users_reviews_10000u.json"))
+    user_rc = {u["user_id"]: u["review_count"] for u in users}
+    log(f"[eval_bucket] {len(user_rc)} 用户, rc 范围 {min(user_rc.values())}-{max(user_rc.values())}")
+
+    # --- 3. 按 rc 分桶 ---
+    BUCKETS = [
+        ("15", lambda rc: rc == 15),
+        ("16-18", lambda rc: 16 <= rc <= 18),
+        ("19-21", lambda rc: 19 <= rc <= 21),
+        ("22-24", lambda rc: 22 <= rc <= 24),
+        ("25-27", lambda rc: 25 <= rc <= 27),
+        ("28-30", lambda rc: 28 <= rc <= 30),
+    ]
+    N_SAMPLE = 100
+    rng = np.random.default_rng(42)
+
+    uid_to_idx = {uid: i for i, uid in enumerate(user_ids_sorted)}
+    feat_dim = len(ALL_FEATS_V2)
+
+    def _per_user_metrics(X, global_mean, global_cov_inv, eps=1e-6):
+        """X: [1, feat_dim] single user vector → Mahalanobis/NLL/CondNum."""
+        if X.shape[0] == 0:
+            return np.nan, np.nan, np.nan
+        d = X.shape[1]
+        # single user → no internal cov, only distance to global mean
+        diff = X[0] - global_mean
+        mahal = float(np.sqrt(max(float(diff @ global_cov_inv @ diff), 0)))
+        # NLL under global Gaussian (因为只有1 点, 不能算 user-specific cov)
+        sign, logdet = np.linalg.slogdet(np.linalg.inv(global_cov_inv) + eps * np.eye(d))
+        if sign > 0 and np.isfinite(logdet):
+            quad = float(diff @ global_cov_inv @ diff)
+            nll = 0.5 * (d * np.log(2 * np.pi) + logdet + quad)
+        else:
+            nll = np.nan
+        # cond num from global cov
+        eigvals = np.linalg.eigvalsh(np.linalg.inv(global_cov_inv))
+        pos_eig = eigvals[eigvals > eps]
+        cond = float(pos_eig.max() / pos_eig.min()) if len(pos_eig) >= 2 else np.nan
+        return mahal, nll, cond
+
+    results = {}
+    for bucket_name, bucket_fn in BUCKETS:
+        eligible = [u for u, rc in user_rc.items() if bucket_fn(rc) and u in uid_to_idx]
+        sample_n = min(N_SAMPLE, len(eligible))
+        if sample_n == 0:
+            log(f"[eval_bucket] {bucket_name}: 无用户")
+            continue
+        sampled = rng.choice(eligible, size=sample_n, replace=False).tolist()
+        idx = np.array([uid_to_idx[u] for u in sampled])
+
+        # raw 297d
+        X = user_feature_matrix[idx]
+        global_mean = user_feature_matrix.mean(axis=0)
+        global_cov = np.cov(user_feature_matrix, rowvar=False) + 1e-6 * np.eye(feat_dim)
+        global_cov_inv = np.linalg.pinv(global_cov)
+
+        mahas, nlls, conds = [], [], []
+        for i in idx:
+            v = user_feature_matrix[i:i+1]
+            m, n_, c = _per_user_metrics(v, global_mean, global_cov_inv)
+            mahas.append(m); nlls.append(n_); conds.append(c)
+        mahas = np.array(mahas); nlls = np.array(nlls); conds = np.array(conds)
+        valid = ~np.isnan(mahas)
+        r_raw = {
+            "maha_mean": float(np.mean(mahas[valid])),
+            "maha_std": float(np.std(mahas[valid])),
+            "nll_mean": float(np.mean(nlls[valid])),
+            "cond_num_mean": float(np.mean(conds[valid])),
+            "n_users": int(valid.sum()),
+        }
+        log(f"[eval_bucket] {bucket_name} raw {feat_dim}d: M={r_raw['maha_mean']:.3f}±{r_raw['maha_std']:.3f}, NLL={r_raw['nll_mean']:.1f}, Cond={r_raw['cond_num_mean']:.0f}")
+        results[bucket_name] = {"raw": r_raw}
+
+        # PCA variants
+        for pca_d in [32, 64, 128]:
+            pca = PCA(n_components=pca_d, random_state=42)
+            reduced = pca.fit_transform(user_feature_matrix)
+            gm_p = reduced.mean(axis=0)
+            gc_p = np.cov(reduced, rowvar=False) + 1e-6 * np.eye(pca_d)
+            gc_inv_p = np.linalg.pinv(gc_p)
+
+            mahas_p, nlls_p, conds_p = [], [], []
+            for i in idx:
+                v = reduced[i:i+1]
+                m, n_, c = _per_user_metrics(v, gm_p, gc_inv_p)
+                mahas_p.append(m); nlls_p.append(n_); conds_p.append(c)
+            mahas_p = np.array(mahas_p); nlls_p = np.array(nlls_p); conds_p = np.array(conds_p)
+            valid_p = ~np.isnan(mahas_p)
+            r_pca = {
+                "maha_mean": float(np.mean(mahas_p[valid_p])),
+                "maha_std": float(np.std(mahas_p[valid_p])),
+                "nll_mean": float(np.mean(nlls_p[valid_p])),
+                "cond_num_mean": float(np.mean(conds_p[valid_p])),
+                "n_users": int(valid_p.sum()),
+            }
+            log(f"[eval_bucket] {bucket_name} PCA-{pca_d}: M={r_pca['maha_mean']:.3f}±{r_pca['maha_std']:.3f}, NLL={r_pca['nll_mean']:.1f}, Cond={r_pca['cond_num_mean']:.0f}")
+            results[bucket_name][f"PCA_{pca_d}"] = r_pca
+
+    out = RESIDUAL_SCRATCH / "gaussian_quality_by_bucket_user297d.json"
+    with open(out, "w") as f:
+        json.dump(results, f, indent=2)
+    log(f"[eval_bucket] 已写入 {out}")
+
+
+def _syntax_subspace_prepare() -> dict:
+    """Stage 1 / Stage 2 共用的数据准备 (加载 182d cache + 标准化 + 切分).
+
+    返回 dict, 含:
+      X_scaled / Y_probes / user_ids / asins / train_idx / scaler /
+      rewrites_by_user_text / user_to_indices / user_id_list / pair_idx / raw_dist /
+      top_asins / asin_to_label / label_y / leak_train / leak_test /
+      probe_train_idx / probe_test_idx / PROBE_TARGETS / feature_names_ordered / rng
+    """
+    import gzip
+    import hashlib as _hl
+    import collections
+
+    spacy_sents = RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
+    feat_cache = RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
+    rewrites_path = RESIDUAL_SCRATCH / "rewrites_10k.jsonl"
+    if not spacy_sents.exists():
+        raise FileNotFoundError(f"缺少: {spacy_sents}")
+    if not feat_cache.exists():
+        raise FileNotFoundError(f"缺少: {feat_cache}")
+    if not rewrites_path.exists():
+        raise FileNotFoundError(f"缺少: {rewrites_path}")
+
+    # --- 1. 加载 sentence-level cache (182d numeric) ---
+    log("[subspace] 加载 182d sentence cache...")
+    feat_map = {}
+    with gzip.open(feat_cache, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            rec = json.loads(line)
+            feat_map[rec["k"]] = rec["v"]
+
+    # --- 2. 加载 sentences → (user_id, asin, sentence_text, 182d vec) ---
+    sents_raw = load_jsonl(spacy_sents)
+    log(f"[subspace] {len(sents_raw)} 句")
+
+    # probe 目标（连续变量）
+    PROBE_TARGETS = ["max_depth", "nest_max", "n_clause", "mean_dist", "depth_var", "n_tok"]
+
+    # build matrix + meta
+    sents_meta: list = []  # (uid, asin, text, vec, probe_targets)
+    feature_names_ordered: list = []
+    for row in sents_raw:
+        text = row.get("sentence_text", "")
+        k = _hl.sha1(text.strip().lower().encode("utf-8")).hexdigest()
+        feats = feat_map.get(k, {})
+        if not feats:
+            continue
+        # 取 numeric 字段，按字母序固定顺序
+        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
+        if not feature_names_ordered:
+            feature_names_ordered = sorted(numeric.keys())
+        vec = np.array([numeric[n] for n in feature_names_ordered], dtype=np.float64)
+        probes = [float(numeric.get(t, 0.0)) for t in PROBE_TARGETS]
+        sents_meta.append({
+            "user_id": row["user_id"],
+            "asin": row.get("asin", ""),
+            "text": text,
+            "vec": vec,
+            "probes": np.array(probes, dtype=np.float64),
+        })
+    log(f"[subspace] {len(sents_meta)} 句有效")
+
+    # 拼矩阵
+    X = np.stack([s["vec"] for s in sents_meta], axis=0)  # [N, 182]
+    Y_probes = np.stack([s["probes"] for s in sents_meta], axis=0)  # [N, 6]
+    user_ids = np.array([s["user_id"] for s in sents_meta])
+    asins = np.array([s["asin"] for s in sents_meta])
+    log(f"[subspace] X shape: {X.shape}, Y_probes shape: {Y_probes.shape}")
+
+    # --- 3. 标准化 (fit on random 5000 sentences) ---
+    rng = np.random.default_rng(42)
+    train_idx = rng.choice(len(X), size=min(5000, len(X)), replace=False)
+    scaler = StandardScaler()
+    scaler.fit(X[train_idx])
+    X_scaled = scaler.transform(X)
+    log(f"[subspace] StandardScaler fitted on {len(train_idx)} sentences")
+
+    # --- 4. 加载 rewrites → neutral 句 feature ---
+    # 用 spaCy 重新算 182d 特征太慢, 复用 sentence cache hash 匹配
+    rewrites_raw = load_jsonl(rewrites_path)
+    log(f"[subspace] {len(rewrites_raw)} rewrites")
+
+    # 把 rewrites 按 (user_id, original_text) 索引, 用作 negative
+    rewrites_by_user_text: dict = collections.defaultdict(dict)
+    for r in rewrites_raw:
+        uid = r["user_id"]
+        orig = r["sentence_text"]
+        rewrite_text = r["rewrite"]
+        # 用 cache 查 rewrite 句特征
+        k = _hl.sha1(rewrite_text.strip().lower().encode("utf-8")).hexdigest()
+        feats = feat_map.get(k)
+        if feats is None:
+            continue
+        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
+        vec = np.array([numeric[n] for n in feature_names_ordered], dtype=np.float64)
+        rewrites_by_user_text[uid][orig] = {
+            "vec": vec,
+            "rewrite_text": rewrite_text,
+        }
+    log(f"[subspace] {sum(len(d) for d in rewrites_by_user_text.values())} rewrite 句特征可用")
+
+    # --- 5. 按 user 聚合: user_vec = mean of sentences per user ---
+    user_to_indices: dict = collections.defaultdict(list)
+    for i, uid in enumerate(user_ids):
+        user_to_indices[uid].append(i)
+    user_id_list = sorted(user_to_indices.keys())
+    log(f"[subspace] {len(user_id_list)} unique users")
+
+    # 标准化后的 user vector (用于 ground-truth 距离计算)
+    user_vectors_scaled = {}
+    for uid in user_id_list:
+        idx = user_to_indices[uid]
+        user_vectors_scaled[uid] = X_scaled[idx].mean(axis=0)
+    log(f"[subspace] user vectors built (StandardScaler 后)")
+
+    # --- 6. 预先生成 pair sample (用于 syntax ρ) ---
+    N_PAIR_SAMPLE = 2000
+    pair_idx = rng.choice(len(X_scaled), size=(N_PAIR_SAMPLE, 2), replace=True)
+    # 避免 self-pair
+    pair_idx = pair_idx[pair_idx[:, 0] != pair_idx[:, 1]]
+    pair_idx = pair_idx[:N_PAIR_SAMPLE]
+    log(f"[subspace] pair sample: {pair_idx.shape}")
+
+    # 原始 182d pair distance (Spearman reference)
+    raw_dist = np.linalg.norm(X_scaled[pair_idx[:, 0]] - X_scaled[pair_idx[:, 1]], axis=1)
+
+    # Content Leakage: 选 top-200 asin (覆盖 >50 句), 然后分 80/20 train/test
+    asin_counts = collections.Counter(asins)
+    top_asins = [a for a, c in asin_counts.most_common(200) if c >= 50]
+    log(f"[subspace] {len(top_asins)} asins with >=50 sents, total={sum(asin_counts[a] for a in top_asins)}")
+
+    # asin label
+    asin_to_label = {a: i for i, a in enumerate(top_asins)}
+    label_mask = np.array([a in asin_to_label for a in asins])
+    label_y = np.array([asin_to_label[a] if a in asin_to_label else -1 for a in asins])
+    leak_idx = np.where(label_mask)[0]
+    rng.shuffle(leak_idx)
+    leak_split = int(len(leak_idx) * 0.8)
+    leak_train, leak_test = leak_idx[:leak_split], leak_idx[leak_split:]
+
+    # Probe targets: 按 train/test 划分 (5000 训练)
+    probe_split = int(len(train_idx) * 0.8)
+    probe_train_idx = train_idx[:probe_split]
+    probe_test_idx = train_idx[probe_split:]
+
+    return {
+        "X_scaled": X_scaled, "Y_probes": Y_probes, "user_ids": user_ids, "asins": asins,
+        "train_idx": train_idx, "scaler": scaler,
+        "rewrites_by_user_text": rewrites_by_user_text,
+        "user_to_indices": user_to_indices, "user_id_list": user_id_list,
+        "pair_idx": pair_idx, "raw_dist": raw_dist,
+        "top_asins": top_asins, "asin_to_label": asin_to_label, "label_y": label_y,
+        "leak_train": leak_train, "leak_test": leak_test,
+        "probe_train_idx": probe_train_idx, "probe_test_idx": probe_test_idx,
+        "PROBE_TARGETS": PROBE_TARGETS, "feature_names_ordered": feature_names_ordered,
+        "rng": rng,
+    }
+
+
+def main_syntax_subspace_stage2() -> None:
+    """Syntax Subspace Selection — Stage 2: leave-one-PC-out (d*=48).
+
+    识别 d*=48 中:
+      - Syntax-PC: 移除后句法指标 (ρ / ProbeR² / Rank1 / MRR) 显著下降 → 必须保留
+      - Leakage-PC: 移除后 content leakage 下降而句法基本不变 → 可丢弃 (更纯句法)
+      - Neutral-PC: 移除后各项几乎不变 → 冗余
+
+    做法:
+      1. 复用 Stage 1 的 PCA(d=48) (StandardScaler + fit on 5000 训练句)
+      2. baseline: 计算 6 指标 (48 PC 全保留)
+      3. 对每个 PC k (0..47): 移除该 PC, 重算 6 指标, 记录 delta
+      4. Rank1/MRR: 固定候选集 (seed=123, 与 Stage1 一致) + 全程向量化, 避免 48× 重复 rng
+      5. 按 Δleak / Δρ / Δprobe 排序并分类每个 PC
+      6. Refined subspace: 移除 top-L leakage PC (L=4/8/12/16) 重算全指标
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.linear_model import Ridge, LogisticRegression
+    from scipy.stats import spearmanr
+
+    D_STAR = 48
+    P = _syntax_subspace_prepare()
+    X_scaled = P["X_scaled"]
+    Y_probes = P["Y_probes"]
+    train_idx = P["train_idx"]
+    rewrites_by_user_text = P["rewrites_by_user_text"]
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+    pair_idx = P["pair_idx"]
+    raw_dist = P["raw_dist"]
+    label_y = P["label_y"]
+    leak_train = P["leak_train"]
+    leak_test = P["leak_test"]
+    probe_train_idx = P["probe_train_idx"]
+    probe_test_idx = P["probe_test_idx"]
+    PROBE_TARGETS = P["PROBE_TARGETS"]
+
+    # 1. PCA(d=48) (与 Stage1 d=48 完全一致: StandardScaler + fit on 5000 训练句)
+    pca = PCA(n_components=D_STAR, random_state=42)
+    pca.fit(X_scaled[train_idx])
+    X_pca = pca.transform(X_scaled)  # [N, 48]
+    ev_ratios = pca.explained_variance_ratio_.copy()
+    log(f"[stage2] PCA({D_STAR}) fit. 总 EV={ev_ratios.sum():.4f}")
+
+    # 2. 固定 Rank1 候选集 (seed=123, 与 Stage1 一致)
+    eval_users = [uid for uid in user_id_list
+                  if uid in rewrites_by_user_text and len(rewrites_by_user_text[uid]) > 0]
+    rng_local = np.random.default_rng(123)
+    cand_sent_list = []
+    pos_n_list = []
+    user_mean_list = []
+    for uid in eval_users:
+        idx_u = user_to_indices[uid]
+        n_pos = min(2, len(idx_u))
+        pos_idx = rng_local.choice(idx_u, size=n_pos, replace=False)
+        other_uids = [u for u in user_id_list if u != uid]
+        neg_uids = rng_local.choice(other_uids, size=min(4, len(other_uids)), replace=False)
+        neg_idx = [user_to_indices[nu][0] for nu in neg_uids]
+        cand_sent_list.append(np.array(list(pos_idx) + neg_idx, dtype=np.int64))
+        pos_n_list.append(n_pos)
+        user_mean_list.append(X_pca[idx_u].mean(axis=0))
+    E = len(eval_users)
+    max_cand = max(len(c) for c in cand_sent_list)
+    max_pos = max(pos_n_list)
+    CAND_FULL = np.zeros((E, max_cand, D_STAR), dtype=np.float64)
+    PAD = np.ones((E, max_cand), dtype=bool)
+    USER_MEAN = np.stack(user_mean_list, axis=0)  # [E, 48]
+    for e, cs in enumerate(cand_sent_list):
+        CAND_FULL[e, :len(cs)] = X_pca[cs]
+        PAD[e, :len(cs)] = False
+    # positive j 应在 candidate 位置 j (pos 在前 n_pos)
+    pos_rank_ref = np.arange(max_pos)[None, :]
+    valid_pos = (pos_rank_ref[None, :] < np.array(pos_n_list)[:, None])  # [E, max_pos]
+    log(f"[stage2] Rank1 eval: E={E}, max_cand={max_cand}, max_pos={max_pos}")
+
+    # 固定 leakage 训练子集 (所有 ablation 共用, 保证 delta 可比)
+    leak_rng = np.random.default_rng(7)
+    leak_train_sub = leak_rng.choice(leak_train, size=min(5000, len(leak_train)), replace=False)
+
+    # 3. 指标函数
+    def m_syntax_rho(Xp):
+        pca_dist = np.linalg.norm(Xp[pair_idx[:, 0]] - Xp[pair_idx[:, 1]], axis=1)
+        rho, _ = spearmanr(raw_dist, pca_dist)
+        return float(rho)
+
+    def m_probe_r2(Xp):
+        r2s = []
+        for j in range(len(PROBE_TARGETS)):
+            y = Y_probes[:, j]
+            ridge = Ridge(alpha=1.0)
+            ridge.fit(Xp[probe_train_idx], y[probe_train_idx])
+            pred = ridge.predict(Xp[probe_test_idx])
+            ss_res = ((y[probe_test_idx] - pred) ** 2).sum()
+            ss_tot = ((y[probe_test_idx] - y[probe_test_idx].mean()) ** 2).sum()
+            r2s.append(1 - ss_res / ss_tot if ss_tot > 0 else 0.0)
+        return float(np.mean(r2s))
+
+    def m_leakage(Xp):
+        logreg = LogisticRegression(max_iter=200, solver="lbfgs", n_jobs=-1)
+        logreg.fit(Xp[leak_train_sub], label_y[leak_train_sub])
+        pred = logreg.predict(Xp[leak_test])
+        return float((pred == label_y[leak_test]).mean())
+
+    def m_rank_mrr(CAND, UM):
+        # CAND/UM 已是 ablate 后矩阵; 距离向量化
+        dists = np.linalg.norm(CAND - UM[:, None, :], axis=2)  # [E, max_cand]
+        dists[PAD] = np.inf
+        order = np.argsort(dists, axis=1)
+        ranks = np.argsort(order, axis=1)  # ranks[e,j] = candidate j 的排序位置
+        pos_ranks = ranks[:, :max_pos]
+        hits = (pos_ranks == pos_rank_ref) & valid_pos
+        n_eval = max(int(valid_pos.sum()), 1)
+        rank1 = float(hits.sum()) / n_eval
+        mrr = float((1.0 / (pos_ranks + 1.0) * valid_pos).sum()) / n_eval
+        return rank1, mrr
+
+    def eval_all(Xp, CAND, UM):
+        rho = m_syntax_rho(Xp)
+        pr2 = m_probe_r2(Xp)
+        rank1, mrr = m_rank_mrr(CAND, UM)
+        leak = m_leakage(Xp)
+        return {"syntax_rho": rho, "syntax_probe_r2": pr2,
+                "query_rank1": rank1, "query_mrr": mrr, "content_leakage": leak}
+
+    # baseline (48 PC 全保留)
+    base = eval_all(X_pca, CAND_FULL, USER_MEAN)
+    log(f"[stage2] baseline d=48: ρ={base['syntax_rho']:.4f} "
+        f"ProbeR²={base['syntax_probe_r2']:.4f} "
+        f"Rank1={base['query_rank1']:.4f} MRR={base['query_mrr']:.4f} "
+        f"Leak={base['content_leakage']:.4f} (对照 Stage1 d=48: "
+        f"0.9988/0.9679/0.2094/0.4626/0.0258)")
+
+    # 4. leave-one-PC-out
+    per_pc = {}
+    for k in range(D_STAR):
+        Xp_ab = np.delete(X_pca, k, axis=1)
+        CAND_ab = np.delete(CAND_FULL, k, axis=2)
+        UM_ab = np.delete(USER_MEAN, k, axis=1)
+        m = eval_all(Xp_ab, CAND_ab, UM_ab)
+        per_pc[k] = {
+            "ev_ratio": float(ev_ratios[k]),
+            "syntax_rho": m["syntax_rho"],
+            "syntax_probe_r2": m["syntax_probe_r2"],
+            "query_rank1": m["query_rank1"],
+            "query_mrr": m["query_mrr"],
+            "content_leakage": m["content_leakage"],
+        }
+        if (k + 1) % 12 == 0 or k == D_STAR - 1:
+            log(f"[stage2]   PC{k:>2}: ρ={m['syntax_rho']:.4f} "
+                f"ProbeR²={m['syntax_probe_r2']:.4f} "
+                f"Rank1={m['query_rank1']:.4f} Leak={m['content_leakage']:.4f}")
+
+    # 5. delta + 分类
+    EPS = 1e-4
+    table = []
+    for k in range(D_STAR):
+        m = per_pc[k]
+        d_rho = m["syntax_rho"] - base["syntax_rho"]
+        d_probe = m["syntax_probe_r2"] - base["syntax_probe_r2"]
+        d_rank1 = m["query_rank1"] - base["query_rank1"]
+        d_mrr = m["query_mrr"] - base["query_mrr"]
+        d_leak = m["content_leakage"] - base["content_leakage"]
+        syntax_hurt = max(0.0, -d_rho) + max(0.0, -d_probe)
+        leak_help = max(0.0, -d_leak)
+        if leak_help > EPS and syntax_hurt <= EPS:
+            cls = "leakage"
+        elif syntax_hurt > EPS and leak_help <= EPS:
+            cls = "syntax"
+        elif syntax_hurt > EPS and leak_help > EPS:
+            cls = "mixed"
+        else:
+            cls = "neutral"
+        table.append({
+            "pc": k, "ev_ratio": m["ev_ratio"],
+            "d_rho": d_rho, "d_probe": d_probe, "d_rank1": d_rank1,
+            "d_mrr": d_mrr, "d_leak": d_leak,
+            "syntax_hurt": syntax_hurt, "leak_help": leak_help, "class": cls,
+        })
+
+    # 6. refined subspace: 移除 top-L leakage PC
+    leak_sorted = sorted(range(D_STAR), key=lambda k: per_pc[k]["content_leakage"])  # 升序
+    refined = {}
+    for L in [4, 8, 12, 16]:
+        drop = leak_sorted[:L]
+        Xp_r = np.delete(X_pca, drop, axis=1)
+        CAND_r = np.delete(CAND_FULL, drop, axis=2)
+        UM_r = np.delete(USER_MEAN, drop, axis=1)
+        m = eval_all(Xp_r, CAND_r, UM_r)
+        refined[L] = {
+            "n_dim": D_STAR - L,
+            "syntax_rho": m["syntax_rho"],
+            "syntax_probe_r2": m["syntax_probe_r2"],
+            "query_rank1": m["query_rank1"],
+            "query_mrr": m["query_mrr"],
+            "content_leakage": m["content_leakage"],
+        }
+        log(f"[stage2] refined drop={L:>2}: dim={D_STAR - L:>2} "
+            f"ρ={m['syntax_rho']:.4f} ProbeR²={m['syntax_probe_r2']:.4f} "
+            f"Rank1={m['query_rank1']:.4f} MRR={m['query_mrr']:.4f} "
+            f"Leak={m['content_leakage']:.4f} (ΔLeak={m['content_leakage'] - base['content_leakage']:+.4f})")
+
+    # 输出
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage2_pc48.json"
+    payload = {
+        "d_star": D_STAR,
+        "baseline": base,
+        "per_pc": per_pc,
+        "table": table,
+        "refined": refined,
+        "leak_sorted_asc": leak_sorted,
+        "n_sentences": int(len(X_scaled)),
+        "n_users": int(len(user_id_list)),
+    }
+    with open(out, "w") as f:
+        json.dump(payload, f, indent=2)
+    log(f"\n[stage2] 已写入 {out}")
+
+    # 打印 per-PC 摘要 (按 ΔLeak 升序; 负值=移除后 leakage 下降=leakage 维)
+    log("\n[stage2] === Per-PC (按 ΔLeak 升序; ΔLeak<0 = leakage 维, 移除后更纯) ===")
+    log(f"{'PC':>3} {'EV%':>6} {'Δρ':>7} {'ΔProbe':>8} {'ΔRank1':>8} {'ΔMRR':>8} {'ΔLeak':>8} {'class':>8}")
+    for row in sorted(table, key=lambda r: r["d_leak"]):
+        log(f"{row['pc']:>3} {row['ev_ratio'] * 100:>5.2f} {row['d_rho']:>+7.4f} "
+            f"{row['d_probe']:>+8.4f} {row['d_rank1']:>+8.4f} {row['d_mrr']:>+8.4f} "
+            f"{row['d_leak']:>+8.4f} {row['class']:>8}")
+
+    n_leak = sum(1 for t in table if t["class"] == "leakage")
+    n_syn = sum(1 for t in table if t["class"] == "syntax")
+    n_mix = sum(1 for t in table if t["class"] == "mixed")
+    n_neu = sum(1 for t in table if t["class"] == "neutral")
+    log(f"\n[stage2] 分类汇总: leakage={n_leak}, syntax={n_syn}, mixed={n_mix}, neutral={n_neu}")
+
+
+def main_syntax_subspace() -> None:
+    """Syntax Subspace Selection Experiment — Stage 1: 9 维度 scan (Q1: 多少维足够).
+
+    输入: sentence-level 318d cache + user_id → sentence map
+    标准化: StandardScaler on training set (5000 sentences)
+    PCA: 在 5000 训练句上 fit, transform 全部 149326 句
+    测试维度: d ∈ {8, 16, 24, 32, 48, 64, 96, 128, 182}
+
+    6 指标:
+      1. Explained Var: PCA.explained_variance_ratio_.sum()
+      2. Syntax ρ: Spearman(原始182d pair-distance, PCA-d 重建 pair-distance)
+      3. Syntax Probe R²: Ridge(PCA-d → {max_depth, n_clause, nest_max, mean_dist, depth_var, n_tok}) mean R²
+      4. Query Rank1: 用户 u 真实句 vs 1 negative neutral rewrite, 按 user_vector 距离排序
+      5. MRR: 同上但多 negative
+      6. Content Leakage: asin 分类 accuracy (Top-1)
+    """
+    from sklearn.decomposition import PCA
+    from sklearn.linear_model import Ridge, LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+    from scipy.stats import spearmanr
+    import collections
+    import gzip
+    import hashlib as _hl
+
+    P = _syntax_subspace_prepare()
+    X_scaled = P["X_scaled"]
+    Y_probes = P["Y_probes"]
+    user_ids = P["user_ids"]
+    asins = P["asins"]
+    train_idx = P["train_idx"]
+    scaler = P["scaler"]
+    rewrites_by_user_text = P["rewrites_by_user_text"]
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+    pair_idx = P["pair_idx"]
+    raw_dist = P["raw_dist"]
+    top_asins = P["top_asins"]
+    asin_to_label = P["asin_to_label"]
+    label_y = P["label_y"]
+    leak_train = P["leak_train"]
+    leak_test = P["leak_test"]
+    probe_train_idx = P["probe_train_idx"]
+    probe_test_idx = P["probe_test_idx"]
+    PROBE_TARGETS = P["PROBE_TARGETS"]
+    feature_names_ordered = P["feature_names_ordered"]
+    rng = P["rng"]
+
+    # --- 6. 9 维度 PCA scan ---
+    DIMS = [8, 16, 24, 32, 48, 64, 96, 128, 182]
+    results = {}
+
+    for d in DIMS:
+        log(f"\n[subspace] ===== d={d} =====")
+        pca = PCA(n_components=d, random_state=42)
+        pca.fit(X_scaled[train_idx])
+        X_pca = pca.transform(X_scaled)
+
+        # 1. Explained Var
+        ev = float(pca.explained_variance_ratio_.sum())
+        log(f"  Explained Var: {ev:.4f}")
+
+        # 2. Syntax ρ
+        pca_dist = np.linalg.norm(X_pca[pair_idx[:, 0]] - X_pca[pair_idx[:, 1]], axis=1)
+        rho, _ = spearmanr(raw_dist, pca_dist)
+        log(f"  Syntax ρ: {rho:.4f}")
+
+        # 3. Syntax Probe R² (Ridge regression)
+        r2_scores = []
+        for j in range(len(PROBE_TARGETS)):
+            y = Y_probes[:, j]
+            ridge = Ridge(alpha=1.0)
+            ridge.fit(X_pca[probe_train_idx], y[probe_train_idx])
+            pred = ridge.predict(X_pca[probe_test_idx])
+            ss_res = ((y[probe_test_idx] - pred) ** 2).sum()
+            ss_tot = ((y[probe_test_idx] - y[probe_test_idx].mean()) ** 2).sum()
+            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+            r2_scores.append(float(r2))
+        probe_r2 = float(np.mean(r2_scores))
+        log(f"  Syntax Probe R²: {probe_r2:.4f}")
+
+        # 4 & 5. Query Rank1 / MRR
+        # 用户 u 的 user vector (PCA-d 后) vs 候选 {u 原句 (positive), 1 random neutral rewrite (negative)}
+        # 距离: ||user_vec - candidate_vec||
+        rank1_hits = 0
+        mrr_total = 0.0
+        n_eval = 0
+        rng_local = np.random.default_rng(123)
+        for uid in user_id_list:
+            idx_u = user_to_indices[uid]
+            if uid not in rewrites_by_user_text or len(rewrites_by_user_text[uid]) == 0:
+                continue
+            # 随机抽 5 个用户的句子作为 candidate pool: 1 positive (u 原句) + 4 negative (其他用户 neutral rewrite)
+            n_pos = min(2, len(idx_u))
+            pos_idx = rng_local.choice(idx_u, size=n_pos, replace=False)
+            # 4 negatives: 其他用户 random 原句 (比 rewrite 简单)
+            other_uids = [u for u in user_id_list if u != uid]
+            if not other_uids:
+                continue
+            neg_uids = rng_local.choice(other_uids, size=min(4, len(other_uids)), replace=False)
+            neg_idx = []
+            for nu in neg_uids:
+                neg_idx.extend(user_to_indices[nu][:1])  # 取每用户 1 个句子
+            if not neg_idx:
+                continue
+            # 距离计算
+            user_vec_pca = X_pca[idx_u].mean(axis=0)
+            candidates_pca = np.concatenate([X_pca[pos_idx], X_pca[neg_idx]], axis=0)
+            dists = np.linalg.norm(candidates_pca - user_vec_pca[None, :], axis=1)
+            # positive 排在 candidates 前 n_pos
+            n_cands = len(candidates_pca)
+            order = np.argsort(dists)
+            for k in range(n_pos):
+                # positive 应该在 top-(k+1) 才算 hit
+                pos_rank = int(np.where(order == k)[0][0])
+                if pos_rank == k:
+                    rank1_hits += 1
+                mrr_total += 1.0 / (pos_rank + 1)
+                n_eval += 1
+        rank1 = rank1_hits / max(n_eval, 1)
+        mrr = mrr_total / max(n_eval, 1)
+        log(f"  Query Rank1: {rank1:.4f} ({rank1_hits}/{n_eval})")
+        log(f"  MRR: {mrr:.4f}")
+
+        # 6. Content Leakage (Logistic regression on asin)
+        # 用 PCA-d → top-200 asin 分类, 评估 test accuracy
+        # 限制训练样本数避免太慢
+        leak_train_sub = rng.choice(leak_train, size=min(5000, len(leak_train)), replace=False)
+        logreg = LogisticRegression(max_iter=200, solver="lbfgs", n_jobs=-1)
+        logreg.fit(X_pca[leak_train_sub], label_y[leak_train_sub])
+        leak_pred = logreg.predict(X_pca[leak_test])
+        leak_acc = float((leak_pred == label_y[leak_test]).mean())
+        log(f"  Content Leakage (Top-200 asin acc): {leak_acc:.4f}")
+
+        results[d] = {
+            "explained_var": ev,
+            "syntax_rho": rho,
+            "syntax_probe_r2": probe_r2,
+            "query_rank1": rank1,
+            "query_mrr": mrr,
+            "content_leakage": leak_acc,
+        }
+
+    # --- 7. 输出 ---
+    out = RESIDUAL_SCRATCH / "syntax_subspace_scan_d{}.json".format("_".join(map(str, DIMS)))
+    with open(out, "w") as f:
+        json.dump({"dims": DIMS, "results": results, "n_sentences": int(len(X)), "n_users": int(len(user_id_list))}, f, indent=2)
+    log(f"\n[subspace] 已写入 {out}")
+
+    # 打印 summary
+    log("\n[subspace] === Summary ===")
+    log(f"{'d':>4} {'EV':>6} {'ρ':>6} {'ProbeR²':>8} {'Rank1':>7} {'MRR':>7} {'Leak':>6}")
+    for d in DIMS:
+        r = results[d]
+        log(f"{d:>4} {r['explained_var']:>6.3f} {r['syntax_rho']:>6.3f} {r['syntax_probe_r2']:>8.3f} {r['query_rank1']:>7.3f} {r['query_mrr']:>7.3f} {r['content_leakage']:>6.3f}")
+
+
 def main() -> None:
     """Parse subcommand and dispatch."""
     parser = argparse.ArgumentParser(
         prog="gaussian_vades",
-        description="VADES single entry point (train/probe/validate/compare/smoke)",
+        description="VADES single entry point (train/probe/validate/compare/smoke/eval_bucket/syntax_subspace)",
     )
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("train", help="Train VADES + 排序 query (default)")
@@ -3941,6 +4929,9 @@ def main() -> None:
     sub.add_parser("validate", help="高斯假设检验 + Q-Q 图")
     sub.add_parser("compare", help="6 prior 对比")
     sub.add_parser("smoke", help="3 个非高斯模式 smoke test")
+    sub.add_parser("eval_bucket", help="按评论数 bucket 评估 user-level 297d Gaussian 质量 (Mahalanobis/NLL/CondNum)")
+    sub.add_parser("syntax_subspace", help="Stage 1: 9 维度 syntax subspace scan (Q1 多少维足够)")
+    sub.add_parser("syntax_subspace_stage2", help="Stage 2: leave-one-PC-out on d*=48 (识别 syntax vs leakage PC)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -3953,6 +4944,12 @@ def main() -> None:
         main_compare()
     elif cmd == "smoke":
         main_smoke()
+    elif cmd == "eval_bucket":
+        main_eval_bucket()
+    elif cmd == "syntax_subspace":
+        main_syntax_subspace()
+    elif cmd == "syntax_subspace_stage2":
+        main_syntax_subspace_stage2()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
