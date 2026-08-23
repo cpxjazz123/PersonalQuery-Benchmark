@@ -4600,8 +4600,8 @@ def main_syntax_subspace_stage2() -> None:
         CAND_FULL[e, :len(cs)] = X_pca[cs]
         PAD[e, :len(cs)] = False
     # positive j 应在 candidate 位置 j (pos 在前 n_pos)
-    pos_rank_ref = np.arange(max_pos)[None, :]
-    valid_pos = (pos_rank_ref[None, :] < np.array(pos_n_list)[:, None])  # [E, max_pos]
+    pos_rank_ref = np.arange(max_pos)  # (max_pos,)
+    valid_pos = pos_rank_ref[None, :] < np.array(pos_n_list)[:, None]  # [E, max_pos] 2D
     log(f"[stage2] Rank1 eval: E={E}, max_cand={max_cand}, max_pos={max_pos}")
 
     # 固定 leakage 训练子集 (所有 ablation 共用, 保证 delta 可比)
@@ -4760,6 +4760,230 @@ def main_syntax_subspace_stage2() -> None:
     n_neu = sum(1 for t in table if t["class"] == "neutral")
     log(f"\n[stage2] 分类汇总: leakage={n_leak}, syntax={n_syn}, mixed={n_mix}, neutral={n_neu}")
 
+
+def _ss_eval_all(Xp, CAND, UM, *, pair_idx, raw_dist, Y_probes, probe_train_idx,
+                 probe_test_idx, leak_train_sub, leak_test, label_y, PROBE_TARGETS, PAD,
+                 pos_rank_ref, valid_pos, max_pos):
+    """Syntax Subspace 共用指标计算 (syntax rho / probe R2 / rank1 / mrr / leakage).
+
+    输入 Xp/CAND/UM 已是投影后的子空间矩阵 (任意维数)。
+    """
+    from sklearn.linear_model import Ridge, LogisticRegression
+    from scipy.stats import spearmanr
+
+    # max_pos 由调用方显式传入 (positive 最大数量), 避免从 3D valid_pos 推断
+
+    # 1. syntax rho
+    pca_dist = np.linalg.norm(Xp[pair_idx[:, 0]] - Xp[pair_idx[:, 1]], axis=1)
+    rho, _ = spearmanr(raw_dist, pca_dist)
+
+    # 2. probe R2
+    r2s = []
+    for j in range(len(PROBE_TARGETS)):
+        y = Y_probes[:, j]
+        ridge = Ridge(alpha=1.0)
+        ridge.fit(Xp[probe_train_idx], y[probe_train_idx])
+        pred = ridge.predict(Xp[probe_test_idx])
+        ss_res = ((y[probe_test_idx] - pred) ** 2).sum()
+        ss_tot = ((y[probe_test_idx] - y[probe_test_idx].mean()) ** 2).sum()
+        r2s.append(1 - ss_res / ss_tot if ss_tot > 0 else 0.0)
+    pr2 = float(np.mean(r2s))
+
+    # 3. rank1 / mrr (向量化)
+    dists = np.linalg.norm(CAND - UM[:, None, :], axis=2)
+    dists[PAD] = np.inf
+    order = np.argsort(dists, axis=1)
+    ranks = np.argsort(order, axis=1)
+    pos_ranks = ranks[:, :max_pos]
+    hits = (pos_ranks == pos_rank_ref) & valid_pos
+    n_eval = max(int(valid_pos.sum()), 1)
+    rank1 = float(hits.sum()) / n_eval
+    mrr = float((1.0 / (pos_ranks + 1.0) * valid_pos).sum()) / n_eval
+
+    # 4. content leakage
+    logreg = LogisticRegression(max_iter=200, solver="lbfgs", n_jobs=-1)
+    logreg.fit(Xp[leak_train_sub], label_y[leak_train_sub])
+    leak = float((logreg.predict(Xp[leak_test]) == label_y[leak_test]).mean())
+
+    return {"syntax_rho": float(rho), "syntax_probe_r2": pr2,
+            "query_rank1": rank1, "query_mrr": mrr, "content_leakage": leak}
+
+
+def main_syntax_subspace_stage3a() -> None:
+    """Stage 3A: PC48-96 incremental syntax/content analysis + PC0 length sanity.
+
+    (a) 对每个增量 PC k (48..95, 即第 49..96 个主成分):
+        subspace = {PC0..47} u {PC_k} (49 维), 测 6 指标, 对比 d=48 baseline:
+          DeltaSyntax (rho/Probe/Rank1/MRR) ~= 0  -> 额外维不带来句法信息
+          DeltaLeak  > 0                        -> 额外维引入 content leakage
+        => 证明 48 是 "句法饱和 + 语义泄漏开始进入" 的拐点
+
+    (b) PC0 length-controlled sanity check:
+        PC0 占 23.3% EV 且独扛 ~63% 句法 probe 信号, 验证其不是句长假象:
+          - 原始 Spearman(PC0, 句法目标)
+          - partial Spearman(PC0, 句法目标 | n_tok) 控制句长
+          - 按 n_tok 分桶的分层相关
+        若控制句长后仍显著 -> PC0 是真正句法维 (强化论文论点)
+    """
+    from sklearn.decomposition import PCA
+    from scipy.stats import spearmanr
+
+    KMIN, KMAX = 48, 96  # 分析 PC index 48..95 (第 49..96 个主成分)
+    P = _syntax_subspace_prepare()
+    X_scaled = P["X_scaled"]
+    Y_probes = P["Y_probes"]
+    train_idx = P["train_idx"]
+    rewrites_by_user_text = P["rewrites_by_user_text"]
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+    pair_idx = P["pair_idx"]
+    raw_dist = P["raw_dist"]
+    label_y = P["label_y"]
+    leak_train = P["leak_train"]
+    leak_test = P["leak_test"]
+    probe_train_idx = P["probe_train_idx"]
+    probe_test_idx = P["probe_test_idx"]
+    PROBE_TARGETS = P["PROBE_TARGETS"]
+
+    # PCA(182) — PC0..95 与 PCA(96) 完全一致 (主成分固定)
+    pca = PCA(n_components=182, random_state=42)
+    pca.fit(X_scaled[train_idx])
+    X_pca = pca.transform(X_scaled)  # [N, 182]
+    ev = pca.explained_variance_ratio_
+    log(f"[stage3a] PCA(182) fit. 累计 EV(48)={ev[:48].sum():.4f}, EV(96)={ev[:96].sum():.4f}")
+
+    # Rank1 候选结构 (182维, seed=123 与 Stage1/2 一致)
+    eval_users = [uid for uid in user_id_list
+                  if uid in rewrites_by_user_text and len(rewrites_by_user_text[uid]) > 0]
+    rng_local = np.random.default_rng(123)
+    cand_sent_list = []
+    pos_n_list = []
+    user_mean_list = []
+    for uid in eval_users:
+        idx_u = user_to_indices[uid]
+        n_pos = min(2, len(idx_u))
+        pos_idx = rng_local.choice(idx_u, size=n_pos, replace=False)
+        other = [u for u in user_id_list if u != uid]
+        neg_uids = rng_local.choice(other, size=min(4, len(other)), replace=False)
+        neg_idx = [user_to_indices[nu][0] for nu in neg_uids]
+        cand_sent_list.append(np.array(list(pos_idx) + neg_idx, dtype=np.int64))
+        pos_n_list.append(n_pos)
+        user_mean_list.append(X_pca[idx_u].mean(axis=0))
+    E = len(eval_users)
+    max_cand = max(len(c) for c in cand_sent_list)
+    max_pos = max(pos_n_list)
+    CAND_FULL = np.zeros((E, max_cand, 182), dtype=np.float64)
+    PAD = np.ones((E, max_cand), dtype=bool)
+    USER_MEAN = np.stack(user_mean_list, axis=0)
+    for e, cs in enumerate(cand_sent_list):
+        CAND_FULL[e, :len(cs)] = X_pca[cs]
+        PAD[e, :len(cs)] = False
+    pos_rank_ref = np.arange(max_pos)  # (max_pos,)
+    valid_pos = pos_rank_ref[None, :] < np.array(pos_n_list)[:, None]  # [E, max_pos] 2D
+    log(f"[stage3a] Rank1 eval: E={E}, max_cand={max_cand}")
+
+    leak_rng = np.random.default_rng(7)
+    leak_train_sub = leak_rng.choice(leak_train, size=min(5000, len(leak_train)), replace=False)
+
+    # baseline d=48
+    base_cols = list(range(48))
+    base = _ss_eval_all(X_pca[:, base_cols], CAND_FULL[:, :, base_cols], USER_MEAN[:, base_cols],
+                        pair_idx=pair_idx, raw_dist=raw_dist, Y_probes=Y_probes,
+                        probe_train_idx=probe_train_idx, probe_test_idx=probe_test_idx,
+                        leak_train_sub=leak_train_sub, label_y=label_y, PROBE_TARGETS=PROBE_TARGETS,
+                        PAD=PAD, pos_rank_ref=pos_rank_ref, valid_pos=valid_pos, max_pos=max_pos, leak_test=leak_test)
+    log(f"[stage3a] baseline d=48: rho={base['syntax_rho']:.4f} ProbeR2={base['syntax_probe_r2']:.4f} "
+        f"Rank1={base['query_rank1']:.4f} MRR={base['query_mrr']:.4f} Leak={base['content_leakage']:.4f}")
+
+    # (a) incremental PC48..95
+    inc = {}
+    for k in range(KMIN, KMAX):
+        cols = base_cols + [k]
+        m = _ss_eval_all(X_pca[:, cols], CAND_FULL[:, :, cols], USER_MEAN[:, cols],
+                         pair_idx=pair_idx, raw_dist=raw_dist, Y_probes=Y_probes,
+                         probe_train_idx=probe_train_idx, probe_test_idx=probe_test_idx,
+                         leak_train_sub=leak_train_sub, label_y=label_y, PROBE_TARGETS=PROBE_TARGETS,
+                         PAD=PAD, pos_rank_ref=pos_rank_ref, valid_pos=valid_pos, max_pos=max_pos, leak_test=leak_test)
+        inc[k] = {
+            "ev_ratio": float(ev[k]),
+            "syntax_rho": m["syntax_rho"], "syntax_probe_r2": m["syntax_probe_r2"],
+            "query_rank1": m["query_rank1"], "query_mrr": m["query_mrr"], "content_leakage": m["content_leakage"],
+            "d_rho": m["syntax_rho"] - base["syntax_rho"],
+            "d_probe": m["syntax_probe_r2"] - base["syntax_probe_r2"],
+            "d_rank1": m["query_rank1"] - base["query_rank1"],
+            "d_mrr": m["query_mrr"] - base["query_mrr"],
+            "d_leak": m["content_leakage"] - base["content_leakage"],
+        }
+        if (k - KMIN + 1) % 12 == 0 or k == KMAX - 1:
+            log(f"[stage3a]   PC{k:>2}(EV{ev[k]*100:4.1f}%): Drho={inc[k]['d_rho']:+.4f} "
+                f"DProbe={inc[k]['d_probe']:+.4f} DRank1={inc[k]['d_rank1']:+.4f} "
+                f"DLeak={inc[k]['d_leak']:+.4f}")
+
+    # 汇总 PC49:96 (index 48..95)
+    ks = list(range(KMIN, KMAX))
+    mean_d_rho = float(np.mean([inc[k]["d_rho"] for k in ks]))
+    mean_d_probe = float(np.mean([inc[k]["d_probe"] for k in ks]))
+    mean_d_rank1 = float(np.mean([inc[k]["d_rank1"] for k in ks]))
+    mean_d_leak = float(np.mean([inc[k]["d_leak"] for k in ks]))
+    frac_leak_pos = float(np.mean([1 if inc[k]["d_leak"] > 0 else 0 for k in ks]))
+    frac_syn_pos = float(np.mean([1 if inc[k]["d_probe"] > 0 else 0 for k in ks]))
+    log(f"[stage3a] 汇总 PC49:96 (n={len(ks)}): "
+        f"meanDrho={mean_d_rho:+.4f} meanDProbe={mean_d_probe:+.4f} "
+        f"meanDRank1={mean_d_rank1:+.4f} meanDLeak={mean_d_leak:+.4f} | "
+        f"frac(DLeak>0)={frac_leak_pos:.2f} frac(DProbe>0)={frac_syn_pos:.2f}")
+
+    # (b) PC0 length-controlled sanity
+    def _residual(a, c):
+        A = np.hstack([np.ones((len(a), 1)), c.reshape(-1, 1)])
+        coef, *_ = np.linalg.lstsq(A, a, rcond=None)
+        return a - (coef[0] + coef[1] * c)
+
+    def _bucket_corr(a, b, c, q=4):
+        edges = np.quantile(c, np.linspace(0, 1, q + 1))
+        out = []
+        for i in range(q):
+            if i < q - 1:
+                m = (c >= edges[i]) & (c < edges[i + 1])
+            else:
+                m = (c >= edges[i]) & (c <= edges[i + 1])
+            if m.sum() < 20:
+                out.append(None)
+                continue
+            r, _ = spearmanr(a[m], b[m])
+            out.append(float(r))
+        return out
+
+    pc0 = X_pca[:, 0]
+    n_tok = Y_probes[:, PROBE_TARGETS.index("n_tok")]
+    sanity = {}
+    log("[stage3a] PC0 length-controlled sanity (control=n_tok):")
+    log(f"{'target':>10} {'raw_rho':>8} {'partial_rho':>11} {'bucket_rho':>26}")
+    for t in ["max_depth", "nest_max", "n_clause", "mean_dist", "depth_var"]:
+        j = PROBE_TARGETS.index(t)
+        y = Y_probes[:, j]
+        r_raw, _ = spearmanr(pc0, y)
+        r_part, _ = spearmanr(_residual(pc0, n_tok), _residual(y, n_tok))
+        bk = _bucket_corr(pc0, y, n_tok, q=4)
+        sanity[t] = {"raw": float(r_raw), "partial": float(r_part), "buckets": bk}
+        log(f"{t:>10} {r_raw:>+8.3f} {r_part:>+11.3f} {str([None if x is None else round(x, 3) for x in bk]):>26}")
+
+    # 输出
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage3a_pc48_96.json"
+    payload = {
+        "kmin": KMIN, "kmax": KMAX, "n_pc_analyzed": len(ks),
+        "baseline_d48": base,
+        "incremental": inc,
+        "summary_pc49_96": {
+            "mean_d_rho": mean_d_rho, "mean_d_probe": mean_d_probe,
+            "mean_d_rank1": mean_d_rank1, "mean_d_leak": mean_d_leak,
+            "frac_dleak_pos": frac_leak_pos, "frac_dprobe_pos": frac_syn_pos,
+        },
+        "pc0_length_sanity": sanity,
+        "n_sentences": int(len(X_scaled)), "n_users": int(len(user_id_list)),
+    }
+    with open(out, "w") as f:
+        json.dump(payload, f, indent=2)
+    log(f"\n[stage3a] 已写入 {out}")
 
 def main_syntax_subspace() -> None:
     """Syntax Subspace Selection Experiment — Stage 1: 9 维度 scan (Q1: 多少维足够).
@@ -4932,6 +5156,7 @@ def main() -> None:
     sub.add_parser("eval_bucket", help="按评论数 bucket 评估 user-level 297d Gaussian 质量 (Mahalanobis/NLL/CondNum)")
     sub.add_parser("syntax_subspace", help="Stage 1: 9 维度 syntax subspace scan (Q1 多少维足够)")
     sub.add_parser("syntax_subspace_stage2", help="Stage 2: leave-one-PC-out on d*=48 (识别 syntax vs leakage PC)")
+    sub.add_parser("syntax_subspace_stage3a", help="Stage 3A: PC48-96 增量 syntax/content 分析 + PC0 长度控制 sanity")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -4950,6 +5175,8 @@ def main() -> None:
         main_syntax_subspace()
     elif cmd == "syntax_subspace_stage2":
         main_syntax_subspace_stage2()
+    elif cmd == "syntax_subspace_stage3a":
+        main_syntax_subspace_stage3a()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
