@@ -1,0 +1,308 @@
+[2026-08-23 23:49:22] [subspace] 加载 182d sentence cache...
+[2026-08-23 23:49:31] [subspace] 299288 句
+[2026-08-23 23:49:44] [subspace] 298740 句有效
+[2026-08-23 23:49:45] [subspace] X shape: (298740, 182), Y_probes shape: (298740, 6)
+[2026-08-23 23:49:45] [subspace] StandardScaler fitted on 5000 sentences
+[2026-08-23 23:49:46] [subspace] 149644 rewrites
+[2026-08-23 23:49:46] [subspace] 492 rewrite 句特征可用
+[2026-08-23 23:49:46] [subspace] 10000 unique users
+[2026-08-23 23:49:46] [subspace] user vectors built (StandardScaler 后)
+[2026-08-23 23:49:46] [subspace] pair sample: (2000, 2)
+[2026-08-23 23:49:46] [subspace] 200 asins with >=50 sents, total=31338
+[2026-08-23 23:49:47] [stage5d] 冻结 PCA48 fit (EV=0.9536)
+[2026-08-23 23:49:47] [subspace] 加载 182d sentence cache...
+[2026-08-23 23:49:47] [subspace] 5998 句
+[2026-08-23 23:49:48] [subspace] 5988 句有效
+[2026-08-23 23:49:48] [subspace] X shape: (5988, 182), Y_probes shape: (5988, 6)
+[2026-08-23 23:49:48] [subspace] StandardScaler fitted on 5000 sentences
+[2026-08-23 23:49:48] [subspace] 149644 rewrites
+[2026-08-23 23:49:48] [subspace] 49 rewrite 句特征可用
+[2026-08-23 23:49:48] [subspace] 100 unique users
+[2026-08-23 23:49:48] [subspace] user vectors built (StandardScaler 后)
+[2026-08-23 23:49:48] [subspace] pair sample: (2000, 2)
+[2026-08-23 23:49:48] [subspace] 100 asins with >=50 sents, total=5988
+[2026-08-23 23:49:48] [stage5d] dense Z shape (5988, 48)
+[2026-08-23 23:49:48] [stage5d] cand_users: 100
+[2026-08-23 23:49:48] [stage5d] val_users=30  test_users=30
+[2026-08-23 23:49:49] [stage5d] aggregation ready: m=[10, 15, 20, 25, 30, 35]  B_train=1000  B_test=100
+[2026-08-23 23:49:49] 
+[stage5d] === Phase 1: HP sweep on val set per m ===
+[2026-08-23 23:49:49] 
+  === m=10 ===
+[2026-08-23 23:49:49]     family=gaussian  best={'lam': 0.1}  val_nll=25.675
+[2026-08-23 23:49:49]       HP={'lam': 0.1}  val_nll=25.675
+[2026-08-23 23:49:49]       HP={'lam': 0.3}  val_nll=31.309
+[2026-08-23 23:49:49]       HP={'lam': 0.5}  val_nll=37.357
+[2026-08-23 23:49:49]       HP={'lam': 0.7}  val_nll=42.377
+[2026-08-23 23:49:50]     family=laplace  best={'lam': 0.3}  val_nll=25.692
+[2026-08-23 23:49:50]       HP={'lam': 0.3}  val_nll=25.692
+[2026-08-23 23:49:50]       HP={'lam': 0.1}  val_nll=25.978
+[2026-08-23 23:49:50]       HP={'lam': 0.5}  val_nll=28.024
+[2026-08-23 23:49:50]       HP={'lam': 0.7}  val_nll=31.143
+[2026-08-23 23:49:50]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=25.125
+[2026-08-23 23:49:50]       HP={'df': 3, 'lam': 0.3}  val_nll=25.125
+[2026-08-23 23:49:50]       HP={'df': 5, 'lam': 0.3}  val_nll=25.450
+[2026-08-23 23:49:50]       HP={'df': 10, 'lam': 0.3}  val_nll=26.238
+[2026-08-23 23:49:50]       HP={'df': 20, 'lam': 0.3}  val_nll=27.350
+[2026-08-23 23:49:50]       HP={'df': 50, 'lam': 0.3}  val_nll=28.918
+[2026-08-23 23:49:50]       HP={'df': 100, 'lam': 0.3}  val_nll=29.862
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+[2026-08-23 23:50:06]     family=gmm  best={'K': 1}  val_nll=43.045
+[2026-08-23 23:50:06]       HP={'K': 1}  val_nll=43.045
+[2026-08-23 23:50:06]       HP={'K': 2}  val_nll=44.993
+[2026-08-23 23:50:06]       HP={'K': 3}  val_nll=46.941
+[2026-08-23 23:50:28]     family=kde  best={'bw_factor': 1.5}  val_nll=29.024
+[2026-08-23 23:50:28]       HP={'bw_factor': 1.5}  val_nll=29.024
+[2026-08-23 23:50:28]       HP={'bw_factor': 1.0}  val_nll=30.707
+[2026-08-23 23:50:28]       HP={'bw_factor': 2.0}  val_nll=33.458
+[2026-08-23 23:50:28]       HP={'bw_factor': 0.75}  val_nll=41.551
+[2026-08-23 23:50:28]       HP={'bw_factor': 0.5}  val_nll=91.737
+[2026-08-23 23:50:28] 
+  === m=15 ===
+[2026-08-23 23:50:28]     family=gaussian  best={'lam': 0.1}  val_nll=20.582
+[2026-08-23 23:50:28]       HP={'lam': 0.1}  val_nll=20.582
+[2026-08-23 23:50:28]       HP={'lam': 0.3}  val_nll=28.303
+[2026-08-23 23:50:28]       HP={'lam': 0.5}  val_nll=35.410
+[2026-08-23 23:50:28]       HP={'lam': 0.7}  val_nll=41.036
+[2026-08-23 23:50:28]     family=laplace  best={'lam': 0.3}  val_nll=21.073
+[2026-08-23 23:50:28]       HP={'lam': 0.3}  val_nll=21.073
+[2026-08-23 23:50:28]       HP={'lam': 0.1}  val_nll=21.611
+[2026-08-23 23:50:28]       HP={'lam': 0.5}  val_nll=24.109
+[2026-08-23 23:50:28]       HP={'lam': 0.7}  val_nll=28.004
+[2026-08-23 23:50:29]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=20.755
+[2026-08-23 23:50:29]       HP={'df': 3, 'lam': 0.3}  val_nll=20.755
+[2026-08-23 23:50:29]       HP={'df': 5, 'lam': 0.3}  val_nll=21.212
+[2026-08-23 23:50:29]       HP={'df': 10, 'lam': 0.3}  val_nll=22.237
+[2026-08-23 23:50:29]       HP={'df': 20, 'lam': 0.3}  val_nll=23.623
+[2026-08-23 23:50:29]       HP={'df': 50, 'lam': 0.3}  val_nll=25.516
+[2026-08-23 23:50:29]       HP={'df': 100, 'lam': 0.3}  val_nll=26.632
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+[2026-08-23 23:50:48]     family=gmm  best={'K': 1}  val_nll=44.551
+[2026-08-23 23:50:48]       HP={'K': 1}  val_nll=44.551
+[2026-08-23 23:50:48]       HP={'K': 2}  val_nll=48.084
+[2026-08-23 23:50:48]       HP={'K': 3}  val_nll=50.755
+[2026-08-23 23:51:10]     family=kde  best={'bw_factor': 1.5}  val_nll=23.459
+[2026-08-23 23:51:10]       HP={'bw_factor': 1.5}  val_nll=23.459
+[2026-08-23 23:51:10]       HP={'bw_factor': 2.0}  val_nll=26.283
+[2026-08-23 23:51:10]       HP={'bw_factor': 1.0}  val_nll=27.521
+[2026-08-23 23:51:10]       HP={'bw_factor': 0.75}  val_nll=42.507
+[2026-08-23 23:51:10]       HP={'bw_factor': 0.5}  val_nll=112.851
+[2026-08-23 23:51:10] 
+  === m=20 ===
+[2026-08-23 23:51:10]     family=gaussian  best={'lam': 0.1}  val_nll=18.025
+[2026-08-23 23:51:10]       HP={'lam': 0.1}  val_nll=18.025
+[2026-08-23 23:51:10]       HP={'lam': 0.3}  val_nll=26.836
+[2026-08-23 23:51:10]       HP={'lam': 0.5}  val_nll=34.491
+[2026-08-23 23:51:10]       HP={'lam': 0.7}  val_nll=40.421
+[2026-08-23 23:51:10]     family=laplace  best={'lam': 0.3}  val_nll=18.522
+[2026-08-23 23:51:10]       HP={'lam': 0.3}  val_nll=18.522
+[2026-08-23 23:51:10]       HP={'lam': 0.1}  val_nll=19.556
+[2026-08-23 23:51:10]       HP={'lam': 0.5}  val_nll=21.958
+[2026-08-23 23:51:10]       HP={'lam': 0.7}  val_nll=26.326
+[2026-08-23 23:51:11]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=18.515
+[2026-08-23 23:51:11]       HP={'df': 3, 'lam': 0.3}  val_nll=18.515
+[2026-08-23 23:51:11]       HP={'df': 5, 'lam': 0.3}  val_nll=19.051
+[2026-08-23 23:51:11]       HP={'df': 10, 'lam': 0.3}  val_nll=20.214
+[2026-08-23 23:51:11]       HP={'df': 20, 'lam': 0.3}  val_nll=21.756
+[2026-08-23 23:51:11]       HP={'df': 50, 'lam': 0.3}  val_nll=23.830
+[2026-08-23 23:51:11]       HP={'df': 100, 'lam': 0.3}  val_nll=25.040
+[2026-08-23 23:51:27]     family=gmm  best={'K': 1}  val_nll=52.299
+[2026-08-23 23:51:27]       HP={'K': 1}  val_nll=52.299
+[2026-08-23 23:51:27]       HP={'K': 2}  val_nll=56.571
+[2026-08-23 23:51:27]       HP={'K': 3}  val_nll=59.489
+[2026-08-23 23:51:48]     family=kde  best={'bw_factor': 1.5}  val_nll=20.741
+[2026-08-23 23:51:48]       HP={'bw_factor': 1.5}  val_nll=20.741
+[2026-08-23 23:51:48]       HP={'bw_factor': 2.0}  val_nll=22.185
+[2026-08-23 23:51:48]       HP={'bw_factor': 1.0}  val_nll=28.355
+[2026-08-23 23:51:48]       HP={'bw_factor': 0.75}  val_nll=50.081
+[2026-08-23 23:51:48]       HP={'bw_factor': 0.5}  val_nll=135.791
+[2026-08-23 23:51:48] 
+  === m=25 ===
+[2026-08-23 23:51:48]     family=gaussian  best={'lam': 0.1}  val_nll=16.180
+[2026-08-23 23:51:48]       HP={'lam': 0.1}  val_nll=16.180
+[2026-08-23 23:51:48]       HP={'lam': 0.3}  val_nll=25.855
+[2026-08-23 23:51:48]       HP={'lam': 0.5}  val_nll=33.885
+[2026-08-23 23:51:48]       HP={'lam': 0.7}  val_nll=40.013
+[2026-08-23 23:51:49]     family=laplace  best={'lam': 0.3}  val_nll=16.856
+[2026-08-23 23:51:49]       HP={'lam': 0.3}  val_nll=16.856
+[2026-08-23 23:51:49]       HP={'lam': 0.1}  val_nll=18.353
+[2026-08-23 23:51:49]       HP={'lam': 0.5}  val_nll=20.563
+[2026-08-23 23:51:49]       HP={'lam': 0.7}  val_nll=25.253
+[2026-08-23 23:51:49]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=16.981
+[2026-08-23 23:51:49]       HP={'df': 3, 'lam': 0.3}  val_nll=16.981
+[2026-08-23 23:51:49]       HP={'df': 5, 'lam': 0.3}  val_nll=17.576
+[2026-08-23 23:51:49]       HP={'df': 10, 'lam': 0.3}  val_nll=18.840
+[2026-08-23 23:51:49]       HP={'df': 20, 'lam': 0.3}  val_nll=20.492
+[2026-08-23 23:51:49]       HP={'df': 50, 'lam': 0.3}  val_nll=22.694
+[2026-08-23 23:51:49]       HP={'df': 100, 'lam': 0.3}  val_nll=23.970
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+[2026-08-23 23:52:09]     family=gmm  best={'K': 1}  val_nll=55.471
+[2026-08-23 23:52:09]       HP={'K': 1}  val_nll=55.471
+[2026-08-23 23:52:09]       HP={'K': 2}  val_nll=60.658
+[2026-08-23 23:52:09]       HP={'K': 3}  val_nll=63.580
+[2026-08-23 23:52:30]     family=kde  best={'bw_factor': 1.5}  val_nll=19.645
+[2026-08-23 23:52:30]       HP={'bw_factor': 1.5}  val_nll=19.645
+[2026-08-23 23:52:30]       HP={'bw_factor': 2.0}  val_nll=19.707
+[2026-08-23 23:52:30]       HP={'bw_factor': 1.0}  val_nll=30.350
+[2026-08-23 23:52:30]       HP={'bw_factor': 0.75}  val_nll=55.770
+[2026-08-23 23:52:30]       HP={'bw_factor': 0.5}  val_nll=175.994
+[2026-08-23 23:52:30] 
+  === m=30 ===
+[2026-08-23 23:52:31]     family=gaussian  best={'lam': 0.1}  val_nll=14.844
+[2026-08-23 23:52:31]       HP={'lam': 0.1}  val_nll=14.844
+[2026-08-23 23:52:31]       HP={'lam': 0.3}  val_nll=25.148
+[2026-08-23 23:52:31]       HP={'lam': 0.5}  val_nll=33.452
+[2026-08-23 23:52:31]       HP={'lam': 0.7}  val_nll=39.724
+[2026-08-23 23:52:31]     family=laplace  best={'lam': 0.3}  val_nll=15.521
+[2026-08-23 23:52:31]       HP={'lam': 0.3}  val_nll=15.521
+[2026-08-23 23:52:31]       HP={'lam': 0.1}  val_nll=17.561
+[2026-08-23 23:52:31]       HP={'lam': 0.5}  val_nll=19.439
+[2026-08-23 23:52:31]       HP={'lam': 0.7}  val_nll=24.391
+[2026-08-23 23:52:31]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=15.805
+[2026-08-23 23:52:31]       HP={'df': 3, 'lam': 0.3}  val_nll=15.805
+[2026-08-23 23:52:31]       HP={'df': 5, 'lam': 0.3}  val_nll=16.444
+[2026-08-23 23:52:31]       HP={'df': 10, 'lam': 0.3}  val_nll=17.790
+[2026-08-23 23:52:31]       HP={'df': 20, 'lam': 0.3}  val_nll=19.536
+[2026-08-23 23:52:31]       HP={'df': 50, 'lam': 0.3}  val_nll=21.850
+[2026-08-23 23:52:31]       HP={'df': 100, 'lam': 0.3}  val_nll=23.184
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+[2026-08-23 23:52:51]     family=gmm  best={'K': 1}  val_nll=64.125
+[2026-08-23 23:52:51]       HP={'K': 1}  val_nll=64.125
+[2026-08-23 23:52:51]       HP={'K': 2}  val_nll=70.417
+[2026-08-23 23:52:51]       HP={'K': 3}  val_nll=73.769
+[2026-08-23 23:53:11]     family=kde  best={'bw_factor': 2.0}  val_nll=17.850
+[2026-08-23 23:53:11]       HP={'bw_factor': 2.0}  val_nll=17.850
+[2026-08-23 23:53:11]       HP={'bw_factor': 1.5}  val_nll=19.245
+[2026-08-23 23:53:11]       HP={'bw_factor': 1.0}  val_nll=34.712
+[2026-08-23 23:53:11]       HP={'bw_factor': 0.75}  val_nll=66.350
+[2026-08-23 23:53:11]       HP={'bw_factor': 0.5}  val_nll=201.481
+[2026-08-23 23:53:11] 
+  === m=35 ===
+[2026-08-23 23:53:12]     family=gaussian  best={'lam': 0.1}  val_nll=14.021
+[2026-08-23 23:53:12]       HP={'lam': 0.1}  val_nll=14.021
+[2026-08-23 23:53:12]       HP={'lam': 0.3}  val_nll=24.717
+[2026-08-23 23:53:12]       HP={'lam': 0.5}  val_nll=33.194
+[2026-08-23 23:53:12]       HP={'lam': 0.7}  val_nll=39.556
+[2026-08-23 23:53:12]     family=laplace  best={'lam': 0.3}  val_nll=14.626
+[2026-08-23 23:53:12]       HP={'lam': 0.3}  val_nll=14.626
+[2026-08-23 23:53:12]       HP={'lam': 0.1}  val_nll=17.186
+[2026-08-23 23:53:12]       HP={'lam': 0.5}  val_nll=18.689
+[2026-08-23 23:53:12]       HP={'lam': 0.7}  val_nll=23.831
+[2026-08-23 23:53:12]     family=student_t  best={'df': 3, 'lam': 0.3}  val_nll=15.094
+[2026-08-23 23:53:12]       HP={'df': 3, 'lam': 0.3}  val_nll=15.094
+[2026-08-23 23:53:12]       HP={'df': 5, 'lam': 0.3}  val_nll=15.765
+[2026-08-23 23:53:12]       HP={'df': 10, 'lam': 0.3}  val_nll=17.162
+[2026-08-23 23:53:12]       HP={'df': 20, 'lam': 0.3}  val_nll=18.966
+[2026-08-23 23:53:12]       HP={'df': 50, 'lam': 0.3}  val_nll=21.344
+[2026-08-23 23:53:12]       HP={'df': 100, 'lam': 0.3}  val_nll=22.710
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/sklearn/mixture/_base.py:275: ConvergenceWarning: Best performing initialization did not converge. Try different init parameters, or increase max_iter, tol, or check for degenerate data.
+  warnings.warn(
+[2026-08-23 23:53:34]     family=gmm  best={'K': 1}  val_nll=69.882
+[2026-08-23 23:53:34]       HP={'K': 1}  val_nll=69.882
+[2026-08-23 23:53:34]       HP={'K': 2}  val_nll=76.203
+[2026-08-23 23:53:34]       HP={'K': 3}  val_nll=80.704
+[2026-08-23 23:53:54]     family=kde  best={'bw_factor': 2.0}  val_nll=17.237
+[2026-08-23 23:53:54]       HP={'bw_factor': 2.0}  val_nll=17.237
+[2026-08-23 23:53:54]       HP={'bw_factor': 1.5}  val_nll=20.214
+[2026-08-23 23:53:54]       HP={'bw_factor': 1.0}  val_nll=39.843
+[2026-08-23 23:53:54]       HP={'bw_factor': 0.75}  val_nll=83.444
+[2026-08-23 23:53:54]       HP={'bw_factor': 0.5}  val_nll=242.988
+[2026-08-23 23:53:54] 
+[stage5d] === Phase 2: Test eval with best HP per m ===
+[2026-08-23 23:53:54] 
+  === m=10 ===
+[2026-08-23 23:53:54]     family=gaussian    HP={'lam': 0.1}  NLL=25.214±9.896  QQ=0.944  Cov95=0.868
+[2026-08-23 23:53:54]     family=laplace     HP={'lam': 0.3}  NLL=24.602±7.489
+[2026-08-23 23:53:54]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=24.103±7.580
+[2026-08-23 23:53:59]     family=gmm         HP={'K': 1}  NLL=37.688±22.108
+[2026-08-23 23:54:04]     family=kde         HP={'bw_factor': 1.5}  NLL=27.182±8.502
+[2026-08-23 23:54:04] 
+  === m=15 ===
+[2026-08-23 23:54:04]     family=gaussian    HP={'lam': 0.1}  NLL=20.642±9.733  QQ=0.944  Cov95=0.898
+[2026-08-23 23:54:04]     family=laplace     HP={'lam': 0.3}  NLL=20.241±7.506
+[2026-08-23 23:54:04]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=20.045±7.540
+[2026-08-23 23:54:08]     family=gmm         HP={'K': 1}  NLL=40.572±29.656
+[2026-08-23 23:54:13]     family=kde         HP={'bw_factor': 1.5}  NLL=22.027±9.296
+[2026-08-23 23:54:13] 
+  === m=20 ===
+[2026-08-23 23:54:13]     family=gaussian    HP={'lam': 0.1}  NLL=17.959±8.941  QQ=0.953  Cov95=0.914
+[2026-08-23 23:54:13]     family=laplace     HP={'lam': 0.3}  NLL=17.780±7.487
+[2026-08-23 23:54:14]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=17.875±7.442
+[2026-08-23 23:54:17]     family=gmm         HP={'K': 1}  NLL=44.462±30.618
+[2026-08-23 23:54:21]     family=kde         HP={'bw_factor': 1.5}  NLL=19.536±10.266
+[2026-08-23 23:54:21] 
+  === m=25 ===
+[2026-08-23 23:54:22]     family=gaussian    HP={'lam': 0.1}  NLL=15.984±8.429  QQ=0.961  Cov95=0.902
+[2026-08-23 23:54:22]     family=laplace     HP={'lam': 0.3}  NLL=16.076±7.751
+[2026-08-23 23:54:22]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=16.324±7.649
+[2026-08-23 23:54:26]     family=gmm         HP={'K': 1}  NLL=49.832±32.788
+[2026-08-23 23:54:31]     family=kde         HP={'bw_factor': 1.5}  NLL=17.839±10.090
+[2026-08-23 23:54:31] 
+  === m=30 ===
+[2026-08-23 23:54:31]     family=gaussian    HP={'lam': 0.1}  NLL=14.949±8.730  QQ=0.967  Cov95=0.920
+[2026-08-23 23:54:31]     family=laplace     HP={'lam': 0.3}  NLL=14.824±7.835
+[2026-08-23 23:54:31]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=15.334±7.648
+[2026-08-23 23:54:36]     family=gmm         HP={'K': 1}  NLL=56.647±38.452
+[2026-08-23 23:54:40]     family=kde         HP={'bw_factor': 2.0}  NLL=16.515±8.943
+[2026-08-23 23:54:40] 
+  === m=35 ===
+[2026-08-23 23:54:41]     family=gaussian    HP={'lam': 0.1}  NLL=13.494±7.602  QQ=0.966  Cov95=0.930
+[2026-08-23 23:54:41]     family=laplace     HP={'lam': 0.3}  NLL=13.602±7.572
+[2026-08-23 23:54:41]     family=student_t   HP={'df': 3, 'lam': 0.3}  NLL=14.235±7.448
+[2026-08-23 23:54:46]     family=gmm         HP={'K': 1}  NLL=59.533±34.895
+[2026-08-23 23:54:51]     family=kde         HP={'bw_factor': 2.0}  NLL=15.247±8.551
+[2026-08-23 23:54:51] 
+[stage5d] === Summary table (test NLL by m and family) [Stage 5D: 35-review bootstrap user style] ===
+[2026-08-23 23:54:51] m     Gaussian    Laplace  Student-t        GMM        KDE |  QQ corr   Cov95
+[2026-08-23 23:54:51] 10      25.214     24.602     24.103     37.688     27.182 |    0.944   0.868
+[2026-08-23 23:54:51] 15      20.642     20.241     20.045     40.572     22.027 |    0.944   0.898
+[2026-08-23 23:54:51] 20      17.959     17.780     17.875     44.462     19.536 |    0.953   0.914
+[2026-08-23 23:54:51] 25      15.984     16.076     16.324     49.832     17.839 |    0.961   0.902
+[2026-08-23 23:54:51] 30      14.949     14.824     15.334     56.647     16.515 |    0.967   0.920
+[2026-08-23 23:54:51] 35      13.494     13.602     14.235     59.533     15.247 |    0.966   0.930
+[2026-08-23 23:54:51] 
+[stage5d] 已写入 /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/syntax_subspace_stage5d_bootstrap_user_style.json
