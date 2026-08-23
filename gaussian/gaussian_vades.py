@@ -5237,6 +5237,256 @@ def main_syntax_subspace_stage4() -> None:
             f"{r['rank1']:>7.4f} {r['mrr']:>7.4f}")
     log(f"[stage4] n* = {n_star}")
 
+
+def main_syntax_subspace_stage4b() -> None:
+    """Stage 4B: Corrected candidate pool + Rank1/Margin/PairAcc metrics.
+
+    与 Stage4A 区别:
+      - 每用户固定 20 个 held-out positives (跨 n 不变)
+      - 每用户 99 random negatives (随机他用户)
+      - 每用户 25 hard negatives (48d 距离 positive 最近的句子)
+      - 指标: PairAcc / Margin / Rank@1_random / Rank@1_hard
+      - 决策: 用 corrected downstream 选择 n*=35 或 40
+    """
+    from sklearn.decomposition import PCA
+    import hashlib
+    import collections
+
+    N_LIST = [5, 10, 15, 20, 25, 30, 35, 40]
+    N_SEEDS = 20
+    N_TEST_POS = 20      # 每用户 fixed held-out positives
+    N_RANDOM_NEG = 99    # 每用户 random negatives
+    N_HARD_NEG = 25      # 每用户 hard negatives (48d 距离最近)
+    N_EVAL_USERS = 2000
+    LAMBDA_SHRINK = 0.3
+    VAR_EPS = 1e-3
+    RELIABLE_THR = 0.8
+    STAGE2_JSON = RESIDUAL_SCRATCH / "syntax_subspace_stage2_pc48.json"
+
+    P0 = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P0["X_scaled"][P0["train_idx"]])
+    scaler = P0["scaler"]
+    fnames = P0["feature_names_ordered"]
+    log(f"[stage4b] 冻结 PCA48 fit (EV={pca.explained_variance_ratio_.sum():.4f})")
+
+    # 稠密数据
+    DENSE_SENTS = os.environ.get("PQ_SYNTAX_SENTS_DENSE",
+                                 str(RESIDUAL_SCRATCH / "sentences_for_rewrite_10k_dense.jsonl"))
+    DENSE_FEAT = os.environ.get("PQ_SYNTAX_FEAT_DENSE",
+                                str(RESIDUAL_SCRATCH / "sentences_318d_cache_dense.jsonl.gz"))
+    Pd = _syntax_subspace_prepare(sents_path=DENSE_SENTS, feat_cache_path=DENSE_FEAT,
+                                  feature_names_ordered=fnames)
+    X_raw = Pd["X"]
+    Z = pca.transform(scaler.transform(X_raw))
+    global_var = Z.var(axis=0)
+    user_to_indices = Pd["user_to_indices"]
+    user_id_list = Pd["user_id_list"]
+    log(f"[stage4b] dense Z shape {Z.shape}")
+
+    cand_users = [u for u in user_id_list if len(user_to_indices[u]) >= (N_TEST_POS + max(N_LIST))]
+    rng_sel = np.random.default_rng(2024)
+    eval_users = list(rng_sel.choice(cand_users, size=min(N_EVAL_USERS, len(cand_users)), replace=False))
+    eval_users = sorted(eval_users)
+    log(f"[stage4b] eval users = {len(eval_users)} (cand ≥ {N_TEST_POS + max(N_LIST)} 共 {len(cand_users)})")
+
+    def _uid_seed(uid):
+        return int(hashlib.md5(str(uid).encode()).hexdigest(), 16) % (2 ** 31)
+
+    # 固定每用户 20 test positives (跨 n 不变)
+    test_pos_z = {}    # uid -> [N_TEST_POS, 48]
+    pool_idx = {}      # uid -> list of sentence indices (训练池)
+    for u in eval_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(_uid_seed(u))
+        perm = rng_u.permutation(len(idx_u))
+        test_local = perm[:N_TEST_POS]
+        train_local = perm[N_TEST_POS:]
+        test_pos_z[u] = Z[idx_u[test_local]]
+        pool_idx[u] = list(idx_u[train_local])
+
+    # Random negatives pool (所有 eval 用户的所有 sentence)
+    all_eval_z = np.concatenate([Z[user_to_indices[u]] for u in eval_users], axis=0)
+    all_eval_uid = np.concatenate([np.array([u] * len(user_to_indices[u])) for u in eval_users])
+    log(f"[stage4b] all_eval_z {all_eval_z.shape}")
+
+    # 每用户 random negatives (固定 seed)
+    rng_neg = np.random.default_rng(7777)
+    random_neg_z = {}  # uid -> [N_RANDOM_NEG, 48]
+    random_neg_uid = {}
+    for u in eval_users:
+        # 99 sentences from other users
+        mask = all_eval_uid != u
+        cand_z = all_eval_z[mask]
+        cand_uid = all_eval_uid[mask]
+        sel = rng_neg.choice(len(cand_z), size=min(N_RANDOM_NEG, len(cand_z)), replace=False)
+        random_neg_z[u] = cand_z[sel]
+        random_neg_uid[u] = cand_uid[sel]
+    log(f"[stage4b] random_neg 已采样 ({N_RANDOM_NEG} neg/user)")
+
+    # Hard negatives: 对每用户, 从 random_neg 中按 48d 距离 positive 中心最近选 25 个
+    hard_neg_z = {}
+    for u in eval_users:
+        pos_center = test_pos_z[u].mean(axis=0)
+        # 距离
+        d = np.linalg.norm(random_neg_z[u] - pos_center[None, :], axis=1)
+        order = np.argsort(d)
+        hard_neg_z[u] = random_neg_z[u][order[:N_HARD_NEG]]
+    log(f"[stage4b] hard_neg 已选 ({N_HARD_NEG} neg/user, 48d 距离最近)")
+
+    # 冻结 PC importance
+    if not STAGE2_JSON.exists():
+        raise FileNotFoundError(f"缺少 Stage2 结果: {STAGE2_JSON}")
+    s2 = json.load(open(STAGE2_JSON))
+    # 构造 w_j: 每个 PC 的 |d_probe| / sum(|d_probe|) 作为 syntax importance
+    table = s2["table"]
+    d_probe_abs = np.array([abs(row["d_probe"]) for row in table], dtype=np.float64)
+    w = d_probe_abs / d_probe_abs.sum() if d_probe_abs.sum() > 0 else np.ones(48) / 48
+    # critical_pcs: syntax_hurt > median 的 PC 索引 (与 stage4A 一致)
+    crit_scores = np.array([row["syntax_hurt"] for row in table])
+    crit_thr = float(np.median(crit_scores))
+    crit_pcs = sorted([int(row["pc"]) for row in table if row["syntax_hurt"] >= crit_thr][:13])
+    log(f"[stage4b] w loaded (top-3 = {sorted(w, reverse=True)[:3]}); crit_pcs={crit_pcs}")
+
+    def _fit_diag_gaussian(Z_train: np.ndarray, w_shrink: float, var_prior: np.ndarray, var_eps: float) -> tuple:
+        n, d = Z_train.shape
+        mu = Z_train.mean(axis=0)
+        if n > 1:
+            sample_var = Z_train.var(axis=0, ddof=1)
+            var_post = (1 - w_shrink) * sample_var + w_shrink * var_prior
+        else:
+            var_post = var_prior
+        var_post = np.maximum(var_post, var_eps)
+        return mu, var_post
+
+    def _logp_diag(z_query: np.ndarray, mu: np.ndarray, var: np.ndarray) -> np.ndarray:
+        d = z_query.shape[1]
+        logp = -0.5 * (np.log(2 * np.pi * var).sum() + ((z_query - mu[None, :]) ** 2 / var[None, :]).sum(axis=1))
+        return logp
+
+    # 主循环: 对每个 n × seed × user
+    rows = []
+    for n in N_LIST:
+        log(f"\n[stage4b] === n={n} ===")
+        per_seed = {"mahal": [], "nll": [], "cond": [], "rank1_random": [], "rank1_hard": [], "pair_acc": [], "margin": []}
+        for seed in range(N_SEEDS):
+            rng_s = np.random.default_rng(seed * 1000 + n)
+            mu_all = {}
+            var_all = {}
+            for u in eval_users:
+                pool = pool_idx[u]
+                if len(pool) < n:
+                    continue
+                sel = rng_s.choice(pool, size=n, replace=False)
+                Z_train = Z[sel]
+                mu, var = _fit_diag_gaussian(Z_train, LAMBDA_SHRINK, global_var, VAR_EPS)
+                mu_all[u] = mu
+                var_all[u] = var
+
+            # G1: held-out Mahal/NLL (用所有 20 positives 算)
+            mahals, nlls = [], []
+            for u in eval_users:
+                if u not in mu_all:
+                    continue
+                pos = test_pos_z[u]
+                diff = pos - mu_all[u][None, :]
+                mahal = np.sqrt(((diff ** 2) / var_all[u][None, :]).sum(axis=1))
+                mahals.extend(mahal.tolist())
+                logp = _logp_diag(pos, mu_all[u], var_all[u])
+                nlls.extend((-logp).tolist())
+            m_mahal = float(np.mean(mahals))
+            m_nll = float(np.mean(nlls))
+            per_seed["mahal"].append(m_mahal)
+            per_seed["nll"].append(m_nll)
+
+            # G3: CondNum (per-user mean across eval_users)
+            conds = [float(var_all[u].max() / max(var_all[u].min(), VAR_EPS)) for u in eval_users if u in var_all]
+            per_seed["cond"].append(float(np.mean(conds)))
+
+            # G4 (corrected): 1 positive + 99 random neg / 25 hard neg
+            rank1_random_all, rank1_hard_all, pair_acc_all, margin_all = [], [], [], []
+            for u in eval_users:
+                if u not in mu_all:
+                    continue
+                pos = test_pos_z[u]  # [20, 48]
+                mu, var = mu_all[u], var_all[u]
+                # Random: pool = 1 pos + 99 neg, 重排, 多次平均
+                for j in range(N_TEST_POS):
+                    q_pos = pos[j]
+                    pool_z = np.concatenate([[q_pos], random_neg_z[u]], axis=0)  # [100, 48]
+                    logp = _logp_diag(pool_z, mu, var)
+                    order = np.argsort(-logp)  # high logp first
+                    pos_rank = int(np.where(order == 0)[0][0])
+                    rank1_random_all.append(int(pos_rank == 0))
+                    margin_all.append(float(logp[0] - logp[1:].mean()))  # pos vs mean of neg
+                    pair_acc_all.append(float((logp[0] > logp[1:]).mean()))  # pos > each neg
+                # Hard: pool = 1 pos + 25 hard neg
+                for j in range(N_TEST_POS):
+                    q_pos = pos[j]
+                    pool_z = np.concatenate([[q_pos], hard_neg_z[u]], axis=0)  # [26, 48]
+                    logp = _logp_diag(pool_z, mu, var)
+                    order = np.argsort(-logp)
+                    pos_rank = int(np.where(order == 0)[0][0])
+                    rank1_hard_all.append(int(pos_rank == 0))
+            per_seed["rank1_random"].append(float(np.mean(rank1_random_all)))
+            per_seed["rank1_hard"].append(float(np.mean(rank1_hard_all)))
+            per_seed["pair_acc"].append(float(np.mean(pair_acc_all)))
+            per_seed["margin"].append(float(np.mean(margin_all)))
+
+        # 平均跨 seed
+        row = {
+            "n": n,
+            "mahal": float(np.mean(per_seed["mahal"])),
+            "nll": float(np.mean(per_seed["nll"])),
+            "cond": float(np.mean(per_seed["cond"])),
+            "rank1_random": float(np.mean(per_seed["rank1_random"])),
+            "rank1_hard": float(np.mean(per_seed["rank1_hard"])),
+            "pair_acc": float(np.mean(per_seed["pair_acc"])),
+            "margin": float(np.mean(per_seed["margin"])),
+        }
+        rows.append(row)
+        log(f"  Mahal={row['mahal']:.3f}  NLL={row['nll']:.3f}  Cond={row['cond']:.1f}")
+        log(f"  Rank1_random={row['rank1_random']:.4f}  Rank1_hard={row['rank1_hard']:.4f}")
+        log(f"  PairAcc={row['pair_acc']:.4f}  Margin={row['margin']:.4f}")
+
+    # 决策 n*
+    # 规则: min n 满足 NLL(n)-NLL_min ≤ 5% × [NLL(5)-NLL_min] AND PairAcc(n) ≥ 0.95·PairAcc_max
+    nll_min = min(r["nll"] for r in rows)
+    nll_5 = rows[0]["nll"] - nll_min
+    pair_max = max(r["pair_acc"] for r in rows)
+    n_star = None
+    for r in rows:
+        cond1 = (r["nll"] - nll_min) <= 0.05 * nll_5
+        cond2 = r["pair_acc"] >= 0.95 * pair_max
+        if cond1 and cond2:
+            n_star = r["n"]
+            break
+    log(f"\n[stage4b] NLL_min={nll_min:.3f}, 5%range=[{nll_min:.3f}, {nll_min + 0.05 * nll_5:.3f}], PairAcc_max={pair_max:.4f}")
+    log(f"[stage4b] n* = {n_star}")
+
+    out = RESIDUAL_SCRATCH / "syntax_subspace_stage4b_corrected_pool.json"
+    with open(out, "w") as f:
+        json.dump({
+            "config": {
+                "N_LIST": N_LIST, "N_SEEDS": N_SEEDS,
+                "N_TEST_POS": N_TEST_POS, "N_RANDOM_NEG": N_RANDOM_NEG, "N_HARD_NEG": N_HARD_NEG,
+                "LAMBDA_SHRINK": LAMBDA_SHRINK, "VAR_EPS": VAR_EPS,
+                "n_eval_users": len(eval_users),
+            },
+            "rows": rows,
+            "n_star": n_star,
+            "nll_min": nll_min,
+            "pair_acc_max": pair_max,
+        }, f, indent=2)
+    log(f"\n[stage4b] 已写入 {out}")
+
+    log("\n[stage4b] === Summary (n vs corrected downstream) ===")
+    log(f"{'n':>3} {'Mahal':>7} {'NLL':>7} {'Cond':>7} {'R1_r':>7} {'R1_h':>7} {'PairAcc':>7} {'Margin':>7}")
+    for r in rows:
+        log(f"{r['n']:>3} {r['mahal']:>7.3f} {r['nll']:>7.3f} {r['cond']:>7.1f} "
+            f"{r['rank1_random']:>7.4f} {r['rank1_hard']:>7.4f} {r['pair_acc']:>7.4f} {r['margin']:>7.4f}")
+
+
 def main_syntax_subspace() -> None:
     """Syntax Subspace Selection Experiment — Stage 1: 9 维度 scan (Q1: 多少维足够).
 
@@ -5410,6 +5660,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage2", help="Stage 2: leave-one-PC-out on d*=48 (识别 syntax vs leakage PC)")
     sub.add_parser("syntax_subspace_stage3a", help="Stage 3A: PC48-96 增量 syntax/content 分析 + PC0 长度控制 sanity")
     sub.add_parser("syntax_subspace_stage4", help="Stage 4: History-size Saturation (冻结 PCA48, 同批用户, n∈5..25, 20 seeds)")
+    sub.add_parser("syntax_subspace_stage4b", help="Stage 4B: Corrected candidate pool (20 pos + random/hard neg, PairAcc/Margin)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -5432,6 +5683,8 @@ def main() -> None:
         main_syntax_subspace_stage3a()
     elif cmd == "syntax_subspace_stage4":
         main_syntax_subspace_stage4()
+    elif cmd == "syntax_subspace_stage4b":
+        main_syntax_subspace_stage4b()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
