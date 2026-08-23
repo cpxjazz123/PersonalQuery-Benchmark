@@ -16,6 +16,7 @@
 后端硬编码为 vllm（不再支持 transformers 后端，不再读取 QWEN_BACKEND）。
 """
 
+import json
 import os
 import pickle
 import selectors
@@ -315,6 +316,125 @@ def _run_generate(
 ) -> tuple[str, int, int]:
     """后端硬编码为 vllm，直接调用 _run_vllm。"""
     return _run_vllm(backend, prompt, max_tokens, temperature)
+
+
+def _batch_generate_vllm_http(
+    prompts: list[str],
+    system_text: str,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    repetition_penalty: float,
+    vllm_url: str = "http://localhost:8800/v1/chat/completions",
+    model_path: str = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct",
+) -> list[str]:
+    """Batched generation via vLLM HTTP API (avoids CUDA memory by using HTTP server).
+
+    适用场景: ALPHA=0 (无 style injection) 的普通批量生成，比 transformers 快 3-5x。
+    不支持 hidden injection（需要 transformers hooks）；ALPHA>0 时请用 generate_with_hidden_injection。
+    """
+    import urllib.request
+
+    messages_batch = []
+    for u in prompts:
+        messages = []
+        if system_text:
+            messages.append({"role": "system", "content": system_text})
+        messages.append({"role": "user", "content": u})
+        messages_batch.append(messages)
+
+    payload = json.dumps({
+        "model": model_path,
+        "messages": messages_batch,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p,
+        "repetition_penalty": repetition_penalty,
+    }).encode()
+
+    req = urllib.request.Request(
+        vllm_url, data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read())
+            results = []
+            for choice in data.get("choices", []):
+                msg = choice.get("message", {}).get("content", "")
+                results.append(msg.strip())
+            if len(results) != len(prompts):
+                raise RuntimeError(
+                    f"vLLM 返回 {len(results)} 条结果，期望 {len(prompts)} 条"
+                )
+            return results
+    except Exception as exc:
+        raise RuntimeError(f"vLLM HTTP batch failed: {exc}") from exc
+
+
+def batch_generate_vllm(
+    prompts: list[str],
+    system_text: str,
+    max_tokens: int,
+    temperature: float,
+    top_p: float,
+    repetition_penalty: float,
+) -> list[str]:
+    """Batched generation via vLLM HTTP /v1/completions (reuses running server, no OOM).
+
+    适用场景: ALPHA=0 (无 style injection) 的普通批量生成，比 transformers 快 3-5x。
+    tokenizer 用 HuggingFace AutoTokenizer (CPU)，生成走 HTTP API。
+    不支持 hidden injection（ALPHA>0 请用 transformers）。
+    """
+    # 用 HuggingFace tokenizer（CPU，无 GPU 占用）
+    from transformers import AutoTokenizer
+    tok = AutoTokenizer.from_pretrained(
+        "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct",
+        trust_remote_code=True,
+    )
+
+    full_prompts = [
+        tok.apply_chat_template(
+            [{"role": "system", "content": system_text},
+             {"role": "user", "content": u}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        for u in prompts
+    ]
+
+    # HTTP /v1/completions 批量推理（复用已跑的 vLLM server，不占额外 GPU）
+    import urllib.request
+
+    payload = json.dumps({
+        "model": "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct",
+        "prompt": full_prompts,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p if temperature > 0 else 1.0,
+        "repetition_penalty": repetition_penalty,
+    }).encode()
+
+    req = urllib.request.Request(
+        "http://localhost:8800/v1/completions",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read())
+            results = []
+            for choice in data.get("choices", []):
+                text = choice.get("text", "").strip()
+                text = text.lstrip("\n")
+                results.append(text)
+            if len(results) != len(prompts):
+                raise RuntimeError(f"vLLM /completions 返回 {len(results)} 条，期望 {len(prompts)} 条")
+            return results
+    except Exception as exc:
+        raise RuntimeError(f"vLLM /completions batch failed: {exc}") from exc
 
 
 class QwenLocalClient:

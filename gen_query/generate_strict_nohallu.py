@@ -201,7 +201,6 @@ def build_zero_profiles(records: list) -> dict:
 
 # === Main ===
 def main() -> int:
-    import torch
     t0 = time.time()
 
     # 1) Load records
@@ -213,12 +212,20 @@ def main() -> int:
     # 2) Load user profiles
     profiles = build_zero_profiles(records)
 
-    # 3) Load Qwen
-    print(f"[main] loading Qwen...", flush=True)
-    from llm_client import create_qwen_local_client
-    client = create_qwen_local_client(with_vllm=False)
-    hidden_dim = client._hidden_backend.model.config.hidden_size
-    print(f"[main] hidden_dim={hidden_dim}, K={K_SAMPLES}, layers={INJECT_LAYERS}, alpha={INJECT_ALPHA}", flush=True)
+    # 3) Init generator
+    use_vllm = (INJECT_ALPHA == 0.0)
+    if use_vllm:
+        print(f"[main] ALPHA=0 → vLLM HTTP API batch generation", flush=True)
+        client = None
+        hidden_dim = 3584
+    else:
+        print(f"[main] ALPHA={INJECT_ALPHA} → transformers hidden injection", flush=True)
+        import torch
+        from llm_client import create_qwen_local_client
+        client = create_qwen_local_client(with_vllm=False)
+        hidden_dim = client._hidden_backend.model.config.hidden_size
+
+    print(f"[main] K={K_SAMPLES}, layers={INJECT_LAYERS}, alpha={INJECT_ALPHA}", flush=True)
 
     # 4) Skip existing
     existing: dict = {}
@@ -239,12 +246,16 @@ def main() -> int:
         attrs = r.get("attrs_used", {})
         if not attrs:
             continue
-        prof = profiles.get(uid)
-        if prof is None or INJECT_LAYERS[0] not in prof:
-            n_no_profile += 1
-            bias = torch.zeros(hidden_dim, dtype=torch.float32)
+        if use_vllm:
+            bias = None
         else:
-            bias = torch.as_tensor(prof[INJECT_LAYERS[0]], dtype=torch.float32)
+            import torch
+            prof = profiles.get(uid)
+            if prof is None or INJECT_LAYERS[0] not in prof:
+                n_no_profile += 1
+                bias = torch.zeros(hidden_dim, dtype=torch.float32)
+            else:
+                bias = torch.as_tensor(prof[INJECT_LAYERS[0]], dtype=torch.float32)
         for k in range(K_SAMPLES):
             todo_records.append(r)
             todo_prompts.append(make_prompt(attrs, variant_idx=k + 1))
@@ -272,20 +283,34 @@ def main() -> int:
         chunk_records = todo_records[i:i + GEN_BATCH]
         chunk_inj = todo_injections[i:i + GEN_BATCH]
         try:
-            queries = client.generate_with_hidden_injection(
-                system_text=GEN_SYSTEM,
-                user_texts=chunk_prompts,
-                injection_per_row=chunk_inj,
-                injection_layers=INJECT_LAYERS,
-                injection_alpha=INJECT_ALPHA,
-                max_new_tokens=GEN_MAX_NEW,
-                temperature=GEN_TEMP,
-                top_p=GEN_TOP_P,
-                repetition_penalty=GEN_REP_PENALTY,
-                batch_size=GEN_BATCH,
-                max_input_length=MAX_INPUT_LENGTH,
-                mask_cjk=MASK_CJK,
-            )
+            if use_vllm:
+                # ALPHA=0: vLLM HTTP API batch generation (fast, no style injection)
+                from llm_client import batch_generate_vllm
+                queries = batch_generate_vllm(
+                    prompts=chunk_prompts,
+                    system_text=GEN_SYSTEM,
+                    max_tokens=GEN_MAX_NEW,
+                    temperature=GEN_TEMP,
+                    top_p=GEN_TOP_P,
+                    repetition_penalty=GEN_REP_PENALTY,
+                )
+            else:
+                # ALPHA>0: transformers hidden injection (slow but supports style steering)
+                import torch
+                queries = client.generate_with_hidden_injection(
+                    system_text=GEN_SYSTEM,
+                    user_texts=chunk_prompts,
+                    injection_per_row=chunk_inj,
+                    injection_layers=INJECT_LAYERS,
+                    injection_alpha=INJECT_ALPHA,
+                    max_new_tokens=GEN_MAX_NEW,
+                    temperature=GEN_TEMP,
+                    top_p=GEN_TOP_P,
+                    repetition_penalty=GEN_REP_PENALTY,
+                    batch_size=GEN_BATCH,
+                    max_input_length=MAX_INPUT_LENGTH,
+                    mask_cjk=MASK_CJK,
+                )
         except Exception as exc:
             import traceback
             print(f"[main] batch failed at {i}: {exc!r}", flush=True)
