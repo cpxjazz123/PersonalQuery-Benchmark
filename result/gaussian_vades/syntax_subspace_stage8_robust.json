@@ -1,0 +1,365 @@
+{
+  "config": {
+    "description": "Stage 7C: 4-setting robustness check of Stage 7B D_syn effect",
+    "settings": [
+      "Setting1: replicate Stage 7B (1|asin), all 768 queries",
+      "Setting2: + user variance component (vc_formula)",
+      "Setting3: filter user ≥2 strict queries",
+      "Setting4: drop asins with <10 unique queries"
+    ]
+  },
+  "data_summary": {
+    "n_rows_total": 3580,
+    "n_unique_asins": 76,
+    "n_unique_users": 698,
+    "D_syn_SD": 3.754157435683192,
+    "n_tok_SD": 6.81669669201797,
+    "queries_per_asin": {
+      "median": 27.5,
+      "min": 3,
+      "max": 30
+    },
+    "queries_per_user": {
+      "median": 3.0,
+      "min": 1,
+      "max": 3
+    },
+    "users_with_1_query": 82,
+    "users_with_ge2_queries": 616,
+    "small_asins_dropped_in_Setting4": [
+      "B0B97PW6ZQ",
+      "B00Q65V72S",
+      "B00OO9K5QM",
+      "B0C6P3X28P",
+      "B0CDJZ6GR9",
+      "B0B2CBQGSS",
+      "B010S7VZI0",
+      "B09B8LCT53",
+      "B0BGYRXM3S"
+    ]
+  },
+  "setting1_main": {
+    "params": {
+      "Intercept": 0.15412692861124946,
+      "C(retriever)[T.minilm]": -0.08160729315688244,
+      "D_syn_c": 0.020227839043827005,
+      "C(retriever)[T.minilm]:D_syn_c": -0.033559935539858816,
+      "n_tok_c": -0.04010089101245258,
+      "C(retriever)[T.minilm]:n_tok_c": 0.06643057521130626,
+      "Group Var": 1.5367622011304793
+    },
+    "pvalues": {
+      "Intercept": 6.397845836343023e-11,
+      "C(retriever)[T.minilm]": 1.251919773286975e-50,
+      "D_syn_c": 5.887991091764983e-06,
+      "C(retriever)[T.minilm]:D_syn_c": 1.532328418780414e-08,
+      "n_tok_c": 3.1070131565257266e-17,
+      "C(retriever)[T.minilm]:n_tok_c": 4.0958411776730115e-29,
+      "Group Var": 2.220982335941782e-09
+    },
+    "ci": {
+      "Intercept": [
+        0.10789536847927518,
+        0.20035848874322376
+      ],
+      "C(retriever)[T.minilm]": [
+        -0.09229571970205575,
+        -0.07091886661170912
+      ],
+      "D_syn_c": [
+        0.011476717557423072,
+        0.02897896053023094
+      ],
+      "C(retriever)[T.minilm]:D_syn_c": [
+        -0.045185489017071874,
+        -0.02193438206264576
+      ],
+      "n_tok_c": [
+        -0.04941052463857292,
+        -0.03079125738633224
+      ],
+      "C(retriever)[T.minilm]:n_tok_c": [
+        0.05480502173409319,
+        0.07805612868851931
+      ],
+      "Group Var": [
+        1.0331475572356337,
+        2.040376845025325
+      ]
+    },
+    "per_1SD": {
+      "D_syn_per_SD": {
+        "coef_RR": 0.020227839043827005,
+        "p": 5.887991091764983e-06
+      },
+      "n_tok_per_SD": {
+        "coef_RR": -0.04010089101245258,
+        "p": 3.1070131565257266e-17
+      },
+      "D_syn_per_unit": {
+        "coef_RR_per_unit": 0.005388116878520277
+      },
+      "n_tok_per_token": {
+        "coef_RR_per_token": -0.005882745385959277
+      },
+      "retriever_x_D_syn_per_SD": {
+        "coef_RR": -0.033559935539858816,
+        "p": 1.532328418780414e-08
+      },
+      "retriever_x_n_tok_per_SD": {
+        "coef_RR": 0.06643057521130626,
+        "p": 4.0958411776730115e-29
+      }
+    }
+  },
+  "setting2_user_re": {
+    "params": {
+      "Intercept": 0.1541301641345476,
+      "C(retriever)[T.minilm]": -0.08160729315688231,
+      "D_syn_c": 0.02020372234692929,
+      "C(retriever)[T.minilm]:D_syn_c": -0.033559935539858844,
+      "n_tok_c": -0.04007054629098331,
+      "C(retriever)[T.minilm]:n_tok_c": 0.0664305752113063,
+      "Group Var": 1.6326650428899332,
+      "user Var": 3.263425633204926e-05
+    },
+    "pvalues": {
+      "Intercept": 2.1615158183453148e-10,
+      "C(retriever)[T.minilm]": 1.0886872803764455e-50,
+      "D_syn_c": 6.069925972594268e-06,
+      "C(retriever)[T.minilm]:D_syn_c": 1.5012806647837147e-08,
+      "n_tok_c": 3.231495091026457e-17,
+      "C(retriever)[T.minilm]:n_tok_c": 3.7865456461811005e-29,
+      "Group Var": 2.159270940776812e-08,
+      "user Var": 0.9993638395786547
+    },
+    "ci": {
+      "Intercept": [
+        0.1065525331558155,
+        0.20170779511327971
+      ],
+      "C(retriever)[T.minilm]": [
+        -0.09228908716802366,
+        -0.07092549914574096
+      ],
+      "D_syn_c": [
+        0.01145060494119954,
+        0.028956839752659044
+      ],
+      "C(retriever)[T.minilm]:D_syn_c": [
+        -0.04517827496374497,
+        -0.021941596115972718
+      ],
+      "n_tok_c": [
+        -0.04937819730051059,
+        -0.030762895281456034
+      ],
+      "C(retriever)[T.minilm]:n_tok_c": [
+        0.05481223578742017,
+        0.07804891463519242
+      ],
+      "Group Var": [
+        1.0611132151627363,
+        2.20421687061713
+      ],
+      "user Var": [
+        -0.08018967899472164,
+        0.08025494750738572
+      ]
+    },
+    "per_1SD": {
+      "D_syn_per_SD": {
+        "coef_RR": 0.02020372234692929,
+        "p": 6.069925972594268e-06
+      },
+      "n_tok_per_SD": {
+        "coef_RR": -0.04007054629098331,
+        "p": 3.231495091026457e-17
+      },
+      "D_syn_per_unit": {
+        "coef_RR_per_unit": 0.005381692881308949
+      },
+      "n_tok_per_token": {
+        "coef_RR_per_token": -0.0058782938571851125
+      },
+      "retriever_x_D_syn_per_SD": {
+        "coef_RR": -0.033559935539858844,
+        "p": 1.5012806647837147e-08
+      },
+      "retriever_x_n_tok_per_SD": {
+        "coef_RR": 0.0664305752113063,
+        "p": 3.7865456461811005e-29
+      }
+    }
+  },
+  "setting3_user_ge2": {
+    "params": {
+      "Intercept": 0.15313220424533833,
+      "C(retriever)[T.minilm]": -0.08157153414987378,
+      "D_syn_c": 0.02283034785674488,
+      "C(retriever)[T.minilm]:D_syn_c": -0.03860794960627748,
+      "n_tok_c": -0.041813249633325444,
+      "C(retriever)[T.minilm]:n_tok_c": 0.07081462318240934,
+      "Group Var": 1.5400892584697345
+    },
+    "pvalues": {
+      "Intercept": 1.9988955294523737e-10,
+      "C(retriever)[T.minilm]": 4.2380444710592684e-49,
+      "D_syn_c": 5.071881812546829e-07,
+      "C(retriever)[T.minilm]:D_syn_c": 1.7851598372579692e-10,
+      "n_tok_c": 4.9490289199433594e-18,
+      "C(retriever)[T.minilm]:n_tok_c": 1.2756331630880828e-31,
+      "Group Var": 5.823217450433637e-09
+    },
+    "ci": {
+      "Intercept": [
+        0.10595196230370127,
+        0.20031244618697538
+      ],
+      "C(retriever)[T.minilm]": [
+        -0.092426589266383,
+        -0.07071647903336456
+      ],
+      "D_syn_c": [
+        0.013923011255644933,
+        0.03173768445784483
+      ],
+      "C(retriever)[T.minilm]:D_syn_c": [
+        -0.0504707682405517,
+        -0.02674513097200326
+      ],
+      "n_tok_c": [
+        -0.051282552660565583,
+        -0.032343946606085305
+      ],
+      "C(retriever)[T.minilm]:n_tok_c": [
+        0.058951804548135124,
+        0.08267744181668357
+      ],
+      "Group Var": [
+        1.021599826585387,
+        2.058578690354082
+      ]
+    },
+    "per_1SD": {
+      "D_syn_per_SD": {
+        "coef_RR": 0.02283034785674488,
+        "p": 5.071881812546829e-07
+      },
+      "n_tok_per_SD": {
+        "coef_RR": -0.041813249633325444,
+        "p": 4.9490289199433594e-18
+      },
+      "D_syn_per_unit": {
+        "coef_RR_per_unit": 0.006030165099282665
+      },
+      "n_tok_per_token": {
+        "coef_RR_per_token": -0.006179413132226751
+      },
+      "retriever_x_D_syn_per_SD": {
+        "coef_RR": -0.03860794960627748,
+        "p": 1.7851598372579692e-10
+      },
+      "retriever_x_n_tok_per_SD": {
+        "coef_RR": 0.07081462318240934,
+        "p": 1.2756331630880828e-31
+      }
+    }
+  },
+  "setting4_drop_tiny_asin": {
+    "params": {
+      "Intercept": 0.15045594445608626,
+      "C(retriever)[T.minilm]": -0.0773928799226921,
+      "D_syn_c": 0.022441871709437473,
+      "C(retriever)[T.minilm]:D_syn_c": -0.0385334840762699,
+      "n_tok_c": -0.04019896526445447,
+      "C(retriever)[T.minilm]:n_tok_c": 0.06982631231261,
+      "Group Var": 1.6535828661708503
+    },
+    "pvalues": {
+      "Intercept": 3.303405798082771e-09,
+      "C(retriever)[T.minilm]": 3.251932414782878e-46,
+      "D_syn_c": 4.269151350223072e-07,
+      "C(retriever)[T.minilm]:D_syn_c": 7.341862905095142e-11,
+      "n_tok_c": 1.7198425683631813e-17,
+      "C(retriever)[T.minilm]:n_tok_c": 3.7627860598790256e-32,
+      "Group Var": 1.5084024243974995e-08
+    },
+    "ci": {
+      "Intercept": [
+        0.10060806649554165,
+        0.20030382241663086
+      ],
+      "C(retriever)[T.minilm]": [
+        -0.08802089351648644,
+        -0.06676486632889776
+      ],
+      "D_syn_c": [
+        0.013743196876860929,
+        0.031140546542014015
+      ],
+      "C(retriever)[T.minilm]:D_syn_c": [
+        -0.050128512530294586,
+        -0.02693845562224521
+      ],
+      "n_tok_c": [
+        -0.04945588998446265,
+        -0.030942040544446284
+      ],
+      "C(retriever)[T.minilm]:n_tok_c": [
+        0.05823128385858531,
+        0.08142134076663468
+      ],
+      "Group Var": [
+        1.0810357884971993,
+        2.2261299438445015
+      ]
+    },
+    "per_1SD": {
+      "D_syn_per_SD": {
+        "coef_RR": 0.022441871709437473,
+        "p": 4.269151350223072e-07
+      },
+      "n_tok_per_SD": {
+        "coef_RR": -0.04019896526445447,
+        "p": 1.7198425683631813e-17
+      },
+      "D_syn_per_unit": {
+        "coef_RR_per_unit": 0.005946577191000945
+      },
+      "n_tok_per_token": {
+        "coef_RR_per_token": -0.005880388845204666
+      },
+      "retriever_x_D_syn_per_SD": {
+        "coef_RR": -0.0385334840762699,
+        "p": 7.341862905095142e-11
+      },
+      "retriever_x_n_tok_per_SD": {
+        "coef_RR": 0.06982631231261,
+        "p": 3.7627860598790256e-32
+      }
+    }
+  },
+  "per_retriever_setting1": {
+    "minilm": {
+      "D_syn_per_SD": {
+        "coef": -0.0026525898787618327,
+        "p": 0.3333136495617286
+      },
+      "n_tok_per_SD": {
+        "coef": 0.008323153322734509,
+        "p": 0.006330265268785006
+      }
+    },
+    "bm25": {
+      "D_syn_per_SD": {
+        "coef": 0.009351016153493373,
+        "p": 0.015850317824546833
+      },
+      "n_tok_per_SD": {
+        "coef": -0.021828800886627336,
+        "p": 4.1338664425599583e-07
+      }
+    }
+  }
+}
