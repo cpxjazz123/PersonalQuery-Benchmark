@@ -1,20 +1,15 @@
-"""Stage 8: Generate K=3 query variants per (asin, user, attrs) tuple.
+"""Stage 8 retry: target the 8 stubborn ASINs with reduced attrs (N=3) + high temp + K=12.
 
-Reads:
-  - scratch2/.../stage8_asins.json: 100 ASINs × 10 users × 4 canonical attrs
-Writes:
-  - scratch2/.../stage8_regen.json
+Drop the awkward attr that the generator omits (slashes, parens, list-like).
+Generate with temp=1.0 + K=12 to maximize strict hit rate.
 
-Uses Stage 6B-γ natural-length prompt (no length instruction).
-Variant suffix `(variant {k})` to avoid vLLM dedup.
-
-Expected: 100 × 10 × 3 = 3000 generated → ~1500 strict (50% pass rate).
+Appends to existing stage8_regen.json entries (don't overwrite).
 
 Run:
     cd /home/wlia0047/ar57/wenyu/PersoanlQuery
     nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-        gaussian/syntax_subspace_stage8_regen.py \
-        > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_regen.log 2>&1 &
+        gaussian/syntax_subspace_stage8_regen_retry.py \
+        > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_retry.log 2>&1 &
 """
 
 from __future__ import annotations
@@ -32,24 +27,25 @@ import requests
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 ASINS_IN = SCRATCH / "stage8_asins.json"
+REGEN_IN = SCRATCH / "stage8_regen.json"
 REGEN_OUT = SCRATCH / "stage8_regen.json"
 
 # === Constants ===
 VLLM_URL = "http://localhost:8800/v1/completions"
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 SEED = 2024
-K_SAMPLES = 8  # Bumped to 8 — covers awkward attrs (slashes/parens/numeric) that some samples drop
-TEMP = 0.7
+K_SAMPLES = 12  # Aggressive retry for stubborn ASINs
+TEMP = 1.0      # Higher diversity
 MAX_TOKENS = 80
 
 
 def log(msg: str) -> None:
     import datetime
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ts = datetime.datetime.now().strftime("%Y-%m-%d")
     print(f"[{ts}] {msg}", flush=True)
 
 
-# === Prompt (Stage 6B-γ natural-length) ===
+# === Prompt ===
 GEN_SYSTEM_TMPL_NATURAL = (
     "You are an Amazon shopper writing a search query. Use EXACTLY the {N_INPUT} "
     "attribute values listed below verbatim (mention each value once). DO NOT add any "
@@ -79,7 +75,6 @@ def make_prompt(attrs: dict, n_input: int, k: int = 0) -> str:
 
 
 def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int = MAX_TOKENS) -> List[str]:
-    """Send batched requests to vLLM /v1/completions."""
     outputs = []
     full_prompts = []
     for p in prompts:
@@ -132,7 +127,6 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
 
 
 def count_attrs_covered(text: str, attrs: dict) -> int:
-    """Count how many attr values appear in text (verbatim, case-insensitive)."""
     if not text:
         return 0
     text_lower = text.lower()
@@ -144,7 +138,6 @@ def count_attrs_covered(text: str, attrs: dict) -> int:
 
 
 def has_invalid_punct(text: str) -> bool:
-    """Check if query has broken structure (preamble, colons, etc.)."""
     if not text:
         return True
     bad_patterns = [
@@ -163,29 +156,60 @@ def n_tokens_simple(text: str) -> int:
     return len(text.split())
 
 
+def pick_strict_attrs(attrs: dict, drop_keys: List[str] = None) -> dict:
+    """Drop awkward attrs (slashes/parens/numbers) and return N=3."""
+    if drop_keys:
+        attrs = {k: v for k, v in attrs.items() if k not in drop_keys}
+    # Pick top 3 attrs (already preferred order from scan)
+    items = list(attrs.items())[:3]
+    return dict(items)
+
+
 def main():
-    log("=== Stage 8 REGEN: K=3 variants × 100 ASINs × 10 users ===")
-    log(f"K_SAMPLES={K_SAMPLES}")
+    log("=== Stage 8 REGEN RETRY: 8 stubborn ASINs, N=3 attrs, K=12 ===")
 
     log(f"loading {ASINS_IN}")
     asin_data = json.load(open(ASINS_IN))["asins"]
-    log(f"  {len(asin_data)} ASINs")
+    asin_attrs = {a["asin"]: a["attrs_used"] for a in asin_data}
 
-    # Build tasks: (asin, user_id, attrs, n_input)
+    log(f"loading {REGEN_IN}")
+    regen_data = json.load(open(REGEN_IN))
+    entries = regen_data["entries"]
+
+    # Find asins with <3 strict users
+    asin_strict_users = collections.defaultdict(set)
+    for e in entries:
+        if e["strict"]:
+            asin_strict_users[e["asin"]].add(e["user_id"])
+
+    target_asins = sorted([
+        a for a in asin_attrs.keys()
+        if len(asin_strict_users.get(a, set())) < 3
+    ])
+    log(f"target ASINs (with <3 strict users): {len(target_asins)}")
+    for a in target_asins:
+        n_strict = len(asin_strict_users.get(a, set()))
+        attrs = asin_attrs[a]
+        log(f"  {a}: n_strict={n_strict}, attrs={attrs}")
+
+    # Build retry tasks with N=3 attrs
     tasks = []
     for entry in asin_data:
         a = entry["asin"]
-        attrs = entry["attrs_used"]
-        n_input = len(attrs)
+        if a not in target_asins:
+            continue
+        # Reduced attrs (N=3)
+        attrs_reduced = pick_strict_attrs(entry["attrs_used"])
+        n_input = len(attrs_reduced)
         for uid in entry["users_sampled"]:
-            tasks.append((a, uid, attrs, n_input))
+            tasks.append((a, uid, attrs_reduced, n_input))
 
-    log(f"  total tasks: {len(tasks)} (× K={K_SAMPLES} = {len(tasks) * K_SAMPLES} queries)")
+    log(f"  total retry tasks: {len(tasks)} (× K={K_SAMPLES} = {len(tasks) * K_SAMPLES} queries)")
 
     # Build all prompts
     log("building prompts...")
     all_prompts = []
-    task_indices = []  # (task_idx, k)
+    task_indices = []
     for ti, (asin, uid, attrs, n_input) in enumerate(tasks):
         for k in range(K_SAMPLES):
             prompt = make_prompt(attrs, n_input, k=k)
@@ -197,7 +221,7 @@ def main():
     log(f"  got {len(all_outputs)} outputs")
 
     # Parse and filter strict
-    regen = []
+    retry_regen = []
     n_invalid = 0
     n_strict = 0
     for (ti, k), out in zip(task_indices, all_outputs):
@@ -213,7 +237,7 @@ def main():
             n_strict += 1
         else:
             n_invalid += 1
-        regen.append({
+        retry_regen.append({
             "asin": asin,
             "user_id": uid,
             "attrs_used": attrs,
@@ -224,37 +248,38 @@ def main():
             "invalid": invalid,
             "n_tok": n_tokens_simple(text),
             "strict": is_strict,
+            "retry": True,
         })
 
-    log(f"  total regen entries: {len(regen)}")
-    log(f"  strict (attr_pass=1): {n_strict} ({n_strict / len(regen) * 100:.1f}%)")
-    log(f"  non-strict: {n_invalid}")
+    log(f"  total retry entries: {len(retry_regen)}")
+    log(f"  strict: {n_strict} ({n_strict / len(retry_regen) * 100:.1f}%)")
 
-    # Stats: per-asin strict coverage
-    asin_strict = collections.defaultdict(set)
-    for e in regen:
+    # Append retry entries to main regen
+    entries.extend(retry_regen)
+
+    # Recompute stats
+    asin_strict_users = collections.defaultdict(set)
+    for e in entries:
         if e["strict"]:
-            asin_strict[e["asin"]].add(e["user_id"])
-    asin_stats = {a: len(u) for a, u in asin_strict.items()}
-    log(f"  asins with ≥1 strict user: {len(asin_strict)}")
+            asin_strict_users[e["asin"]].add(e["user_id"])
+
+    n_total = len(entries)
+    n_strict = sum(1 for e in entries if e["strict"])
+    log(f"\n=== After retry ===")
+    log(f"  total entries: {n_total}")
+    log(f"  strict: {n_strict} ({n_strict / n_total * 100:.1f}%)")
+    log(f"  asins with ≥1 strict user: {len(asin_strict_users)}")
     for t in [3, 5, 8, 10]:
-        n_g = sum(1 for v in asin_stats.values() if v >= t)
+        n_g = sum(1 for u in asin_strict_users.values() if len(u) >= t)
         log(f"    ≥{t} users with strict query: {n_g}")
 
     # Save
-    REGEN_OUT.parent.mkdir(parents=True, exist_ok=True)
+    regen_data["entries"] = entries
+    regen_data["asin_strict_user_counts"] = {
+        a: len(u) for a, u in sorted(asin_strict_users.items(), key=lambda x: -len(x[1]))
+    }
     with open(REGEN_OUT, "w", encoding="utf-8") as f:
-        json.dump({
-            "config": {
-                "description": "Stage 8 regen: K=3 variants × 100 ASINs × 10 users, attrs from product_attributes.json",
-                "K_SAMPLES": K_SAMPLES,
-                "TEMP": TEMP,
-                "MAX_TOKENS": MAX_TOKENS,
-                "SEED": SEED,
-            },
-            "asin_strict_user_counts": dict(sorted(asin_stats.items(), key=lambda x: -x[1])),
-            "entries": regen,
-        }, f, ensure_ascii=False, indent=2)
+        json.dump(regen_data, f, ensure_ascii=False, indent=2)
     log(f"wrote → {REGEN_OUT}")
 
 
