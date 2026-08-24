@@ -1,0 +1,53 @@
+[2026-08-24 18:54:22] [stage6] 加载 PCA48 (复用 Stage 1 / Stage 5B 冻结, full 10k-user cache)...
+[2026-08-24 18:54:22] [subspace] 加载 182d sentence cache...
+[2026-08-24 18:54:30] [subspace] 299288 句
+[2026-08-24 18:54:41] [subspace] 298740 句有效
+[2026-08-24 18:54:42] [subspace] X shape: (298740, 182), Y_probes shape: (298740, 6)
+[2026-08-24 18:54:43] [subspace] StandardScaler fitted on 5000 sentences
+[2026-08-24 18:54:43] [subspace] 149644 rewrites
+[2026-08-24 18:54:43] [subspace] 492 rewrite 句特征可用
+[2026-08-24 18:54:43] [subspace] 10000 unique users
+[2026-08-24 18:54:43] [subspace] user vectors built (StandardScaler 后)
+[2026-08-24 18:54:43] [subspace] pair sample: (2000, 2)
+[2026-08-24 18:54:44] [subspace] 200 asins with >=50 sents, total=31338
+[2026-08-24 18:54:44] [stage6] 冻结 PCA48 fit (EV=0.9536)
+[2026-08-24 18:54:44] [stage6] feature dim = 182
+[2026-08-24 18:54:44] [stage6] Z shape (298740, 48), 10000 users
+[2026-08-24 18:54:44] [stage6] cand_users (≥30 sents): 9687
+[2026-08-24 18:54:45] [stage6] 9982 strict_10k records loaded
+[2026-08-24 18:54:45] [stage6] records with cands+scores: 9982
+[2026-08-24 18:54:45] [stage6] asin pool: 6789 asins, intra ≥3: 575
+[2026-08-24 18:54:45] [stage6] records with intra ≥3: 2626
+[2026-08-24 18:54:45] [stage6] unique query texts: 10188, new to extract: 10188
+[2026-08-24 18:54:45] [stage6] spaCy pipe 提取 10188 new queries (batch=256)...
+[2026-08-24 18:54:51]   extracted 1000/10188
+[2026-08-24 18:54:55]   extracted 2000/10188
+[2026-08-24 18:54:59]   extracted 3000/10188
+[2026-08-24 18:55:02]   extracted 4000/10188
+[2026-08-24 18:55:06]   extracted 5000/10188
+[2026-08-24 18:55:10]   extracted 6000/10188
+[2026-08-24 18:55:13]   extracted 7000/10188
+[2026-08-24 18:55:17]   extracted 8000/10188
+[2026-08-24 18:55:21]   extracted 9000/10188
+[2026-08-24 18:55:24]   extracted 10000/10188
+[2026-08-24 18:55:27] [stage6] query cache saved: /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/strict_query_features.jsonl.gz (10175 entries)
+[2026-08-24 18:55:27] [stage6] 拟合每用户 Gaussian (diag, N=30, λ=0.1)...
+[2026-08-24 18:55:27] [stage6] user_gauss ready: 9687 users
+[2026-08-24 18:55:27] [stage6] 计算每条候选 query 的 Mahalanobis (intra-product)...
+[2026-08-24 18:55:28]   processed 500/2626 records (2000 cands ok, 0 skipped)
+[2026-08-24 18:55:28]   processed 1000/2626 records (4000 cands ok, 0 skipped)
+[2026-08-24 18:55:28]   processed 1500/2626 records (6000 cands ok, 0 skipped)
+[2026-08-24 18:55:29]   processed 2000/2626 records (8000 cands ok, 0 skipped)
+[2026-08-24 18:55:29]   processed 2500/2626 records (10000 cands ok, 0 skipped)
+[2026-08-24 18:55:29] [stage6] done: 2626 records, 10504 cands ok, 0 skipped (covered>5 or feature miss)
+[2026-08-24 18:55:29] 
+[stage6] 已写入 /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/syntax_subspace_stage6_n_attrs_sweep.json
+[2026-08-24 18:55:29] 
+[stage6] === Summary: intra-product Mahalanobis margin by n_attrs_covered (PCA48) ===
+[2026-08-24 18:55:29] N   count  margin_mean  margin_med  margin_pos%  d_self_mean  d_other_min  rank1   top3   top5   rank_mean
+[2026-08-24 18:55:29]     0     86     -17.473     -5.730     32.6%      71.696      54.223   0.326  0.860  0.977  2.41
+[2026-08-24 18:55:29]     1    241    -160.268    -74.073     17.0%     360.068     199.800   0.170  0.585  0.759  3.95
+[2026-08-24 18:55:29]     2    968    -175.556    -56.813     23.2%     423.620     248.063   0.232  0.693  0.855  3.37
+[2026-08-24 18:55:29]     3   1971    -200.720    -71.913     22.7%     472.887     272.167   0.227  0.647  0.814  4.05
+[2026-08-24 18:55:29]     4   3542    -208.147    -72.158     21.1%     476.398     268.251   0.211  0.649  0.816  3.84
+[2026-08-24 18:55:29]     5   3696    -205.468    -62.486     22.1%     454.196     248.728   0.221  0.659  0.812  4.42

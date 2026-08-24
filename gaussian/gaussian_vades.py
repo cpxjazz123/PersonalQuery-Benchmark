@@ -6135,6 +6135,314 @@ def main_syntax_subspace_stage5d() -> None:
     log(f"\n[stage5d] 已写入 {out_path}")
 
 
+def main_syntax_subspace_stage6() -> None:
+    """Stage 6: N_attrs sweep in PCA48 + Mahalanobis space (用户 Gaussian + Query Mahalanobis).
+
+    核心问题: 在 PCA48 句法子空间下, generated query 覆盖多少属性
+             (N_attrs_covered) 才能最大化"目标用户 Mahalanobis 距离 vs 其他用户"差距?
+
+    Pipeline (锁定版, 不再使用 LLM hidden residual):
+        用户 u 历史 (35 句)  → 182d 句法特征 → PCA48 → Gaussian(μ_u, Σ_u, diag λ=0.1)
+        Query q              → 182d 句法特征 → PCA48 → z_q
+        D_M(q, u) = (z_q - μ_u)^T Σ_u^{-1} (z_q - μ_u)
+
+    Data:
+      - result/query_records_with_query_inject_strict_10k.json: 9982 records,
+        每个 record 含 4 个 LLM 候选 query + per-candidate n_attrs_covered (score[0])
+      - dense 句法 cache: 10000 用户, 每用户 ≥35 句 (PCA48 + Stage 5D 验证 Gaussian 适用)
+
+    评价 (intra-product, 同 asin 至少 3 个 cand users):
+      - margin(q) = min_{u_other ∈ same-asin} D_M(q, u_other) - D_M(q, u_self)
+      - rank_self(q) = u_self 在 same-asin 池中按 D_M 升序的位置
+      - 按 n_attrs_covered ∈ {0..5} bucket 聚合
+
+    Args (硬编码常量, 不接受 CLI):
+      N_FIXED=35 (Gaussian 拟合的历史句数, 与 Stage 5D 一致)
+      LAMBDA=0.1 (diag shrinkage, Stage 5D 最佳)
+      N_LIST=[1,2,3,4,5] (N_attrs_covered buckets, 同时报告 N=0)
+      N_USERS_MIN=3 (intra-product 同 asin 至少 3 用户才纳入)
+    """
+    import collections
+    import gzip
+    import hashlib as _hl
+    import sys as _sys
+    _sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
+    try:
+        from main import per_sentence_features_v2  # type: ignore
+    except Exception as _e:
+        log(f"[stage6] cannot import per_sentence_features_v2: {_e}")
+        raise
+
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler  # noqa: F401  (P0 内含)
+
+    # ==== 硬编码实验参数 ====
+    # N_FIXED=30: 10k cache per-user cap is 30 sentences (无 user 有 ≥35);
+    #            与 Stage 4B 的 history-size saturation 实验同规模
+    N_FIXED = 30
+    LAMBDA = 0.1
+    N_LIST = [1, 2, 3, 4, 5]
+    VAR_EPS = 1e-3
+    N_USERS_MIN = 3
+    SEED_USER_SPLIT = 2024
+
+    # ==== 1. Data loading (使用 10k-user full sentence cache, Stage 5B 同源) ====
+    log("[stage6] 加载 PCA48 (复用 Stage 1 / Stage 5B 冻结, full 10k-user cache)...")
+    P = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P["X_scaled"][P["train_idx"]])
+    scaler = P["scaler"]
+    fnames = P["feature_names_ordered"]
+    log(f"[stage6] 冻结 PCA48 fit (EV={pca.explained_variance_ratio_.sum():.4f})")
+    log(f"[stage6] feature dim = {len(fnames)}")
+
+    X_raw = P["X"]
+    Z = pca.transform(scaler.transform(X_raw))
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+    log(f"[stage6] Z shape {Z.shape}, {len(user_id_list)} users")
+
+    cand_users = sorted([u for u in user_id_list if len(user_to_indices[u]) >= N_FIXED])
+    cand_user_set = set(cand_users)
+    log(f"[stage6] cand_users (≥{N_FIXED} sents): {len(cand_users)}")
+
+    # ==== 2. 加载 strict_10k records ====
+    STRICT_FILE = REPO_ROOT / "result/query_records_with_query_inject_strict_10k.json"
+    if not STRICT_FILE.exists():
+        raise FileNotFoundError(f"缺少 {STRICT_FILE}")
+    records = load_json(STRICT_FILE)
+    log(f"[stage6] {len(records)} strict_10k records loaded")
+
+    valid_records = []
+    for r in records:
+        uid = r.get("user_id")
+        asin = r.get("asin")
+        cands = r.get("all_candidates", [])
+        if not cands or len(cands) != len(r.get("all_candidates_scores", [])):
+            continue
+        valid_records.append(r)
+    log(f"[stage6] records with cands+scores: {len(valid_records)}")
+
+    # ==== 3. asin → user 映射 (intra-product distractor 池) ====
+    asin_to_users = collections.defaultdict(set)
+    for r in valid_records:
+        uid = r["user_id"]
+        if uid in cand_user_set:
+            asin_to_users[r["asin"]].add(uid)
+    asin_to_users = {a: sorted(us) for a, us in asin_to_users.items()}
+    log(f"[stage6] asin pool: {len(asin_to_users)} asins, intra ≥{N_USERS_MIN}: "
+        f"{sum(1 for us in asin_to_users.values() if len(us) >= N_USERS_MIN)}")
+
+    valid_with_pool = [
+        r for r in valid_records
+        if r["user_id"] in cand_user_set
+        and len(asin_to_users.get(r["asin"], [])) >= N_USERS_MIN
+    ]
+    log(f"[stage6] records with intra ≥{N_USERS_MIN}: {len(valid_with_pool)}")
+
+    # ==== 4. Cache query features (sha1 hash, batched spaCy) ====
+    QUERY_FEAT_CACHE = RESIDUAL_SCRATCH / "strict_query_features.jsonl.gz"
+    feat_map: dict = {}
+    if QUERY_FEAT_CACHE.exists():
+        log(f"[stage6] loading existing query cache: {QUERY_FEAT_CACHE}")
+        with gzip.open(QUERY_FEAT_CACHE, "rt", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                rec = json.loads(line)
+                feat_map[rec["k"]] = rec["v"]
+        log(f"[stage6] existing cache entries: {len(feat_map)}")
+
+    def _key(t: str) -> str:
+        return _hl.sha1(t.strip().lower().encode("utf-8")).hexdigest()
+
+    unique_texts: set = set()
+    for r in valid_with_pool:
+        for c in r.get("all_candidates", []):
+            if c and c.strip():
+                unique_texts.add(c)
+    new_texts = [t for t in unique_texts if _key(t) not in feat_map]
+    log(f"[stage6] unique query texts: {len(unique_texts)}, new to extract: {len(new_texts)}")
+
+    if new_texts:
+        log(f"[stage6] spaCy pipe 提取 {len(new_texts)} new queries (batch=256)...")
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
+        new_records = []
+        BATCH = 256
+        n_done = 0
+        for i, doc in enumerate(nlp.pipe(new_texts, batch_size=BATCH, n_process=1)):
+            t = new_texts[i]
+            k = _key(t)
+            try:
+                feats = per_sentence_features_v2(doc)
+                feats = feats if feats is not None else {}
+            except Exception as _e:
+                log(f"  feat extract fail ({t[:30]}...): {_e}")
+                feats = {}
+            numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
+            filtered = {n: numeric.get(n, 0.0) for n in fnames}
+            new_records.append({"k": k, "v": filtered})
+            n_done += 1
+            if n_done % 1000 == 0:
+                log(f"  extracted {n_done}/{len(new_texts)}")
+        feat_map.update({r["k"]: r["v"] for r in new_records})
+        # 增量写: 整个 feat_map 重新写 (条目数 ~1-10k, gzip 可接受)
+        with gzip.open(QUERY_FEAT_CACHE, "wt", encoding="utf-8") as f:
+            f.write("#META {\"version\": \"v1\", \"n_entries\": " + str(len(feat_map)) + "}\n")
+            for k, v in feat_map.items():
+                f.write(json.dumps({"k": k, "v": v}) + "\n")
+        log(f"[stage6] query cache saved: {QUERY_FEAT_CACHE} ({len(feat_map)} entries)")
+
+    # ==== 5. Per-user Gaussian (PCA48, diag λ=0.1) ====
+    log(f"[stage6] 拟合每用户 Gaussian (diag, N={N_FIXED}, λ={LAMBDA})...")
+    user_gauss: dict = {}
+    for u in cand_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(int(_hl.md5(str(u).encode()).hexdigest(), 16) % (2 ** 31))
+        perm_u = rng_u.permutation(len(idx_u))
+        z_train = Z[idx_u[perm_u[:N_FIXED]]]
+        mu = z_train.mean(axis=0)
+        var = z_train.var(axis=0)
+        var_shrink = (1 - LAMBDA) * var + LAMBDA * var.mean()
+        sigma_diag = np.maximum(var_shrink, VAR_EPS)
+        user_gauss[u] = (mu, sigma_diag)
+    log(f"[stage6] user_gauss ready: {len(user_gauss)} users")
+
+    def _d_mahal(z: np.ndarray, mu: np.ndarray, sigma_diag: np.ndarray) -> float:
+        diff = z - mu
+        return float((diff * diff / sigma_diag).sum())
+
+    # ==== 6. Per-candidate: D_M(q, u_self) vs D_M(q, u_distractor) ====
+    log("[stage6] 计算每条候选 query 的 Mahalanobis (intra-product)...")
+    BUCKETS = sorted(N_LIST + [0])
+    bucket = {
+        n: {"margins": [], "ranks": [], "d_self": [], "d_other_min": [], "count": 0}
+        for n in BUCKETS
+    }
+    n_records_done = 0
+    n_cands_done = 0
+    n_cands_skipped = 0
+    for r_idx, r in enumerate(valid_with_pool):
+        uid = r["user_id"]
+        asin = r["asin"]
+        mu_self, sigma_self = user_gauss[uid]
+        pool = asin_to_users[asin]
+        distractors = [u for u in pool if u != uid]
+        if not distractors:
+            continue
+        cands = r.get("all_candidates", [])
+        scores = r.get("all_candidates_scores", [])
+        for ci, (cand_text, score) in enumerate(zip(cands, scores)):
+            if not cand_text or not cand_text.strip():
+                continue
+            n_covered = int(score[0]) if score and len(score) > 0 else 0
+            if n_covered not in BUCKETS:
+                n_cands_skipped += 1
+                continue
+            k = _key(cand_text)
+            v = feat_map.get(k)
+            if v is None or not v:
+                n_cands_skipped += 1
+                continue
+            vec = np.array([v.get(name, 0.0) for name in fnames], dtype=np.float64)
+            z_q = pca.transform(scaler.transform(vec[None, :]))[0]
+            d_self = _d_mahal(z_q, mu_self, sigma_self)
+            d_others = []
+            for uo in distractors:
+                mu_o, sigma_o = user_gauss[uo]
+                d_others.append(_d_mahal(z_q, mu_o, sigma_o))
+            d_min_other = min(d_others)
+            margin = d_min_other - d_self  # > 0 表示 u_self 更近
+            rank_self = 1 + sum(1 for d in d_others if d < d_self)
+            b = bucket[n_covered]
+            b["margins"].append(margin)
+            b["ranks"].append(rank_self)
+            b["d_self"].append(d_self)
+            b["d_other_min"].append(d_min_other)
+            b["count"] += 1
+            n_cands_done += 1
+        n_records_done += 1
+        if (r_idx + 1) % 500 == 0:
+            log(f"  processed {r_idx + 1}/{len(valid_with_pool)} records "
+                f"({n_cands_done} cands ok, {n_cands_skipped} skipped)")
+    log(f"[stage6] done: {n_records_done} records, {n_cands_done} cands ok, "
+        f"{n_cands_skipped} skipped (covered>5 or feature miss)")
+
+    # ==== 7. Aggregate per bucket ====
+    summary = {}
+    for n in BUCKETS:
+        d = bucket[n]
+        if d["count"] == 0:
+            summary[n] = {"count": 0}
+            continue
+        margins = np.asarray(d["margins"], dtype=np.float64)
+        ranks = np.asarray(d["ranks"], dtype=np.int64)
+        d_self = np.asarray(d["d_self"], dtype=np.float64)
+        d_other_min = np.asarray(d["d_other_min"], dtype=np.float64)
+        summary[n] = {
+            "count": int(d["count"]),
+            "margin_mean": float(margins.mean()),
+            "margin_median": float(np.median(margins)),
+            "margin_p25": float(np.percentile(margins, 25)),
+            "margin_p75": float(np.percentile(margins, 75)),
+            "margin_pos_frac": float((margins > 0).mean()),
+            "d_self_mean": float(d_self.mean()),
+            "d_other_min_mean": float(d_other_min.mean()),
+            "rank1_acc": float((ranks == 1).mean()),
+            "rank2_acc": float((ranks <= 2).mean()),
+            "rank3_acc": float((ranks <= 3).mean()),
+            "rank5_acc": float((ranks <= 5).mean()),
+            "rank_mean": float(ranks.mean()),
+        }
+
+    # ==== 8. 写 JSON ====
+    out = {
+        "config": {
+            "description": "Stage 6: N_attrs sweep in PCA48 + Mahalanobis space",
+            "N_FIXED": N_FIXED,
+            "LAMBDA": LAMBDA,
+            "N_LIST": N_LIST,
+            "BUCKETS": BUCKETS,
+            "VAR_EPS": VAR_EPS,
+            "N_USERS_MIN": N_USERS_MIN,
+            "PCA_DIM": 48,
+            "SEED_USER_SPLIT": SEED_USER_SPLIT,
+        },
+        "summary_by_n": summary,
+        "n_records_total": len(records),
+        "n_records_valid_cands": len(valid_records),
+        "n_records_with_pool": len(valid_with_pool),
+        "n_users_total": len(user_id_list),
+        "n_users_cand": len(cand_users),
+        "n_asins_with_intra_pool": sum(
+            1 for us in asin_to_users.values() if len(us) >= N_USERS_MIN
+        ),
+        "n_cands_total": n_cands_done,
+        "n_cands_skipped": n_cands_skipped,
+    }
+    out_path = RESIDUAL_SCRATCH / "syntax_subspace_stage6_n_attrs_sweep.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2, default=str)
+    log(f"\n[stage6] 已写入 {out_path}")
+
+    # ==== 9. 打印汇总表 ====
+    log("\n[stage6] === Summary: intra-product Mahalanobis margin by n_attrs_covered (PCA48) ===")
+    log("N   count  margin_mean  margin_med  margin_pos%  d_self_mean  d_other_min  rank1   top3   top5   rank_mean")
+    for n in BUCKETS:
+        d = summary[n]
+        if d["count"] == 0:
+            log(f"  {n:>3}    0      —             —          —             —            —        —      —      —       —")
+            continue
+        log(f"  {n:>3}  {d['count']:>5}  {d['margin_mean']:>10.3f}   "
+            f"{d['margin_median']:>8.3f}   {d['margin_pos_frac']*100:>6.1f}%   "
+            f"{d['d_self_mean']:>9.3f}   {d['d_other_min_mean']:>9.3f}   "
+            f"{d['rank1_acc']:.3f}  {d['rank3_acc']:.3f}  {d['rank5_acc']:.3f}  "
+            f"{d['rank_mean']:.2f}")
+
+
 def main_syntax_subspace_stage4() -> None:
     """Stage 4: History-size Saturation Experiment (同一批用户, 冻结 PCA48 + 冻结 PC importance).
 
@@ -7133,6 +7441,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage5b", help="Stage 5B: Fair HP tuning (50/50 val/test split) + ranking metrics (MRR/AUROC) + bootstrap CI vs Gaussian")
     sub.add_parser("syntax_subspace_stage5c", help="Stage 5C: Latent Style Gaussianity (m in {1,2,3,5,7,10} aggregation; Q-Q corr + 95% coverage)")
     sub.add_parser("syntax_subspace_stage5d", help="Stage 5D: 35-review bootstrap user style sampling distribution (m in {10,15,20,25,30,35}; B=1000; Gaussian uncertainty model)")
+    sub.add_parser("syntax_subspace_stage6", help="Stage 6: N_attrs sweep in PCA48 + Mahalanobis space (intra-product; margin / rank-1 by N_attrs_covered)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -7165,6 +7474,8 @@ def main() -> None:
         main_syntax_subspace_stage5c()
     elif cmd == "syntax_subspace_stage5d":
         main_syntax_subspace_stage5d()
+    elif cmd == "syntax_subspace_stage6":
+        main_syntax_subspace_stage6()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
