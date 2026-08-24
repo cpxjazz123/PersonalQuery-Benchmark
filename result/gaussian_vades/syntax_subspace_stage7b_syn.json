@@ -146,5 +146,42 @@
   },
   "n_rows": 1536,
   "n_unique_asins": 27,
-  "n_unique_users": 203
+  "n_unique_users": 203,
+  "per_1SD_report": {
+    "D_syn_distribution": {
+      "mean": 8.27625572002335,
+      "std": 3.3881306948857848,
+      "unit": "PCA48 Euclidean distance"
+    },
+    "n_tok_distribution": {
+      "mean": 22.21,
+      "std": 8.631489996102214,
+      "unit": "whitespace tokens"
+    },
+    "D_syn_c_per_1SD": {
+      "coef_RR_per_1SD_Dsyn": 0.010690747820024502,
+      "p_value": 0.022420150953097396,
+      "interpretation": "每 +1 SD PCA48 Euclidean distance (3.39)，RR 改变 +0.01069",
+      "relative_to_median_RR_pct": 35.635826066748336
+    },
+    "n_tok_c_per_1SD": {
+      "coef_RR_per_1SD_ntok": -0.017241829890726604,
+      "p_value": 0.00037879287150483886,
+      "interpretation": "每 +1 SD 词数 (8.6 tokens)，RR 改变 -0.01724"
+    },
+    "per_token": {
+      "coef_RR_per_token": -0.001997549658113793,
+      "interpretation": "控制 D_syn 后，每 token 的边际效应"
+    },
+    "retriever_x_Dsyn_per_1SD": {
+      "coef": -0.007528877321547889,
+      "p_value": 0.23313848407002113,
+      "interpretation": "Retriever 切换对 D_syn 响应差异的边际效应 per 1 SD"
+    },
+    "retriever_x_ntok_per_1SD": {
+      "coef": 0.03106880281358716,
+      "p_value": 8.644645600563014e-07,
+      "interpretation": "Retriever 切换对 n_tok 响应差异的边际效应 per 1 SD"
+    }
+  }
 }
