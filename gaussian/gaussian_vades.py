@@ -6443,6 +6443,292 @@ def main_syntax_subspace_stage6() -> None:
             f"{d['rank_mean']:.2f}")
 
 
+def main_syntax_subspace_stage6b() -> None:
+    """Stage 6B-α: Length-controlled N_attrs analysis + lift@1 vs random baseline.
+
+    Stage 6 的 N_attrs_covered bucket 受到 query length / complexity 严重 confounding。
+    Stage 6B-α 复用同一份 strict_10k queries, 在 length bucket 内重新分桶 N_attrs,
+    同时计算 random baseline (E[1/M_p] where M_p = intra-product pool size) → lift@1
+    normalization, 看 N_attrs effect 是否仍存在。
+
+    三组分析:
+      A) (length × N_attrs) cell: count / margin_mean / rank1 / lift1
+      B) per N bucket (跨 length 聚合, weighted by record): margin / rank1 / lift1
+      C) per length bucket (跨 N 聚合): 同上
+
+    Args (硬编码常量, 不接受 CLI):
+      N_FIXED=30 (与 Stage 6 一致)
+      LAMBDA=0.1 (Stage 5D 最佳)
+      LENGTH_BUCKETS = [(0, 15), (15, 25), (25, 35), (35, 50), (50, 200)]
+      N_LIST = [0, 1, 2, 3, 4, 5]
+      N_USERS_MIN = 3 (intra-product 池至少 3 用户才纳入)
+    """
+    import collections
+    import gzip
+    import hashlib as _hl
+
+    from sklearn.decomposition import PCA
+
+    # ==== 硬编码 ====
+    N_FIXED = 30
+    LAMBDA = 0.1
+    LENGTH_BUCKETS = [(0, 15), (15, 25), (25, 35), (35, 50), (50, 200)]
+    N_LIST = [0, 1, 2, 3, 4, 5]
+    VAR_EPS = 1e-3
+    N_USERS_MIN = 3
+
+    # ==== 1. Data + PCA48 (与 Stage 6 同源) ====
+    log("[stage6b] 加载 PCA48 (复用 Stage 1 / Stage 5B 冻结)...")
+    P = _syntax_subspace_prepare()
+    pca = PCA(n_components=48, random_state=42)
+    pca.fit(P["X_scaled"][P["train_idx"]])
+    scaler = P["scaler"]
+    fnames = P["feature_names_ordered"]
+    X = P["X"]
+    Z = pca.transform(scaler.transform(X))
+    user_to_indices = P["user_to_indices"]
+    user_id_list = P["user_id_list"]
+    log(f"[stage6b] Z shape {Z.shape}, {len(user_id_list)} users, "
+        f"feature dim = {len(fnames)}")
+
+    cand_users = sorted([u for u in user_id_list if len(user_to_indices[u]) >= N_FIXED])
+    cand_user_set = set(cand_users)
+    log(f"[stage6b] cand_users (≥{N_FIXED}): {len(cand_users)}")
+
+    # ==== 2. 加载 strict_10k ====
+    STRICT_FILE = REPO_ROOT / "result/query_records_with_query_inject_strict_10k.json"
+    records = load_json(STRICT_FILE)
+    log(f"[stage6b] {len(records)} strict_10k records loaded")
+
+    # ==== 3. asin → users (intra-product 池) ====
+    asin_to_users = collections.defaultdict(set)
+    for r in records:
+        if r["user_id"] in cand_user_set:
+            asin_to_users[r["asin"]].add(r["user_id"])
+    asin_to_users = {a: sorted(us) for a, us in asin_to_users.items()}
+    asin_pool_size = {a: len(us) for a, us in asin_to_users.items()}
+    log(f"[stage6b] asin pool: {len(asin_to_users)} asins, intra ≥{N_USERS_MIN}: "
+        f"{sum(1 for v in asin_pool_size.values() if v >= N_USERS_MIN)}")
+
+    valid_records = []
+    for r in records:
+        if r["user_id"] not in cand_user_set:
+            continue
+        if asin_pool_size.get(r["asin"], 0) < N_USERS_MIN:
+            continue
+        cands = r.get("all_candidates", [])
+        if not cands or len(cands) != len(r.get("all_candidates_scores", [])):
+            continue
+        valid_records.append(r)
+    log(f"[stage6b] valid records (intra ≥{N_USERS_MIN}, cands ok): {len(valid_records)}")
+
+    # ==== 4. Query feature cache (复用 Stage 6 写出的 cache) ====
+    QUERY_FEAT_CACHE = RESIDUAL_SCRATCH / "strict_query_features.jsonl.gz"
+    feat_map: dict = {}
+    if QUERY_FEAT_CACHE.exists():
+        with gzip.open(QUERY_FEAT_CACHE, "rt", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                rec = json.loads(line)
+                feat_map[rec["k"]] = rec["v"]
+    log(f"[stage6b] query feature cache loaded: {len(feat_map)} entries")
+
+    def _key(t: str) -> str:
+        return _hl.sha1(t.strip().lower().encode("utf-8")).hexdigest()
+
+    def _len_bucket(n_tok: int) -> str:
+        for i, (lo, hi) in enumerate(LENGTH_BUCKETS):
+            if lo <= n_tok < hi:
+                return f"{lo}-{hi if hi < 100 else '∞'}"
+        return f"{LENGTH_BUCKETS[-1][0]}-{LENGTH_BUCKETS[-1][1] if LENGTH_BUCKETS[-1][1] < 100 else '∞'}"
+
+    # ==== 5. User Gaussian (diag, λ=0.1) ====
+    log(f"[stage6b] 拟合每用户 Gaussian (N={N_FIXED}, λ={LAMBDA})...")
+    user_gauss: dict = {}
+    for u in cand_users:
+        idx_u = np.array(user_to_indices[u], dtype=np.int64)
+        rng_u = np.random.default_rng(int(_hl.md5(str(u).encode()).hexdigest(), 16) % (2 ** 31))
+        perm_u = rng_u.permutation(len(idx_u))
+        z_train = Z[idx_u[perm_u[:N_FIXED]]]
+        mu = z_train.mean(axis=0)
+        var = z_train.var(axis=0)
+        var_shrink = (1 - LAMBDA) * var + LAMBDA * var.mean()
+        sigma_diag = np.maximum(var_shrink, VAR_EPS)
+        user_gauss[u] = (mu, sigma_diag)
+    log(f"[stage6b] user_gauss ready: {len(user_gauss)} users")
+
+    def _d_mahal(z: np.ndarray, mu: np.ndarray, sigma_diag: np.ndarray) -> float:
+        diff = z - mu
+        return float((diff * diff / sigma_diag).sum())
+
+    # ==== 6. 收集每条候选的 metrics ====
+    LEN_LABELS = [_len_bucket(lo) for lo, _ in LENGTH_BUCKETS]
+    rows = []  # list of dict: length, n_covered, rank, d_self, d_other_min, margin, m_p
+    n_records_done = 0
+    n_cands_skipped = 0
+    log("[stage6b] 计算每条候选 query 的 Mahalanobis...")
+    for r in valid_records:
+        uid = r["user_id"]
+        asin = r["asin"]
+        mu_self, sigma_self = user_gauss[uid]
+        pool = asin_to_users[asin]
+        distractors = [u for u in pool if u != uid]
+        if not distractors:
+            continue
+        m_p = len(pool)  # intra-product pool size
+        random_baseline = 1.0 / m_p
+        cands = r.get("all_candidates", [])
+        scores = r.get("all_candidates_scores", [])
+        for cand_text, score in zip(cands, scores):
+            if not cand_text or not cand_text.strip():
+                continue
+            n_covered = int(score[0]) if score and len(score) > 0 else 0
+            if n_covered not in N_LIST:
+                n_cands_skipped += 1
+                continue
+            k = _key(cand_text)
+            v = feat_map.get(k)
+            if v is None or not v:
+                n_cands_skipped += 1
+                continue
+            n_tok = float(v.get("n_tok", 0.0))
+            vec = np.array([v.get(name, 0.0) for name in fnames], dtype=np.float64)
+            z_q = pca.transform(scaler.transform(vec[None, :]))[0]
+            d_self = _d_mahal(z_q, mu_self, sigma_self)
+            d_others = []
+            for uo in distractors:
+                mu_o, sigma_o = user_gauss[uo]
+                d_others.append(_d_mahal(z_q, mu_o, sigma_o))
+            d_min_other = min(d_others)
+            margin = d_min_other - d_self
+            rank_self = 1 + sum(1 for d in d_others if d < d_self)
+            rows.append({
+                "length": n_tok,
+                "length_bucket": _len_bucket(int(n_tok)),
+                "n_attrs_covered": n_covered,
+                "m_p": m_p,
+                "random_baseline": random_baseline,
+                "rank_self": rank_self,
+                "margin": margin,
+                "d_self": d_self,
+                "d_other_min": d_min_other,
+            })
+        n_records_done += 1
+        if n_records_done % 1000 == 0:
+            log(f"  processed {n_records_done}/{len(valid_records)} records "
+                f"({len(rows)} cands ok, {n_cands_skipped} skipped)")
+    log(f"[stage6b] done: {n_records_done} records, {len(rows)} cands ok, "
+        f"{n_cands_skipped} skipped")
+
+    # ==== 7. Aggregate ====
+    # Per (length, N) cell
+    cell_ln: dict = {}  # (length, n) -> stats
+    for r in rows:
+        key = (r["length_bucket"], r["n_attrs_covered"])
+        cell_ln.setdefault(key, []).append(r)
+
+    def _stats(rs: list) -> dict:
+        if not rs:
+            return {"count": 0}
+        ranks = np.asarray([r["rank_self"] for r in rs], dtype=np.int64)
+        margins = np.asarray([r["margin"] for r in rs], dtype=np.float64)
+        d_self = np.asarray([r["d_self"] for r in rs], dtype=np.float64)
+        rand = np.asarray([r["random_baseline"] for r in rs], dtype=np.float64)
+        n_tok = np.asarray([r["length"] for r in rs], dtype=np.float64)
+        rank1 = float((ranks == 1).mean())
+        rank3 = float((ranks <= 3).mean())
+        lift1 = rank1 / rand.mean() if rand.mean() > 0 else 0.0
+        return {
+            "count": int(len(rs)),
+            "margin_mean": float(margins.mean()),
+            "margin_pos_frac": float((margins > 0).mean()),
+            "d_self_mean": float(d_self.mean()),
+            "rank1_acc": rank1,
+            "rank3_acc": rank3,
+            "random_baseline_mean": float(rand.mean()),
+            "lift1": float(lift1),
+            "n_tok_mean": float(n_tok.mean()),
+        }
+
+    # Per N bucket (跨 length 聚合)
+    per_n: dict = {}
+    for n in N_LIST:
+        rs = [r for r in rows if r["n_attrs_covered"] == n]
+        per_n[n] = _stats(rs)
+
+    # Per length bucket (跨 N 聚合)
+    per_len: dict = {}
+    for lb in LEN_LABELS:
+        rs = [r for r in rows if r["length_bucket"] == lb]
+        per_len[lb] = _stats(rs)
+
+    # Per (length, N) cell
+    per_cell = {}
+    for (lb, n), rs in cell_ln.items():
+        per_cell[f"{lb}|N={n}"] = _stats(rs)
+
+    # ==== 8. 写 JSON ====
+    out = {
+        "config": {
+            "description": "Stage 6B-α: Length-controlled N_attrs analysis + lift@1 vs random baseline",
+            "N_FIXED": N_FIXED,
+            "LAMBDA": LAMBDA,
+            "LENGTH_BUCKETS": LENGTH_BUCKETS,
+            "LEN_LABELS": LEN_LABELS,
+            "N_LIST": N_LIST,
+            "N_USERS_MIN": N_USERS_MIN,
+            "PCA_DIM": 48,
+        },
+        "per_n_attrs": per_n,
+        "per_length": per_len,
+        "per_cell": per_cell,
+        "n_records_total": len(records),
+        "n_records_valid": len(valid_records),
+        "n_cands_total": len(rows),
+        "n_cands_skipped": n_cands_skipped,
+    }
+    out_path = RESIDUAL_SCRATCH / "syntax_subspace_stage6b_length_controlled.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2, default=str)
+    log(f"\n[stage6b] 已写入 {out_path}")
+
+    # ==== 9. 打印汇总表 ====
+    log("\n[stage6b] === Per N_attrs (cross-length aggregated) ===")
+    log("N   count  margin_mean  margin_pos%  d_self  rank1  rank3  random  lift1  n_tok_mean")
+    for n in N_LIST:
+        s = per_n[n]
+        if s["count"] == 0:
+            continue
+        log(f"  {n}  {s['count']:>5}  {s['margin_mean']:>10.3f}   "
+            f"{s['margin_pos_frac']*100:>6.1f}%   {s['d_self_mean']:>6.1f}  "
+            f"{s['rank1_acc']:.3f}  {s['rank3_acc']:.3f}  "
+            f"{s['random_baseline_mean']:.3f}  {s['lift1']:.2f}×  "
+            f"{s['n_tok_mean']:.1f}")
+
+    log("\n[stage6b] === Per Length bucket (cross-N aggregated) ===")
+    log("Length     count  margin_mean  margin_pos%  d_self  rank1  lift1  n_tok_mean")
+    for lb in LEN_LABELS:
+        s = per_len[lb]
+        if s["count"] == 0:
+            continue
+        log(f"  {lb:<8} {s['count']:>5}  {s['margin_mean']:>10.3f}   "
+            f"{s['margin_pos_frac']*100:>6.1f}%   {s['d_self_mean']:>6.1f}  "
+            f"{s['rank1_acc']:.3f}  {s['lift1']:.2f}×  {s['n_tok_mean']:.1f}")
+
+    log("\n[stage6b] === Per (Length × N_attrs) cell ===")
+    log("Length   N  count  margin_mean  d_self  rank1  lift1")
+    for lb in LEN_LABELS:
+        for n in N_LIST:
+            s = per_cell.get(f"{lb}|N={n}", None)
+            if s is None or s["count"] == 0:
+                continue
+            log(f"  {lb:<8} {n}  {s['count']:>4}  {s['margin_mean']:>10.3f}   "
+                f"{s['d_self_mean']:>6.1f}  {s['rank1_acc']:.3f}  {s['lift1']:.2f}×")
+
+
 def main_syntax_subspace_stage4() -> None:
     """Stage 4: History-size Saturation Experiment (同一批用户, 冻结 PCA48 + 冻结 PC importance).
 
@@ -7442,6 +7728,7 @@ def main() -> None:
     sub.add_parser("syntax_subspace_stage5c", help="Stage 5C: Latent Style Gaussianity (m in {1,2,3,5,7,10} aggregation; Q-Q corr + 95% coverage)")
     sub.add_parser("syntax_subspace_stage5d", help="Stage 5D: 35-review bootstrap user style sampling distribution (m in {10,15,20,25,30,35}; B=1000; Gaussian uncertainty model)")
     sub.add_parser("syntax_subspace_stage6", help="Stage 6: N_attrs sweep in PCA48 + Mahalanobis space (intra-product; margin / rank-1 by N_attrs_covered)")
+    sub.add_parser("syntax_subspace_stage6b", help="Stage 6B-α: Length-controlled N_attrs analysis + lift@1 vs random baseline (PCA48 + Mahalanobis)")
     args = parser.parse_args()
     cmd = args.cmd or "train"
     if cmd == "train":
@@ -7476,6 +7763,8 @@ def main() -> None:
         main_syntax_subspace_stage5d()
     elif cmd == "syntax_subspace_stage6":
         main_syntax_subspace_stage6()
+    elif cmd == "syntax_subspace_stage6b":
+        main_syntax_subspace_stage6b()
     else:
         raise ValueError(f"未知 subcommand: {cmd}")
 
