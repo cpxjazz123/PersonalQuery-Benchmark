@@ -52,22 +52,28 @@ def log(msg: str) -> None:
 
 
 def pick_attrs(attrs_dict: dict, n: int = 4) -> dict:
-    """Pick top-n preferred attrs from product attrs dict."""
+    """Pick top-n preferred attrs from product attrs dict.
+
+    Strict length cap: attr values >30 chars usually fail strict pass
+    (generator can't naturally include long phrase). We also drop
+    any value containing a comma (which often indicates list-style).
+    """
     picked = {}
     for k in PREFERRED_ATTRS:
         if k in attrs_dict and attrs_dict[k]:
             v = str(attrs_dict[k]).strip()
-            if v and len(v) <= 100:  # skip very long values
+            # Strict filtering: short values only, no comma-list, no >30 chars
+            if v and len(v) <= 30 and "," not in v and len(v.split()) <= 5:
                 picked[k] = v
         if len(picked) >= n:
             break
-    # If still short, fill from remaining attrs (any)
+    # If still short, fill from remaining attrs (any short)
     if len(picked) < n:
         for k, v in attrs_dict.items():
             if k in picked:
                 continue
             sv = str(v).strip() if v else ""
-            if sv and len(sv) <= 100:
+            if sv and len(sv) <= 30 and "," not in sv and len(sv.split()) <= 5:
                 picked[k] = sv
                 if len(picked) >= n:
                     break

@@ -35,8 +35,8 @@ import numpy as np
 # === Paths (hardcoded) ===
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
-RETRIEVAL_IN = SCRATCH / "stage7_retrieval_results.json"
-ANALYZE_OUT = REPO_ROOT / "result/gaussian_vades/syntax_subspace_stage7_analyze.json"
+RETRIEVAL_IN = Path(os.environ.get("STAGE7_RETRIEVAL_IN", str(SCRATCH / "stage7_retrieval_results.json")))
+ANALYZE_OUT = Path(os.environ.get("STAGE7_ANALYZE_OUT", str(REPO_ROOT / "result/gaussian_vades/syntax_subspace_stage7_analyze.json")))
 
 # === Constants ===
 RETRIEVERS = ["minilm", "bm25"]

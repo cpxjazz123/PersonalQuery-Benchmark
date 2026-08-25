@@ -37,12 +37,12 @@ from scipy import stats as scipy_stats
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 HF_CACHE = Path("/home/wlia0047/hj82_scratch2/hf_cache")
-REGEN_IN = SCRATCH / "stage7_regen.json"
+REGEN_IN = Path(os.environ.get("STAGE7_REGEN_IN", str(SCRATCH / "stage7_regen.json")))
 META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl.gz"
 CORPUS_DOCS_OUT = SCRATCH / "stage7_corpus_docs.jsonl.gz"
 CORPUS_EMB_MINILM = SCRATCH / "stage7_corpus_emb_minilm.npy"
 CORPUS_BM25 = SCRATCH / "stage7_corpus_bm25.pkl"
-RETRIEVAL_OUT = SCRATCH / "stage7_retrieval_results.json"
+RETRIEVAL_OUT = Path(os.environ.get("STAGE7_RETRIEVAL_OUT", str(SCRATCH / "stage7_retrieval_results.json")))
 
 # === Constants ===
 MIN_USERS_FOR_VOLATILITY = 3  # need ≥3 distinct users per asin

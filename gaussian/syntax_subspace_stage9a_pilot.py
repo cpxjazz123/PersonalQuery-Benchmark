@@ -110,17 +110,17 @@ GEN_SYSTEM_TMPL_V9A = (
     "adjective (no \"modern\", \"stylish\", \"beautiful\", \"cute\", \"classic\"), any "
     "emotional adjective (no \"best\", \"perfect\", \"favorite\", \"amazing\"), any "
     "use-case context (no \"for baby\", \"for travel\", \"for kids\", \"newborn care\"), "
-    "or any inferred property. DO NOT include attribute field names (no 'Brand:', "
-    "'Color:', etc.) — only the values.\n\n"
+    "or any inferred property.\n\n"
+    "DO NOT include attribute FIELD NAMES in the query — only their VALUES. The fields "
+    "below have names like 'Brand', 'Color', 'Size', 'Age Range (Description)', "
+    "'Main Category', 'Item Weight', 'Material', 'Style'. Output only the values, e.g., "
+    "write 'Pampers' not 'Brand: Pampers', write 'Size 1 (84 Count)' not 'Size: Size 1 "
+    "(84 Count)'. Field names themselves must NOT appear.\n\n"
     "**NEVER start the query with these phrases** (use them in ZERO outputs): "
     "\"Looking for\", \"Searching for\", \"I am looking for\", \"I am searching for\", "
-    "\"I need\", \"I want\", \"Find me\", \"Show me\", \"Can you find\", \"Help me find\". "
-    "A real Amazon search query usually starts directly with a product noun, the brand "
-    "name, or a brief noun phrase (e.g., \"Huggies size 2 diapers\", \"Summer Infant "
-    "white monitor\", \"Pampers cruisers 360 fit\"). Vary syntax via subordinate clauses, "
-    "coordination, modifier placement, passive/active voice, participle phrases, but "
-    "the opening must NEVER be a meta-framing verb.\n\n"
-    "Output ONLY the query, no preamble.\n\n"
+    "\"I need\", \"I want\", \"Find me\", \"Show me\", \"Can you find\", \"Help me find\".\n\n"
+    "**Output ONLY the query — no meta text, no preamble, no \"variant N\" markers.**\n\n"
+    "Output ONLY the query.\n\n"
     "Attributes ({N_INPUT}):\n{ATTRIBUTES}"
 )
 
@@ -140,8 +140,7 @@ def make_prompt(attrs: dict, n_input: int, k: int = 0) -> str:
         N_INPUT=n_input,
         ATTRIBUTES=build_user_content(attrs),
     )
-    if k > 0:
-        base += f"\n(variant {k}: vary the opening and structure; do NOT repeat the previous phrasing)"
+    # No "variant N" marker — LLM echoes it back into the query text
     return base
 
 

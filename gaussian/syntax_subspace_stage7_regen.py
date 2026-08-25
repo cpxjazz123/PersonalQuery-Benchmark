@@ -32,15 +32,16 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 TEN_K = REPO_ROOT / "result/query_records_10k.json"
 PRODUCT_ATTRS = REPO_ROOT / "result/product_attributes.json"
-REGEN_OUT = SCRATCH / "stage7_regen.json"
+REGEN_OUT = SCRATCH / "stage7d_regen.json"  # Stage 7D scale-up (100 ASIN, 4 users/asin)
 
 # === Constants ===
 VLLM_URL = "http://localhost:8800/v1/completions"
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 SEED = 2024
 K_SAMPLES = 5
-MAX_USERS_PER_ASIN = 8  # cap to avoid huge per-asin cost
+MAX_USERS_PER_ASIN = 4  # Stage 7D: cap to 4 (was 8) to support 100 ASIN
 MIN_USERS_PER_ASIN = 3
+TOP_N_ASINS = 100  # Stage 7D: target 100 ASIN (was 40)
 TEMP = 0.7
 MAX_TOKENS = 80
 ATTR_COVERAGE_TARGET = "exact"  # attrs_covered == N_input required
@@ -199,8 +200,7 @@ def main():
     )
     log(f"  asins with ≥{MIN_USERS_PER_ASIN} users: {len(eligible_asins)}")
 
-    # Cap to top-N (avoid huge corpus); we'll target ≤40 asins
-    TOP_N_ASINS = 40
+    # Cap to top-N (avoid huge corpus)
     eligible_asins = eligible_asins[:TOP_N_ASINS]
     log(f"  using top {len(eligible_asins)} asins (max users per asin={MAX_USERS_PER_ASIN})")
 
