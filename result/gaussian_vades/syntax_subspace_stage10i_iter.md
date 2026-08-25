@@ -223,13 +223,26 @@ small enough that any query perturbation can flip the ranking.
 >
 > The personalization method (mean_t50 contrastive Maha selection) produces
 > user-different queries (unique 6.46/10, syntax_dist_mean > 0), but this
-> within-ASIN variation has ρ < 0.15 with retrieval volatility across all
-> six metrics. The dominant predictor of ASIN-level volatility is the
-> retrieval score margin — products near the decision boundary between
-> target and competitors flip under any query perturbation, regardless of
-> its syntactic character. The few high-volatility ASINs (16/100 in our
-> data) are corpus-level artifacts rather than failures of the
-> personalization method.
+> within-ASIN variation shows no significant monotonic association with
+> retrieval volatility (|ρ| < 0.20, p > 0.05 across all six metrics).
+> The dominant predictor of ASIN-level volatility is the retrieval score
+> margin (see Stage 10I-2 for the corrected decision-gap operationalization).
+>
+> **CORRECTION (Stage 10I-2)**: The "margin" ρ = +0.822 reported above
+> uses the signed margin (`score_target − score_best_competitor`), which
+> confounds boundary proximity with corpus depth (products deep in the
+> corpus have large signed margin but are far from any boundary).
+> Re-defining decision gap as
+> `G = score_target − score_nearest_competitor` (rank1 if target≠rank1,
+> else rank2) and using `abs_G` or `frac_near_boundary` gives the
+> theoretically expected negative correlation:
+>
+> - `abs_G_mean` vs `rr_std`: **ρ = −0.838, p = 1.76e-27**
+> - `abs_G_min` vs `rr_std`: **ρ = −0.872, p = 3.93e-32**
+> - `frac_near_boundary` vs `rr_std`: **ρ = +0.595, p = 6.94e-11**
+>
+> See `syntax_subspace_stage10i2_iter.md` for the full audit and the
+> corrected paper-ready framing.
 
 ## Files
 
