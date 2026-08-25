@@ -100,43 +100,35 @@ Diagnose root cause of Stage 9D's selection collapse (1-4 unique queries per ASI
 
 **Hypothesis A rejected**: Pool scaling does NOT solve the collapse.
 
-## Root Cause Conclusion
+## Root Cause Conclusion (revised 2026-08-25)
 
-### Not (A) — pool too small
-Even at pool size 196 (B09S8PT9L6 with max queries), uniqueness = 1. Sweep shows uniqueness peaks at size=20 then declines.
+### Three pieces of evidence
 
-### Not (B) — user Gaussians indistinguishable
-Mean pairwise user L2 = 4.84 (clearly above noise). Mahalanobis distances = 1.28-4.43 (well-separated).
+1. **User centers are well separated**: pairwise L2 = 4.84 ± 1.51 (clearly above noise, Mahalanobis 1.28-4.43).
+2. **Top-10 candidates heavily overlap**: K=10 Jaccard = 0.80 → any user's top-10 covers 80% of any other user's top-10.
+3. **Pool-size sweep fails to improve**: 10 → 196 queries, uniqueness peaks at size=20 then declines → adding
+   more same-distribution queries only stacks more points in the same PCA48 cluster.
 
-### (C) — Pool PCA48 distribution too concentrated
-- 8 grammatical families, but PCA48 projection shows queries cluster in 1-2 dominant modes
-- Top-10 candidate Jaccard = 0.80: any user's top-10 covers 80% of any other user's top-10
-- Different families produce queries that are **syntactically similar in PCA48 space**
-  - Example: `prepositional` and `coordination` queries have similar function-word density
-  - `relative_clause` and `subordinate_clause` both have clause structure
-  - `predicate_based` with `is/are` verbs is close to `prepositional` in connector space
+### So: **不是 query 不够多，而是 query 不够"散"**
 
-**Root cause**: 9C's 8 grammatical families are **distinct in surface form but NOT distinct in PCA48 syntactic subspace**. The 182d spaCy features aggregated by PCA48 compress these surface differences into a small region.
+The candidate pool has enough queries (786 total, 41-196 per ASIN), and user Gaussians are separable.
+But the **PCA48 effective coverage of the candidate pool is concentrated in 1-2 dominant modes**, so
+all users' argmin falls in the same cluster and produces the same selected query.
 
-## Implication
+This is NOT (and was NOT confirmed by data) a problem of:
+- ❌ Pool quantity (Hypothesis A) — adding more same-distribution queries won't add new cluster
+- ❌ User separability (Hypothesis B) — user centers are 4.84 apart
 
-### Cannot fix by pool scaling
-Going from 786 → 5000+ queries will likely produce more queries in the same PCA48 cluster, not more clusters.
+It IS a problem of:
+- ✓ **PCA48 cluster coverage** — pool queries cluster in 1-2 modes; users' selection space is collapsed
 
-### Cannot fix by more user reviews
-User Gaussians are already separable; more reviews would tighten them, not diversify them.
+### Critical open question: where is the diversity lost?
 
-### Must change representation or selection
+The Stage 9E-P result shows PCA48-d cluster is concentrated, but does NOT tell us where the loss happens:
+- **Option (a)**: 182d raw spaCy features are already indistinguishable across 8 families (feature design is the bottleneck)
+- **Option (b)**: 182d is separable but PCA48 compression collapses families (PCA is the bottleneck)
 
-Three viable directions:
-1. **Increase PCA48 dimension** (e.g., 100d) — but PCA is linear; if 48d already compresses families, 100d likely won't help
-2. **Use non-linear embeddings** (UMAP / autoencoder) — may preserve cluster boundaries
-3. **Direct family-aware selection** — don't use Maha; instead pick a query from a user-preferred family (mix of 2 families per user)
-
-### Or accept collapse and pivot
-If per-user personalization via PCA48 Maha is fundamentally limited, the system should pivot to:
-- **Single optimal query per ASIN** (no per-user personalization)
-- **Use query variations for volatility robustness** (e.g., ensemble across top-3 from different families, not per-user argmin)
+This distinction matters: if (a), no PCA dim change helps; if (b), higher PCA dim or non-linear embedding helps.
 
 ## Files
 
@@ -150,15 +142,18 @@ If per-user personalization via PCA48 Maha is fundamentally limited, the system 
 
 ## Conclusion
 
-> **Stage 9E-P root cause: Pool PCA48 distribution is too concentrated.** User Gaussians are
-> separable (Check 1), but pool queries cluster in 1-2 dominant PCA48 modes (Check 2), causing
-> selection collapse (Check 3). Pool scaling does NOT fix this (Check 4).
+> **Stage 9E-P finding: Selection collapse is caused by insufficient PCA48 cluster coverage of the candidate pool**, NOT by pool quantity or user Gaussian separability.
 >
-> **Cannot solve by scaling pool or improving user model.** Must either:
-> 1. Change representation (non-linear / higher-dim embeddings)
-> 2. Use family-aware direct selection (skip Maha)
-> 3. Pivot to single-query-per-ASIN model
+> **Three evidence pieces**:
+> 1. Users pairwise L2 = 4.84 ± 1.51 → user style IS separable
+> 2. Top-10 Jaccard = 0.80 → candidate space too concentrated
+> 3. Pool-size sweep 10 → 196 shows uniqueness peaks at size=20 then declines → adding more same-distribution queries won't add cluster
 >
-> **Recommended next step**: Stage 9F — Family-aware direct selection test (skip Maha, directly
-> assign users to family based on review style). Validates whether explicit family routing gives
-> per-user differentiation without relying on PCA48 cluster diversity.
+> **Open question**: Is the diversity loss in raw 182d features or in PCA48 compression? Must diagnose before deciding representation change.
+>
+> **Recommended next** (preserves PCA48 Maha core method):
+> - **Stage 9F-A**: Check 8 family separability in raw 182d vs PCA48 — locate where diversity is lost
+> - **Stage 9F-B**: Coverage-aware candidate generation — generate queries targeting uncovered user PCA48 regions (more clause nesting, modifier placement, etc.); redo Mahalanobis selection
+> - **Verify** unique selected 1-4 → 6-8 and top-10 Jaccard 0.80 → 0.3-0.4
+>
+> **DO NOT** pivot to Family-aware direct selection — that abandons the "explicit syntactic feature → PCA → user Gaussian → Mahalanobis" core method and makes the Gaussian/PCA component appear unnecessary.
