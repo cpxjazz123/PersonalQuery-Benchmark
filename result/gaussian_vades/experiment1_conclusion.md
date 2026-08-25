@@ -1,7 +1,7 @@
 # Experiment 1 — Personalized Syntactic Expression Induces Bounded Retrieval Volatility
 
 **Date**: 2026-08-25
-**Stages**: 10G (selection) + 10H-A (selection stability) + 10H-B (retrieval volatility) + 10H-C (paired stats)
+**Stages**: 10G (selection) + 10H-A (selection stability) + 10H-B (retrieval volatility) + 10H-C (paired stats) + 10I (4-category predictors) + 10I-2 (decision-gap audit) + 10J (out-of-sample validation)
 **Status**: GO with rigorous framing
 
 ## Research Question
@@ -101,6 +101,56 @@ Spearman ρ ≤ 0.35 with top-5 overlap 0–2/5 indicates that **BM25 and
 MiniLM are sensitive to different products' expression-induced variations**.
 There is no single "MiniLM more stable" rule — only a tendency.
 
+## 6. Volatility mechanism: decision-boundary proximity (Stage 10I / 10I-2 / 10J)
+
+The Stage 10H "why are some ASINs volatile" question is answered by Stages
+10I–10J, which together identify **retrieval decision-boundary proximity**
+as the dominant predictor:
+
+### Stage 10I: 4 predictor categories, margin dominates
+| Predictor category | Strongest finding |
+|--------------------|------------------|
+| Query variation (syntax_dist, length, Jaccard) | All |ρ| < 0.20, n.s. |
+| Score margin (signed `score_target − score_rank1`) | MiniLM rr_std ρ = +0.822 (counterintuitive sign) |
+| Neighborhood density (top-1/5 overlap) | All |ρ| < 0.20, n.s. |
+
+The unexpected positive sign prompted Stage 10I-2 (operationalization audit).
+
+### Stage 10I-2: corrected decision-gap definition
+```python
+if rank_target > 1:
+    G(q) = score_target − score_rank1
+else:  # target is rank-1
+    G(q) = score_target − score_rank2
+```
+
+Per-ASIN boundary proximity:
+| Metric | Spearman ρ with minilm_rr_std | p |
+|--------|------------------------------|---|
+| **abs_G_min** (closest any query gets to boundary) | **−0.872** | **3.93e-32** ⭐⭐⭐ |
+| abs_G_mean | −0.838 | 1.76e-27 |
+| frac_near_boundary (\|G\| < 0.05) | +0.595 | 6.94e-11 |
+| G_mean (signed, avg) | +0.822 | 1.17e-25 (Stage 10I artifact) |
+
+Mann-Whitney U: high_vol mean abs_G_min = 0.0154 vs low_vol = 0.2558
+(U=4.0, **p=0.0006**, 17× difference).
+
+### Stage 10J: out-of-sample validation (closing the "same queries" objection)
+
+**Split-half** (5 boundary + 5 volatility queries per ASIN, 500 reps):
+- abs_G_min → rr_std: mean ρ = **−0.812**, std 0.034
+- **1000/1000 reps negative, 100% sig per-rep**
+
+**Canonical query** (Stage 8.5 random, single non-personalized query):
+- |G_canonical| → rr_std: ρ = **−0.802**, p = 1.15e-23
+- |G_canonical| → hit1_flip_rate: ρ = −0.403, p = 3.28e-05
+- |G_canonical| → hit5_flip_rate: ρ = −0.471, p = 7.68e-07
+
+A single non-personalized query's |G| predicts 10-query personalized
+volatility as strongly as the within-personalized-set boundary metric.
+The boundary signal is an inherent (ASIN, retriever) property, not an
+artifact of any specific query set.
+
 ## Conclusion (paper-ready)
 
 > **Personalized syntactic expression induces bounded retrieval volatility.**
@@ -125,6 +175,19 @@ There is no single "MiniLM more stable" rule — only a tendency.
 > suggesting lexical and dense retrievers are sensitive to different
 > expression-induced variations. Volatility is **item-level**, not
 > retriever-level.
+>
+> **Mechanism (Stage 10I / 10I-2 / 10J)**: Across 4 predictor categories
+> (query variation, score margin, neighborhood density), **decision-boundary
+> proximity dominates**. The closest any personalized query brings the target
+> to its nearest competitor (`min_abs_G_min`) predicts volatility at Spearman
+> ρ = −0.872 (p = 3.93e-32) in the full-data view. **Two independent
+> out-of-sample tests** confirm this is NOT a same-queries artifact:
+> (a) split-half (5 boundary + 5 volatility, 500 reps) gives mean ρ = −0.812
+> with 1000/1000 reps negative and 100% significant; (b) a single non-
+> personalized canonical query's `|G_canonical|` predicts personalized
+> volatility at ρ = −0.802. **Personalized syntactic variation does NOT cause
+> retrieval failure** — products at the decision boundary are sensitive to
+> any query perturbation, regardless of syntactic character.
 
 ## What this means for the paper
 
