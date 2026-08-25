@@ -1,4 +1,4 @@
-# Stage 10H-A — Contrastive Selection Stability (GO)
+# Stage 10H-A — Contrastive Selection Stability (medium stability, not cohort-invariant)
 
 **Date**: 2026-08-25
 **Script**: `gaussian/syntax_subspace_stage10h_a_stability.py`
@@ -6,36 +6,27 @@
 
 ## Goal
 
-Verify that mean_t50's selected query is **stable across negative-user subsets**.
-Stage 10G's contrastive margin:
+Verify how much the mean_t50 contrastive margin's selected query depends on
+**which other users are sampled as negatives**. The contrastive term:
 ```
 S(q, u) = mean_{v ≠ u} D(q, v) - D(q, u)
 ```
-depends on WHICH other users are in the negative set. If selection random flips
-between different negative-user samples, then the contrastive term is
-**cohort-dependent** — reviewable "why does user's query depend on who else
-is in the dataset?".
-
-This stage verifies that mean_t50 selection is **robust**: similar negative-user
-subsets produce similar selected queries.
+is structurally sensitive to the negative cohort. This stage measures whether
+the resulting selection is **stable enough** to support the personalization
+hypothesis, or whether it is **cohort-driven**.
 
 ## Method
 
 For each (asin, user), Stage 10H-A:
 1. Compute D matrix [Q × U] for that ASIN's pool queries.
-2. Sample negative users from the GLOBAL pool of 293 other users (across all ASINs).
-3. For each subset size ∈ {5, 10, 20, 50}, sample N_REPLICATES=20 random subsets.
+2. Sample negative users from the **GLOBAL pool** of 293 other users (across
+   all ASINs). Per-ASIN sampling is infeasible because most ASINs have only
+   ~10 users, while subset sizes 5/10/20/50 demand larger pools.
+3. For each subset size ∈ {5, 10, 20, 50}, sample N_REPLICATES = 20 random subsets.
 4. For each subset, run mean_t50 selection.
 5. Aggregate per-user stability metrics across replicates.
 
-**Note**: Subsets are sampled from the GLOBAL user pool (not per-ASIN) because
-per-ASIN user counts are too small (typically 10 users) for subset sizes >9.
-Global sampling is more meaningful — it tests "would a different cohort of
-users produce a different result?"
-
-## Stability Metrics
-
-For each user × subset_size × N_REPLICATES subsamples:
+**Stability Metrics** (per user × subset_size × N_REPLICATES subsamples):
 - **agreement**: fraction of subsamples that produce the mode query
 - **unique_count**: number of distinct selected queries across subsamples
 - **full_match_rate**: fraction matching the FULL negative-set selection
@@ -53,63 +44,62 @@ For each user × subset_size × N_REPLICATES subsamples:
 
 **Absolute Maha baseline**: mean sel_dist = 52.11
 
+## Decision: **Medium stability** (not "cohort-invariant")
+
+The contrastive selection is **moderately stable**, but not cohort-invariant.
+A perfectly cohort-invariant selection would produce agreement ≈ 100% across
+all subset sizes; observed agreement is 65–75%, indicating partial cohort
+dependence.
+
+**Acceptable interpretation**:
+> mean_t50 exhibits medium-degree selection stability with respect to
+> negative-user sampling. Agreement rises from 0.646 to 0.745 as the negative
+> subset size grows from 5 to 50, indicating that the contrastive term
+> converges with more sampled negatives rather than being driven by any
+> specific small cohort.
+
+**What NOT to claim**:
+- ❌ "Cohort-independent" (agreement is far below 1.0)
+- ❌ "Pareto-optimal query region" (no Pareto frontier has been empirically
+  constructed; the observation that unique_count ≪ N_REPLICATES only shows
+  that different negative subsets concentrate on a small set of candidates)
+
 ### Key observations
 
-1. **Stability improves with subset size**: agreement 64.6% (size=5) → 74.5%
-   (size=50). With more negatives, the mean margin estimate converges → less
-   sampling noise.
+1. **Stability improves with subset size**: agreement 0.646 (size=5) →
+   0.745 (size=50). With more negatives, the mean margin estimate converges.
 
-2. **Low unique_count** (~2.5-4): most subsamples produce the SAME query
-   (mode is dominant). Across 20 replicates, only 2-4 distinct queries get
-   selected per user. This means even random negative subsets converge.
+2. **Low unique_count** (~2.5-4 across 20 replicates): different negative
+   subsets concentrate on a small set of candidates (2-4 distinct queries).
+   This shows the selection is not random, but it does not by itself
+   establish a Pareto frontier.
 
-3. **Stable self-distance**: mean self distance stays 78-82 across all
-   subset sizes (vs 52 for absolute Maha). The ~50% increase reflects
-   the contrastive term's margin (sacrificing some closeness for uniqueness).
-   This is the expected trade-off.
+3. **Stable self-distance**: mean self distance stays 78-82 across subset
+   sizes (vs 52 for absolute Maha). The ~50% increase is the contrastive
+   margin's trade-off — sacrificing some closeness for uniqueness.
 
-4. **matches_abs_rate 0.16-0.21**: only 16-21% of subsamples match absolute
-   Maha. This confirms mean_t50 is a **distinct selection mechanism**, not
-   a near-equivalent of absolute Maha.
+4. **matches_abs_rate 0.16-0.21**: mean_t50 is a distinct selection
+   mechanism, not a near-equivalent of absolute Maha.
 
 5. **full_match_rate 0.56-0.69**: 56-69% of subsamples match the FULL-set
-   selection. Subset sampling has ~31-44% deviation from full-set result,
-   which is meaningful but not large.
-
-## Decision: **GO**
-
-User-defined GO criteria:
-| Criterion | Target | Actual | Status |
-|-----------|--------|--------|--------|
-| agreement > 0.5 for size >= 5 | yes | 0.65-75% | ✓ |
-| unique < 0.3 × N_REPLICATES | < 6 | 2.5-4.0 | ✓ |
-| mean_self_dist preserved vs absolute | reasonable | 78-82 vs 52 (50% higher) | ✓ |
-
-**mean_t50 contrastive selection is stable across negative-user sampling.**
-The contrastive term is robust and not cohort-specific. We can confidently
-proceed to Stage 10H-B (retrieval volatility).
-
-## Interpretation
-
-The 30-35% disagreement between subsamples is not a problem:
-- agreement 65-75% means same query 13-15 out of 20 times
-- The 5-7 disagreeing subsamples select a small set of alternatives
-  (unique_count 2.5-4) that are also user-aligned (sel_dist 78-82 stable)
-
-This is exactly the **Pareto property** of contrastive selection:
-a small set of queries satisfies both "close to user u" AND "far from
-others". Different negative subsets sample this Pareto set slightly
-differently, but converge to the same region.
-
-The contrastive term rewards user-specific query structures robustly,
-not specific to any one batch of negative users.
+   selection. Subset sampling has 31-44% deviation from full-set result.
 
 ## Files
 
 - Script: `gaussian/syntax_subspace_stage10h_a_stability.py`
 - Output: `hj82_scratch2/.../stage10h_a_stability.json`
 
+## Conclusion
+
+> mean_t50 contrastive selection shows medium stability under negative-user
+> subset variation (agreement 0.65-0.75 across subset sizes 5-50). The
+> selected query is **not cohort-invariant** (agreement ≠ 1.0), but it is
+> not random either: 20 replicate selections concentrate on a small candidate
+> set (unique_count 2.5-4) and preserve consistent self-distance. The
+> selection has limited but non-trivial sensitivity to which users form the
+> negative cohort.
+
 ## Next step
 
-Stage 10H-B: Personalized Retrieval Volatility — does mean_t50's
-expression-induced variation cause retrieval results to flip?
+Proceed to Stage 10H-B (Retrieval Volatility) to verify whether the moderate
+stability of selection translates to retrieval results.
