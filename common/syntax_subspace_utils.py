@@ -4,24 +4,23 @@ Centralized helpers + path constants used by the 4 sibling scripts:
 
   - gaussian/syntax_subspace_user_gaussians.py  (per-user Gaussian fitting)
   - gen_query/syntax_subspace_pool_regen.py     (LLM pool generation + features)
-  - select_query/syntax_subspace_select.py      (Mahalanobis + A1 reject-repeat)
+  - select_query/syntax_subspace_select.py      (Mahalanobis select)
   - syntactic_evaluation/syntax_subspace_retrieval.py  (BM25/MiniLM + volatility)
 
 Exposes:
   - Path constants: REPO_ROOT, SCRATCH, ASINS_IN, POOL_*, FEAT_CACHE,
                     GAUSSIANS_*, SELECTION_*, REVIEW_GZ, META_FILE,
-                    RETRIEVAL_*, VOLATILITY_*, A1_*, VLLM_URL, MODEL_NAME
+                    RETRIEVAL_*, VOLATILITY_*, VLLM_URL, MODEL_NAME
   - Hyperparameters: PCA_DIM, PCA_SEED, LAMBDA, VAR_EPS, MIN_REVIEWS_FOR_PER_USER,
                     K_POOL, TEMP, MAX_TOKENS, K_SET, MIN_LEN, PRIMARY_LEN_DELTA,
-                    LEN_BAND_FALLBACK, THRESHOLD_PCT, SEED
+                    LEN_BAND_FALLBACK, SEED
   - `log`: timestamped log print
   - `feat_key`: sha1(text) feature cache key
   - `load_jsonl`: load a JSONL file
   - `_syntax_subspace_prepare`: load 10k user sentence cache + scaler + rewrites
 
 The full pipeline (pool regen, feature extraction, user Gaussians, ASIN
-selection, retrieval, volatility calibration, A1 reject-repeat selection)
-imports from here.
+selection, retrieval + volatility calibration) imports from here.
 
 Inputs (paths under `RESIDUAL_SCRATCH`):
   - sentences_for_rewrite_10k.jsonl
@@ -81,13 +80,8 @@ SELECTION_STATS_OUT = SCRATCH / "stage8_5_selection_stats.json"
 RETRIEVAL_PER_QUERY_OUT = SCRATCH / "stage8_5_retrieval_per_query.json"
 RETRIEVAL_SUMMARY_OUT = RESULT / "syntactic_evaluation/retrieval_summary.json"
 
-# --- Stage 6 (syntactic_evaluation/) → result ---
-VOLATILITY_PER_QUERY_OUT = SCRATCH / "stage8_5v_retrieval.json"
+# --- Stage 5 (syntactic_evaluation/) → result ---
 VOLATILITY_SUMMARY_OUT = RESULT / "syntactic_evaluation/volatility.json"
-
-# --- Stage 7 (select_query/) → result (SOTA final) ---
-A1_SELECTION_OUT = RESULT / "select_query/selection.json"
-A1_SUMMARY_OUT = RESULT / "select_query/selection_summary.json"
 
 VLLM_URL = "http://localhost:8800/v1/completions"
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
@@ -109,12 +103,11 @@ K_POOL = 50
 TEMP = 0.7
 MAX_TOKENS = 80
 
-# Selection (Stage 4 / Stage 7)
+# Selection (Stage 4)
 K_SET = 8
 MIN_LEN = 5
 PRIMARY_LEN_DELTA = 2
 LEN_BAND_FALLBACK = 5
-THRESHOLD_PCT = 50
 
 
 # ---------------------------------------------------------------------------

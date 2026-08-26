@@ -1,22 +1,22 @@
-"""Syntax Subspace — Stage 5 (retrieval) + Stage 6 (volatility).
+"""Syntax Subspace — Stage 5 (retrieval + volatility).
 
 归 syntactic_evaluation/: 用 bm25s + GPU MiniLM 评估选出来的查询能否
 把对应 ASIN 拉回 rank-1,并用 V_low / V_user / V_high 标定查询波动率。
 
-Stage 5: Stage 4 选出的 {selected, random, farthest} 三组查询全量跑 BM25 + MiniLM
-Stage 6: 为每个 ASIN 构造 length-matched low / user / high 3 组查询,验证 user
-         queries 落在 retriever trust region(V_user < V_low)
+Stage 5:
+  Part A: Stage 4 选出的 {selected, random, farthest} 三组查询全量跑 BM25 + MiniLM
+  Part B: 为每个 ASIN 构造 length-matched low / user / high 3 组查询,验证 user
+          queries 落在 retriever trust region(V_user < V_low)
 
 用法:
   python syntactic_evaluation/syntax_subspace_retrieval.py --stage retrieval
-  python syntactic_evaluation/syntax_subspace_retrieval.py --stage volatility
 
 I/O 路径:
   输入: stage8_5_selection.json
         data/meta_Baby_Products_2023.jsonl.gz (ASIN metadata corpus)
-        stage8_5_pool.json / stage7b_query_features.jsonl.gz (Stage 6 用)
-  输出: stage8_5_retrieval_per_query.json + stage8_5_retrieval_summary.json (Stage 5)
-        stage8_5v_retrieval.json + stage8_5v_volatility.json               (Stage 6)
+        stage8_5_pool.json / stage7b_query_features.jsonl.gz
+  输出: stage8_5_retrieval_per_query.json + stage8_5_retrieval_summary.json (Part A)
+        stage8_5v_volatility.json                                         (Part B)
 
 共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
   common/syntax_subspace_utils.py
@@ -37,7 +37,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     FEAT_CACHE, META_FILE, POOL_IN, RETRIEVAL_PER_QUERY_OUT, RETRIEVAL_SUMMARY_OUT,
-    SELECTION_IN, VOLATILITY_PER_QUERY_OUT, VOLATILITY_SUMMARY_OUT,
+    SELECTION_IN, VOLATILITY_SUMMARY_OUT,
     K_SET, LEN_BAND_FALLBACK, MIN_LEN, PCA_DIM, PRIMARY_LEN_DELTA, log, feat_key,
 )
 
@@ -282,13 +282,16 @@ def stage_retrieval():
         json.dump({"summary": summary}, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {RETRIEVAL_SUMMARY_OUT}")
 
+    # === Part B: V_low / V_user / V_high volatility calibration ===
+    _volatility_eval()
+
 
 # ===========================================================================
-# STAGE 6 — VOLATILITY
+# PART B — VOLATILITY EVAL (invoked at the end of stage_retrieval)
 # ===========================================================================
 
-def stage_volatility():
-    log("=== STAGE 6 — VOLATILITY ===")
+def _volatility_eval():
+    log("=== STAGE 5 PART B — VOLATILITY (V_low / V_user / V_high) ===")
 
     log("\n=== 1. Loading inputs ===")
     from syntax_subspace_utils import _syntax_subspace_prepare
@@ -526,10 +529,6 @@ def stage_volatility():
                           "bm25_hit10": bm25_r["hit10"],
                           "minilm_rank": minilm_r["rank"], "minilm_RR": minilm_r["RR"],
                           "minilm_hit10": minilm_r["hit10"]})
-    with open(VOLATILITY_PER_QUERY_OUT, "w", encoding="utf-8") as f:
-        json.dump({"config": {"description": "Stage 8.5.V volatility calibration"},
-                   "queries": per_query}, f, ensure_ascii=False, indent=2)
-    log(f"  wrote → {VOLATILITY_PER_QUERY_OUT}")
 
     grouped = collections.defaultdict(lambda: {"bm25_RR": [], "minilm_RR": []})
     for r in per_query:
@@ -625,7 +624,6 @@ def stage_volatility():
 
 STAGE_FUNCTIONS = {
     "retrieval": stage_retrieval,
-    "volatility": stage_volatility,
 }
 
 
