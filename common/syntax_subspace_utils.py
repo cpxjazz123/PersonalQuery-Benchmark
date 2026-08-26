@@ -46,37 +46,48 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 # Legacy alias kept for backwards-compatibility (used by _syntax_subspace_prepare)
+# SCRATCH 仅用于输入数据 + 下游 stage 读取的中间 cache (per_query / selection intermediate)
 RESIDUAL_SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
 # ---------------------------------------------------------------------------
 # 路径常量 (全部 4 个兄弟脚本共享)
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-SCRATCH = RESIDUAL_SCRATCH
+RESULT = REPO_ROOT / "result"  # 最终聚合结果 (按 Rule 13/16 每个功能目录单一 JSON)
+SCRATCH = RESIDUAL_SCRATCH  # 输入 + intermediate cache
 
+# --- Inputs (只读) ---
 ASINS_IN = SCRATCH / "stage8_5_asins.json"
-POOL_OUT = SCRATCH / "stage8_5_pool.json"
+REVIEW_GZ = REPO_ROOT / "data/Baby_Products_2023.jsonl.gz"
+META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl.gz"
+
+# --- Stage 1 (gen_query/) → result ---
+POOL_OUT = RESULT / "gen_query/pool.json"
 POOL_IN = POOL_OUT
+
+# --- Stage 2 (intermediate cache) → SCRATCH (下游 Stage 3 读取) ---
 FEAT_CACHE = SCRATCH / "stage7b_query_features.jsonl.gz"
 
-GAUSSIANS_OUT = SCRATCH / "stage8_5_user_gaussians.json"
+# --- Stage 3 (gaussian/) → result ---
+GAUSSIANS_OUT = RESULT / "gaussian/user_gaussians.json"
 GAUSSIANS_IN = GAUSSIANS_OUT
 
+# --- Stage 4 (intermediate) → SCRATCH (下游 Stage 5 读取) ---
 SELECTION_OUT = SCRATCH / "stage8_5_selection.json"
 SELECTION_IN = SELECTION_OUT
 SELECTION_STATS_OUT = SCRATCH / "stage8_5_selection_stats.json"
 
-REVIEW_GZ = REPO_ROOT / "data/Baby_Products_2023.jsonl.gz"
-META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl.gz"
-
+# --- Stage 5 (intermediate) → SCRATCH (下游 Stage 6 读取) ---
 RETRIEVAL_PER_QUERY_OUT = SCRATCH / "stage8_5_retrieval_per_query.json"
-RETRIEVAL_SUMMARY_OUT = SCRATCH / "stage8_5_retrieval_summary.json"
+RETRIEVAL_SUMMARY_OUT = RESULT / "syntactic_evaluation/retrieval_summary.json"
 
+# --- Stage 6 (syntactic_evaluation/) → result ---
 VOLATILITY_PER_QUERY_OUT = SCRATCH / "stage8_5v_retrieval.json"
-VOLATILITY_SUMMARY_OUT = SCRATCH / "stage8_5v_volatility.json"
+VOLATILITY_SUMMARY_OUT = RESULT / "syntactic_evaluation/volatility.json"
 
-A1_SELECTION_OUT = SCRATCH / "stage10k_selection.json"
-A1_SUMMARY_OUT = SCRATCH / "stage10k_summary.json"
+# --- Stage 7 (select_query/) → result (SOTA final) ---
+A1_SELECTION_OUT = RESULT / "select_query/selection.json"
+A1_SUMMARY_OUT = RESULT / "select_query/selection_summary.json"
 
 VLLM_URL = "http://localhost:8800/v1/completions"
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
