@@ -179,32 +179,37 @@ def stage_retrieval():
     query_tokens = bm25s.tokenize(queries, stopwords="en", show_progress=False)
     log(f"  queries tokenized in {time.time() - t0:.1f}s")
 
-    log(f"  retrieving (k=all)...")
+    log(f"  retrieving (k=20000, batched to avoid OOM)...")
     t0 = time.time()
-    results = retriever.retrieve(query_tokens, k=len(corpus_texts), show_progress=False)
-    log(f"  retrieved in {time.time() - t0:.1f}s")
+    BM25_BATCH = 2000
+    BM25_K = 20000
+    bm25_results = [None] * len(queries)
 
-    log(f"  computing target ranks...")
-    t0 = time.time()
-    bm25_results = []
-    bm25_doc_ids = results.documents
-    for i in range(len(queries)):
-        tgt_idx = target_indices[i]
-        if tgt_idx < 0:
-            bm25_results.append({"rank": None, "RR": 0.0, "hit10": 0})
-            continue
-        sorted_docs = bm25_doc_ids[i]
-        positions = np.where(sorted_docs == tgt_idx)[0]
-        if len(positions) == 0:
-            bm25_results.append({"rank": None, "RR": 0.0, "hit10": 0})
-        else:
-            rank = int(positions[0]) + 1
-            bm25_results.append({
-                "rank": rank,
-                "RR": 1.0 / rank,
-                "hit10": 1 if rank <= 10 else 0,
-            })
-    log(f"  ranks computed in {time.time() - t0:.1f}s")
+    def _slice_tok(tok, s, e):
+        return type(tok)(tok.ids[s:e], tok.vocab)
+
+    for s in range(0, len(queries), BM25_BATCH):
+        e = min(s + BM25_BATCH, len(queries))
+        sub_tokens = _slice_tok(query_tokens, s, e)
+        sub_res = retriever.retrieve(sub_tokens, k=BM25_K, show_progress=False)
+        for i in range(e - s):
+            gi = s + i
+            tgt_idx = target_indices[gi]
+            if tgt_idx < 0:
+                bm25_results[gi] = {"rank": None, "RR": 0.0, "hit10": 0}
+                continue
+            sorted_docs = sub_res.documents[i]
+            positions = np.where(sorted_docs == tgt_idx)[0]
+            if len(positions) == 0:
+                bm25_results[gi] = {"rank": BM25_K + 1, "RR": 1.0 / (BM25_K + 1), "hit10": 0}
+            else:
+                rank = int(positions[0]) + 1
+                bm25_results[gi] = {
+                    "rank": rank,
+                    "RR": 1.0 / rank,
+                    "hit10": 1 if rank <= 10 else 0,
+                }
+    log(f"  retrieved in {time.time() - t0:.1f}s")
 
     log("\n=== 4. MiniLM retrieval (GPU) ===")
     import torch
@@ -475,7 +480,7 @@ def _volatility_eval():
             })
     log(f"  total queries: {len(flat_queries)}")
 
-    log("\n=== 6. BM25 retrieval (bm25s) ===")
+    log("\n=== 6. BM25 retrieval (bm25s, batched) ===")
     import bm25s
     corpus_texts = [asin_to_doc[a] for a in asins]
     queries = [r["query"] for r in flat_queries]
@@ -484,22 +489,32 @@ def _volatility_eval():
     retriever.index(corpus_tokens, show_progress=False)
     query_tokens = bm25s.tokenize(queries, stopwords="en", show_progress=False)
     t0 = time.time()
-    results = retriever.retrieve(query_tokens, k=len(asins), show_progress=False)
-    log(f"  bm25s retrieve done in {time.time() - t0:.1f}s")
+    BM25_BATCH_PARTB = 1000
+    BM25_K_PARTB = 20000
+    bm25_ranks = [None] * len(flat_queries)
 
-    bm25_ranks = []
-    for i, r in enumerate(flat_queries):
-        tgt_idx = asin_to_idx.get(r["asin"], -1)
-        if tgt_idx < 0:
-            bm25_ranks.append({"rank": None, "RR": 0.0, "hit10": 0})
-            continue
-        sorted_docs = results.documents[i]
-        positions = np.where(sorted_docs == tgt_idx)[0]
-        if len(positions) == 0:
-            bm25_ranks.append({"rank": None, "RR": 0.0, "hit10": 0})
-        else:
-            rank = int(positions[0]) + 1
-            bm25_ranks.append({"rank": rank, "RR": 1.0 / rank, "hit10": 1 if rank <= 10 else 0})
+    def _slice_tok_p(tok, s, e):
+        return type(tok)(tok.ids[s:e], tok.vocab)
+
+    for s in range(0, len(flat_queries), BM25_BATCH_PARTB):
+        e = min(s + BM25_BATCH_PARTB, len(flat_queries))
+        sub_tokens = _slice_tok_p(query_tokens, s, e)
+        sub_res = retriever.retrieve(sub_tokens, k=BM25_K_PARTB, show_progress=False)
+        for i in range(e - s):
+            gi = s + i
+            r = flat_queries[gi]
+            tgt_idx = asin_to_idx.get(r["asin"], -1)
+            if tgt_idx < 0:
+                bm25_ranks[gi] = {"rank": None, "RR": 0.0, "hit10": 0}
+                continue
+            sorted_docs = sub_res.documents[i]
+            positions = np.where(sorted_docs == tgt_idx)[0]
+            if len(positions) == 0:
+                bm25_ranks[gi] = {"rank": BM25_K_PARTB + 1, "RR": 1.0 / (BM25_K_PARTB + 1), "hit10": 0}
+            else:
+                rank = int(positions[0]) + 1
+                bm25_ranks[gi] = {"rank": rank, "RR": 1.0 / rank, "hit10": 1 if rank <= 10 else 0}
+    log(f"  bm25s retrieve done in {time.time() - t0:.1f}s")
 
     log("\n=== 7. MiniLM retrieval (GPU) ===")
     import torch
