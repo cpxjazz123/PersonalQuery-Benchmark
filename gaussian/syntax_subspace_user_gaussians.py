@@ -20,7 +20,7 @@ I/O 路径:
         (per-user mu/sigma_diag + global_var fallback)
 
 共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
-  gaussian/syntax_subspace_utils.py
+  common/syntax_subspace_utils.py
 """
 
 from __future__ import annotations
@@ -34,15 +34,15 @@ from pathlib import Path
 
 import numpy as np
 
-# Ensure gaussian/ is on sys.path (it is the script's own dir, but explicit is safer)
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Ensure common/ is on sys.path so we can import the shared utils
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, GAUSSIANS_OUT, REPO_ROOT, REVIEW_GZ,
     LAMBDA, MIN_REVIEWS_FOR_PER_USER, PCA_DIM, VAR_EPS, log, feat_key,
 )
 
-# Stage 3 also imports per_sentence_features_v2 from syntactic_analysis/main
-sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
+# Stage 3 also imports per_sentence_features_v2 from common/syntactic_features
+sys.path.insert(0, str(REPO_ROOT / "common"))
 
 
 def stage_user_gaussians():
@@ -126,7 +126,7 @@ def stage_user_gaussians():
 
     if new_sents:
         import spacy
-        from main import per_sentence_features_v2
+        from syntactic_features import per_sentence_features_v2
         nlp = spacy.load("en_core_web_sm")
         log(f"  extracting features for {len(new_sents)} new sentences (n_process=8, batch=256)...")
         new_unique = sorted(set(new_sents))

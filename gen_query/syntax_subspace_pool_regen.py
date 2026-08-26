@@ -13,7 +13,7 @@ I/O 路径:
         stage7b_query_features.jsonl.gz (Stage 2)
 
 共享工具 (log, feat_key, paths, hyperparams) 来自:
-  gaussian/syntax_subspace_utils.py
+  common/syntax_subspace_utils.py
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ from typing import List
 
 import requests
 
-# Ensure gaussian/ is on sys.path so we can import the shared utils
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gaussian"))
+# Ensure common/ is on sys.path so we can import the shared utils
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, POOL_IN, POOL_OUT, REPO_ROOT, SCRATCH, VLLM_URL, MODEL_NAME,
     K_POOL, TEMP, MAX_TOKENS, PCA_DIM, log, feat_key,
 )
 
-# Stage 2 also imports per_sentence_features_v2 from syntactic_analysis/main
-sys.path.insert(0, str(REPO_ROOT / "syntactic_analysis"))
+# Stage 2 also imports per_sentence_features_v2 from common/syntactic_features
+sys.path.insert(0, str(REPO_ROOT / "common"))
 
 
 # ===========================================================================
@@ -278,7 +278,7 @@ def stage_features():
         return
 
     import spacy
-    from main import per_sentence_features_v2
+    from syntactic_features import per_sentence_features_v2
     nlp = spacy.load("en_core_web_sm")
 
     log(f"  extracting features for {len(missing_q)} queries via spaCy pipe (n_process=8, batch=256)...")

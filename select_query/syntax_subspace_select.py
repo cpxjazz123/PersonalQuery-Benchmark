@@ -17,7 +17,7 @@ I/O 路径:
         stage10k_selection.json + stage10k_summary.json          (Stage 7)
 
 共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
-  gaussian/syntax_subspace_utils.py
+  common/syntax_subspace_utils.py
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gaussian"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, GAUSSIANS_IN, POOL_IN, SELECTION_IN, SELECTION_OUT,
     SELECTION_STATS_OUT, A1_SELECTION_OUT, A1_SUMMARY_OUT,

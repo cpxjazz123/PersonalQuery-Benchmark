@@ -28,7 +28,7 @@
 
 13. **`/result/` 目录只允许存放生成的产物,脚本必须放在对应的功能目录下**: `/home/wlia0047/ar57/wenyu/PersoanlQuery/result/` 只放 `*.json / *.jsonl / *.npz / *.pt / *.csv / *.log` 产物,禁止放 `.py` / `.sh`;`.py` 脚本必须放在功能模块目录(`gen_query/` 生成 / `select_query/` 选择 / `gaussian/` / `attribute_extraction/` / `syntactic_analysis/` / 项目根 orchestrator),禁止新建 `result/phaseXX/scripts/` 反模式。
 
-14. **Syntax Subspace 流水线按业务职责拆到 4 个目录,`gaussian/` 只放用户先验分布**: `gaussian/` 只放 per-user Mahalanobis Gaussian 拟合(Stage 3),`gen_query/` 放 vLLM pool 生成 + spaCy 特征抽取(Stage 1 + 2),`select_query/` 放 Mahalanobis + A1 reject-repeat(Stage 4 + 7),`syntactic_evaluation/` 放 bm25s + GPU MiniLM 评估 + V_low/V_user/V_high 标定(Stage 5 + 6);`syntax_subspace_utils.py` 必须留在 `gaussian/` 作 4 个脚本的共享底座,禁止回退到 7-in-1 `main.py` 大锅炖模式。
+14. **Syntax Subspace 流水线按业务职责拆到 4 个目录,`gaussian/` 只放用户先验分布**: `gaussian/` 只放 per-user Mahalanobis Gaussian 拟合(Stage 3),`gen_query/` 放 vLLM pool 生成 + spaCy 特征抽取(Stage 1 + 2),`select_query/` 放 Mahalanobis + A1 reject-repeat(Stage 4 + 7),`syntactic_evaluation/` 放 bm25s + GPU MiniLM 评估 + V_low/V_user/V_high 标定(Stage 5 + 6);`common/` 放 2 个共享底座(`syntax_subspace_utils.py` 路径/超参/`_syntax_subspace_prepare`,`syntactic_features.py` 318d `per_sentence_features_v2`),禁止回退到 7-in-1 `main.py` 大锅炖模式。
 
 15. **禁止写 iter / iterator 文档文件**: 任务完成直接在 chat 输出总结(按 AGENTS.md 规则 4 打印任务摘要并以"当前任务已完成,请做下一个任务的指示。"结尾),不要写 `iter_*.md` / `iter_*_*_*.md` / `iteration_*.md` / `*_iter.md` 之类的过程文档到任何目录(包括 `iterations/`、`result/`、项目根)。
 

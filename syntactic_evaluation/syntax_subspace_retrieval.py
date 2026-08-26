@@ -19,7 +19,7 @@ I/O 路径:
         stage8_5v_retrieval.json + stage8_5v_volatility.json               (Stage 6)
 
 共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
-  gaussian/syntax_subspace_utils.py
+  common/syntax_subspace_utils.py
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gaussian"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     FEAT_CACHE, META_FILE, POOL_IN, RETRIEVAL_PER_QUERY_OUT, RETRIEVAL_SUMMARY_OUT,
     SELECTION_IN, VOLATILITY_PER_QUERY_OUT, VOLATILITY_SUMMARY_OUT,
