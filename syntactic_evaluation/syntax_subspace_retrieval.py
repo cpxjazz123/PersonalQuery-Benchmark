@@ -375,8 +375,12 @@ def _volatility_eval():
     n_insufficient_low = 0
     n_insufficient_high = 0
     n_total = 0
+    seen_asins = set()
     for entry in entries:
         asin = entry["asin"]
+        if asin in seen_asins:
+            continue  # already processed this ASIN via earlier (asin,user) entry
+        seen_asins.add(asin)
         if asin not in pool_z:
             continue
         cands = [c for c in pool_z[asin] if c["strict"] and c["n_tok"] >= MIN_LEN]
@@ -605,6 +609,7 @@ def _volatility_eval():
             log(f"  {retriever:<10} {metric:<8} {v_low:<12.4f} {v_user:<12.4f} {v_high:<12.4f} {nv_str:<10}")
 
     log("\n=== 9. Saving summary ===")
+    stability_flip = _compute_stability_flip_metrics(RETRIEVAL_PER_QUERY_OUT)
     with open(VOLATILITY_SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
@@ -614,11 +619,97 @@ def _volatility_eval():
                 "PRIMARY_LEN_DELTA": PRIMARY_LEN_DELTA,
             },
             "summary_table": summary_table,
+            "stability_flip": stability_flip,
             "n_asins_with_sets": n_total,
             "n_insufficient_low": n_insufficient_low,
             "n_insufficient_high": n_insufficient_high,
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {VOLATILITY_SUMMARY_OUT}")
+
+
+def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
+    """Per-ASIN Hit@1 Flip Rate, Hit@5 Flip Rate, RR Std across query variants.
+
+    Two slices per retriever (BM25 / MiniLM):
+      - 'selected_only': 10 user-selected queries per ASIN (realistic persona flip)
+      - 'all_30': all 30 queries per ASIN (10 users × 3 variants — pessimistic)
+
+    Flip rate definition: of all unique query pairs within the slice, fraction
+    of pairs whose top-K hit/miss labels disagree (one hit, one miss).
+    """
+    log("\n=== Computing Hit@K Flip Rate + RR Std (per ASIN, per retriever) ===")
+    data = json.load(open(retrieval_per_query_path))
+    queries = data["queries"]
+    log(f"  loaded {len(queries)} queries from {retrieval_per_query_path.name}")
+
+    # group by (asin, variant_slice)
+    by_asin_slice = collections.defaultdict(lambda: collections.defaultdict(list))
+    for q in queries:
+        by_asin_slice[q["asin"]]["all_30"].append(q)
+        if q.get("variant") == "selected":
+            by_asin_slice[q["asin"]]["selected_only"].append(q)
+
+    def flip_rate(hit_labels: list[int]) -> float | None:
+        """Pair-wise flip rate: |pairs with disagreeing hit/miss| / total pairs."""
+        n = len(hit_labels)
+        if n < 2:
+            return None
+        total_pairs = n * (n - 1) // 2
+        n_hits = sum(hit_labels)
+        n_miss = n - n_hits
+        agree_pairs = n_hits * (n_hits - 1) // 2 + n_miss * (n_miss - 1) // 2
+        return float((total_pairs - agree_pairs) / total_pairs)
+
+    summary: dict = {}
+    for slice_name in ("selected_only", "all_30"):
+        summary[slice_name] = {}
+        for retriever in ("bm25", "minilm"):
+            rank_key = f"{retriever}_rank"
+            rr_key = f"{retriever}_RR"
+            flip1_list, flip5_list, rrstd_list = [], [], []
+            n_asins_used = 0
+            for asin, slice_groups in by_asin_slice.items():
+                qs = slice_groups.get(slice_name, [])
+                if len(qs) < 2:
+                    continue
+                ranks = [q.get(rank_key) for q in qs]
+                rrs = [q.get(rr_key, 0.0) for q in qs]
+                if any(r is None for r in ranks):
+                    continue
+                hit1 = [1 if r == 1 else 0 for r in ranks]
+                hit5 = [1 if r <= 5 else 0 for r in ranks]
+                f1 = flip_rate(hit1)
+                f5 = flip_rate(hit5)
+                rs = float(np.std(rrs))
+                if f1 is not None:
+                    flip1_list.append(f1)
+                if f5 is not None:
+                    flip5_list.append(f5)
+                rrstd_list.append(rs)
+                n_asins_used += 1
+            summary[slice_name][retriever] = {
+                "n_asins": n_asins_used,
+                "Hit@1_FlipRate_mean": float(np.mean(flip1_list)) if flip1_list else None,
+                "Hit@1_FlipRate_median": float(np.median(flip1_list)) if flip1_list else None,
+                "Hit@5_FlipRate_mean": float(np.mean(flip5_list)) if flip5_list else None,
+                "Hit@5_FlipRate_median": float(np.median(flip5_list)) if flip5_list else None,
+                "RR_Std_mean": float(np.mean(rrstd_list)) if rrstd_list else None,
+                "RR_Std_median": float(np.median(rrstd_list)) if rrstd_list else None,
+                "RR_Std_p90": float(np.percentile(rrstd_list, 90)) if rrstd_list else None,
+            }
+    log(f"  selected_only × BM25: Hit@1={summary['selected_only']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['selected_only']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only']['bm25']['RR_Std_mean']:.4f}")
+    log(f"  selected_only × MiniLM: Hit@1={summary['selected_only']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['selected_only']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only']['minilm']['RR_Std_mean']:.4f}")
+    log(f"  all_30 × BM25:        Hit@1={summary['all_30']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['all_30']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['all_30']['bm25']['RR_Std_mean']:.4f}")
+    log(f"  all_30 × MiniLM:      Hit@1={summary['all_30']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['all_30']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['all_30']['minilm']['RR_Std_mean']:.4f}")
+    return summary
 
 
 # ===========================================================================
