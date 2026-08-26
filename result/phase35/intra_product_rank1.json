@@ -1,1381 +1,2742 @@
 {
-  "pool_sizes_top10": [
-    [
-      "B0BBM75S58",
-      1
+  "intra_product_rank1": {
+    "pool_sizes_top10": [
+      [
+        "B0BBM75S58",
+        1
+      ],
+      [
+        "B09WRKYRQZ",
+        1
+      ],
+      [
+        "B001QC3CKG",
+        1
+      ],
+      [
+        "B0BN6VXJHM",
+        1
+      ],
+      [
+        "B0BRQBD14R",
+        1
+      ],
+      [
+        "B0BQ5YSKYL",
+        1
+      ],
+      [
+        "B001V9EVCM",
+        1
+      ],
+      [
+        "B0BQYQHF9G",
+        1
+      ],
+      [
+        "B0BSCVHKD2",
+        1
+      ],
+      [
+        "B09W5MZSWP",
+        1
+      ]
     ],
-    [
-      "B09WRKYRQZ",
-      1
-    ],
-    [
-      "B001QC3CKG",
-      1
-    ],
-    [
-      "B0BN6VXJHM",
-      1
-    ],
-    [
-      "B0BRQBD14R",
-      1
-    ],
-    [
-      "B0BQ5YSKYL",
-      1
-    ],
-    [
-      "B001V9EVCM",
-      1
-    ],
-    [
-      "B0BQYQHF9G",
-      1
-    ],
-    [
-      "B0BSCVHKD2",
-      1
-    ],
-    [
-      "B09W5MZSWP",
-      1
-    ]
-  ],
-  "intra_summary": {
-    "size>=2": {
-      "n_users": 0,
-      "n_hit": 0,
-      "rank1_pct": 0.0,
-      "mean_own_rank": null,
-      "per_scorer": {
-        "residual": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "syntax": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "hybrid_05": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "hybrid_07": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
+    "intra_summary": {
+      "size>=2": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
+        }
+      },
+      "size>=3": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
+        }
+      },
+      "size>=4": {
+        "n_users": 80,
+        "n_hit": 80,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 1.5,
+        "per_scorer": {
+          "residual": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "syntax": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "hybrid_05": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "hybrid_07": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          }
+        }
+      },
+      "size>=5": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
         }
       }
     },
-    "size>=3": {
-      "n_users": 0,
-      "n_hit": 0,
-      "rank1_pct": 0.0,
-      "mean_own_rank": null,
-      "per_scorer": {
-        "residual": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
+    "intra_detail": {
+      "size>=2": [],
+      "size>=3": [],
+      "size>=4": [
+        {
+          "asin": "B0BBM75S58",
+          "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
         },
-        "syntax": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
+        {
+          "asin": "B0BBM75S58",
+          "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
         },
-        "hybrid_05": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
+        {
+          "asin": "B0BBM75S58",
+          "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
         },
-        "hybrid_07": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
+        {
+          "asin": "B0BBM75S58",
+          "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09WRKYRQZ",
+          "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09WRKYRQZ",
+          "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09WRKYRQZ",
+          "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09WRKYRQZ",
+          "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001QC3CKG",
+          "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001QC3CKG",
+          "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001QC3CKG",
+          "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            0,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001QC3CKG",
+          "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BN6VXJHM",
+          "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BN6VXJHM",
+          "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BN6VXJHM",
+          "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BN6VXJHM",
+          "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BRQBD14R",
+          "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            3,
+            2,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BRQBD14R",
+          "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            0,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BRQBD14R",
+          "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            2,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BRQBD14R",
+          "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            2,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQ5YSKYL",
+          "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQ5YSKYL",
+          "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQ5YSKYL",
+          "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            3,
+            2,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQ5YSKYL",
+          "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            2,
+            1,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001V9EVCM",
+          "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            2,
+            3,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001V9EVCM",
+          "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001V9EVCM",
+          "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B001V9EVCM",
+          "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            2,
+            3,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQYQHF9G",
+          "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQYQHF9G",
+          "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            2,
+            3,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQYQHF9G",
+          "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BQYQHF9G",
+          "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BSCVHKD2",
+          "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            3,
+            1,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BSCVHKD2",
+          "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BSCVHKD2",
+          "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BSCVHKD2",
+          "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09W5MZSWP",
+          "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09W5MZSWP",
+          "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            2,
+            0,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09W5MZSWP",
+          "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09W5MZSWP",
+          "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BFFN7NSN",
+          "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BFFN7NSN",
+          "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            0,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BFFN7NSN",
+          "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            1,
+            3,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BFFN7NSN",
+          "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            1,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0C6FLKY96",
+          "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            0,
+            2,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0C6FLKY96",
+          "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0C6FLKY96",
+          "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0C6FLKY96",
+          "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B077TPC9Y7",
+          "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            1,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B077TPC9Y7",
+          "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            1,
+            0,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B077TPC9Y7",
+          "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            1,
+            0,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B077TPC9Y7",
+          "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            1,
+            0,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B07VHG51YJ",
+          "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B07VHG51YJ",
+          "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            0,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B07VHG51YJ",
+          "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            1,
+            2,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B07VHG51YJ",
+          "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BVZZDL21",
+          "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            3,
+            1,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BVZZDL21",
+          "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BVZZDL21",
+          "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            2,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0BVZZDL21",
+          "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            3,
+            2,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0B1PSSDYY",
+          "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0B1PSSDYY",
+          "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0B1PSSDYY",
+          "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B0B1PSSDYY",
+          "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            3,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09PZ94N9B",
+          "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09PZ94N9B",
+          "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            2,
+            3,
+            0
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09PZ94N9B",
+          "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            0,
+            3,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B09PZ94N9B",
+          "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QZSY3SG",
+          "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QZSY3SG",
+          "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            2,
+            1,
+            0,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QZSY3SG",
+          "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            1,
+            0,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QZSY3SG",
+          "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            3,
+            2,
+            0,
+            1
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QQB271H",
+          "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QQB271H",
+          "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QQB271H",
+          "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08QQB271H",
+          "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
+          "is_hit": true,
+          "own_cand_ranks": [
+            1,
+            0,
+            2,
+            3
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08S3HPF87",
+          "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "scorer": "residual",
+          "n_pool": 4,
+          "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08S3HPF87",
+          "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "scorer": "syntax",
+          "n_pool": 4,
+          "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08S3HPF87",
+          "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "scorer": "hybrid_05",
+          "n_pool": 4,
+          "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
+        },
+        {
+          "asin": "B08S3HPF87",
+          "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "scorer": "hybrid_07",
+          "n_pool": 4,
+          "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+          "is_hit": true,
+          "own_cand_ranks": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "mean_own_rank": 1.5
         }
-      }
-    },
-    "size>=4": {
-      "n_users": 80,
-      "n_hit": 80,
-      "rank1_pct": 100.0,
-      "mean_own_rank": 1.5,
-      "per_scorer": {
-        "residual": {
-          "n_users": 20,
-          "n_hit": 20,
-          "rank1_pct": 100.0,
-          "mean_own_rank": 1.5
-        },
-        "syntax": {
-          "n_users": 20,
-          "n_hit": 20,
-          "rank1_pct": 100.0,
-          "mean_own_rank": 1.5
-        },
-        "hybrid_05": {
-          "n_users": 20,
-          "n_hit": 20,
-          "rank1_pct": 100.0,
-          "mean_own_rank": 1.5
-        },
-        "hybrid_07": {
-          "n_users": 20,
-          "n_hit": 20,
-          "rank1_pct": 100.0,
-          "mean_own_rank": 1.5
-        }
-      }
-    },
-    "size>=5": {
-      "n_users": 0,
-      "n_hit": 0,
-      "rank1_pct": 0.0,
-      "mean_own_rank": null,
-      "per_scorer": {
-        "residual": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "syntax": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "hybrid_05": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        },
-        "hybrid_07": {
-          "n_users": 0,
-          "n_hit": 0,
-          "rank1_pct": 0.0,
-          "mean_own_rank": null
-        }
-      }
+      ],
+      "size>=5": []
     }
   },
-  "intra_detail": {
-    "size>=2": [],
-    "size>=3": [],
-    "size>=4": [
+  "scores": {
+    "n_records": 20,
+    "records": [
       {
+        "user_id": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
         "asin": "B0BBM75S58",
-        "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "is_hit": true,
-        "own_cand_ranks": [
+        "attrs": {
+          "Brand": "Ajulkrio",
+          "Main Category": "Baby",
+          "Material Type": "Acrylonitrile Butadiene Styrene",
+          "Style": "Playpen for babies and toddlers",
+          "material_composition": "Anti-rust alloy steel pipe,Oxford cloth"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Searching for a Brand: Ajulkrio baby playpen made of Acrylonitrile Butadiene Styrene material with an anti-rust alloy steel pipe frame and Oxford cloth cover, suitable for babies and toddlers.",
+          "I'm in search of a playpen designed for babies and toddlers from Ajulkrio, made of Acrylonitrile Butadiene Styrene material with an anti-rust alloy steel pipe and Oxford cloth, suitable for my child's safety and development.",
+          "I'm searching for a baby playpen made of Acrylonitrile Butadiene Styrene material by Ajulkrio, featuring an anti-rust alloy steel pipe and Oxford cloth, suitable for both babies and toddlers, but I've encountered issues in assembling it upon initial use, which has led me to seek alternatives like crates for puppies.",
+          "I'm on the hunt for an Ajulkrio brand playpen designed specifically for babies and toddlers, made of Acrylonitrile Butadiene Styrene material with an anti-rust alloy steel pipe frame and Oxford cloth, but my previous experience with such products has been less than satisfactory. It took me considerable effort to assemble it initially, and I found myself genuinely disappointed after using it for the first time."
+        ],
+        "coverages": [
           3,
           2,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BBM75S58",
-        "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
           3,
-          1,
-          0
+          2
         ],
-        "mean_own_rank": 1.5
+        "scores_residual": [
+          -3466.870346580616,
+          -3110.9750882962726,
+          -3005.9640716415756,
+          -3005.431083887967
+        ],
+        "scores_syntax": [
+          -16.778425295321274,
+          -19.003032779154573,
+          -16.59126732305128,
+          -16.299056212908543
+        ],
+        "scores_hybrid_05": [
+          -0.6619611355877084,
+          -0.7590802631667742,
+          0.641745532067544,
+          0.779295866686939
+        ],
+        "scores_hybrid_07": [
+          -1.071930104437876,
+          -0.37872644561357616,
+          0.6835004710986667,
+          0.7671560789527847
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 3,
+        "sel_syntax": 3,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 2,
+        "sel_syntax_cov": 2,
+        "sel_hybrid_05_cov": 2,
+        "sel_hybrid_07_cov": 2
       },
       {
-        "asin": "B0BBM75S58",
-        "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BBM75S58",
-        "uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFSKPY37N3C43SOI5IEXEK5JSIYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          2,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
         "asin": "B09WRKYRQZ",
-        "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
+        "attrs": {
+          "Brand": "Simple Joys by Carter's",
+          "Main Category": "AMAZON FASHION",
+          "Manufacturer": "Simple Joys by Carter's",
+          "Color": "Pink/White",
+          "Material": "Cotton"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for a classic, soft cotton Pink/White receiving blanket from Simple Joys by Carter's, perfect for swaddling, in Amazon Fashion.",
+          "Looking for a soft, cotton baby blanket in a cute Pink/White color from Simple Joys by Carter's for a stylish yet practical addition to my little one's nursery.",
+          "I'm looking for a cotton blend receiving blanket from Simple Joys by Carter's in a pink and white color scheme, suitable for both swaddling and gentle wraps, known for its good washing and drying properties though it might develop pills with time as my child grows out of swaddling.",
+          "Find Simple Joys by Carter's cotton pink/white baby blankets suitable for both swaddling and light wrapping; they should be easy to care for and feature appealing designs appreciated by mothers."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          5,
+          4,
+          3,
+          4
+        ],
+        "scores_residual": [
+          -2399.443893905419,
+          -2550.518084625161,
+          -2070.86974481738,
+          -2184.8086872767603
+        ],
+        "scores_syntax": [
+          -17.859843661971485,
+          -17.983262790281735,
+          -17.374991811699367,
+          -17.608642498300156
+        ],
+        "scores_hybrid_05": [
+          -0.5903497446797423,
+          -1.259803438165789,
+          1.3275132572658057,
+          0.5226399255797208
+        ],
+        "scores_hybrid_07": [
+          -0.5650152818704142,
+          -1.2915475293407432,
+          1.2922468196465688,
+          0.5643159915645874
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 0,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 5,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B09WRKYRQZ",
-        "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09WRKYRQZ",
-        "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09WRKYRQZ",
-        "uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFZUK3MTBIBEDQOPAK3OATUOUKLA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
         "asin": "B001QC3CKG",
-        "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
-          3
+        "attrs": {
+          "Brand": "Playtex Baby",
+          "Main Category": "Baby",
+          "Color": "Clear",
+          "Material Type": "Silicone nipples",
+          "Style": "Nurser Gift Set"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "I'm looking for a Playtex Baby Nurser Gift Set featuring clear silicone nipples for easy monitoring of feedings, perfect for keeping my baby's essentials fresh and clean without the hassle of traditional bottle care.",
+          "I'm searching for a Playtex Baby Nurser Gift Set featuring clear bottles made of silicone nipples, perfect for a hassle-free feeding experience without the need for scrubbing dirty bottles.",
+          "Looking for a Playtex Baby gift set featuring clear silicone nipples for easy viewing of baby's feeding progress, perfect for keeping bottles fresh without needing extensive cleaning efforts.",
+          "I'm looking for a Playtex Baby gift set featuring clear silicone nipples for easy monitoring of milk flow, perfect for a new mom who values convenience and cleanliness."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          5,
+          5,
+          4,
+          4
+        ],
+        "scores_residual": [
+          -2935.174781848604,
+          -2708.2100177054217,
+          -2950.5482541385422,
+          -3218.305144016024
+        ],
+        "scores_syntax": [
+          -24.285876438727904,
+          -24.568577499203048,
+          -24.35323378616496,
+          -23.889505339485474
+        ],
+        "scores_hybrid_05": [
+          0.025899895274363996,
+          0.0780347337019558,
+          -0.15383337056130045,
+          0.04989874158497942
+        ],
+        "scores_hybrid_07": [
+          0.05512645964596126,
+          0.588775967649094,
+          -0.0867414682788039,
+          -0.5571609590162531
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 0,
+        "sel_hybrid_05": 1,
+        "sel_hybrid_07": 1,
+        "sel_baseline_cov": 5,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B001QC3CKG",
-        "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B001QC3CKG",
-        "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          0,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B001QC3CKG",
-        "uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AHATA6X6MYTC3VNBFJ3WIYVK257A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
         "asin": "B0BN6VXJHM",
-        "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          3,
-          2
+        "attrs": {
+          "Brand": "Corkcicle",
+          "Main Category": "Amazon Home",
+          "Color": "Jasmine",
+          "Material": "Stainless Steel",
+          "Theme": "Characters"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "I'm looking for a stylish and long-chilling beverage container from Corkcicle's Disney Princess line in Jasmine color, featuring an elegant design and made of stainless steel material.",
+          "Searching for the elegant Jasmine-colored Stainless Steel Corkcicle characters-themed drinkware that offers long-lasting chill on beverages, perfect for an adult Disney Princess fan like me!",
+          "Searching for \"Corkcicle stainless steel themed character Jasmine color glass available on Amazon Home.\"",
+          "Looking for a stylish and functional drinkware item from the Corkcicle Disney Princess collection, specifically in Jasmine color and made of durable stainless steel, to enjoy keeping my favorite beverage chilled for longer periods while featuring a character theme that adds a touch of elegance to my home bar."
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BN6VXJHM",
-        "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          2,
+        "coverages": [
+          3,
+          4,
+          4,
           3
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BN6VXJHM",
-        "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          3,
-          2
+        "scores_residual": [
+          -2279.4157146075836,
+          -1753.4959366933247,
+          -3175.484372501304,
+          -2401.985741006803
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BN6VXJHM",
-        "uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AHV6QCNBJNSGLATP56JAWJ3C4G2A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          3,
-          2
+        "scores_syntax": [
+          -24.903175360200223,
+          -24.932267569886797,
+          -25.332899577359218,
+          -25.563385800858498
         ],
-        "mean_own_rank": 1.5
+        "scores_hybrid_05": [
+          0.6249610311636139,
+          1.0898043237878645,
+          -1.0302039436125783,
+          -0.6845614113388935
+        ],
+        "scores_hybrid_07": [
+          0.4718932095129801,
+          1.1645876657622254,
+          -1.22622373455659,
+          -0.41025714071861114
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 0,
+        "sel_hybrid_05": 1,
+        "sel_hybrid_07": 1,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 4,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 4,
+        "sel_hybrid_07_cov": 4
       },
       {
+        "user_id": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
         "asin": "B0BRQBD14R",
-        "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          3,
-          2,
-          1
+        "attrs": {
+          "Brand": "Andrea",
+          "Main Category": "All Beauty",
+          "Manufacturer": "Andrea",
+          "Style": "Chain,Professional",
+          "Blade Edge": "Curved"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Andrea's professional beauty set featuring a chain and a curved blade edge is perfect for precision styling tasks.",
+          "Andrea's professional beauty kit features a curved blade edge and a chain style, ideal for precise styling tasks.",
+          "Andrea brand beauty products featuring professional chain style with curved blade edge for precision cutting.",
+          "Andrea's Professional style chain blade edge curved tool is perfect for salon-quality hairstyles, offering precision and comfort in every cut."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "scores_residual": [
+          -2804.956060261907,
+          -2996.3275855620327,
+          -2992.745228047319,
+          -2876.1514216049195
+        ],
+        "scores_syntax": [
+          -24.352880731843833,
+          -24.18438492457384,
+          -24.672554867056,
+          -24.264130175612646
+        ],
+        "scores_hybrid_05": [
+          0.736986179287502,
+          0.010273088786214524,
+          -1.284186138874222,
+          0.5369268708004988
+        ],
+        "scores_hybrid_07": [
+          0.9981077486786916,
+          -0.382830246646308,
+          -1.1418176452653097,
+          0.5265401432329243
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 3,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 3,
+        "sel_hybrid_07_cov": 3
       },
       {
-        "asin": "B0BRQBD14R",
-        "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          0,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BRQBD14R",
-        "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          2,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BRQBD14R",
-        "uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFJBKPK5W56XWSNPQU2WW66ISWYQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          2,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
         "asin": "B0BQ5YSKYL",
-        "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          2,
-          3
+        "attrs": {
+          "Brand": "Stcomart",
+          "Main Category": "Baby",
+          "Material Type": "Linen",
+          "Style": "bunny basket",
+          "Target gender": "Unisex"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for a stylish unisex baby gift, I found a beautiful linen bunny basket from Stcomart, perfect for Easter. It features cute bunny designs on checkered fabrics in green, blue, and pink, each with a pom-pom tail detail, making it adorable for egg hunts.",
+          "Stcomart's unisex linen bunny basket style baby items offer three charming options—green, blue, and pink—with corresponding checkered fabric linings, each featuring a delightful cut-out bunny design with a pom-pom white tail, perfect for young children collecting Easter eggs.",
+          "Looking for a unisex linen bunny basket from Stcomart brand suitable for babies, inspired by the past cute designs featuring bunnies in various colors like green, blue, and pink, each with unique checkered lining and a white pom-pom tail on the back, perfect for Easter egg hunts.",
+          "I'm looking for a unisex baby gift that features a cute bunny basket style design made from linen material by Stcomart, perfect for Easter egg hunts, with adorable contrasting color linings inside each of the three available options."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          5,
+          5,
+          4,
+          5
+        ],
+        "scores_residual": [
+          -2194.669451193049,
+          -2284.633668665504,
+          -2347.9137548044646,
+          -2482.568226655614
+        ],
+        "scores_syntax": [
+          -7.773272943021843,
+          -10.718319800981126,
+          -8.61854736865723,
+          -6.698844488884789
+        ],
+        "scores_hybrid_05": [
+          0.8636071212346901,
+          -0.5641215148998286,
+          -0.15402398310101062,
+          -0.14546162323385203
+        ],
+        "scores_hybrid_07": [
+          1.0248757968189353,
+          -0.1750886638834646,
+          -0.1705237119215596,
+          -0.6792634210139119
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 3,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 5,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B0BQ5YSKYL",
-        "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BQ5YSKYL",
-        "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          3,
-          2,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BQ5YSKYL",
-        "uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AHJQPUQLSQZE6LMIUMY7WNRXCQQQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          2,
-          1,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
         "asin": "B001V9EVCM",
-        "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          2,
-          3,
-          0
+        "attrs": {
+          "Brand": "Medela",
+          "Main Category": "Baby",
+          "Color": "Translucent",
+          "Material Type": "BPA Free",
+          "Target gender": "Unisex"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for Medela's BPA-free, translucent, unisex baby products that offer better handling for larger volumes and are easy to clean and waterproof, ideally suitable for both home and daycare use.",
+          "Looking for a Medela brand baby product in translucent color, made of BPA-free material, suitable for both boys and girls, ideally part of a pumping set that enhances efficiency beyond 5oz and is convenient for cleaning and storage.",
+          "I'm looking for Medela's BPA-free, translucent baby products suitable for both boys and girls that are easy to clean and sturdy, ideal for handling large milk outputs.",
+          "Looking for Medela's BPA free, translucent bottles that suit both boys and girls, ideal for managing larger milk outputs or everyday daycare use, ensuring ease of cleaning and waterproof functionality."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          4,
+          3,
+          3,
+          3
+        ],
+        "scores_residual": [
+          -2682.5206429774216,
+          -2730.878430102666,
+          -2770.864125142191,
+          -2614.639267661985
+        ],
+        "scores_syntax": [
+          -23.341069725490446,
+          -23.50268717114184,
+          -23.15946162613708,
+          -22.614016954977547
+        ],
+        "scores_hybrid_05": [
+          -0.1312571787561305,
+          -0.7878389035691451,
+          -0.6184485228655158,
+          1.5375446051907928
+        ],
+        "scores_hybrid_07": [
+          0.03941479976812379,
+          -0.6866705516476669,
+          -0.8596705084052775,
+          1.5069262602848184
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 3,
+        "sel_syntax": 3,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 4,
+        "sel_residual_cov": 3,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 3,
+        "sel_hybrid_07_cov": 3
       },
       {
-        "asin": "B001V9EVCM",
-        "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B001V9EVCM",
-        "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B001V9EVCM",
-        "uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AHC5IMHOSWX536YGLYJUI2LDHJPA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          2,
-          3,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
         "asin": "B0BQYQHF9G",
-        "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
+        "attrs": {
+          "Brand": "TYRY.HU",
+          "Main Category": "Baby"
+        },
+        "n_attrs": 2,
+        "candidates": [
+          "TYRY.HU's baby accessory set includes plush clips with lion and elephant heads, featuring loop ends for pacifier or item attachment and secure clips for clothing.",
+          "TYRY.HU's baby accessory set includes a lion and elephant-themed plush clip for pacifiers, teethers, IDs, or small items, featuring secure clothing clips on the opposite end.",
+          "TYRY.HU Baby accessory set featuring two plush clips, one with a lion and another with an elephant design, which loop around pacifiers, teethers, IDs, or clip securely to clothing.",
+          "TYRY.HU's baby accessory set includes a lion and elephant-themed clip, featuring a loop end for easy attachment to various small items like pacifiers or IDs, complemented by a secure clothing clip on the other end."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "scores_residual": [
+          -2362.248928457795,
+          -2427.3903682761866,
+          -2124.9783528309176,
+          -2238.1600702362643
+        ],
+        "scores_syntax": [
+          -17.1597096247726,
+          -17.196121881143227,
+          -18.323784457876815,
+          -17.030879616299437
+        ],
+        "scores_hybrid_05": [
+          -0.0615708725098536,
+          -0.37683120025253136,
+          -0.15763868316285123,
+          0.5960407559252334
+        ],
+        "scores_hybrid_07": [
+          -0.2918804724539604,
+          -0.7052907710585544,
+          0.4672999001734921,
+          0.5298713433390242
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 2,
+        "sel_syntax": 3,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 2,
+        "sel_residual_cov": 2,
+        "sel_syntax_cov": 2,
+        "sel_hybrid_05_cov": 2,
+        "sel_hybrid_07_cov": 2
       },
       {
-        "asin": "B0BQYQHF9G",
-        "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          2,
-          3,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BQYQHF9G",
-        "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BQYQHF9G",
-        "uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFXF3EGQTQDXMRLDWFU7UBFQZB7Q",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
         "asin": "B0BSCVHKD2",
-        "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          3,
-          1,
-          2
+        "attrs": {
+          "Brand": "BESTVANA",
+          "Main Category": "AMAZON FASHION",
+          "Manufacturer": "BESTVANA"
+        },
+        "n_attrs": 3,
+        "candidates": [
+          "Searching for high-quality, comfortable training pants from BESTVANA in the Amazon Fashion category that meet the same standards as my previous positive experience with their craftsmanship and attention to detail.",
+          "Searching for high-quality fashion items from BESTVANA, looking for products that offer excellent craftsmanship, unique design, and unparalleled comfort without compromising on functionality.",
+          "Bestvana's high-quality fashion pants, designed with exceptional craftsmanship, prioritize comfort while maintaining a sleek design suitable for various occasions.",
+          "Discovering the best in fashion from BESTVANA, where quality craftsmanship meets comfort, perfect for all your stylish needs."
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BSCVHKD2",
-        "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "is_hit": true,
-        "own_cand_ranks": [
+        "coverages": [
           3,
           2,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BSCVHKD2",
-        "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "is_hit": true,
-        "own_cand_ranks": [
           2,
-          3,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BSCVHKD2",
-        "uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AEIPJBAN7A55Q5DFFPZSR2UV3OKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
           2
         ],
-        "mean_own_rank": 1.5
+        "scores_residual": [
+          -2709.9557191954264,
+          -3254.109862927188,
+          -2864.3610107666245,
+          -3100.717658865444
+        ],
+        "scores_syntax": [
+          -18.431745988297088,
+          -17.487682164469252,
+          -17.014381578057616,
+          -17.125853725384886
+        ],
+        "scores_hybrid_05": [
+          -0.17309895314508383,
+          -0.623538498818444,
+          0.7300153219397088,
+          0.06662213002382755
+        ],
+        "scores_hybrid_07": [
+          0.41547730009635564,
+          -0.8924937873000907,
+          0.6628934396150405,
+          -0.18587695241130128
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 0,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 3,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 3,
+        "sel_hybrid_07_cov": 3
       },
       {
+        "user_id": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
         "asin": "B09W5MZSWP",
-        "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
+        "attrs": {
+          "Brand": "VIVANA",
+          "Main Category": "Amazon Home",
+          "Manufacturer": "VIVANA",
+          "Color": "Spring Blossoms.",
+          "Size": "Large"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "VIVANA's Spring Blossoms colored Large blanket from Amazon Home is incredibly soft and spacious, ideal for swaddling.",
+          "I'm looking for a VIVANA brand, Amazon Home style blanket in a Size: Large and Color: Spring Blossoms.",
+          "VIVANA's Spring Blossoms colored muslin blanket in Large size, ideal for gentle swaddling and offering ultimate softness and comfort.",
+          "Searching for a VIVANA brand, Amazon Home style blanket in Spring Blossoms color and large size, ideally suitable for gentle swaddling due to its softness and spacious design."
+        ],
+        "coverages": [
+          4,
+          5,
           3,
-          0,
-          2
+          4
         ],
-        "mean_own_rank": 1.5
+        "scores_residual": [
+          -2195.7734400433937,
+          -3016.493825619406,
+          -2175.2335506790987,
+          -2406.575367612658
+        ],
+        "scores_syntax": [
+          -25.983726128184028,
+          -26.13147023447417,
+          -25.97848154123005,
+          -26.527811819557517
+        ],
+        "scores_hybrid_05": [
+          0.7552548897620597,
+          -0.7813456164036756,
+          0.7971698609573142,
+          -0.7710791343156989
+        ],
+        "scores_hybrid_07": [
+          0.7503336764576765,
+          -1.1366376419362723,
+          0.7996336609356054,
+          -0.41332969545701037
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 1,
+        "sel_hybrid_07": 1,
+        "sel_baseline_cov": 4,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B09W5MZSWP",
-        "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          2,
-          0,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09W5MZSWP",
-        "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09W5MZSWP",
-        "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AGWSEISP3NKF47Q2CG45DBOYURYA",
         "asin": "B0BFFN7NSN",
-        "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          2,
-          1,
-          0
+        "attrs": {
+          "Brand": "Nuby",
+          "Main Category": "Baby",
+          "Color": "Avocado",
+          "Material": "Wood, Silicone",
+          "Material Type": "Wood, Silicone"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "I'm looking for a Nuby baby product in avocado color made of wood and silicone materials, ensuring it's both durable and features various textures suitable for chewing.",
+          "I'm looking for a Nuby baby product that's avocado-colored, made of wood and silicone, ensuring it's both durable and offers various textures for chewing, ideally sized perfectly for my baby's grasp.",
+          "Looking for a Nuby baby teether in avocado color made of both wood and silicone materials, where the silicone part is thick, durable, and features various textures for chewing, ideally sized perfectly for my baby's needs.",
+          "Searching for a perfectly sized avocado-colored wooden and silicone Nuby teether that offers various textures for chewing and ensures durability."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          3,
+          3,
+          3,
+          2
+        ],
+        "scores_residual": [
+          -2553.879108336963,
+          -2360.331968177358,
+          -2143.4082672230224,
+          -1941.8692025983623
+        ],
+        "scores_syntax": [
+          -15.929451087397894,
+          -15.725089254487102,
+          -16.371033938531266,
+          -15.86378257344416
+        ],
+        "scores_hybrid_05": [
+          -0.5733885492570573,
+          0.2708662943031994,
+          -0.5928342170273951,
+          0.895356471981265
+        ],
+        "scores_hybrid_07": [
+          -0.8737155877959921,
+          -0.029938425274416258,
+          -0.17020463940895997,
+          1.0738586524793763
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 3,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 2,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 2,
+        "sel_hybrid_07_cov": 2
       },
       {
-        "asin": "B0BFFN7NSN",
-        "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          0,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BFFN7NSN",
-        "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          1,
-          3,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BFFN7NSN",
-        "uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AGWSEISP3NKF47Q2CG45DBOYURYA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          1,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
         "asin": "B0C6FLKY96",
-        "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          0,
-          2,
-          1
+        "attrs": {
+          "Brand": "Owala",
+          "Main Category": "Amazon Home",
+          "Manufacturer": "BlenderBottle",
+          "Color": "Teal & Pink",
+          "Material": "Stainless Steel"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for a durable, stainless steel water bottle by BlenderBottle in a distinctive teal and pink color scheme, preferably with an intuitive locking mechanism and possibly including extra straws for longevity.",
+          "Looking for a stylish and durable stainless steel water bottle from Owlala, ideally in teal and pink colors, known for its solid grip and user-friendly open-close mechanism with a locking switch; also hoping for spare straws included, as replacements can be frequent due to the primary straw usage.",
+          "Looking for a stylish teal and pink stainless steel water bottle from BlenderBottle, ideally with a durable design and an easy-to-use open-close mechanism. Bonus points if it includes spare straws to avoid frequent replacements.",
+          "Looking for a stylish, stainless steel water bottle from Owlala or BlenderBottle, ideally in a vibrant teal and pink color scheme, known for its sturdy handle and convenient open-close mechanism with a locking feature; it would be great if it included spare straws too, given their frequent need replacement."
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0C6FLKY96",
-        "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0C6FLKY96",
-        "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
+        "coverages": [
           2,
           1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0C6FLKY96",
-        "uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AEUAL3EJKUSTNB4YY6STLYGTJALA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
           2,
-          1,
-          0
+          2
         ],
-        "mean_own_rank": 1.5
+        "scores_residual": [
+          -2762.501583709953,
+          -2218.367192328628,
+          -2370.468730019445,
+          -2229.662194145113
+        ],
+        "scores_syntax": [
+          -17.578748093683963,
+          -17.79952158221976,
+          -17.347456842118778,
+          -17.370258590015734
+        ],
+        "scores_hybrid_05": [
+          -0.9831146415466445,
+          -0.35209373059358406,
+          0.5390201157080661,
+          0.7961882564321592
+        ],
+        "scores_hybrid_07": [
+          -1.2565758876919864,
+          0.10985592405783345,
+          0.36839974573022327,
+          0.7783202179039255
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 2,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 2,
+        "sel_residual_cov": 1,
+        "sel_syntax_cov": 2,
+        "sel_hybrid_05_cov": 2,
+        "sel_hybrid_07_cov": 2
       },
       {
+        "user_id": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
         "asin": "B077TPC9Y7",
-        "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          1,
-          0,
-          2
+        "attrs": {
+          "Brand": "HALO",
+          "Main Category": "Baby",
+          "Material Type": "Cotton",
+          "Style": "Modern",
+          "Target gender": "Unisex"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for a modern, unisex cotton baby product from HALO that's perfect for both a pack 'n play and daily use, ensuring ease of installation and frequent application.",
+          "Looking for a modern, unisex cotton baby item from HALO that's perfect for everyday use, like a fitted sheet for a pack n play or an easy-to-use carseat?",
+          "I'm looking for a modern, unisex cotton baby item from HALO that's perfect for everyday use, like a fitted sheet or car seat cover.",
+          "I'm looking for a modern, unisex baby item from HALO made of cotton that would be perfect for everyday use, like a fitted sheet for a pack n play or an easy-to-install carseat."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          5,
+          5,
+          5,
+          5
+        ],
+        "scores_residual": [
+          -2849.666296252949,
+          -2785.3967401431346,
+          -2739.05175197549,
+          -2835.0805103206503
+        ],
+        "scores_syntax": [
+          -25.774632542037665,
+          -25.71652256320564,
+          -25.64416592932234,
+          -25.896149392431493
+        ],
+        "scores_hybrid_05": [
+          -0.6340591343435468,
+          0.4179186581486495,
+          1.341561660021889,
+          -1.125421183826969
+        ],
+        "scores_hybrid_07": [
+          -0.814989469118995,
+          0.4058126326581535,
+          1.3851720557657632,
+          -0.9759952193049206
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 2,
+        "sel_syntax": 2,
+        "sel_hybrid_05": 2,
+        "sel_hybrid_07": 2,
+        "sel_baseline_cov": 5,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B077TPC9Y7",
-        "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          1,
-          0,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B077TPC9Y7",
-        "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          1,
-          0,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B077TPC9Y7",
-        "uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFKZDUEVDYUJV2PYLIMFKWIW2CZQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          1,
-          0,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
         "asin": "B07VHG51YJ",
-        "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          0,
-          1
+        "attrs": {
+          "Brand": "Ez pz",
+          "Main Category": "Amazon Home",
+          "Manufacturer": "ezpz",
+          "Color": "Pink",
+          "Material": "Silicone, Plastic"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "I'm looking for a pink EZ PZ item from the Amazon Home collection made by ezpz, preferably in silicone or plastic material for home use.",
+          "I'm looking for a pink EZ PZ item from Amazon Home that is both silicone and plastic, possibly related to Peppa Pig for a child.",
+          "I'm looking for a Pink EZ PZ silicone and plastic home accessory from manufacturer ezpz suitable for both kids and Peppa Pig enthusiasts like myself.",
+          "Looking for a fun pink EZ PZ item from Amazon Home that's made of silicone and plastic for a young child who loves Peppa Pig."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          4,
+          3,
+          3,
+          3
+        ],
+        "scores_residual": [
+          -2460.8484309278374,
+          -2586.95071464456,
+          -2127.0027033363167,
+          -2206.4303750628524
+        ],
+        "scores_syntax": [
+          -19.14734877673867,
+          -18.9358161105415,
+          -19.417187000105365,
+          -19.13456509907727
+        ],
+        "scores_hybrid_05": [
+          -0.2770130567295989,
+          0.002253038893631265,
+          -0.1687447334517047,
+          0.443504751287648
+        ],
+        "scores_hybrid_07": [
+          -0.4144119789373516,
+          -0.5177455873799519,
+          0.36771730699563626,
+          0.5644402593216497
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 2,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 3,
+        "sel_hybrid_07": 3,
+        "sel_baseline_cov": 4,
+        "sel_residual_cov": 3,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 3,
+        "sel_hybrid_07_cov": 3
       },
       {
-        "asin": "B07VHG51YJ",
-        "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          0,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B07VHG51YJ",
-        "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          1,
-          2,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B07VHG51YJ",
-        "uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AGV5XLEMIEYQBKNM33RTOUZMJEHQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          3,
-          1,
-          0
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
         "asin": "B0BVZZDL21",
-        "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          3,
-          1,
-          2
+        "attrs": {
+          "Brand": "Ciays",
+          "Main Category": "Amazon Home",
+          "Manufacturer": "Ciays",
+          "Color": "Black",
+          "Material": "Metal"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Looking for a stylish yet functional metal black gate from brand Ciays for my home, perfect to manage a rambunctious puppy without compromising on aesthetics.",
+          "Ciays' metal black home gate elegantly secures spaces, ensuring safety and accessibility while maintaining aesthetic harmony.",
+          "Looking for a stylish metal black gate from Ciays, perfect for keeping my new puppy contained without compromising on home aesthetics.",
+          "A sleek black metal gate by Ciays, perfect for keeping your home secure while adding a stylish touch, even when managing a playful puppy."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "scores_residual": [
+          -2394.422059704596,
+          -3293.5121071585572,
+          -2558.6833528203524,
+          -2780.546079459932
+        ],
+        "scores_syntax": [
+          -20.092810714743646,
+          -20.072534320881417,
+          -20.665964355636703,
+          -20.181708331269956
+        ],
+        "scores_hybrid_05": [
+          0.8665364315843697,
+          -0.41833598789838866,
+          -0.5610952238199226,
+          0.11289478013395628
+        ],
+        "scores_hybrid_07": [
+          0.9477248330073775,
+          -0.8846403148263992,
+          -0.10277665561744498,
+          0.03969213743647548
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 4,
+        "sel_residual_cov": 4,
+        "sel_syntax_cov": 4,
+        "sel_hybrid_05_cov": 4,
+        "sel_hybrid_07_cov": 4
       },
       {
-        "asin": "B0BVZZDL21",
-        "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          3,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BVZZDL21",
-        "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          2,
-          3,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0BVZZDL21",
-        "uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AHPOHKN4PU4W3V5PGFL7AGTAD2AA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          3,
-          2,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AF2BLE54TEMGZ546U763ZHZRXC4A",
         "asin": "B0B1PSSDYY",
-        "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
+        "attrs": {
+          "Brand": "Pro Goleem",
+          "Main Category": "Baby",
+          "Color": "White & Grey",
+          "Material": "Cotton",
+          "Material Type": "Cotton"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Pro Goleem's Baby collection offers a beautifully designed white and grey cotton basket, perfect for nursery storage, featuring a durable weave and practical handles.",
+          "I'm searching for a baby item from Brand Pro Goleem, ideally a white and grey colored cotton material product suitable for my little one.",
+          "Pro Goleem's white and grey cotton baby essentials, ensuring comfort and style, should be sized correctly as depicted in the images provided.",
+          "I'm looking for a baby item from Pro Goleem in white and grey made entirely of cotton."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "scores_residual": [
+          -2216.8060357189574,
+          -2554.7587948767296,
+          -2158.057459846702,
+          -2312.622969703449
+        ],
+        "scores_syntax": [
+          -21.089839165862397,
+          -21.953961406963817,
+          -21.059584089046506,
+          -21.32824703125608
+        ],
+        "scores_hybrid_05": [
+          0.6824491557111843,
+          -1.635439017621214,
+          0.9185479101566194,
+          0.034441951753423176
+        ],
+        "scores_hybrid_07": [
+          0.6571766854853553,
+          -1.6264481135501803,
+          0.9540532749542999,
+          0.015218153110535078
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 2,
+        "sel_syntax": 2,
+        "sel_hybrid_05": 2,
+        "sel_hybrid_07": 2,
+        "sel_baseline_cov": 4,
+        "sel_residual_cov": 4,
+        "sel_syntax_cov": 4,
+        "sel_hybrid_05_cov": 4,
+        "sel_hybrid_07_cov": 4
       },
       {
-        "asin": "B0B1PSSDYY",
-        "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0B1PSSDYY",
-        "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B0B1PSSDYY",
-        "uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AF2BLE54TEMGZ546U763ZHZRXC4A",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          3,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
         "asin": "B09PZ94N9B",
-        "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
+        "attrs": {
+          "Brand": "UnbuckleMe",
+          "Main Category": "Baby",
+          "Material Type": "Plastic",
+          "Target gender": "Unisex"
+        },
+        "n_attrs": 4,
+        "candidates": [
+          "Looking for a plastic baby product from UnbuckleMe brand suitable for both boys and girls, ideally something easy for a child around 4 years old to handle, though it should also be durable enough not to fall off during car seat usage. Preferably it's easy to install, yet adaptable to various faucets without being restrictive.",
+          "I'm looking for a plastic, unisex baby product from UnbuckleMe, ideally something easy for young children like my 4-year-old to manage, though I understand it might occasionally fall off car seats and may not universally fit all faucets.",
+          "UnbuckleMe baby products made of plastic, suitable for both boys and girls, should be user-friendly for kids aged around four yet also secure enough not to fall off in car seats, and easily adaptable to various faucets without being too loose during usage.",
+          "UnbuckleMe baby products featuring plastic material, suitable for both boys and girls, that are easy to install yet may occasionally slip off during car seat usage and might not universally fit all faucets."
+        ],
+        "coverages": [
+          3,
+          4,
+          3,
           3
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09PZ94N9B",
-        "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          2,
-          3,
-          0
+        "scores_residual": [
+          -2476.47451026656,
+          -2346.3996888850797,
+          -2568.2482356657038,
+          -2611.285315701829
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09PZ94N9B",
-        "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          0,
-          3,
-          1
+        "scores_syntax": [
+          -23.495958006180594,
+          -23.558049672069863,
+          -23.562724616672618,
+          -23.027192125061138
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B09PZ94N9B",
-        "uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AEEDFUQ7SXVEZ4VBHTED5D6MZ7QA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          3,
-          2
+        "scores_hybrid_05": [
+          -0.0715238503590128,
+          0.4302775397349033,
+          -0.6733355660170771,
+          0.31458187664119464
         ],
-        "mean_own_rank": 1.5
+        "scores_hybrid_07": [
+          0.05219419417646204,
+          0.8660201930772122,
+          -0.6706579597705167,
+          -0.24755642748315299
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 1,
+        "sel_hybrid_07": 1,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 4,
+        "sel_syntax_cov": 4,
+        "sel_hybrid_05_cov": 4,
+        "sel_hybrid_07_cov": 4
       },
       {
+        "user_id": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
         "asin": "B08QZSY3SG",
-        "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          2,
-          0,
-          1
+        "attrs": {
+          "Brand": "Milliard",
+          "Main Category": "Baby",
+          "Color": "Gray",
+          "Style": "Modern",
+          "Special Feature": "Foldable"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "Milliard's modern gray foldable baby stool is perfect for securing learning spaces, designed to be both stylish and practical, easily storable in tight areas like pantries.",
+          "Milliard's modern gray foldable stool is perfect for keeping handy in the kitchen; its secure feet ensure safety even when leaned upon, and the compact design allows easy storage in the pantry.",
+          "I'm looking for a modern, foldable baby stool in gray from the brand Milliard to help my little one reach the kitchen counter securely and conveniently store when not in use.",
+          "I'm looking for a foldable, modern gray baby stool by Milliard that's perfect for keeping things tidy in the kitchen or play area."
         ],
-        "mean_own_rank": 1.5
+        "coverages": [
+          5,
+          4,
+          5,
+          5
+        ],
+        "scores_residual": [
+          -2502.1863439800004,
+          -2464.8223059685256,
+          -2179.517721882527,
+          -2231.686918006197
+        ],
+        "scores_syntax": [
+          -23.346934885126046,
+          -23.046863564248373,
+          -22.994005754200895,
+          -23.97307989456085
+        ],
+        "scores_hybrid_05": [
+          -0.5684334495590356,
+          -0.05042454143815939,
+          1.030669685877087,
+          -0.41181169487989056
+        ],
+        "scores_hybrid_07": [
+          -0.7889099219420848,
+          -0.3719499227981695,
+          1.0872830688550092,
+          0.07357677588524342
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 2,
+        "sel_syntax": 2,
+        "sel_hybrid_05": 2,
+        "sel_hybrid_07": 2,
+        "sel_baseline_cov": 5,
+        "sel_residual_cov": 5,
+        "sel_syntax_cov": 5,
+        "sel_hybrid_05_cov": 5,
+        "sel_hybrid_07_cov": 5
       },
       {
-        "asin": "B08QZSY3SG",
-        "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          2,
-          1,
-          0,
-          3
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08QZSY3SG",
-        "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          1,
-          0,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08QZSY3SG",
-        "uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFKMX6JZ655VPVYHBTATZQS4IBOQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          3,
-          2,
-          0,
-          1
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
+        "user_id": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
         "asin": "B08QQB271H",
-        "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          2,
+        "attrs": {
+          "Brand": "FISHER-PRICE BABY",
+          "Main Category": "Baby",
+          "Material Type": "Silicone",
+          "Care instructions": "Machine Wash"
+        },
+        "n_attrs": 4,
+        "candidates": [
+          "Looking for a Fisher-Price baby item made of silicone that's easy to clean in a machine, perhaps featuring calming music and a light-up heart for soothing bedtime rituals?",
+          "Looking for a machine washable Fisher-Price baby item made of silicone that features calming music and a heart light-up function, preferably with a soft texture where the fabric can be removed for washing.",
+          "Explore Fisher-Price Baby products, focusing on silicone items that are machine washable for easy care; discover one that might initially seem intimidating but offers comforting features like soothing music and a lighting effect, perfect as a gentle nightlight.",
+          "Explore Fisher-Price Baby products featuring silicone material with machine wash care instructions for easy maintenance."
+        ],
+        "coverages": [
+          3,
+          4,
+          4,
+          4
+        ],
+        "scores_residual": [
+          -2404.0953600055054,
+          -2417.59177695491,
+          -2433.1296718424196,
+          -3176.1725393939164
+        ],
+        "scores_syntax": [
+          -18.799824185549138,
+          -18.416598372380776,
+          -18.833503878720126,
+          -19.053962277734705
+        ],
+        "scores_hybrid_05": [
+          0.25811111352303473,
+          1.0732156459579163,
+          0.14045600875503464,
+          -1.4717827682360003
+        ],
+        "scores_hybrid_07": [
+          0.4029646466287937,
+          0.8755854252308608,
+          0.29700068200274016,
+          -1.575550753862403
+        ],
+        "sel_baseline": 0,
+        "sel_residual": 1,
+        "sel_syntax": 1,
+        "sel_hybrid_05": 1,
+        "sel_hybrid_07": 1,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 4,
+        "sel_syntax_cov": 4,
+        "sel_hybrid_05_cov": 4,
+        "sel_hybrid_07_cov": 4
+      },
+      {
+        "user_id": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
+        "asin": "B08S3HPF87",
+        "attrs": {
+          "Brand": "Kiinde",
+          "Main Category": "AMAZON FASHION",
+          "Material": "Cotton",
+          "Material Type": "Cotton",
+          "Pattern": "Cartoon, Solid"
+        },
+        "n_attrs": 5,
+        "candidates": [
+          "I'm looking for a Kiinde cotton burp cloth in either a cartoon or solid pattern, preferably for a newborn, and it needs to be super soft; I've had great experiences with Kiinde products before.",
+          "I'm looking for a Kiinde cotton garment in either a cartoon or solid pattern for my baby, preferring something soft and ideal for a newborn.",
+          "I'm looking for a Kiinde cotton fashion item featuring cartoon and solid patterns, preferably something soft like a burp cloth for a newborn.",
+          "Looking for a soft cotton baby burp cloth from Kiinde in either cartoon or solid patterns, perfect for my newborn."
+        ],
+        "coverages": [
+          3,
+          3,
+          3,
           3
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08QQB271H",
-        "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
-          3
+        "scores_residual": [
+          -2337.5604805009857,
+          -2408.7009984636948,
+          -2445.0296521719324,
+          -2429.529378295311
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08QQB271H",
-        "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
-          3
+        "scores_syntax": [
+          -23.312559261751183,
+          -23.75959981632922,
+          -24.708246630801632,
+          -23.955374549570017
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08QQB271H",
-        "uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AGZMKHWSCB3UXDGFUPFRZSL4EAWQ",
-        "is_hit": true,
-        "own_cand_ranks": [
-          1,
-          0,
-          2,
-          3
+        "scores_hybrid_05": [
+          1.438705967146108,
+          0.13042181424776464,
+          -1.2521510790714592,
+          -0.31697670232241365
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08S3HPF87",
-        "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "scorer": "residual",
-        "n_pool": 4,
-        "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          3,
-          2
+        "scores_hybrid_07": [
+          1.5211353440190505,
+          0.04425224987475663,
+          -1.1386239336303496,
+          -0.42676366026345763
         ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08S3HPF87",
-        "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "scorer": "syntax",
-        "n_pool": 4,
-        "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          3,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08S3HPF87",
-        "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "scorer": "hybrid_05",
-        "n_pool": 4,
-        "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          3,
-          2
-        ],
-        "mean_own_rank": 1.5
-      },
-      {
-        "asin": "B08S3HPF87",
-        "uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "scorer": "hybrid_07",
-        "n_pool": 4,
-        "rank1_uid": "AFJ4YAHXPKZQSEJTCCJ5Z4KPYZKA",
-        "is_hit": true,
-        "own_cand_ranks": [
-          0,
-          1,
-          3,
-          2
-        ],
-        "mean_own_rank": 1.5
+        "sel_baseline": 0,
+        "sel_residual": 0,
+        "sel_syntax": 0,
+        "sel_hybrid_05": 0,
+        "sel_hybrid_07": 0,
+        "sel_baseline_cov": 3,
+        "sel_residual_cov": 3,
+        "sel_syntax_cov": 3,
+        "sel_hybrid_05_cov": 3,
+        "sel_hybrid_07_cov": 3
       }
-    ],
-    "size>=5": []
+    ]
+  },
+  "eval_summary": {
+    "summary": {
+      "baseline": {
+        "n_records": 20,
+        "n_full_cov": 7,
+        "full_cov_pct": 35.0
+      },
+      "residual": {
+        "n_records": 20,
+        "n_full_cov": 10,
+        "full_cov_pct": 50.0
+      },
+      "syntax": {
+        "n_records": 20,
+        "n_full_cov": 10,
+        "full_cov_pct": 50.0
+      },
+      "hybrid_05": {
+        "n_records": 20,
+        "n_full_cov": 10,
+        "full_cov_pct": 50.0
+      },
+      "hybrid_07": {
+        "n_records": 20,
+        "n_full_cov": 10,
+        "full_cov_pct": 50.0
+      }
+    },
+    "intra_summary": {
+      "size>=2": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
+        }
+      },
+      "size>=3": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
+        }
+      },
+      "size>=4": {
+        "n_users": 80,
+        "n_hit": 80,
+        "rank1_pct": 100.0,
+        "mean_own_rank": 1.5,
+        "per_scorer": {
+          "residual": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "syntax": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "hybrid_05": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          },
+          "hybrid_07": {
+            "n_users": 20,
+            "n_hit": 20,
+            "rank1_pct": 100.0,
+            "mean_own_rank": 1.5
+          }
+        }
+      },
+      "size>=5": {
+        "n_users": 0,
+        "n_hit": 0,
+        "rank1_pct": 0.0,
+        "mean_own_rank": null,
+        "per_scorer": {
+          "residual": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "syntax": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_05": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          },
+          "hybrid_07": {
+            "n_users": 0,
+            "n_hit": 0,
+            "rank1_pct": 0.0,
+            "mean_own_rank": null
+          }
+        }
+      }
+    },
+    "pool_sizes_top10": [
+      [
+        "B0BBM75S58",
+        1
+      ],
+      [
+        "B09WRKYRQZ",
+        1
+      ],
+      [
+        "B001QC3CKG",
+        1
+      ],
+      [
+        "B0BN6VXJHM",
+        1
+      ],
+      [
+        "B0BRQBD14R",
+        1
+      ],
+      [
+        "B0BQ5YSKYL",
+        1
+      ],
+      [
+        "B001V9EVCM",
+        1
+      ],
+      [
+        "B0BQYQHF9G",
+        1
+      ],
+      [
+        "B0BSCVHKD2",
+        1
+      ],
+      [
+        "B09W5MZSWP",
+        1
+      ]
+    ]
   }
 }
