@@ -174,3 +174,52 @@
     - 新增脚本时**先按功能归属决定目录**，再写代码；不允许新建 `result/phaseXX/scripts/` 这种"phase 子目录里再嵌套 scripts"的反模式
     - 与规则 10 的分工：规则 10 管**运行时产物**路径（log/result → scratch2 或 result/），规则 13 管**项目内脚本**的目录组织（按功能模块而非按 phase）；前者管路径，后者管组织
     - 与规则 12 的关系：规则 12 规定"脚本必须在项目内"（不在 scratch2），规则 13 在此基础上进一步规定"脚本必须按功能模块组织"（不在 result/ 下）
+
+14. **Syntax Subspace 流水线的目录分工（gaussian/ 只放用户先验分布）**：
+    Syntax Subspace 流水线（Stage 1-7）按"业务职责"拆到 4 个目录，**`gaussian/` 只保留"计算用户先验分布"逻辑**，其它 3 个目录分别承担生成 / 选择 / 评估：
+
+    | 目录 | 职责 | 当前主脚本 | 包含 stage |
+    |------|------|------------|------------|
+    | `gaussian/` | **只**放"计算用户先验分布"逻辑（per-user Mahalanobis Gaussian 拟合） | `syntax_subspace_user_gaussians.py` + `syntax_subspace_utils.py`（共享 path / hyperparam / feat_key / `_syntax_subspace_prepare`） | Stage 3 only |
+    | `gen_query/` | 通过 vLLM LLM 为 100 个 ASIN 各生成 K=50 共享候选池，并抽取 spaCy 182d 句法特征 | `syntax_subspace_pool_regen.py` | Stage 1（pool_regen）+ Stage 2（features） |
+    | `select_query/` | 基于 per-user Gaussian 从共享池选 Mahalanobis 最小候选，并跑 mean_t50 / A1_reject_repeat / C3_kmeans_k{2-5} 多策略 | `syntax_subspace_select.py` | Stage 4（select）+ Stage 7（a1_select） |
+    | `syntactic_evaluation/` | 用 bm25s + GPU MiniLM 评估选出的查询能否把对应 ASIN 拉回 rank-1，并标定 V_low / V_user / V_high 波动率 | `syntax_subspace_retrieval.py` | Stage 5（retrieval）+ Stage 6（volatility） |
+
+    **硬性约束**：
+    - **`gaussian/` 只放 per-user Gaussian 拟合逻辑**：禁止在 `gaussian/` 下新增 pool_regen / feature 抽取 / selection / retrieval / volatility 业务脚本
+    - **`syntax_subspace_utils.py` 必须留在 `gaussian/`**：它是 4 个兄弟脚本的共享底座（路径 / 超参 / `_syntax_subspace_prepare` / `feat_key` / `log`），删掉它整个流水线无法 import
+    - **任何新加的 stage 脚本必须按业务职责放到对应目录**：
+      - 新加"LLM 生成相关" → `gen_query/`
+      - 新加"基于 user / query 分布做选择" → `select_query/`
+      - 新加"retrieval / 评估指标" → `syntactic_evaluation/`
+      - 新加"per-user 分布拟合"（如多高斯混合、t 分布等）→ `gaussian/`
+    - **禁止**回到旧的 `gaussian/syntax_subspace_main.py` 一锅炖模式：历史上的 7-in-1 main.py 已废弃（commit a684bc8 删除），任何"重新合并"的提议都视为违规
+    - 4 个脚本各自的 CLI 通过 `--stage {name|all}` 子命令路由（保留 argparse 选择器），但**实际运行参数全部硬编码在脚本顶部**（遵循规则 3）
+
+    **共享关系**：
+    - `syntax_subspace_utils.py` 被 `gen_query/` / `select_query/` / `syntactic_evaluation/` 三个脚本通过 `sys.path.insert(0, "<repo>/gaussian")` 导入
+    - 4 个脚本互相**不直接 import**（避免循环依赖），只通过 `scratch/` 下的 JSON 文件通信（POOL → GAUSSIANS → SELECTION → RETRIEVAL → A1_SELECTION）
+    - `syntactic_analysis/main.py::per_sentence_features_v2` 是 spaCy 182d 特征提取函数，被 `gen_query/syntax_subspace_pool_regen.py` 和 `gaussian/syntax_subspace_user_gaussians.py` 通过 sys.path 导入
+
+    **用法**：
+    ```bash
+    # Stage 1 + 2 (gen_query/)
+    cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python gen_query/syntax_subspace_pool_regen.py --stage pool_regen > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_regen.log 2>&1 &
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python gen_query/syntax_subspace_pool_regen.py --stage features > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/features.log 2>&1 &
+
+    # Stage 3 (gaussian/)
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python gaussian/syntax_subspace_user_gaussians.py > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/user_gaussians.log 2>&1 &
+
+    # Stage 4 (select_query/)
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python select_query/syntax_subspace_select.py --stage select > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/select.log 2>&1 &
+
+    # Stage 5 + 6 (syntactic_evaluation/)
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python syntactic_evaluation/syntax_subspace_retrieval.py --stage retrieval > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/retrieval.log 2>&1 &
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python syntactic_evaluation/syntax_subspace_retrieval.py --stage volatility > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/volatility.log 2>&1 &
+
+    # Stage 7 (select_query/)
+    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python select_query/syntax_subspace_select.py --stage a1_select > /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/a1_select.log 2>&1 &
+    ```
+
+    **与规则 13 的关系**：规则 13 给出"query 生成 / 选择 / 评测"的高层划分；规则 14 在此基础上**精确约束** Syntax Subspace 这条流水线的 4 个目录边界，特别是"gaussian/ 只放用户先验分布"。任何跨边界搬运（如把 select 逻辑搬进 gaussian/）都视为违反规则 14。

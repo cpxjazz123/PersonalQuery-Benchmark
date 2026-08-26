@@ -1,11 +1,22 @@
 """Shared utilities for syntax subspace pipeline.
 
-This module contains functions that were previously in `gaussian_vades.py`
-(which was removed in commit ee48090). It exposes:
+Centralized helpers + path constants used by the 4 sibling scripts:
 
-  - `RESIDUAL_SCRATCH`: standard scratch path
-  - `load_jsonl`: load a JSONL file
+  - gaussian/syntax_subspace_user_gaussians.py  (per-user Gaussian fitting)
+  - gen_query/syntax_subspace_pool_regen.py     (LLM pool generation + features)
+  - select_query/syntax_subspace_select.py      (Mahalanobis + A1 reject-repeat)
+  - syntactic_evaluation/syntax_subspace_retrieval.py  (BM25/MiniLM + volatility)
+
+Exposes:
+  - Path constants: REPO_ROOT, SCRATCH, ASINS_IN, POOL_*, FEAT_CACHE,
+                    GAUSSIANS_*, SELECTION_*, REVIEW_GZ, META_FILE,
+                    RETRIEVAL_*, VOLATILITY_*, A1_*, VLLM_URL, MODEL_NAME
+  - Hyperparameters: PCA_DIM, PCA_SEED, LAMBDA, VAR_EPS, MIN_REVIEWS_FOR_PER_USER,
+                    K_POOL, TEMP, MAX_TOKENS, K_SET, MIN_LEN, PRIMARY_LEN_DELTA,
+                    LEN_BAND_FALLBACK, THRESHOLD_PCT, SEED
   - `log`: timestamped log print
+  - `feat_key`: sha1(text) feature cache key
+  - `load_jsonl`: load a JSONL file
   - `_syntax_subspace_prepare`: load 10k user sentence cache + scaler + rewrites
 
 The full pipeline (pool regen, feature extraction, user Gaussians, ASIN
@@ -34,13 +45,79 @@ from typing import Any
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
+# Legacy alias kept for backwards-compatibility (used by _syntax_subspace_prepare)
 RESIDUAL_SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
+# ---------------------------------------------------------------------------
+# 路径常量 (全部 4 个兄弟脚本共享)
+# ---------------------------------------------------------------------------
+REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+SCRATCH = RESIDUAL_SCRATCH
 
+ASINS_IN = SCRATCH / "stage8_5_asins.json"
+POOL_OUT = SCRATCH / "stage8_5_pool.json"
+POOL_IN = POOL_OUT
+FEAT_CACHE = SCRATCH / "stage7b_query_features.jsonl.gz"
+
+GAUSSIANS_OUT = SCRATCH / "stage8_5_user_gaussians.json"
+GAUSSIANS_IN = GAUSSIANS_OUT
+
+SELECTION_OUT = SCRATCH / "stage8_5_selection.json"
+SELECTION_IN = SELECTION_OUT
+SELECTION_STATS_OUT = SCRATCH / "stage8_5_selection_stats.json"
+
+REVIEW_GZ = REPO_ROOT / "data/Baby_Products_2023.jsonl.gz"
+META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl.gz"
+
+RETRIEVAL_PER_QUERY_OUT = SCRATCH / "stage8_5_retrieval_per_query.json"
+RETRIEVAL_SUMMARY_OUT = SCRATCH / "stage8_5_retrieval_summary.json"
+
+VOLATILITY_PER_QUERY_OUT = SCRATCH / "stage8_5v_retrieval.json"
+VOLATILITY_SUMMARY_OUT = SCRATCH / "stage8_5v_volatility.json"
+
+A1_SELECTION_OUT = SCRATCH / "stage10k_selection.json"
+A1_SUMMARY_OUT = SCRATCH / "stage10k_summary.json"
+
+VLLM_URL = "http://localhost:8800/v1/completions"
+MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
+
+# ---------------------------------------------------------------------------
+# 共享超参数 (硬编码,所有脚本统一)
+# ---------------------------------------------------------------------------
+SEED = 2024
+
+# PCA / Gaussian
+PCA_DIM = 48
+PCA_SEED = 2024
+LAMBDA = 0.1
+VAR_EPS = 1e-3
+MIN_REVIEWS_FOR_PER_USER = 3
+
+# Query generation (Stage 1)
+K_POOL = 50
+TEMP = 0.7
+MAX_TOKENS = 80
+
+# Selection (Stage 4 / Stage 7)
+K_SET = 8
+MIN_LEN = 5
+PRIMARY_LEN_DELTA = 2
+LEN_BAND_FALLBACK = 5
+THRESHOLD_PCT = 50
+
+
+# ---------------------------------------------------------------------------
+# 共享工具函数
+# ---------------------------------------------------------------------------
 def log(msg: str) -> None:
     """Timestamped log print."""
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
+
+
+def feat_key(t: str) -> str:
+    """SHA-1 key used to dedupe syntactic features by text."""
+    return _hl.sha1(t.strip().lower().encode("utf-8")).hexdigest()
 
 
 def load_jsonl(path: Path) -> list[dict]:
