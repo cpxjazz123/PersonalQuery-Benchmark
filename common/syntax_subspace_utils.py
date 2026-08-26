@@ -83,6 +83,10 @@ RETRIEVAL_SUMMARY_OUT = RESULT / "syntactic_evaluation/retrieval_summary.json"
 # --- Stage 5 (syntactic_evaluation/) → result ---
 VOLATILITY_SUMMARY_OUT = RESULT / "syntactic_evaluation/volatility.json"
 
+# --- Stage 5 corpus cache (Part A → Part B reuse) ---
+MINILM_CORPUS_EMBEDS_CACHE = SCRATCH / "minilm_corpus_embeds.npy"
+ASIN_TO_DOC_CACHE = SCRATCH / "asin_to_doc.json"
+
 VLLM_URL = "http://localhost:8800/v1/completions"
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 

@@ -36,14 +36,21 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
-    FEAT_CACHE, META_FILE, POOL_IN, RETRIEVAL_PER_QUERY_OUT, RETRIEVAL_SUMMARY_OUT,
+    ASIN_TO_DOC_CACHE, FEAT_CACHE, META_FILE, MINILM_CORPUS_EMBEDS_CACHE, POOL_IN,
+    RETRIEVAL_PER_QUERY_OUT, RETRIEVAL_SUMMARY_OUT,
     SELECTION_IN, VOLATILITY_SUMMARY_OUT,
     K_SET, LEN_BAND_FALLBACK, MIN_LEN, PCA_DIM, PRIMARY_LEN_DELTA, log, feat_key,
 )
 
 
 def build_meta_corpus():
-    """Load Amazon metadata JSONL.gz → {asin: doc_text}."""
+    """Load Amazon metadata JSONL.gz → {asin: doc_text} (with ASIN_TO_DOC_CACHE reuse)."""
+    if ASIN_TO_DOC_CACHE.exists():
+        t0 = time.time()
+        asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
+        log(f"  ✓ asin_to_doc cache hit ({len(asin_to_doc)} ASINs, {time.time() - t0:.2f}s)")
+        return asin_to_doc
+
     asin_to_doc = {}
     log(f"  loading metadata from {META_FILE}")
     with gzip.open(META_FILE, "rt", encoding="utf-8") as f:
@@ -73,7 +80,40 @@ def build_meta_corpus():
             if doc:
                 asin_to_doc[asin] = doc[:1000]
     log(f"  loaded {len(asin_to_doc)} ASIN docs")
+    ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    with open(ASIN_TO_DOC_CACHE, "w", encoding="utf-8") as f:
+        json.dump(asin_to_doc, f, ensure_ascii=False)
+    log(f"  cached → {ASIN_TO_DOC_CACHE} ({ASIN_TO_DOC_CACHE.stat().st_size/1e6:.1f} MB)")
     return asin_to_doc
+
+
+def _get_or_build_corpus_embeds(model, corpus_texts: list[str]) -> np.ndarray:
+    """Load cached MiniLM corpus embeddings (Part A→B reuse) or encode + save.
+
+    Cache key: `MINILM_CORPUS_EMBEDS_CACHE` (scratch2/wenyu/gaussian_vades/minilm_corpus_embeds.npy).
+    Validation: cached shape[0] must equal len(corpus_texts).
+    """
+    n = len(corpus_texts)
+    if MINILM_CORPUS_EMBEDS_CACHE.exists():
+        cached = np.load(MINILM_CORPUS_EMBEDS_CACHE)
+        if cached.shape[0] == n:
+            log(f"  ✓ cache hit ({cached.shape}, {MINILM_CORPUS_EMBEDS_CACHE.stat().st_size/1e6:.1f} MB)")
+            return cached
+        log(f"  ⚠ cache stale (cached={cached.shape[0]}, current={n}), re-encoding...")
+    else:
+        log(f"  no cache, encoding {n} corpus docs (batch=2048)...")
+    t0 = time.time()
+    doc_embeds = model.encode(
+        corpus_texts,
+        batch_size=2048,
+        show_progress_bar=False,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
+    log(f"  docs encoded in {time.time() - t0:.1f}s, shape: {doc_embeds.shape}")
+    np.save(MINILM_CORPUS_EMBEDS_CACHE, doc_embeds)
+    log(f"  cached → {MINILM_CORPUS_EMBEDS_CACHE} ({MINILM_CORPUS_EMBEDS_CACHE.stat().st_size/1e6:.1f} MB)")
+    return doc_embeds
 
 
 # ===========================================================================
@@ -173,16 +213,9 @@ def stage_retrieval():
     log(f"  MiniLM device: {device}")
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
 
-    log(f"  encoding {len(corpus_texts)} corpus docs via MiniLM (GPU, batch=512)...")
-    t0 = time.time()
-    doc_embeds = model.encode(
-        corpus_texts,
-        batch_size=512,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    )
-    log(f"  docs encoded in {time.time() - t0:.1f}s, shape: {doc_embeds.shape}")
+    log(f"  encoding {len(corpus_texts)} corpus docs via MiniLM (GPU)...")
+    doc_embeds = _get_or_build_corpus_embeds(model, corpus_texts)
+    log(f"  doc_embeds shape: {doc_embeds.shape}")
 
     log(f"  encoding {len(queries)} queries via MiniLM (GPU)...")
     t0 = time.time()
@@ -413,33 +446,7 @@ def _volatility_eval():
     log(f"    insufficient high: {n_insufficient_high}")
 
     log("\n=== 4. Building ASIN metadata corpus ===")
-    asin_to_doc = {}
-    with gzip.open(META_FILE, "rt", encoding="utf-8") as f:
-        for line in f:
-            r = json.loads(line)
-            asin = r.get("parent_asin", "").strip()
-            if not asin:
-                continue
-            parts = []
-            t = r.get("title", "").strip()
-            if t:
-                parts.append(t)
-            desc = r.get("description", [])
-            if isinstance(desc, list):
-                desc = " ".join(desc)
-            elif not isinstance(desc, str):
-                desc = ""
-            desc = desc.strip()
-            if desc:
-                parts.append(desc)
-            feats = r.get("features", [])
-            if isinstance(feats, list):
-                feats = " ".join(feats)
-            if feats:
-                parts.append(feats[:500])
-            doc = " | ".join(parts).strip()
-            if doc:
-                asin_to_doc[asin] = doc[:1000]
+    asin_to_doc = build_meta_corpus()
     asins = sorted(asin_to_doc.keys())
     asin_to_idx = {a: i for i, a in enumerate(asins)}
     log(f"  corpus: {len(asins)} ASINs")
@@ -494,14 +501,10 @@ def _volatility_eval():
     import torch
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cuda")
-    log(f"  encoding {len(corpus_texts)} corpus docs...")
-    t0 = time.time()
-    doc_embeds = model.encode(corpus_texts, batch_size=512, show_progress_bar=False,
-                              convert_to_numpy=True, normalize_embeddings=True)
-    log(f"  docs encoded in {time.time() - t0:.1f}s")
+    doc_embeds = _get_or_build_corpus_embeds(model, corpus_texts)
     log(f"  encoding {len(queries)} queries...")
     t0 = time.time()
-    q_embeds = model.encode(queries, batch_size=512, show_progress_bar=False,
+    q_embeds = model.encode(queries, batch_size=2048, show_progress_bar=False,
                             convert_to_numpy=True, normalize_embeddings=True)
     log(f"  queries encoded in {time.time() - t0:.1f}s")
     doc_embeds_gpu = torch.from_numpy(doc_embeds).cuda()
