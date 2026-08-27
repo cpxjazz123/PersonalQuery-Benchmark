@@ -290,9 +290,10 @@ def stage_retrieval():
     with open(VOLATILITY_SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": ("Stability flip + RR Std on selected_only + selected_only_lm3 (|Δ n_tok| ≤ 3) "
+                "description": ("Stability flip + RR Std on 3 slices (selected_only / selected_only_lm3 "
+                                "(|Δ n_tok| ≤ 3) / selected_only_sim09 (MiniLM cosine ≥ 0.9)) "
                                 "per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs"),
-                "slices": ["selected_only", "selected_only_lm3"],
+                "slices": ["selected_only", "selected_only_lm3", "selected_only_sim09"],
             },
             "stability_flip": stability_flip,
         }, f, ensure_ascii=False, indent=2)
@@ -303,9 +304,13 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
     """Per-ASIN Hit@K Flip Rate + RR Std across selected queries.
 
     Slices per retriever (BM25 / MiniLM):
-      - 'selected_only': all query pairs (raw flip rate, includes length confound)
+      - 'selected_only': all query pairs (raw flip rate, includes length + content confound)
       - 'selected_only_lm3': only query pairs with |Δ n_tok| ≤ 3 (length-matched,
         控制长度方差后纯 style flip)
+      - 'selected_only_sim09': only query pairs with MiniLM cosine sim ≥ 0.9
+        (用户指令 2026-08-28: 排除内容/关键词不同的 pair,只留 "内容相同但风格不同"
+        的 flip,isolate 纯 style volatility)。用户记忆 task #565/#566 已在 N-ablation
+        用过,现在合并进主 pipeline。
 
     Flip rate definition: of all unique query pairs within the slice, fraction
     of pairs whose top-K hit/miss labels disagree (one hit, one miss).
@@ -323,6 +328,25 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
     for q in queries:
         if q.get("variant") == "selected":
             by_asin[q["asin"]].append(q)
+
+    # 用户指令 2026-08-28: 为 sim09 slice 重新 encode selected queries (7250 × 384)
+    # 之前 stage 4 的 q_embeds 已 del,这里重新跑一次 (~2s GPU,7250 queries × batch 512)
+    log("  encoding selected queries with MiniLM for semantic-sim pairs...")
+    import torch
+    from sentence_transformers import SentenceTransformer
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
+    selected_qs = [q for qs in by_asin.values() for q in qs]
+    q_embeds_arr = model.encode(
+        [q["query"] for q in selected_qs],
+        batch_size=512,
+        show_progress_bar=False,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
+    # index back into by_asin
+    embed_map = {id(q): q_embeds_arr[i] for i, q in enumerate(selected_qs)}
+    log(f"  q_embeds shape: {q_embeds_arr.shape} (cached in memory)")
 
     def flip_rate(hit_labels: list[int]) -> float | None:
         """Pair-wise flip rate: |pairs with disagreeing hit/miss| / total pairs."""
@@ -356,7 +380,34 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
             return None, 0, total_pairs
         return float(disagree / used_pairs), used_pairs, total_pairs
 
-    def summarize(slice_name: str, use_lm: bool) -> dict:
+    def flip_rate_sim(hit_labels: list[int], sims: list[float],
+                      threshold: float = 0.9) -> tuple[float | None, int, int]:
+        """Semantic-similarity matched flip rate: 仅 sim >= threshold 的 query pairs。
+
+        用户指令 2026-08-28: 排除 "内容不同" 的 pair (e.g., "I need X in Y"
+        vs "I'm hoping to find X in Y"), 只算 "内容相同但风格骨架不同" 的 flip。
+        threshold=0.9 是 MiniLM cosine 上的常用 paraphrasing cut-off。
+
+        Returns (flip_rate, n_pairs_used, n_total_pairs)。
+        """
+        n = len(hit_labels)
+        if n < 2:
+            return None, 0, 0
+        total_pairs = n * (n - 1) // 2
+        used_pairs = 0
+        disagree = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                if sims[i] is not None and sims[j] is not None and sims[i][j] >= threshold:
+                    used_pairs += 1
+                    if hit_labels[i] != hit_labels[j]:
+                        disagree += 1
+        if used_pairs == 0:
+            return None, 0, total_pairs
+        return float(disagree / used_pairs), used_pairs, total_pairs
+
+    def summarize(slice_name: str, mode: str) -> dict:
+        """mode ∈ {"all", "lm3", "sim09"} — 控制 flip rate pair filter。"""
         sub: dict = {}
         for retriever in ("bm25", "minilm"):
             rank_key = f"{retriever}_rank"
@@ -364,7 +415,6 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
             f1_list, f5_list, f10_list, f20_list = [], [], [], []
             rr_std_list = []
             n_asins_used = 0
-            n_pairs_used_total = 0
             for asin, qs in by_asin.items():
                 if len(qs) < 2:
                     continue
@@ -378,13 +428,21 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
                 # RR Std: std of 1/rank across queries (Stage 10H convention)
                 rrs = [float(q.get(rr_key) or 0.0) for q in qs]
                 rr_std = float(np.std(rrs, ddof=0)) if len(rrs) >= 2 else None
-                if use_lm:
+                if mode == "lm3":
                     lengths = [int(q.get("n_tok") or 0) for q in qs]
                     f1, _, _ = flip_rate_lm(hit1, lengths)
                     f5, _, _ = flip_rate_lm(hit5, lengths)
                     f10, _, _ = flip_rate_lm(hit10, lengths)
                     f20, _, _ = flip_rate_lm(hit20, lengths)
-                else:
+                elif mode == "sim09":
+                    embeds = np.stack([embed_map[id(q)] for q in qs], axis=0)
+                    # (n, n) cosine sim matrix; rows/cols aligned with qs order
+                    sim_mat = embeds @ embeds.T
+                    f1, _, _ = flip_rate_sim(hit1, [sim_mat[i] for i in range(len(qs))])
+                    f5, _, _ = flip_rate_sim(hit5, [sim_mat[i] for i in range(len(qs))])
+                    f10, _, _ = flip_rate_sim(hit10, [sim_mat[i] for i in range(len(qs))])
+                    f20, _, _ = flip_rate_sim(hit20, [sim_mat[i] for i in range(len(qs))])
+                else:  # "all"
                     f1 = flip_rate(hit1)
                     f5 = flip_rate(hit5)
                     f10 = flip_rate(hit10)
@@ -417,33 +475,23 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
         return sub
 
     summary: dict = {
-        "selected_only": summarize("selected_only", use_lm=False),
-        "selected_only_lm3": summarize("selected_only_lm3", use_lm=True),
+        "selected_only": summarize("selected_only", mode="all"),
+        "selected_only_lm3": summarize("selected_only_lm3", mode="lm3"),
+        "selected_only_sim09": summarize("selected_only_sim09", mode="sim09"),
     }
-    log(f"  selected_only (all pairs) × BM25: "
-        f"Hit@1={summary['selected_only']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
-        f"Hit@5={summary['selected_only']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
-        f"Hit@10={summary['selected_only']['bm25']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only']['bm25']['Hit@20_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only']['bm25']['RR_Std_mean']:.4f}")
-    log(f"  selected_only (all pairs) × MiniLM: "
-        f"Hit@1={summary['selected_only']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
-        f"Hit@5={summary['selected_only']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
-        f"Hit@10={summary['selected_only']['minilm']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only']['minilm']['Hit@20_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only']['minilm']['RR_Std_mean']:.4f}")
-    log(f"  selected_only_lm3 (|Δlen|≤3) × BM25: "
-        f"Hit@1={summary['selected_only_lm3']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
-        f"Hit@5={summary['selected_only_lm3']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
-        f"Hit@10={summary['selected_only_lm3']['bm25']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only_lm3']['bm25']['Hit@20_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only_lm3']['bm25']['RR_Std_mean']:.4f}")
-    log(f"  selected_only_lm3 (|Δlen|≤3) × MiniLM: "
-        f"Hit@1={summary['selected_only_lm3']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
-        f"Hit@5={summary['selected_only_lm3']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
-        f"Hit@10={summary['selected_only_lm3']['minilm']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only_lm3']['minilm']['Hit@20_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only_lm3']['minilm']['RR_Std_mean']:.4f}")
+    for slice_name in summary:
+        for retr in ("bm25", "minilm"):
+            s = summary[slice_name][retr]
+
+            def _f(v):
+                return f"{v:.4f}" if v is not None else "n/a"
+
+            log(f"  {slice_name} × {retr.upper()}: "
+                f"Hit@1={_f(s['Hit@1_FlipRate_mean'])}  "
+                f"Hit@5={_f(s['Hit@5_FlipRate_mean'])}  "
+                f"Hit@10={_f(s['Hit@10_FlipRate_mean'])}  "
+                f"Hit@20={_f(s['Hit@20_FlipRate_mean'])}  "
+                f"RR_Std={_f(s['RR_Std_mean'])}")
     return summary
 
 

@@ -2,7 +2,11 @@
 
 归 select_query/: 基于 per-user Gaussian 从共享候选池选最佳查询。
 
-Stage 4: 对每 (asin, user) 选 Mahalanobis 最小候选 (selected / random / farthest)
+用户指令 2026-08-28: 只输出 selected (Mahalanobis 最小) per (asin, user),
+删掉 random / farthest 3-way contrast — Stage 5 volatility 已经只读 selected,
+random / farthest 既不被评估也不被报告,只是浪费 ~3× retrieval + selection 计算。
+
+Stage 4: 对每 (asin, user) 选 Mahalanobis 最小候选 (selected only)
 
 用法:
   python select_query/syntax_subspace_select.py --stage select
@@ -20,9 +24,7 @@ from __future__ import annotations
 import argparse
 import collections
 import gzip
-import hashlib
 import json
-import random
 import sys
 from pathlib import Path
 
@@ -97,7 +99,6 @@ def stage_select():
     log(f"  ASINs with pool_z: {len(pool_z)}, missing features: {miss}")
 
     log("\n=== 4. Selection per (asin, user) ===")
-    rng = random.Random(SEED)
 
     selection_entries = []
 
@@ -139,11 +140,7 @@ def stage_select():
                     "attrs_used": attrs,
                     "selection_method": "no_pool",
                     "selected": None,
-                    "random": None,
-                    "farthest": None,
                     "selected_distance": None,
-                    "random_distance": None,
-                    "farthest_distance": None,
                     "n_candidates": 0,
                     "user_source": source,
                     "n_reviews": n_reviews,
@@ -152,14 +149,7 @@ def stage_select():
 
             distances = np.array([mahalanobis_sq(z, mu, sigma) for z, _ in strict_zqs])
             best_idx = int(np.argmin(distances))
-            worst_idx = int(np.argmax(distances))
-
             selected_q = strict_zqs[best_idx][1]
-            farthest_q = strict_zqs[worst_idx][1]
-
-            rng_u = random.Random(hash(uid) & 0xffffffff)
-            random_idx = rng_u.randint(0, len(strict_zqs) - 1)
-            random_q = strict_zqs[random_idx][1]
 
             selection_entries.append({
                 "asin": asin,
@@ -167,11 +157,7 @@ def stage_select():
                 "attrs_used": attrs,
                 "selection_method": "mahal_min",
                 "selected": selected_q,
-                "random": random_q,
-                "farthest": farthest_q,
                 "selected_distance": float(distances[best_idx]),
-                "random_distance": float(distances[random_idx]),
-                "farthest_distance": float(distances[worst_idx]),
                 "n_candidates": len(strict_zqs),
                 "user_source": source,
                 "n_reviews": n_reviews,
@@ -185,7 +171,7 @@ def stage_select():
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 8.5: Mahalanobis selection from shared pool",
+                "description": "Stage 8.5: Mahalanobis selection from shared pool (selected only)",
                 "SEED": SEED,
             },
             "n_entries": len(selection_entries),
@@ -194,60 +180,37 @@ def stage_select():
     log(f"wrote → {SELECTION_OUT}")
 
     log("\n=== 7. Validation ===")
-    from scipy.stats import wilcoxon
     mahal_entries = [e for e in selection_entries if e["selected_distance"] is not None]
     selected = np.array([e["selected_distance"] for e in mahal_entries])
-    random_d = np.array([e["random_distance"] for e in mahal_entries])
-    farthest = np.array([e["farthest_distance"] for e in mahal_entries])
 
     log(f"  N pairs: {len(mahal_entries)}")
-    log(f"  selected: mean={selected.mean():.3f}, std={selected.std():.3f}, median={np.median(selected):.3f}")
-    log(f"  random:   mean={random_d.mean():.3f}, std={random_d.std():.3f}, median={np.median(random_d):.3f}")
-    log(f"  farthest: mean={farthest.mean():.3f}, std={farthest.std():.3f}, median={np.median(farthest):.3f}")
+    log(f"  selected (mahal_min): mean={selected.mean():.3f}, "
+        f"std={selected.std():.3f}, median={np.median(selected):.3f}")
+    log(f"  (mahal 越小 = query 越接近 user 个体句法骨架; selected 是全 strict 池中的最小, "
+        f"无需 3-way 对比 — 删掉 random/farthest 2026-08-28)")
 
-    w_sr, p_sr = wilcoxon(selected, random_d, alternative="less")
-    log(f"  Wilcoxon selected < random: W={w_sr:.1f}, p={p_sr:.4g}")
-    w_sf, p_sf = wilcoxon(selected, farthest, alternative="less")
-    log(f"  Wilcoxon selected < farthest: W={w_sf:.1f}, p={p_sf:.4g}")
-    w_rf, p_rf = wilcoxon(random_d, farthest, alternative="less")
-    log(f"  Wilcoxon random < farthest: W={w_rf:.1f}, p={p_rf:.4g}")
-
-    by_source = collections.defaultdict(lambda: {"selected": [], "random": [], "farthest": []})
+    by_source = collections.defaultdict(list)
     for e in mahal_entries:
-        s = e["user_source"]
-        by_source[s]["selected"].append(e["selected_distance"])
-        by_source[s]["random"].append(e["random_distance"])
-        by_source[s]["farthest"].append(e["farthest_distance"])
+        by_source[e["user_source"]].append(e["selected_distance"])
 
     log(f"\n=== Per-source breakdown ===")
-    for src, d in by_source.items():
-        sel = np.array(d["selected"])
-        rnd = np.array(d["random"])
-        log(f"  {src} (n={len(d['selected'])}):")
-        log(f"    selected mean={sel.mean():.3f}, random mean={rnd.mean():.3f}, "
-            f"diff={(sel - rnd).mean():+.3f}, %sel<rnd={100 * (sel < rnd).mean():.1f}%")
+    for src, ds in by_source.items():
+        arr = np.array(ds)
+        log(f"  {src} (n={len(ds)}): mean={arr.mean():.3f}, median={np.median(arr):.3f}")
 
     with open(SELECTION_STATS_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "n_pairs": len(mahal_entries),
             "selected_mean": float(selected.mean()),
             "selected_std": float(selected.std()),
-            "random_mean": float(random_d.mean()),
-            "random_std": float(random_d.std()),
-            "farthest_mean": float(farthest.mean()),
-            "farthest_std": float(farthest.std()),
-            "wilcoxon_selected_vs_random": {"W": float(w_sr), "p_value": float(p_sr), "alternative": "less"},
-            "wilcoxon_selected_vs_farthest": {"W": float(w_sf), "p_value": float(p_sf), "alternative": "less"},
-            "wilcoxon_random_vs_farthest": {"W": float(w_rf), "p_value": float(p_rf), "alternative": "less"},
+            "selected_median": float(np.median(selected)),
             "per_source": {
                 src: {
-                    "n": len(d["selected"]),
-                    "selected_mean": float(np.mean(d["selected"])),
-                    "random_mean": float(np.mean(d["random"])),
-                    "farthest_mean": float(np.mean(d["farthest"])),
-                    "pct_selected_lt_random": float(100 * (np.array(d["selected"]) < np.array(d["random"])).mean()),
+                    "n": len(ds),
+                    "selected_mean": float(np.mean(ds)),
+                    "selected_median": float(np.median(ds)),
                 }
-                for src, d in by_source.items()
+                for src, ds in by_source.items()
             },
         }, f, ensure_ascii=False, indent=2)
     log(f"wrote → {SELECTION_STATS_OUT}")
