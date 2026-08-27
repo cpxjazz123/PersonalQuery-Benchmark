@@ -128,9 +128,13 @@ def stage_user_gaussians():
         import spacy
         from syntactic_features import per_sentence_features_v2
         nlp = spacy.load("en_core_web_sm")
-        log(f"  extracting features for {len(new_sents)} new sentences (n_process=8, batch=256)...")
+        # 用户指令 2026-08-27: 关闭 features 用不到的 spaCy 组件, 提速 30-40%
+        for comp in ("ner", "lemmatizer", "attribute_ruler"):
+            if comp in nlp.pipe_names:
+                nlp.disable_pipe(comp)
+        log(f"  extracting features for {len(new_sents)} new sentences (n_process=8, batch=512)...")
         new_unique = sorted(set(new_sents))
-        docs = list(nlp.pipe(new_unique, batch_size=256, n_process=8))
+        docs = list(nlp.pipe(new_unique, batch_size=512, n_process=8))
         for i, doc in enumerate(docs):
             s = new_unique[i]
             k = feat_key(s)
