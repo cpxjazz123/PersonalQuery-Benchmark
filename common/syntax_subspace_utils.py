@@ -107,9 +107,9 @@ MIN_REVIEWS_FOR_PER_USER = 1
 # Query generation (Stage 1)
 K_POOL = 50
 TEMP = 0.7
-# 用户指令 2026-08-27: 控制 query 长度方差 (12-16 词 ~ 16-22 tokens),
-# 解决 Stage 5 BM25 hit@100 长度翻转 (短 query 命中/长 query 不命中)
-MAX_TOKENS = 24
+# 用户指令 2026-08-27: first-person query 需要更多 tokens (10 attrs + "I'm looking for..." +
+# 各种 paraphrase),从 80 提到 120 给足 buffer
+MAX_TOKENS = 120
 
 # Selection (Stage 4)
 K_SET = 8

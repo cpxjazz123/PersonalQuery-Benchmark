@@ -73,7 +73,8 @@ def make_prompt(attrs: dict, n_input: int, k: int = 0) -> str:
         ATTRIBUTES=build_user_content(attrs),
     )
     if k > 0:
-        base += f"\n(variant {k})"
+        # 避免模型把 "(variant k)" 字面输出。改用 paraphrase 指令隐式鼓励差异
+        base += f"\nWrite a fresh paraphrase of these attributes — a different sentence shape than other paraphrases you have produced for this same attribute set."
     return base
 
 
@@ -108,6 +109,15 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
                         "temperature": temp,
                         "max_tokens": max_tokens,
                         "top_p": 0.95 if temp > 0 else 1.0,
+                        # 阻止模型继续角色切换 + 写元注释 ('To clarify', '(Note', etc.)
+                        "stop": ["\nuser", "\nUser", "\nassistant", "\nAssistant",
+                                 "\nsystem", "\nSystem", " user", " User",
+                                 " assistant", " Assistant", " system", " System",
+                                 "<|im_end|>", "<|endoftext|>",
+                                 "\n(Note", "\n(Here", "\nLet me",
+                                 "\nTo clarify", "\nTo make sure", "\nI need",
+                                 "\n\nUser:", "\n\nAssistant:", "\n\nSystem:",
+                                 ],
                     },
                     timeout=600,
                 )
