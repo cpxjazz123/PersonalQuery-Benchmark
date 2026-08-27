@@ -492,6 +492,24 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
                 f"Hit@10={_f(s['Hit@10_FlipRate_mean'])}  "
                 f"Hit@20={_f(s['Hit@20_FlipRate_mean'])}  "
                 f"RR_Std={_f(s['RR_Std_mean'])}")
+
+    # 用户指令 2026-08-28: 加显式 Hit@10 flip + RR Std summary block
+    # 之前的 log 行已经把 Hit@1/5/10/20 都列了,但 Hit@10 是最关心的 K (top-10
+    # retrieval 是评测核心),RR_Std 是 style-volatility 标定;单列一张紧凑表方便
+    # 核对 (3 slices × 2 retrievers = 6 cell)。
+    log("\n=== Headline: Hit@10 Flip Rate + RR Std (per slice × retriever) ===")
+    header = f"{'slice':<24} {'retriever':<8} {'Hit@10_flip':>12} {'RR_Std':>10}"
+    log(header)
+    log("-" * len(header))
+    for slice_name in summary:
+        for retr in ("bm25", "minilm"):
+            s = summary[slice_name][retr]
+
+            def _p(v):
+                return f"{v * 100:>10.3f}%" if v is not None else f"{'n/a':>10}"
+
+            log(f"{slice_name:<24} {retr.upper():<8} "
+                f"{_p(s['Hit@10_FlipRate_mean'])} {_p(s['RR_Std_mean'])}")
     return summary
 
 
