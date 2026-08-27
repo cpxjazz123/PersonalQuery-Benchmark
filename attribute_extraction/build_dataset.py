@@ -73,12 +73,13 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "batteries required", "is discontinued by manufacturer"}
 
 # === Step 4 — build_stage8_5_asins 参数 ===
-# 用户指令:去掉 PREFERRED_ATTRS 白名单,接受 metadata 中所有可用字段
-# (Step 1 已按 MAX_STR_LEN=200 过滤掉 Care instructions 等长字段)
+# 用户指令: 1) 去掉有数字的属性(value 含数字), 2) 传给 LLM 上限 4 个
+# Step 4 复用 Step 3 的 select_top_attrs(max_n=4) — 包含数值过滤 + 4 上限
 MIN_REVIEWS_PER_USER = 20
 MIN_USERS_PER_ASIN = 10
 MAX_USERS_PER_ASIN = 10
 TOP_N_ASINS = 1409
+MAX_ATTRS_FOR_LLM = 4
 
 
 def log(msg: str) -> None:
@@ -229,8 +230,10 @@ def has_digit(s: str) -> bool:
     return any(ch.isdigit() for ch in s)
 
 
-def select_top_attrs(asin_attrs: dict) -> dict:
-    """与原 build_query_records.py::select_top_attrs 一致的字段选择逻辑."""
+def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
+    """与原 build_query_records.py::select_top_attrs 一致的字段选择逻辑.
+    用户指令: 去掉含数字的 value, 上限 max_n (Step 3 默认 5, Step 4 用 4).
+    """
     def _skip(k: str, s: str) -> bool:
         if not s or len(s) > MAX_ATTR_VALUE_LEN:
             return True
@@ -253,7 +256,7 @@ def select_top_attrs(asin_attrs: dict) -> dict:
             continue
         out[k] = s
         used.add(k)
-        if len(out) >= MAX_ATTRS:
+        if len(out) >= max_n:
             return out
     for k, v in asin_attrs.items():
         if k in used:
@@ -264,7 +267,7 @@ def select_top_attrs(asin_attrs: dict) -> dict:
         if _skip(k, s):
             continue
         out[k] = s
-        if len(out) >= MAX_ATTRS:
+        if len(out) >= max_n:
             break
     return out
 
@@ -351,12 +354,8 @@ def step4_build_stage8_5_asins(
     skipped_no_attrs = 0
     for asin, _ in ranked:
         adoc = product_attrs.get(asin) or {}
-        # 去掉 PREFERRED_ATTRS 白名单: 接受 metadata 中所有非空字符串字段
-        attrs_used: dict = {
-            k: v.strip()
-            for k, v in adoc.items()
-            if isinstance(v, str) and v.strip()
-        }
+        # 复用 Step 3 的 select_top_attrs: 去掉含数字的 value, 上限 4 个
+        attrs_used = select_top_attrs(adoc, max_n=MAX_ATTRS_FOR_LLM)
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
             continue
@@ -374,11 +373,13 @@ def step4_build_stage8_5_asins(
 
     config = {
         "description": (f"top {TOP_N_ASINS} ASINs × top-{MAX_USERS_PER_ASIN} "
-                        f"users (each ≥{MIN_REVIEWS_PER_USER} reviews)"),
+                        f"users (each ≥{MIN_REVIEWS_PER_USER} reviews, "
+                        f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN)"),
         "MIN_REVIEWS_PER_USER": MIN_REVIEWS_PER_USER,
         "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
         "MAX_USERS_PER_ASIN": MAX_USERS_PER_ASIN,
         "TOP_N_ASINS": TOP_N_ASINS,
+        "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
     }
     out = {
         "config": config,
