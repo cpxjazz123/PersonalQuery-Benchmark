@@ -45,6 +45,42 @@ sys.path.insert(0, str(REPO_ROOT / "common"))
 def stage_user_gaussians():
     log("=== STAGE 3 — USER GAUSSIANS ===")
 
+    # 用户指令 2026-08-28: Stage 3 加缓存 — Stage 3 不依赖 pool.json, 只依赖 review corpus
+    # + PCA + feature cache + target user list。任意上游文件 / config 变化才重算,
+    # 否则直接 load user_gaussians.json (Stage 1 重跑时无需重新拟合 per-user Gaussian,
+    # 节省 ~1.5min × 多次 = ~10min+ 迭代时间)
+    import hashlib as _hl_cache
+    sig_payload = json.dumps({
+        "PCA_DIM": PCA_DIM,
+        "LAMBDA": LAMBDA,
+        "VAR_EPS": VAR_EPS,
+        "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
+        "ASINS_IN": str(ASINS_IN),
+        "ASINS_IN_mtime": ASINS_IN.stat().st_mtime if ASINS_IN.exists() else 0,
+        "FEAT_CACHE": str(FEAT_CACHE),
+        "FEAT_CACHE_mtime": FEAT_CACHE.stat().st_mtime if FEAT_CACHE.exists() else 0,
+        "REVIEW_GZ": str(REVIEW_GZ),
+        "REVIEW_GZ_mtime": REVIEW_GZ.stat().st_mtime if REVIEW_GZ.exists() else 0,
+    }, sort_keys=True)
+    sig_hash = _hl_cache.sha1(sig_payload.encode("utf-8")).hexdigest()[:12]
+    log(f"  cache signature: {sig_hash}")
+
+    if GAUSSIANS_OUT.exists():
+        try:
+            cached = json.load(open(GAUSSIANS_OUT))
+            cached_sig = cached.get("config", {}).get("cache_signature")
+            if cached_sig == sig_hash:
+                cached_users = cached.get("users", {})
+                log(f"  ✓ CACHE HIT: {len(cached_users)} users from {GAUSSIANS_OUT}")
+                log(f"  (上游文件 + config 未变, 跳过完整 pipeline; 重跑 Stage 1/2 不需要重做 Stage 3)")
+                return
+            else:
+                log(f"  cache signature mismatch (cached={cached_sig}, current={sig_hash}), recomputing...")
+        except Exception as e:
+            log(f"  cache load failed ({e!r}), recomputing...")
+    else:
+        log(f"  no cache file at {GAUSSIANS_OUT}, computing from scratch...")
+
     log("\n=== 1. Loading PCA48 ===")
     from syntax_subspace_utils import _syntax_subspace_prepare
     P = _syntax_subspace_prepare()
@@ -244,6 +280,7 @@ def stage_user_gaussians():
                 "LAMBDA": LAMBDA,
                 "VAR_EPS": VAR_EPS,
                 "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
+                "cache_signature": sig_hash,
             },
             "users": user_gaussians,
             "n_users_with_gaussian": len(user_gaussians),
