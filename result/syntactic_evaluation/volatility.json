@@ -159,6 +159,8 @@
         "Hit@1_FlipRate_median": 0.0,
         "Hit@5_FlipRate_mean": 0.025572886578085888,
         "Hit@5_FlipRate_median": 0.0,
+        "Hit@10_FlipRate_mean": 0.035509339495474676,
+        "Hit@10_FlipRate_median": 0.0,
         "RR_Std_mean": 0.021236754912283735,
         "RR_Std_median": 0.00014967925873129,
         "RR_Std_p90": 0.04203215603584605
@@ -169,6 +171,8 @@
         "Hit@1_FlipRate_median": 0.0,
         "Hit@5_FlipRate_mean": 0.011746581937223185,
         "Hit@5_FlipRate_median": 0.0,
+        "Hit@10_FlipRate_mean": 0.01609859426150587,
+        "Hit@10_FlipRate_median": 0.0,
         "RR_Std_mean": 0.010389028302954422,
         "RR_Std_median": 1.4133223296094814e-05,
         "RR_Std_p90": 0.009329437150494705
