@@ -6,25 +6,25 @@
   "stability_flip": {
     "selected_only": {
       "bm25": {
-        "n_asins": 1892,
-        "Hit@1_FlipRate_mean": 0.02645055203194738,
+        "n_asins": 1591,
+        "Hit@1_FlipRate_mean": 0.024959843564494724,
         "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.05554381019497299,
+        "Hit@5_FlipRate_mean": 0.05585585585585586,
         "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.06734789758045572,
+        "Hit@10_FlipRate_mean": 0.06747677910468608,
         "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.0788231148696265,
+        "Hit@20_FlipRate_mean": 0.07886025560444165,
         "Hit@20_FlipRate_median": 0.0
       },
       "minilm": {
-        "n_asins": 1892,
-        "Hit@1_FlipRate_mean": 0.011569180173831337,
+        "n_asins": 1591,
+        "Hit@1_FlipRate_mean": 0.010699071164187442,
         "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.01930937279774489,
+        "Hit@5_FlipRate_mean": 0.019442698512465953,
         "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.02781301385952549,
+        "Hit@10_FlipRate_mean": 0.0280745862141211,
         "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.03603476626732441,
+        "Hit@20_FlipRate_mean": 0.0352817934213283,
         "Hit@20_FlipRate_median": 0.0
       }
     }

@@ -81,6 +81,13 @@ MIN_USERS_PER_ASIN = 10
 MAX_USERS_PER_ASIN = 10
 TOP_N_ASINS = 10_000   # 去掉 1409 硬上限, 取全部候选
 MAX_ATTRS_FOR_LLM = 4
+# 用户指令 2026-08-27: "强信号用户" = mean_wc ≥ 20 词/review
+# 实证 (feat_density_diag3.py): 1-2 词 review 96.7% all-zero nz,
+# mean_wc < 20 用户 Gaussian 与 global pool LBF 中位数 ≤ 0,
+# Mahalanobis 信号无法独立于 random selection。
+# 每个 ASIN 必须有 ≥10 个强信号用户才进入评估 (Stage 3-5)。
+MIN_MEAN_WC = 20
+MIN_STRONG_SIGNAL_USERS_PER_ASIN = 10
 
 
 def log(msg: str) -> None:
@@ -177,17 +184,19 @@ def step1_extract_attrs() -> dict[str, dict]:
 def step2_scan_reviews(
     product_attrs: dict[str, dict],
 ) -> tuple[dict[str, set[str]], dict[str, Counter[str]], Counter[str],
-           dict[str, dict[str, int]]]:
+           Counter[str], dict[str, str]]:
     """单次扫描 reviews: 返回
       - asin_users: asin -> {uid set}
       - user_per_asin_count: asin -> Counter[uid -> count]
       - user_total: Counter[uid -> total reviews]
+      - user_words_total: Counter[uid -> total words (sum of len(text.split()))]
       - first_asin_per_user: uid -> first asin seen (供 query_records primary)
     """
     log("=== Step 2: scan_reviews (single pass) ===")
     asin_users: dict[str, set[str]] = defaultdict(set)
     user_per_asin_count: dict[str, Counter[str]] = defaultdict(Counter)
     user_total: Counter[str] = Counter()
+    user_words_total: Counter[str] = Counter()
     first_asin_per_user: dict[str, str] = {}
 
     n = 0
@@ -199,9 +208,14 @@ def step2_scan_reviews(
                 continue
             uid = r.get("reviewerID") or r.get("user_id")
             asin = r.get("asin")
+            text = r.get("text") or ""
             if not uid or not asin:
                 continue
             user_total[uid] += 1
+            # 用户指令 2026-08-27: 累计 words 总数供 mean_wc 计算 (强信号用户过滤)
+            # split() 后 join 长度即为 word count, 不重复 tokenize
+            if text:
+                user_words_total[uid] += len(text.split())
             asin_users[asin].add(uid)
             user_per_asin_count[asin][uid] += 1
             if uid not in first_asin_per_user:
@@ -211,8 +225,8 @@ def step2_scan_reviews(
                 log(f"  {n/1e6:.1f}M records")
 
     log(f"  done: {n} records, {len(asin_users)} products, "
-        f"{len(user_total)} users")
-    return asin_users, user_per_asin_count, user_total, first_asin_per_user
+        f"{len(user_total)} users, words total: {sum(user_words_total.values())}")
+    return asin_users, user_per_asin_count, user_total, user_words_total, first_asin_per_user
 
 
 # ============================================================
@@ -321,19 +335,37 @@ def step4_build_stage8_5_asins(
     asin_users: dict[str, set[str]],
     user_per_asin_count: dict[str, Counter[str]],
     user_total: Counter[str],
+    user_words_total: Counter[str],
 ) -> None:
     log("=== Step 4: build_stage8_5_asins ===")
     heavy_users = {u for u, c in user_total.items()
                    if c >= MIN_REVIEWS_PER_USER}
     log(f"  heavy users (≥{MIN_REVIEWS_PER_USER} total reviews): {len(heavy_users)}")
 
+    # 用户指令 2026-08-27: 强信号用户 = mean_wc ≥ MIN_MEAN_WC (20 词/review)
+    # mean_wc = user_words_total[u] / user_total[u]
+    # 短 review (1-2 词) 的 spaCy 182d features 96.7% 全 0,
+    # 强信号用户在 Mahalanobis 空间才能与 global pool 区分, 否则 random 等价
+    strong_users: dict[str, float] = {}
+    for u in heavy_users:
+        wc = user_words_total.get(u, 0)
+        nt = user_total[u]
+        if nt == 0:
+            continue
+        mean_wc = wc / nt
+        if mean_wc >= MIN_MEAN_WC:
+            strong_users[u] = mean_wc
+    log(f"  strong-signal users (mean_wc ≥ {MIN_MEAN_WC}): {len(strong_users)} "
+        f"({100 * len(strong_users) / max(1, len(heavy_users)):.1f}% of heavy)")
+
     eligible_count: dict[str, int] = {}
     for asin, uset in asin_users.items():
-        c = len([u for u in uset if u in heavy_users])
-        if c >= MIN_USERS_PER_ASIN:
+        # 同时满足: heavy + strong-signal
+        c = len([u for u in uset if u in strong_users])
+        if c >= MIN_STRONG_SIGNAL_USERS_PER_ASIN:
             eligible_count[asin] = c
-    log(f"  ASINs with ≥{MIN_USERS_PER_ASIN} heavy reviewers: "
-        f"{len(eligible_count)}")
+    log(f"  ASINs with ≥{MIN_STRONG_SIGNAL_USERS_PER_ASIN} strong-signal "
+        f"users (mean_wc≥{MIN_MEAN_WC}): {len(eligible_count)}")
 
     ranked = sorted(eligible_count.items(), key=lambda kv: kv[1], reverse=True)
     ranked = ranked[:TOP_N_ASINS]
@@ -351,9 +383,10 @@ def step4_build_stage8_5_asins(
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
             continue
+        # 用户指令 2026-08-27: top_users 限定为 strong-signal 用户
         top_users = sorted(
             [u for u in user_per_asin_count[asin]
-             if user_total[u] >= MIN_REVIEWS_PER_USER],
+             if u in strong_users],
             key=lambda u: user_per_asin_count[asin][u],
             reverse=True,
         )[:MAX_USERS_PER_ASIN]
@@ -362,6 +395,10 @@ def step4_build_stage8_5_asins(
             "n_users_eligible": eligible_count[asin],
             "users_sampled": top_users,
             "attrs_used": attrs_used,
+            "filter": {
+                "MIN_MEAN_WC": MIN_MEAN_WC,
+                "MIN_STRONG_SIGNAL_USERS_PER_ASIN": MIN_STRONG_SIGNAL_USERS_PER_ASIN,
+            },
         })
 
     log(f"  final ASINs: {len(asins_out)}, skipped (no attrs): "
@@ -369,13 +406,16 @@ def step4_build_stage8_5_asins(
 
     config = {
         "description": (f"top {TOP_N_ASINS} ASINs × top-{MAX_USERS_PER_ASIN} "
-                        f"users (each ≥{MIN_REVIEWS_PER_USER} reviews, "
+                        f"strong-signal users (mean_wc ≥ {MIN_MEAN_WC}, "
+                        f"≥ {MIN_REVIEWS_PER_USER} reviews, "
                         f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN)"),
         "MIN_REVIEWS_PER_USER": MIN_REVIEWS_PER_USER,
         "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
+        "MIN_STRONG_SIGNAL_USERS_PER_ASIN": MIN_STRONG_SIGNAL_USERS_PER_ASIN,
         "MAX_USERS_PER_ASIN": MAX_USERS_PER_ASIN,
         "TOP_N_ASINS": TOP_N_ASINS,
         "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
+        "MIN_MEAN_WC": MIN_MEAN_WC,
     }
     out = {
         "config": config,
@@ -400,7 +440,7 @@ def main() -> None:
     product_attrs = step1_extract_attrs()
 
     # Step 2
-    asin_users, user_per_asin_count, user_total, first_asin_per_user = \
+    asin_users, user_per_asin_count, user_total, user_words_total, first_asin_per_user = \
         step2_scan_reviews(product_attrs)
 
     # Step 3 (用 Step 2 的 in-memory 数据, 不再依赖 stage1 中间文件)
@@ -408,7 +448,8 @@ def main() -> None:
 
     # Step 4
     step4_build_stage8_5_asins(product_attrs, asin_users,
-                                user_per_asin_count, user_total)
+                                user_per_asin_count, user_total,
+                                user_words_total)
 
     log("=== ALL DONE ===")
 
