@@ -43,10 +43,14 @@ def get_pool_path(N):
 
 
 def greedy_select_queries(embeddings, threshold=0.9, k=10, seed_rng=None):
-    """从 N 个 query 中选 k 个,candidate 之间的 cosine ≥ threshold。
+    """从 N 个 query 中选 k 个,要求 cluster 内 **all-pairs** cosine ≥ threshold。
 
-    Greedy:取 seed=embeddings[0],然后每次从剩余选与已选集合 cos 均 ≥ threshold
-    (即与 cluster centroid cosine ≥ threshold) 的最大者。
+    Greedy with strict all-pairs constraint:
+    - 试每个 seed
+    - 每次从剩余候选中选一个,该候选必须与已选所有 query 都 ≥ threshold
+    - 若候选都无法满足,终止
+    - 凑齐 k 后,记 cluster min pairwise cosine
+    - 全 seed 取 cluster min sim 最大的 cluster
 
     Returns: selected indices or None if cannot form k.
     """
@@ -54,39 +58,35 @@ def greedy_select_queries(embeddings, threshold=0.9, k=10, seed_rng=None):
     if n < k:
         return None
 
-    # 算 pairwise cosine
     normed = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-12)
     sim = normed @ normed.T  # [n, n]
 
-    # 试每个 seed,找最大 cluster
     best_set = None
-    best_min_sim = -1
+    best_min_sim = -1.0
 
     for seed_idx in range(n):
         selected = [seed_idx]
-        cand_pool = list(range(n))
-        cand_pool.remove(seed_idx)
+        remaining = [i for i in range(n) if i != seed_idx]
+        ok = True
 
-        while len(selected) < k and cand_pool:
-            # 选与已选 cluster cosine mean 最高且 ≥ threshold 的
-            mean_sim = sim[selected][:, cand_pool].mean(axis=0)  # [n_cand]
-            # 取 mean_sim 最大者,如 ≥ threshold
-            order = np.argsort(-mean_sim)
-            chosen = None
-            for idx_in_order in order:
-                cand = cand_pool[idx_in_order]
-                if mean_sim[idx_in_order] >= threshold:
-                    chosen = cand
-                    break
-            if chosen is None:
-                break  # 候选都不满足 threshold,终止
-            selected.append(chosen)
-            cand_pool.remove(chosen)
+        while len(selected) < k:
+            # 与已选所有 query 都 ≥ threshold 的候选
+            sim_to_sel = sim[selected]  # [len(selected), n]
+            mask = (sim_to_sel >= threshold).all(axis=0)  # [n]
+            mask[selected] = False
+            cands = [i for i in remaining if mask[i]]
+            if not cands:
+                ok = False
+                break
+            # 选 mean cosine 最大的
+            mean_scores = {c: float(sim_to_sel[:, c].mean()) for c in cands}
+            best = max(mean_scores, key=mean_scores.get)
+            selected.append(best)
+            remaining.remove(best)
 
-        if len(selected) == k:
-            # 计算 cluster 内部最小 cosine
-            cluster_sim = sim[np.ix_(selected, selected)]
-            min_sim = cluster_sim[cluster_sim < 1.0].min() if (cluster_sim < 1.0).any() else 1.0
+        if ok and len(selected) == k:
+            sub = sim[np.ix_(selected, selected)]
+            min_sim = float(sub[np.triu_indices(k, k=1)].min())
             if min_sim > best_min_sim:
                 best_min_sim = min_sim
                 best_set = selected
