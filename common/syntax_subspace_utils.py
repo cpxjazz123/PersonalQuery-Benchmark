@@ -88,7 +88,9 @@ MINILM_CORPUS_EMBEDS_CACHE = SCRATCH / "minilm_corpus_embeds.npy"
 ASIN_TO_DOC_CACHE = SCRATCH / "asin_to_doc.json"
 
 VLLM_URL = "http://localhost:8800/v1/completions"
-MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
+# 用户指令 2026-08-27: 切换到 Qwen2-1.5B-Instruct 加速 Stage 1 LLM 生成
+# (~3-4× throughput vs 7B; query 质量略下降但 attrs 信息足够)
+MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-1.5B-Instruct"
 
 # ---------------------------------------------------------------------------
 # 共享超参数 (硬编码,所有脚本统一)
