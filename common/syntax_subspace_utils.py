@@ -111,6 +111,14 @@ TEMP = 0.7
 # 各种 paraphrase),从 80 提到 120 给足 buffer
 MAX_TOKENS = 120
 
+# 用户指令 2026-08-28: 输出 query token 数 ≤60 的严格过滤(N=5 + 1st-person prompt 下,模型偶尔会失控
+# 写出 80+ token 的长尾自言自语/重复,污染 strict 池)
+MAX_QUERY_TOKENS = 60
+
+# 用户指令 2026-08-28: N=5 是生成甜点(N=4 太薄,N=7/10 模型失控)。
+# Stage 1 从 product_attributes.json 里挑 top-N attrs 给 LLM
+N_INPUT = 5
+
 # Selection (Stage 4)
 K_SET = 8
 MIN_LEN = 5

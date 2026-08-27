@@ -34,7 +34,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, POOL_IN, POOL_OUT, REPO_ROOT, SCRATCH, VLLM_URL, MODEL_NAME,
-    K_POOL, TEMP, MAX_TOKENS, PCA_DIM, log, feat_key,
+    K_POOL, TEMP, MAX_TOKENS, MAX_QUERY_TOKENS, N_INPUT, PCA_DIM, log, feat_key,
 )
 
 # Stage 2 also imports per_sentence_features_v2 from common/syntactic_features
@@ -185,8 +185,84 @@ def has_first_person(text: str) -> bool:
     return bool(_FIRST_PERSON_RE.search(text))
 
 
+# 用户指令 2026-08-28: emoji 检测。LLM 在 Baby 类目偶尔输出 🌊😊 之类的 emoji 装饰,
+# 不属于搜索 query,必须过滤。Unicode emoji block 主要在 0x1F000-0x1FFFF,但 Misc Symbols
+# (0x2600-0x27FF) / Dingbats (0x2700-0x27BF) / Supplemental Symbols (0x1F900-0x1F9FF)
+# 等都是常见 emoji 区间。
+def has_emoji(text: str) -> bool:
+    """True iff text contains emoji characters."""
+    if not text:
+        return False
+    for ch in text:
+        cp = ord(ch)
+        # 排除范围:覆盖主要 emoji block
+        if (0x1F000 <= cp <= 0x1FFFF  # 绝大部分 emoji (Misc Symbols & Pictographs 等)
+                or 0x2600 <= cp <= 0x27BF  # Misc Symbols + Dingbats
+                or 0x2300 <= cp <= 0x23FF  # Misc Technical (含 ⌚⌛)
+                or 0x1F300 <= cp <= 0x1F5FF  # Misc Symbols & Pictographs 子集
+                or 0x1F600 <= cp <= 0x1F64F  # Emoticons
+                or 0x1F680 <= cp <= 0x1F6FF  # Transport & Map
+                or 0x1F900 <= cp <= 0x1F9FF  # Supplemental Symbols & Pictographs
+                or 0x1FA00 <= cp <= 0x1FA6F  # Chess Symbols
+                or 0x1FA70 <= cp <= 0x1FAFF  # Symbols & Pictographs Ext-A
+                or 0x1F1E6 <= cp <= 0x1F1FF):  # Regional Indicator Symbols (国旗)
+            return True
+    return False
+
+
+# 用户指令 2026-08-28: 自言自语 / 角色扮演检测。LLM 在 N=5+ 1st-person prompt 下偶尔
+# 写出 "Can someone help me find it?", "Thanks!", "Let me rephrase..." 等元评论,
+# 这些不是 query 文字,污染 strict 池。检测典型自言自语短语。
+_SELF_TALK_PATTERNS = [
+    r"\bcan someone help\b",
+    r"\bcan anyone help\b",
+    r"\bany suggestions\??",
+    r"\bany ideas\??",
+    r"\bthanks!?\s*$",  # 行末单独 "Thanks"
+    r"\bthanks again\b",
+    r"\bthank you\b",
+    r"\bi appreciate\b",
+    r"\byou'?re amazing\b",
+    r"\byou'?re the best\b",
+    r"\blet'?s keep it simple\b",
+    r"\blet'?s try again\b",
+    r"\blet me rephrase\b",
+    r"\blet me clarify\b",
+    r"\bdoes that sound right\b",
+    r"\bdoes that help\b",
+    r"\bthat'?s exactly what i'?m\b",
+    r"\bjust those exact attributes\b",
+    r"\bwithout (specifying|adding) any\b",
+    r"\bthat'?s what i'?m after\b",
+    r"\bi hope so\b",
+    r"\bi think that\b.*\bwill work\b",
+    r"\bsound(s)? good\??",
+    r"\bmake(s)? sense\??",
+    r"\bhelp me find\b",  # 角色扮演:问别人帮忙找
+    r"\bi'?d appreciate\b",
+]
+
+
+def has_self_talk(text: str) -> bool:
+    """True iff text contains self-talk / role-playing / meta-commentary phrases.
+
+    这些短语标志 LLM 失控开始"装用户对话",不是真实 query。
+    """
+    if not text:
+        return True
+    text_lower = text.lower().strip()
+    return any(re.search(p, text_lower) for p in _SELF_TALK_PATTERNS)
+
+
 def n_tokens_simple(text: str) -> int:
     return len(text.split())
+
+
+def is_query_too_long(text: str, max_tokens: int = MAX_QUERY_TOKENS) -> bool:
+    """True iff query token count exceeds max_tokens (default MAX_QUERY_TOKENS=60)."""
+    if not text:
+        return True
+    return n_tokens_simple(text) > max_tokens
 
 
 # ===========================================================================
@@ -194,21 +270,40 @@ def n_tokens_simple(text: str) -> int:
 # ===========================================================================
 
 def stage_pool_regen():
-    log(f"=== STAGE 1 — POOL REGEN: K_POOL={K_POOL} × 100 ASINs ===")
+    log(f"=== STAGE 1 — POOL REGEN: K_POOL={K_POOL} × N={N_INPUT} attrs × ASINs ===")
 
     log(f"loading {ASINS_IN}")
     asin_data = json.load(open(ASINS_IN))["asins"]
-    log(f"  {len(asin_data)} ASINs")
+    log(f"  {len(asin_data)} ASINs in stage8_5 set")
 
-    log("building prompts...")
-    all_prompts = []
-    asin_idx = []
+    # 用户指令 2026-08-28: 用 product_attributes.json 的 top-N attrs (默认 N=5),而不是
+    # stage8_5_asins.json 的 attrs_used (那个只有 1-4 attrs)。
+    pattrs_path = REPO_ROOT / "result/product_attributes.json"
+    log(f"loading {pattrs_path}")
+    pattrs = json.load(open(pattrs_path))
+    log(f"  {len(pattrs)} ASINs in product_attributes.json")
+
+    # Import get_top_n_attrs from sibling script (rule 12: 留在 gen_query/)
+    sys.path.insert(0, str(REPO_ROOT / "gen_query"))
+    from _n_ablation_pool_v2 import get_top_n_attrs
+
+    log(f"building prompts with top-{N_INPUT} attrs from product_attributes.json...")
+    asin_attrs = {}  # asin → top-N attrs
     for entry in asin_data:
         a = entry["asin"]
-        attrs = entry["attrs_used"]
-        n_input = len(attrs)
+        pa = pattrs.get(a)
+        if pa is None:
+            continue
+        top_n = get_top_n_attrs(pa, N_INPUT)
+        if len(top_n) == N_INPUT:
+            asin_attrs[a] = top_n
+    log(f"  ASINs with ≥{N_INPUT} attrs: {len(asin_attrs)}")
+
+    all_prompts = []
+    asin_idx = []
+    for a, attrs in asin_attrs.items():
         for k in range(K_POOL):
-            prompt = make_prompt(attrs, n_input, k=k)
+            prompt = make_prompt(attrs, N_INPUT, k=k)
             all_prompts.append(prompt)
             asin_idx.append((a, k))
 
@@ -219,18 +314,32 @@ def stage_pool_regen():
     pools = collections.defaultdict(list)
     strict_counts = {}
     n_total_strict = 0
+    # 用户指令 2026-08-28: 5 层 strict filter breakdown (3 个新 filter 加进来)
+    n_cov_full = n_invalid = n_first_p = n_emoji = n_self_talk = n_too_long = 0
 
     for (a, k), out in zip(asin_idx, all_outputs):
-        entry = next(e for e in asin_data if e["asin"] == a)
-        attrs = entry["attrs_used"]
-        n_input = len(attrs)
+        attrs = asin_attrs[a]
         text = out.strip() if out else ""
         if not text:
             continue
         n_cov = count_attrs_covered(text, attrs)
         invalid = has_invalid_punct(text)
-        # 用户指令 2026-08-27: 还原 strict = (4/4 attrs) AND no invalid (length 控制已删除)
-        is_strict = (n_cov == n_input) and (not invalid)
+        first_p = has_first_person(text)
+        emoji = has_emoji(text)
+        self_talk = has_self_talk(text)
+        too_long = is_query_too_long(text)
+        # 用户指令 2026-08-28: 5 层 strict = 全 attrs + 无 invalid + 1st-person + 无 emoji + 无自言自语 + 长度 ≤60
+        is_strict = (
+            (n_cov == N_INPUT) and (not invalid) and first_p
+            and (not emoji) and (not self_talk) and (not too_long)
+        )
+        # 统计每个 filter 失败数
+        if n_cov == N_INPUT: n_cov_full += 1
+        if not invalid: n_invalid += 1
+        if first_p: n_first_p += 1
+        if not emoji: n_emoji += 1
+        if not self_talk: n_self_talk += 1
+        if not too_long: n_too_long += 1
         if is_strict:
             n_total_strict += 1
             strict_counts[a] = strict_counts.get(a, 0) + 1
@@ -240,12 +349,23 @@ def stage_pool_regen():
             "strict": is_strict,
             "attrs_covered": n_cov,
             "invalid": invalid,
+            "first_person": first_p,
+            "emoji": emoji,
+            "self_talk": self_talk,
+            "too_long": too_long,
             "n_tok": n_tokens_simple(text),
         })
 
     log(f"\n=== Pool stats ===")
     log(f"  total queries: {len(all_outputs)}")
     log(f"  strict: {n_total_strict} ({n_total_strict / max(1, len(all_outputs)) * 100:.1f}%)")
+    log(f"  --- filter breakdown (passed count) ---")
+    log(f"  attrs all covered: {n_cov_full}/{len(all_outputs)} ({n_cov_full/max(1,len(all_outputs))*100:.1f}%)")
+    log(f"  no invalid punct:  {n_invalid}/{len(all_outputs)} ({n_invalid/max(1,len(all_outputs))*100:.1f}%)")
+    log(f"  1st-person:        {n_first_p}/{len(all_outputs)} ({n_first_p/max(1,len(all_outputs))*100:.1f}%)")
+    log(f"  no emoji:          {n_emoji}/{len(all_outputs)} ({n_emoji/max(1,len(all_outputs))*100:.1f}%)")
+    log(f"  no self-talk:      {n_self_talk}/{len(all_outputs)} ({n_self_talk/max(1,len(all_outputs))*100:.1f}%)")
+    log(f"  length ≤{MAX_QUERY_TOKENS}:       {n_too_long}/{len(all_outputs)} ({n_too_long/max(1,len(all_outputs))*100:.1f}%)")
     log(f"  ASINs: {len(pools)}")
     if strict_counts:
         log(f"  strict per ASIN: min={min(strict_counts.values())}, "
@@ -258,12 +378,19 @@ def stage_pool_regen():
     with open(POOL_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 8.5: SHARED candidate pool per ASIN (K=50, attrs-only prompt)",
+                "description": (
+                    f"Stage 8.5: SHARED candidate pool per ASIN (K={K_POOL}, N={N_INPUT} attrs, "
+                    f"first-person + 5-layer strict filter: attrs/invalid/1p/emoji/self-talk/length≤{MAX_QUERY_TOKENS})"
+                ),
                 "K_POOL": K_POOL,
+                "N_INPUT": N_INPUT,
+                "MAX_QUERY_TOKENS": MAX_QUERY_TOKENS,
                 "TEMP": TEMP,
                 "MAX_TOKENS": MAX_TOKENS,
                 "SEED": 2024,
                 "MODEL_NAME": MODEL_NAME,
+                "filters": ["attrs_covered==N", "no_invalid_punct", "first_person",
+                            "no_emoji", "no_self_talk", f"length≤{MAX_QUERY_TOKENS}"],
             },
             "strict_counts": strict_counts,
             "n_asins": len(pools),
