@@ -34,8 +34,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, GAUSSIANS_IN, POOL_IN, SELECTION_IN, SELECTION_OUT,
     SELECTION_STATS_OUT,
+    MAHAL_THRESHOLD_CHI2_PPF, MAHAL_THRESHOLD_DF,
     PCA_DIM, PCA_SEED, SEED, log, feat_key,
 )
+from scipy.stats import chi2
 
 
 # ===========================================================================
@@ -100,9 +102,19 @@ def stage_select():
 
     log("\n=== 4. Selection per (asin, user) ===")
 
+    # 用户指令 2026-08-28: Mahal 阈值 gating — 只选 Mahal² ≤ χ²(0.95, df=48) 的 query。
+    # σ_diag 已经 LAMBDA=0.1 收缩到 var.mean(),所以 Mahal² 近似 χ²(PCA_DIM=48) 分布
+    # (diagonal Gaussian → Mahalanobis 等价)。χ²(0.95, 48) ≈ 65.22 是 95%
+    # confidence region。超出此阈值的 query (即"明显不在用户高斯分布内") 标记
+    # selection_method="out_of_distribution" → selected=None,不参与 Stage 5。
+    mahal_threshold = chi2.ppf(MAHAL_THRESHOLD_CHI2_PPF, MAHAL_THRESHOLD_DF)
+    log(f"  Mahal² gating threshold = χ²({MAHAL_THRESHOLD_CHI2_PPF}, {MAHAL_THRESHOLD_DF}) = {mahal_threshold:.3f}")
+
     selection_entries = []
 
     n_skip_no_pool = 0
+    n_out_of_distribution = 0
+    n_mahal_min = 0
     for entry in asin_data:
         asin = entry["asin"]
         attrs = entry["attrs_used"]
@@ -149,15 +161,36 @@ def stage_select():
 
             distances = np.array([mahalanobis_sq(z, mu, sigma) for z, _ in strict_zqs])
             best_idx = int(np.argmin(distances))
+            best_distance = float(distances[best_idx])
             selected_q = strict_zqs[best_idx][1]
 
+            # 用户指令 2026-08-28: Mahal 阈值 gating — best_distance > mahal_threshold
+            # 表示"即便最匹配的 query 也在 95% confidence region 之外",即用户整体
+            # 句法骨架跟该 ASIN 的 strict pool 都不太搭。直接 selected=None,
+            # 标记 out_of_distribution 让下游 Stage 5 跳过这个 pair。
+            if best_distance > mahal_threshold:
+                n_out_of_distribution += 1
+                selection_entries.append({
+                    "asin": asin,
+                    "user_id": uid,
+                    "attrs_used": attrs,
+                    "selection_method": "out_of_distribution",
+                    "selected": None,
+                    "selected_distance": best_distance,
+                    "n_candidates": len(strict_zqs),
+                    "user_source": source,
+                    "n_reviews": n_reviews,
+                })
+                continue
+
+            n_mahal_min += 1
             selection_entries.append({
                 "asin": asin,
                 "user_id": uid,
                 "attrs_used": attrs,
                 "selection_method": "mahal_min",
                 "selected": selected_q,
-                "selected_distance": float(distances[best_idx]),
+                "selected_distance": best_distance,
                 "n_candidates": len(strict_zqs),
                 "user_source": source,
                 "n_reviews": n_reviews,
@@ -166,13 +199,22 @@ def stage_select():
     log(f"  total entries: {len(selection_entries)}")
     log(f"  ASINs skipped (no pool, Stage 1 filtered): {n_skip_no_pool}/{len(asin_data)} "
         f"(Stage 1 N=5 + numeric/metadata filter 主动过滤 <5 非数值 attr 的 ASIN)")
+    log(f"  out_of_distribution (Mahal² > χ²(0.95, 48)={mahal_threshold:.3f}): "
+        f"{n_out_of_distribution}")
+    log(f"  mahal_min (在用户高斯 95% region 内): {n_mahal_min}")
 
     SELECTION_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 8.5: Mahalanobis selection from shared pool (selected only)",
+                "description": ("Stage 8.5: Mahalanobis selection from shared pool with Mahal² "
+                                "gating at χ²(0.95, 48). selection_method ∈ {mahal_min, "
+                                "out_of_distribution, no_pool}; out_of_distribution 的 "
+                                "pair 不进入 Stage 5 retrieval。"),
                 "SEED": SEED,
+                "MAHAL_THRESHOLD_CHI2_PPF": MAHAL_THRESHOLD_CHI2_PPF,
+                "MAHAL_THRESHOLD_DF": MAHAL_THRESHOLD_DF,
+                "mahal_threshold": float(mahal_threshold),
             },
             "n_entries": len(selection_entries),
             "entries": selection_entries,
@@ -181,29 +223,39 @@ def stage_select():
 
     log("\n=== 7. Validation ===")
     mahal_entries = [e for e in selection_entries if e["selected_distance"] is not None]
-    selected = np.array([e["selected_distance"] for e in mahal_entries])
+    mahal_min_entries = [e for e in mahal_entries if e["selection_method"] == "mahal_min"]
+    ood_entries = [e for e in mahal_entries if e["selection_method"] == "out_of_distribution"]
+    selected = np.array([e["selected_distance"] for e in mahal_min_entries])
+    ood_dist = np.array([e["selected_distance"] for e in ood_entries])
 
-    log(f"  N pairs: {len(mahal_entries)}")
-    log(f"  selected (mahal_min): mean={selected.mean():.3f}, "
-        f"std={selected.std():.3f}, median={np.median(selected):.3f}")
+    log(f"  N pairs total: {len(mahal_entries)} "
+        f"(mahal_min={len(mahal_min_entries)}, out_of_distribution={len(ood_entries)})")
+    if len(selected) > 0:
+        log(f"  selected (mahal_min, in-distribution): "
+            f"mean={selected.mean():.3f}, std={selected.std():.3f}, median={np.median(selected):.3f}")
+    if len(ood_dist) > 0:
+        log(f"  out_of_distribution (Mahal² > χ²(0.95, 48)={mahal_threshold:.3f}): "
+            f"n={len(ood_dist)}, mean={ood_dist.mean():.3f}, "
+            f"min={ood_dist.min():.3f}, max={ood_dist.max():.3f}")
     log(f"  (mahal 越小 = query 越接近 user 个体句法骨架; selected 是全 strict 池中的最小, "
-        f"无需 3-way 对比 — 删掉 random/farthest 2026-08-28)")
+        f"且 ≤ 95% confidence region。无需 3-way 对比 — 删掉 random/farthest 2026-08-28)")
 
     by_source = collections.defaultdict(list)
-    for e in mahal_entries:
+    for e in mahal_min_entries:
         by_source[e["user_source"]].append(e["selected_distance"])
 
-    log(f"\n=== Per-source breakdown ===")
+    log(f"\n=== Per-source breakdown (mahal_min only) ===")
     for src, ds in by_source.items():
         arr = np.array(ds)
         log(f"  {src} (n={len(ds)}): mean={arr.mean():.3f}, median={np.median(arr):.3f}")
 
     with open(SELECTION_STATS_OUT, "w", encoding="utf-8") as f:
         json.dump({
-            "n_pairs": len(mahal_entries),
-            "selected_mean": float(selected.mean()),
-            "selected_std": float(selected.std()),
-            "selected_median": float(np.median(selected)),
+            "n_pairs": len(mahal_min_entries),
+            "n_out_of_distribution": len(ood_entries),
+            "selected_mean": float(selected.mean()) if len(selected) > 0 else None,
+            "selected_std": float(selected.std()) if len(selected) > 0 else None,
+            "selected_median": float(np.median(selected)) if len(selected) > 0 else None,
             "per_source": {
                 src: {
                     "n": len(ds),

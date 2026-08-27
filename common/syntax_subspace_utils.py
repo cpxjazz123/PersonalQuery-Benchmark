@@ -122,6 +122,14 @@ MAX_QUERY_TOKENS = 60
 # Stage 1 从 product_attributes.json 里挑 top-N attrs 给 LLM
 N_INPUT = 5
 
+# 用户指令 2026-08-28: Stage 4 Mahalanobis 阈值 gating — 只选 Mahal² ≤ χ²(0.95, df=48)
+# 的 query,即"在用户高斯 95% confidence region 内"的候选。阈值外的 query 不参与
+# argmin,标记为 out_of_distribution → selected=None。
+# χ²(0.95, 48) ≈ 65.22 (stats chi2.ppf(0.95, 48));保守起见给到 99% = 74.68。
+# 选 95% 让"略偏候选"也保留,只在明显 outlier (Mahal² > 65) 时 gating。
+MAHAL_THRESHOLD_CHI2_PPF = 0.95
+MAHAL_THRESHOLD_DF = PCA_DIM  # 48
+
 # Selection (Stage 4)
 K_SET = 8
 MIN_LEN = 5
