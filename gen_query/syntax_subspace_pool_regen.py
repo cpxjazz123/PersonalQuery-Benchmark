@@ -54,7 +54,7 @@ GEN_SYSTEM_TMPL_NATURAL = (
     "include attribute field names (no 'Brand:', 'material_type:', "
     "'material_composition:', 'main category', 'Style:') in the query — "
     "only the values. Each value keeps the meaning of its attribute name. "
-    "Write a natural sentence (any length is fine). Output ONLY the query, no preamble.\n\n"
+    "Write a natural sentence of 12 to 16 words (strict). Output ONLY the query, no preamble.\n\n"
     "Attributes ({N_INPUT}):\n{ATTRIBUTES}"
 )
 
@@ -154,6 +154,17 @@ def n_tokens_simple(text: str) -> int:
     return len(text.split())
 
 
+# 用户指令 2026-08-27: query 长度区间 [12, 16] 词 + ±2 容差,
+# 解决 Stage 5 BM25 flip = length flip 伪信号 (短命中/长不命中)
+MIN_QUERY_WORDS = 10
+MAX_QUERY_WORDS = 18
+
+
+def is_length_in_range(text: str) -> bool:
+    """检查 query 词数是否在 [MIN_QUERY_WORDS, MAX_QUERY_WORDS] 区间内."""
+    return MIN_QUERY_WORDS <= len(text.split()) <= MAX_QUERY_WORDS
+
+
 # ===========================================================================
 # STAGE 1 — POOL REGEN
 # ===========================================================================
@@ -194,7 +205,9 @@ def stage_pool_regen():
             continue
         n_cov = count_attrs_covered(text, attrs)
         invalid = has_invalid_punct(text)
-        is_strict = (n_cov == n_input) and (not invalid)
+        length_ok = is_length_in_range(text)
+        # 用户指令 2026-08-27: strict = (4/4 attrs) AND no invalid AND length ∈ [10, 18]
+        is_strict = (n_cov == n_input) and (not invalid) and length_ok
         if is_strict:
             n_total_strict += 1
             strict_counts[a] = strict_counts.get(a, 0) + 1
@@ -217,6 +230,11 @@ def stage_pool_regen():
             f"mean={sum(strict_counts.values()) / len(strict_counts):.1f}")
     log(f"  ASINs with ≥10 strict: {sum(1 for v in strict_counts.values() if v >= 10)}")
     log(f"  ASINs with ≥20 strict: {sum(1 for v in strict_counts.values() if v >= 20)}")
+    # 用户指令 2026-08-27: query length 区间统计 (10-18 词)
+    n_with_text = sum(1 for qs in pools.values() for q in qs)
+    n_len_pass = sum(1 for qs in pools.values() for q in qs if MIN_QUERY_WORDS <= q['n_tok'] <= MAX_QUERY_WORDS)
+    log(f"  queries in length [{MIN_QUERY_WORDS}, {MAX_QUERY_WORDS}]: "
+        f"{n_len_pass}/{n_with_text} ({100 * n_len_pass / max(1, n_with_text):.1f}%)")
 
     POOL_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(POOL_OUT, "w", encoding="utf-8") as f:
