@@ -1,11 +1,12 @@
-"""Syntax Subspace — Stage 5 (retrieval + stability flip).
+"""Syntax Subspace — Stage 5 (volatility-only retrieval).
 
-归 syntactic_evaluation/: 用 bm25s + GPU MiniLM 评估选出来的查询能否
-把对应 ASIN 拉回 rank-1,并计算 per-ASIN stability flip (Hit@1/@5/@10 Flip Rate, RR Std)。
+归 syntactic_evaluation/: 用 bm25s + GPU MiniLM 对 Stage 4 选出的
+selected queries 做 retrieval,然后计算 per-ASIN stability flip
+(Hit@1/@5/@10 Flip Rate, RR Std)。
 
-Stage 5:
-  Part A: Stage 4 选出的 {selected, random, farthest} 三组查询全量跑 BM25 + MiniLM
-  Stability flip: 跨 selected_only queries (10 个/ASIN) 算 Hit@K flip + RR Std
+用户指令 2026-08-27: 只做波动率指标的评估,不做 selected vs random
+vs farthest 三组对比。Stage 4 selection 仍然保留三组策略(stage8_5_selection.json),
+但本 stage 只 retrieve selected queries,然后算 per-ASIN stability flip。
 
 用法:
   python syntactic_evaluation/syntax_subspace_retrieval.py --stage retrieval
@@ -13,8 +14,8 @@ Stage 5:
 I/O 路径:
   输入: stage8_5_selection.json
         data/meta_Baby_Products_2023.jsonl.gz (ASIN metadata corpus)
-  输出: result/syntactic_evaluation/retrieval_summary.json (Part A)
-        result/syntactic_evaluation/volatility.json      (Stability flip)
+  输出: result/syntactic_evaluation/volatility.json  (Stability flip)
+        scratch2/stage8_5_retrieval_per_query.json   (per-query intermediate)
 """
 
 from __future__ import annotations
@@ -118,29 +119,30 @@ def _get_or_build_corpus_embeds(model, corpus_texts: list[str]) -> np.ndarray:
 def stage_retrieval():
     log("=== STAGE 5 — RETRIEVAL ===")
 
-    log("\n=== 1. Loading selection ===")
+    log("\n=== 1. Loading selection (selected variant only) ===")
     selection = json.load(open(SELECTION_IN))
     entries = selection["entries"]
     log(f"  {len(entries)} entries")
 
+    # 用户指令 2026-08-27: 只做 selected 的 volatility 评估,
+    # 省掉 random/farthest, queries 从 56760 → 18920 (3x 加速)
     query_records = []
     for i, e in enumerate(entries):
-        for variant in ("selected", "random", "farthest"):
-            q = e[variant]
-            if q is None:
-                continue
-            query_records.append({
-                "entry_idx": i,
-                "asin": e["asin"],
-                "user_id": e["user_id"],
-                "variant": variant,
-                "selection_method": e["selection_method"],
-                "user_source": e["user_source"],
-                "query": q["query"],
-                "n_tok": q["n_tok"],
-                "attrs_covered": q["attrs_covered"],
-                "strict": q["strict"],
-            })
+        q = e["selected"]
+        if q is None:
+            continue
+        query_records.append({
+            "entry_idx": i,
+            "asin": e["asin"],
+            "user_id": e["user_id"],
+            "variant": "selected",
+            "selection_method": e["selection_method"],
+            "user_source": e["user_source"],
+            "query": q["query"],
+            "n_tok": q["n_tok"],
+            "attrs_covered": q["attrs_covered"],
+            "strict": q["strict"],
+        })
     log(f"  total queries to retrieve: {len(query_records)}")
 
     log("\n=== 2. Building ASIN metadata corpus ===")
@@ -278,47 +280,6 @@ def stage_retrieval():
             "queries": query_records,
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {RETRIEVAL_PER_QUERY_OUT}")
-
-    log("\n=== 6. Summary by variant ===")
-    by_variant = collections.defaultdict(lambda: {
-        "bm25_RR": [], "minilm_RR": [], "bm25_hit10": [], "minilm_hit10": [],
-        "bm25_rank": [], "minilm_rank": [],
-    })
-    for r in query_records:
-        v = r["variant"]
-        by_variant[v]["bm25_RR"].append(r["bm25_RR"])
-        by_variant[v]["minilm_RR"].append(r["minilm_RR"])
-        by_variant[v]["bm25_hit10"].append(r["bm25_hit10"])
-        by_variant[v]["minilm_hit10"].append(r["minilm_hit10"])
-        if r["bm25_rank"]:
-            by_variant[v]["bm25_rank"].append(r["bm25_rank"])
-        if r["minilm_rank"]:
-            by_variant[v]["minilm_rank"].append(r["minilm_rank"])
-
-    summary = {}
-    for v in ("selected", "random", "farthest"):
-        d = by_variant[v]
-        summary[v] = {
-            "n": len(d["bm25_RR"]),
-            "bm25_MRR": float(np.mean(d["bm25_RR"])),
-            "bm25_Hit@10": float(np.mean(d["bm25_hit10"])),
-            "bm25_mean_rank": float(np.mean(d["bm25_rank"])) if d["bm25_rank"] else None,
-            "minilm_MRR": float(np.mean(d["minilm_RR"])),
-            "minilm_Hit@10": float(np.mean(d["minilm_hit10"])),
-            "minilm_mean_rank": float(np.mean(d["minilm_rank"])) if d["minilm_rank"] else None,
-        }
-
-    log(f"\n=== Variant summary ===")
-    for v, s in summary.items():
-        bm25_rank_str = f"{s['bm25_mean_rank']:.1f}" if s["bm25_mean_rank"] else "n/a"
-        minilm_rank_str = f"{s['minilm_mean_rank']:.1f}" if s["minilm_mean_rank"] else "n/a"
-        log(f"  {v} (n={s['n']}):")
-        log(f"    BM25:   MRR={s['bm25_MRR']:.4f}, Hit@10={s['bm25_Hit@10']*100:.1f}%, mean_rank={bm25_rank_str}")
-        log(f"    MiniLM: MRR={s['minilm_MRR']:.4f}, Hit@10={s['minilm_Hit@10']*100:.1f}%, mean_rank={minilm_rank_str}")
-
-    with open(RETRIEVAL_SUMMARY_OUT, "w", encoding="utf-8") as f:
-        json.dump({"summary": summary}, f, ensure_ascii=False, indent=2)
-    log(f"  wrote → {RETRIEVAL_SUMMARY_OUT}")
 
     # === Stability flip metrics (per-ASIN Hit@K flip + RR Std on selected_only) ===
     stability_flip = _compute_stability_flip_metrics(RETRIEVAL_PER_QUERY_OUT)
