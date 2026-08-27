@@ -173,28 +173,6 @@
         "RR_Std_median": 1.4133223296094814e-05,
         "RR_Std_p90": 0.009329437150494705
       }
-    },
-    "all_30": {
-      "bm25": {
-        "n_asins": 577,
-        "Hit@1_FlipRate_mean": 0.03587322456622642,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.06273033327357118,
-        "Hit@5_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.04997063035583867,
-        "RR_Std_median": 0.0037295444156552767,
-        "RR_Std_p90": 0.19239440118662043
-      },
-      "minilm": {
-        "n_asins": 577,
-        "Hit@1_FlipRate_mean": 0.017709516125819242,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.03304049881471742,
-        "Hit@5_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.024453735894147826,
-        "RR_Std_median": 0.0003822794336585179,
-        "RR_Std_p90": 0.05364752293426419
-      }
     }
   },
   "n_asins_with_sets": 318,
