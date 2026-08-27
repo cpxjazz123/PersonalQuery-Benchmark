@@ -2,11 +2,15 @@
 
 归 syntactic_evaluation/: 用 bm25s + GPU MiniLM 对 Stage 4 选出的
 selected queries 做 retrieval,然后计算 per-ASIN stability flip
-(Hit@1/@5/@10 Flip Rate, RR Std)。
+(Hit@1/@5/@10 Flip Rate, RR Std 描述性指标)。
 
 用户指令 2026-08-27: 只做波动率指标的评估,不做 selected vs random
 vs farthest 三组对比。Stage 4 selection 仍然保留三组策略(stage8_5_selection.json),
 但本 stage 只 retrieve selected queries,然后算 per-ASIN stability flip。
+
+用户指令 2026-08-27 (later): 加回 RR Std 评估(RR = 1/rank 的 std per ASIN,
+聚合 mean/median/std across ASINs)。不做 permutation sig test — RR Std
+只是描述性指标,显著性留给下游分析决定。
 
 用法:
   python syntactic_evaluation/syntax_subspace_retrieval.py --stage retrieval
@@ -14,7 +18,7 @@ vs farthest 三组对比。Stage 4 selection 仍然保留三组策略(stage8_5_s
 I/O 路径:
   输入: stage8_5_selection.json
         data/meta_Baby_Products_2023.jsonl.gz (ASIN metadata corpus)
-  输出: result/syntactic_evaluation/volatility.json  (Stability flip)
+  输出: result/syntactic_evaluation/volatility.json  (Stability flip + RR Std)
         scratch2/stage8_5_retrieval_per_query.json   (per-query intermediate)
 """
 
@@ -281,13 +285,14 @@ def stage_retrieval():
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {RETRIEVAL_PER_QUERY_OUT}")
 
-    # === Stability flip metrics (per-ASIN Hit@K flip + RR Std on selected_only) ===
+    # === Stability flip + RR Std (per-ASIN Hit@K flip + RR Std 描述性) ===
     stability_flip = _compute_stability_flip_metrics(RETRIEVAL_PER_QUERY_OUT)
     with open(VOLATILITY_SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stability flip metrics on selected_only (per-ASIN Hit@1/@5/@10/@20 flip rate)",
-                "slice": "selected_only",
+                "description": ("Stability flip + RR Std on selected_only + selected_only_lm3 (|Δ n_tok| ≤ 3) "
+                                "per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs"),
+                "slices": ["selected_only", "selected_only_lm3"],
             },
             "stability_flip": stability_flip,
         }, f, ensure_ascii=False, indent=2)
@@ -295,15 +300,20 @@ def stage_retrieval():
 
 
 def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
-    """Per-ASIN Hit@1 Flip Rate, Hit@5 Flip Rate, RR Std across selected queries.
+    """Per-ASIN Hit@K Flip Rate + RR Std across selected queries.
 
-    Single slice per retriever (BM25 / MiniLM):
-      - 'selected_only': 10 user-selected queries per ASIN (realistic persona flip)
+    Slices per retriever (BM25 / MiniLM):
+      - 'selected_only': all query pairs (raw flip rate, includes length confound)
+      - 'selected_only_lm3': only query pairs with |Δ n_tok| ≤ 3 (length-matched,
+        控制长度方差后纯 style flip)
 
     Flip rate definition: of all unique query pairs within the slice, fraction
     of pairs whose top-K hit/miss labels disagree (one hit, one miss).
+
+    RR Std: per ASIN, std of 1/rank across queries. Aggregated as mean/median/std
+    over ASINs. 描述性指标,不做显著性测试。
     """
-    log("\n=== Computing Hit@K Flip Rate (per ASIN, per retriever, selected_only) ===")
+    log("\n=== Computing Hit@K Flip Rate + RR Std (per ASIN, per retriever) ===")
     data = json.load(open(retrieval_per_query_path))
     queries = data["queries"]
     log(f"  loaded {len(queries)} queries from {retrieval_per_query_path.name}")
@@ -325,53 +335,115 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
         agree_pairs = n_hits * (n_hits - 1) // 2 + n_miss * (n_miss - 1) // 2
         return float((total_pairs - agree_pairs) / total_pairs)
 
-    summary: dict = {"selected_only": {}}
-    for retriever in ("bm25", "minilm"):
-        rank_key = f"{retriever}_rank"
-        flip1_list, flip5_list, flip10_list, flip20_list = [], [], [], []
-        n_asins_used = 0
-        for asin, qs in by_asin.items():
-            if len(qs) < 2:
-                continue
-            ranks = [q.get(rank_key) for q in qs]
-            if any(r is None for r in ranks):
-                continue
-            hit1 = [1 if r == 1 else 0 for r in ranks]
-            hit5 = [1 if r <= 5 else 0 for r in ranks]
-            hit10 = [1 if r <= 10 else 0 for r in ranks]
-            hit20 = [1 if r <= 20 else 0 for r in ranks]
-            f1 = flip_rate(hit1)
-            f5 = flip_rate(hit5)
-            f10 = flip_rate(hit10)
-            f20 = flip_rate(hit20)
-            if f1 is not None:
-                flip1_list.append(f1)
-            if f5 is not None:
-                flip5_list.append(f5)
-            if f10 is not None:
-                flip10_list.append(f10)
-            if f20 is not None:
-                flip20_list.append(f20)
-            n_asins_used += 1
-        summary["selected_only"][retriever] = {
-            "n_asins": n_asins_used,
-            "Hit@1_FlipRate_mean": float(np.mean(flip1_list)) if flip1_list else None,
-            "Hit@1_FlipRate_median": float(np.median(flip1_list)) if flip1_list else None,
-            "Hit@5_FlipRate_mean": float(np.mean(flip5_list)) if flip5_list else None,
-            "Hit@5_FlipRate_median": float(np.median(flip5_list)) if flip5_list else None,
-            "Hit@10_FlipRate_mean": float(np.mean(flip10_list)) if flip10_list else None,
-            "Hit@10_FlipRate_median": float(np.median(flip10_list)) if flip10_list else None,
-            "Hit@20_FlipRate_mean": float(np.mean(flip20_list)) if flip20_list else None,
-            "Hit@20_FlipRate_median": float(np.median(flip20_list)) if flip20_list else None,
-        }
-    log(f"  selected_only × BM25: Hit@1={summary['selected_only']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
+    def flip_rate_lm(hit_labels: list[int], lengths: list[int],
+                      delta: int = 3) -> tuple[float | None, int, int]:
+        """Length-matched flip rate: 仅 |Δlen| ≤ delta 的 query pairs。
+        Returns (flip_rate, n_pairs_used, n_total_pairs)。
+        """
+        n = len(hit_labels)
+        if n < 2:
+            return None, 0, 0
+        total_pairs = n * (n - 1) // 2
+        used_pairs = 0
+        disagree = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                if abs(lengths[i] - lengths[j]) <= delta:
+                    used_pairs += 1
+                    if hit_labels[i] != hit_labels[j]:
+                        disagree += 1
+        if used_pairs == 0:
+            return None, 0, total_pairs
+        return float(disagree / used_pairs), used_pairs, total_pairs
+
+    def summarize(slice_name: str, use_lm: bool) -> dict:
+        sub: dict = {}
+        for retriever in ("bm25", "minilm"):
+            rank_key = f"{retriever}_rank"
+            rr_key = f"{retriever}_RR"
+            f1_list, f5_list, f10_list, f20_list = [], [], [], []
+            rr_std_list = []
+            n_asins_used = 0
+            n_pairs_used_total = 0
+            for asin, qs in by_asin.items():
+                if len(qs) < 2:
+                    continue
+                ranks = [q.get(rank_key) for q in qs]
+                if any(r is None for r in ranks):
+                    continue
+                hit1 = [1 if r == 1 else 0 for r in ranks]
+                hit5 = [1 if r <= 5 else 0 for r in ranks]
+                hit10 = [1 if r <= 10 else 0 for r in ranks]
+                hit20 = [1 if r <= 20 else 0 for r in ranks]
+                # RR Std: std of 1/rank across queries (Stage 10H convention)
+                rrs = [float(q.get(rr_key) or 0.0) for q in qs]
+                rr_std = float(np.std(rrs, ddof=0)) if len(rrs) >= 2 else None
+                if use_lm:
+                    lengths = [int(q.get("n_tok") or 0) for q in qs]
+                    f1, _, _ = flip_rate_lm(hit1, lengths)
+                    f5, _, _ = flip_rate_lm(hit5, lengths)
+                    f10, _, _ = flip_rate_lm(hit10, lengths)
+                    f20, _, _ = flip_rate_lm(hit20, lengths)
+                else:
+                    f1 = flip_rate(hit1)
+                    f5 = flip_rate(hit5)
+                    f10 = flip_rate(hit10)
+                    f20 = flip_rate(hit20)
+                if f1 is not None:
+                    f1_list.append(f1)
+                if f5 is not None:
+                    f5_list.append(f5)
+                if f10 is not None:
+                    f10_list.append(f10)
+                if f20 is not None:
+                    f20_list.append(f20)
+                if rr_std is not None:
+                    rr_std_list.append(rr_std)
+                n_asins_used += 1
+            sub[retriever] = {
+                "n_asins": n_asins_used,
+                "Hit@1_FlipRate_mean": float(np.mean(f1_list)) if f1_list else None,
+                "Hit@1_FlipRate_median": float(np.median(f1_list)) if f1_list else None,
+                "Hit@5_FlipRate_mean": float(np.mean(f5_list)) if f5_list else None,
+                "Hit@5_FlipRate_median": float(np.median(f5_list)) if f5_list else None,
+                "Hit@10_FlipRate_mean": float(np.mean(f10_list)) if f10_list else None,
+                "Hit@10_FlipRate_median": float(np.median(f10_list)) if f10_list else None,
+                "Hit@20_FlipRate_mean": float(np.mean(f20_list)) if f20_list else None,
+                "Hit@20_FlipRate_median": float(np.median(f20_list)) if f20_list else None,
+                "RR_Std_mean": float(np.mean(rr_std_list)) if rr_std_list else None,
+                "RR_Std_median": float(np.median(rr_std_list)) if rr_std_list else None,
+                "RR_Std_std": float(np.std(rr_std_list, ddof=0)) if rr_std_list else None,
+            }
+        return sub
+
+    summary: dict = {
+        "selected_only": summarize("selected_only", use_lm=False),
+        "selected_only_lm3": summarize("selected_only_lm3", use_lm=True),
+    }
+    log(f"  selected_only (all pairs) × BM25: "
+        f"Hit@1={summary['selected_only']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
         f"Hit@5={summary['selected_only']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
         f"Hit@10={summary['selected_only']['bm25']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only']['bm25']['Hit@20_FlipRate_mean']:.3f}")
-    log(f"  selected_only × MiniLM: Hit@1={summary['selected_only']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@20={summary['selected_only']['bm25']['Hit@20_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only']['bm25']['RR_Std_mean']:.4f}")
+    log(f"  selected_only (all pairs) × MiniLM: "
+        f"Hit@1={summary['selected_only']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
         f"Hit@5={summary['selected_only']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
         f"Hit@10={summary['selected_only']['minilm']['Hit@10_FlipRate_mean']:.3f}  "
-        f"Hit@20={summary['selected_only']['minilm']['Hit@20_FlipRate_mean']:.3f}")
+        f"Hit@20={summary['selected_only']['minilm']['Hit@20_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only']['minilm']['RR_Std_mean']:.4f}")
+    log(f"  selected_only_lm3 (|Δlen|≤3) × BM25: "
+        f"Hit@1={summary['selected_only_lm3']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['selected_only_lm3']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
+        f"Hit@10={summary['selected_only_lm3']['bm25']['Hit@10_FlipRate_mean']:.3f}  "
+        f"Hit@20={summary['selected_only_lm3']['bm25']['Hit@20_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only_lm3']['bm25']['RR_Std_mean']:.4f}")
+    log(f"  selected_only_lm3 (|Δlen|≤3) × MiniLM: "
+        f"Hit@1={summary['selected_only_lm3']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
+        f"Hit@5={summary['selected_only_lm3']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
+        f"Hit@10={summary['selected_only_lm3']['minilm']['Hit@10_FlipRate_mean']:.3f}  "
+        f"Hit@20={summary['selected_only_lm3']['minilm']['Hit@20_FlipRate_mean']:.3f}  "
+        f"RR_Std={summary['selected_only_lm3']['minilm']['RR_Std_mean']:.4f}")
     return summary
 
 
