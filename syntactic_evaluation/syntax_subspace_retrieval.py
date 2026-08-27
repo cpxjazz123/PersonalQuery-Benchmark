@@ -290,10 +290,9 @@ def stage_retrieval():
     with open(VOLATILITY_SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": ("Stability flip + RR Std on 3 slices (selected_only / selected_only_lm3 "
-                                "(|Δ n_tok| ≤ 3) / selected_only_sim09 (MiniLM cosine ≥ 0.9)) "
+                "description": ("Stability flip + RR Std on selected_only_sim09 (MiniLM cosine ≥ 0.9) "
                                 "per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs"),
-                "slices": ["selected_only", "selected_only_lm3", "selected_only_sim09"],
+                "slices": ["selected_only_sim09"],
             },
             "stability_flip": stability_flip,
         }, f, ensure_ascii=False, indent=2)
@@ -301,24 +300,20 @@ def stage_retrieval():
 
 
 def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
-    """Per-ASIN Hit@K Flip Rate + RR Std across selected queries.
+    """Per-ASIN Hit@K Flip Rate + RR Std across selected queries (sim09 slice only).
 
-    Slices per retriever (BM25 / MiniLM):
-      - 'selected_only': all query pairs (raw flip rate, includes length + content confound)
-      - 'selected_only_lm3': only query pairs with |Δ n_tok| ≤ 3 (length-matched,
-        控制长度方差后纯 style flip)
-      - 'selected_only_sim09': only query pairs with MiniLM cosine sim ≥ 0.9
-        (用户指令 2026-08-28: 排除内容/关键词不同的 pair,只留 "内容相同但风格不同"
-        的 flip,isolate 纯 style volatility)。用户记忆 task #565/#566 已在 N-ablation
-        用过,现在合并进主 pipeline。
+    用户指令 2026-08-28: 只保留 'selected_only_sim09' — 只算 MiniLM cosine ≥ 0.9 的
+    query pair,排除 "内容/关键词不同" 的 pair (e.g., "I need X in Y" vs "I'm hoping
+    to find X in Y"), isolate "内容相同但风格骨架不同" 的纯 style volatility。
+    之前 3 个 slice (all / lm3 / sim09) 中 all 和 lm3 删掉 — 用户决定只看 sim09。
 
     Flip rate definition: of all unique query pairs within the slice, fraction
-    of pairs whose top-K hit/miss labels disagree (one hit, one miss).
+    of pairs whose top-K hit/miss labels disagree (one hit, one miss)。
 
     RR Std: per ASIN, std of 1/rank across queries. Aggregated as mean/median/std
     over ASINs. 描述性指标,不做显著性测试。
     """
-    log("\n=== Computing Hit@K Flip Rate + RR Std (per ASIN, per retriever) ===")
+    log("\n=== Computing Hit@K Flip Rate + RR Std (per ASIN, per retriever, sim09) ===")
     data = json.load(open(retrieval_per_query_path))
     queries = data["queries"]
     log(f"  loaded {len(queries)} queries from {retrieval_per_query_path.name}")
@@ -329,8 +324,7 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
         if q.get("variant") == "selected":
             by_asin[q["asin"]].append(q)
 
-    # 用户指令 2026-08-28: 为 sim09 slice 重新 encode selected queries (7250 × 384)
-    # 之前 stage 4 的 q_embeds 已 del,这里重新跑一次 (~2s GPU,7250 queries × batch 512)
+    # 为 sim09 slice 重新 encode selected queries (7250 × 384),~2s GPU
     log("  encoding selected queries with MiniLM for semantic-sim pairs...")
     import torch
     from sentence_transformers import SentenceTransformer
@@ -348,45 +342,12 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
     embed_map = {id(q): q_embeds_arr[i] for i, q in enumerate(selected_qs)}
     log(f"  q_embeds shape: {q_embeds_arr.shape} (cached in memory)")
 
-    def flip_rate(hit_labels: list[int]) -> float | None:
-        """Pair-wise flip rate: |pairs with disagreeing hit/miss| / total pairs."""
-        n = len(hit_labels)
-        if n < 2:
-            return None
-        total_pairs = n * (n - 1) // 2
-        n_hits = sum(hit_labels)
-        n_miss = n - n_hits
-        agree_pairs = n_hits * (n_hits - 1) // 2 + n_miss * (n_miss - 1) // 2
-        return float((total_pairs - agree_pairs) / total_pairs)
-
-    def flip_rate_lm(hit_labels: list[int], lengths: list[int],
-                      delta: int = 3) -> tuple[float | None, int, int]:
-        """Length-matched flip rate: 仅 |Δlen| ≤ delta 的 query pairs。
-        Returns (flip_rate, n_pairs_used, n_total_pairs)。
-        """
-        n = len(hit_labels)
-        if n < 2:
-            return None, 0, 0
-        total_pairs = n * (n - 1) // 2
-        used_pairs = 0
-        disagree = 0
-        for i in range(n):
-            for j in range(i + 1, n):
-                if abs(lengths[i] - lengths[j]) <= delta:
-                    used_pairs += 1
-                    if hit_labels[i] != hit_labels[j]:
-                        disagree += 1
-        if used_pairs == 0:
-            return None, 0, total_pairs
-        return float(disagree / used_pairs), used_pairs, total_pairs
-
     def flip_rate_sim(hit_labels: list[int], sims: list[float],
                       threshold: float = 0.9) -> tuple[float | None, int, int]:
         """Semantic-similarity matched flip rate: 仅 sim >= threshold 的 query pairs。
 
-        用户指令 2026-08-28: 排除 "内容不同" 的 pair (e.g., "I need X in Y"
-        vs "I'm hoping to find X in Y"), 只算 "内容相同但风格骨架不同" 的 flip。
-        threshold=0.9 是 MiniLM cosine 上的常用 paraphrasing cut-off。
+        用户指令 2026-08-28: 排除 "内容不同" 的 pair, 只算 "内容相同但风格骨架不同"
+        的 flip。threshold=0.9 是 MiniLM cosine 上的常用 paraphrasing cut-off。
 
         Returns (flip_rate, n_pairs_used, n_total_pairs)。
         """
@@ -406,110 +367,86 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
             return None, 0, total_pairs
         return float(disagree / used_pairs), used_pairs, total_pairs
 
-    def summarize(slice_name: str, mode: str) -> dict:
-        """mode ∈ {"all", "lm3", "sim09"} — 控制 flip rate pair filter。"""
-        sub: dict = {}
-        for retriever in ("bm25", "minilm"):
-            rank_key = f"{retriever}_rank"
-            rr_key = f"{retriever}_RR"
-            f1_list, f5_list, f10_list, f20_list = [], [], [], []
-            rr_std_list = []
-            n_asins_used = 0
-            for asin, qs in by_asin.items():
-                if len(qs) < 2:
-                    continue
-                ranks = [q.get(rank_key) for q in qs]
-                if any(r is None for r in ranks):
-                    continue
-                hit1 = [1 if r == 1 else 0 for r in ranks]
-                hit5 = [1 if r <= 5 else 0 for r in ranks]
-                hit10 = [1 if r <= 10 else 0 for r in ranks]
-                hit20 = [1 if r <= 20 else 0 for r in ranks]
-                # RR Std: std of 1/rank across queries (Stage 10H convention)
-                rrs = [float(q.get(rr_key) or 0.0) for q in qs]
-                rr_std = float(np.std(rrs, ddof=0)) if len(rrs) >= 2 else None
-                if mode == "lm3":
-                    lengths = [int(q.get("n_tok") or 0) for q in qs]
-                    f1, _, _ = flip_rate_lm(hit1, lengths)
-                    f5, _, _ = flip_rate_lm(hit5, lengths)
-                    f10, _, _ = flip_rate_lm(hit10, lengths)
-                    f20, _, _ = flip_rate_lm(hit20, lengths)
-                elif mode == "sim09":
-                    embeds = np.stack([embed_map[id(q)] for q in qs], axis=0)
-                    # (n, n) cosine sim matrix; rows/cols aligned with qs order
-                    sim_mat = embeds @ embeds.T
-                    f1, _, _ = flip_rate_sim(hit1, [sim_mat[i] for i in range(len(qs))])
-                    f5, _, _ = flip_rate_sim(hit5, [sim_mat[i] for i in range(len(qs))])
-                    f10, _, _ = flip_rate_sim(hit10, [sim_mat[i] for i in range(len(qs))])
-                    f20, _, _ = flip_rate_sim(hit20, [sim_mat[i] for i in range(len(qs))])
-                else:  # "all"
-                    f1 = flip_rate(hit1)
-                    f5 = flip_rate(hit5)
-                    f10 = flip_rate(hit10)
-                    f20 = flip_rate(hit20)
-                if f1 is not None:
-                    f1_list.append(f1)
-                if f5 is not None:
-                    f5_list.append(f5)
-                if f10 is not None:
-                    f10_list.append(f10)
-                if f20 is not None:
-                    f20_list.append(f20)
-                if rr_std is not None:
-                    rr_std_list.append(rr_std)
-                n_asins_used += 1
-            sub[retriever] = {
-                "n_asins": n_asins_used,
-                "Hit@1_FlipRate_mean": float(np.mean(f1_list)) if f1_list else None,
-                "Hit@1_FlipRate_median": float(np.median(f1_list)) if f1_list else None,
-                "Hit@5_FlipRate_mean": float(np.mean(f5_list)) if f5_list else None,
-                "Hit@5_FlipRate_median": float(np.median(f5_list)) if f5_list else None,
-                "Hit@10_FlipRate_mean": float(np.mean(f10_list)) if f10_list else None,
-                "Hit@10_FlipRate_median": float(np.median(f10_list)) if f10_list else None,
-                "Hit@20_FlipRate_mean": float(np.mean(f20_list)) if f20_list else None,
-                "Hit@20_FlipRate_median": float(np.median(f20_list)) if f20_list else None,
-                "RR_Std_mean": float(np.mean(rr_std_list)) if rr_std_list else None,
-                "RR_Std_median": float(np.median(rr_std_list)) if rr_std_list else None,
-                "RR_Std_std": float(np.std(rr_std_list, ddof=0)) if rr_std_list else None,
-            }
-        return sub
+    sub: dict = {}
+    for retriever in ("bm25", "minilm"):
+        rank_key = f"{retriever}_rank"
+        rr_key = f"{retriever}_RR"
+        f1_list, f5_list, f10_list, f20_list = [], [], [], []
+        rr_std_list = []
+        n_asins_used = 0
+        for asin, qs in by_asin.items():
+            if len(qs) < 2:
+                continue
+            ranks = [q.get(rank_key) for q in qs]
+            if any(r is None for r in ranks):
+                continue
+            hit1 = [1 if r == 1 else 0 for r in ranks]
+            hit5 = [1 if r <= 5 else 0 for r in ranks]
+            hit10 = [1 if r <= 10 else 0 for r in ranks]
+            hit20 = [1 if r <= 20 else 0 for r in ranks]
+            # RR Std: std of 1/rank across queries (Stage 10H convention)
+            rrs = [float(q.get(rr_key) or 0.0) for q in qs]
+            rr_std = float(np.std(rrs, ddof=0)) if len(rrs) >= 2 else None
+            embeds = np.stack([embed_map[id(q)] for q in qs], axis=0)
+            # (n, n) cosine sim matrix; rows/cols aligned with qs order
+            sim_mat = embeds @ embeds.T
+            f1, _, _ = flip_rate_sim(hit1, [sim_mat[i] for i in range(len(qs))])
+            f5, _, _ = flip_rate_sim(hit5, [sim_mat[i] for i in range(len(qs))])
+            f10, _, _ = flip_rate_sim(hit10, [sim_mat[i] for i in range(len(qs))])
+            f20, _, _ = flip_rate_sim(hit20, [sim_mat[i] for i in range(len(qs))])
+            if f1 is not None:
+                f1_list.append(f1)
+            if f5 is not None:
+                f5_list.append(f5)
+            if f10 is not None:
+                f10_list.append(f10)
+            if f20 is not None:
+                f20_list.append(f20)
+            if rr_std is not None:
+                rr_std_list.append(rr_std)
+            n_asins_used += 1
+        sub[retriever] = {
+            "n_asins": n_asins_used,
+            "Hit@1_FlipRate_mean": float(np.mean(f1_list)) if f1_list else None,
+            "Hit@1_FlipRate_median": float(np.median(f1_list)) if f1_list else None,
+            "Hit@5_FlipRate_mean": float(np.mean(f5_list)) if f5_list else None,
+            "Hit@5_FlipRate_median": float(np.median(f5_list)) if f5_list else None,
+            "Hit@10_FlipRate_mean": float(np.mean(f10_list)) if f10_list else None,
+            "Hit@10_FlipRate_median": float(np.median(f10_list)) if f10_list else None,
+            "Hit@20_FlipRate_mean": float(np.mean(f20_list)) if f20_list else None,
+            "Hit@20_FlipRate_median": float(np.median(f20_list)) if f20_list else None,
+            "RR_Std_mean": float(np.mean(rr_std_list)) if rr_std_list else None,
+            "RR_Std_median": float(np.median(rr_std_list)) if rr_std_list else None,
+            "RR_Std_std": float(np.std(rr_std_list, ddof=0)) if rr_std_list else None,
+        }
 
-    summary: dict = {
-        "selected_only": summarize("selected_only", mode="all"),
-        "selected_only_lm3": summarize("selected_only_lm3", mode="lm3"),
-        "selected_only_sim09": summarize("selected_only_sim09", mode="sim09"),
-    }
-    for slice_name in summary:
-        for retr in ("bm25", "minilm"):
-            s = summary[slice_name][retr]
+    summary: dict = {"selected_only_sim09": sub}
 
-            def _f(v):
-                return f"{v:.4f}" if v is not None else "n/a"
+    for retr in ("bm25", "minilm"):
+        s = sub[retr]
 
-            log(f"  {slice_name} × {retr.upper()}: "
-                f"Hit@1={_f(s['Hit@1_FlipRate_mean'])}  "
-                f"Hit@5={_f(s['Hit@5_FlipRate_mean'])}  "
-                f"Hit@10={_f(s['Hit@10_FlipRate_mean'])}  "
-                f"Hit@20={_f(s['Hit@20_FlipRate_mean'])}  "
-                f"RR_Std={_f(s['RR_Std_mean'])}")
+        def _f(v):
+            return f"{v:.4f}" if v is not None else "n/a"
 
-    # 用户指令 2026-08-28: 加显式 Hit@10 flip + RR Std summary block
-    # 之前的 log 行已经把 Hit@1/5/10/20 都列了,但 Hit@10 是最关心的 K (top-10
-    # retrieval 是评测核心),RR_Std 是 style-volatility 标定;单列一张紧凑表方便
-    # 核对 (3 slices × 2 retrievers = 6 cell)。
-    log("\n=== Headline: Hit@10 Flip Rate + RR Std (per slice × retriever) ===")
-    header = f"{'slice':<24} {'retriever':<8} {'Hit@10_flip':>12} {'RR_Std':>10}"
+        log(f"  selected_only_sim09 × {retr.upper()}: "
+            f"Hit@1={_f(s['Hit@1_FlipRate_mean'])}  "
+            f"Hit@5={_f(s['Hit@5_FlipRate_mean'])}  "
+            f"Hit@10={_f(s['Hit@10_FlipRate_mean'])}  "
+            f"Hit@20={_f(s['Hit@20_FlipRate_mean'])}  "
+            f"RR_Std={_f(s['RR_Std_mean'])}")
+
+    # 用户指令 2026-08-28: 显式 Hit@10 flip + RR Std summary block (sim09 only)
+    log("\n=== Headline: Hit@10 Flip Rate + RR Std (sim09) ===")
+    header = f"{'retriever':<10} {'Hit@10_flip':>12} {'RR_Std':>10}"
     log(header)
     log("-" * len(header))
-    for slice_name in summary:
-        for retr in ("bm25", "minilm"):
-            s = summary[slice_name][retr]
+    for retr in ("bm25", "minilm"):
+        s = sub[retr]
 
-            def _p(v):
-                return f"{v * 100:>10.3f}%" if v is not None else f"{'n/a':>10}"
+        def _p(v):
+            return f"{v * 100:>10.3f}%" if v is not None else f"{'n/a':>10}"
 
-            log(f"{slice_name:<24} {retr.upper():<8} "
-                f"{_p(s['Hit@10_FlipRate_mean'])} {_p(s['RR_Std_mean'])}")
+        log(f"{retr.upper():<10} {_p(s['Hit@10_FlipRate_mean'])} {_p(s['RR_Std_mean'])}")
     return summary
 
 

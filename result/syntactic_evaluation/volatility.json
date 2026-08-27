@@ -1,73 +1,11 @@
 {
   "config": {
-    "description": "Stability flip + RR Std on 3 slices (selected_only / selected_only_lm3 (|Δ n_tok| ≤ 3) / selected_only_sim09 (MiniLM cosine ≥ 0.9)) per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs",
+    "description": "Stability flip + RR Std on selected_only_sim09 (MiniLM cosine ≥ 0.9) per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs",
     "slices": [
-      "selected_only",
-      "selected_only_lm3",
       "selected_only_sim09"
     ]
   },
   "stability_flip": {
-    "selected_only": {
-      "bm25": {
-        "n_asins": 725,
-        "Hit@1_FlipRate_mean": 0.03386973180076629,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.03981609195402299,
-        "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.04689655172413793,
-        "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.04603831417624522,
-        "Hit@20_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.037899095767194524,
-        "RR_Std_median": 0.0010364904152631474,
-        "RR_Std_std": 0.09128886202635887
-      },
-      "minilm": {
-        "n_asins": 725,
-        "Hit@1_FlipRate_mean": 0.006559386973180077,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.018697318007662837,
-        "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.025655172413793104,
-        "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.02075095785440613,
-        "Hit@20_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.012525599105117939,
-        "RR_Std_median": 0.00013159923347951208,
-        "RR_Std_std": 0.04528933042314044
-      }
-    },
-    "selected_only_lm3": {
-      "bm25": {
-        "n_asins": 725,
-        "Hit@1_FlipRate_mean": 0.0173237782540877,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.01922195943423958,
-        "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.02572519270739252,
-        "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.025201048067044863,
-        "Hit@20_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.037899095767194524,
-        "RR_Std_median": 0.0010364904152631474,
-        "RR_Std_std": 0.09128886202635887
-      },
-      "minilm": {
-        "n_asins": 725,
-        "Hit@1_FlipRate_mean": 0.0037340302268129054,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.01336847663949951,
-        "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.01633171811413518,
-        "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.01444409630076907,
-        "Hit@20_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.012525599105117939,
-        "RR_Std_median": 0.00013159923347951208,
-        "RR_Std_std": 0.04528933042314044
-      }
-    },
     "selected_only_sim09": {
       "bm25": {
         "n_asins": 725,
