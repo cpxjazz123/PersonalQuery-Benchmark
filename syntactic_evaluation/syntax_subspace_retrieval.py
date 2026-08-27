@@ -435,9 +435,9 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
             f"Hit@20={_f(s['Hit@20_FlipRate_mean'])}  "
             f"RR_Std={_f(s['RR_Std_mean'])}")
 
-    # 用户指令 2026-08-28: 显式 Hit@10 flip + RR Std summary block (sim09 only)
-    log("\n=== Headline: Hit@10 Flip Rate + RR Std (sim09) ===")
-    header = f"{'retriever':<10} {'Hit@10_flip':>12} {'RR_Std':>10}"
+    # 用户指令 2026-08-28: 显式 Hit@1/5/10 flip + RR Std summary block (sim09 only)
+    log("\n=== Headline: Hit@1/5/10 Flip Rate + RR Std (sim09) ===")
+    header = f"{'retriever':<10} {'Hit@1_flip':>12} {'Hit@5_flip':>12} {'Hit@10_flip':>12} {'RR_Std':>10}"
     log(header)
     log("-" * len(header))
     for retr in ("bm25", "minilm"):
@@ -446,7 +446,11 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
         def _p(v):
             return f"{v * 100:>10.3f}%" if v is not None else f"{'n/a':>10}"
 
-        log(f"{retr.upper():<10} {_p(s['Hit@10_FlipRate_mean'])} {_p(s['RR_Std_mean'])}")
+        log(f"{retr.upper():<10} "
+            f"{_p(s['Hit@1_FlipRate_mean'])} "
+            f"{_p(s['Hit@5_FlipRate_mean'])} "
+            f"{_p(s['Hit@10_FlipRate_mean'])} "
+            f"{_p(s['RR_Std_mean'])}")
     return summary
 
 
