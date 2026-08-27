@@ -73,12 +73,13 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "batteries required", "is discontinued by manufacturer"}
 
 # === Step 4 — build_stage8_5_asins 参数 ===
-# 用户指令: 1) 去掉有数字的属性(value 含数字), 2) 传给 LLM 上限 4 个
+# 用户指令: 1) 去掉有数字的属性(value 含数字), 2) 传给 LLM 上限 4 个,
+#           3) 去掉 TOP_N_ASINS = 1409 硬上限, 让全部候选 ASIN 通过
 # Step 4 复用 Step 3 的 select_top_attrs(max_n=4) — 包含数值过滤 + 4 上限
 MIN_REVIEWS_PER_USER = 20
 MIN_USERS_PER_ASIN = 10
 MAX_USERS_PER_ASIN = 10
-TOP_N_ASINS = 1409
+TOP_N_ASINS = 10_000   # 去掉 1409 硬上限, 取全部候选
 MAX_ATTRS_FOR_LLM = 4
 
 
