@@ -73,15 +73,12 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "batteries required", "is discontinued by manufacturer"}
 
 # === Step 4 — build_stage8_5_asins 参数 ===
+# 用户指令:去掉 PREFERRED_ATTRS 白名单,接受 metadata 中所有可用字段
+# (Step 1 已按 MAX_STR_LEN=200 过滤掉 Care instructions 等长字段)
 MIN_REVIEWS_PER_USER = 20
 MIN_USERS_PER_ASIN = 10
 MAX_USERS_PER_ASIN = 10
 TOP_N_ASINS = 1409
-PREFERRED_ATTRS = [
-    "Brand", "Color", "Material", "Style", "Size",
-    "Age Range (Description)", "Special Feature", "Pattern",
-    "Item Weight", "Main Category",
-]
 
 
 def log(msg: str) -> None:
@@ -354,11 +351,12 @@ def step4_build_stage8_5_asins(
     skipped_no_attrs = 0
     for asin, _ in ranked:
         adoc = product_attrs.get(asin) or {}
-        attrs_used: dict = {}
-        for a in PREFERRED_ATTRS:
-            v = adoc.get(a)
-            if isinstance(v, str) and v.strip():
-                attrs_used[a] = v.strip()
+        # 去掉 PREFERRED_ATTRS 白名单: 接受 metadata 中所有非空字符串字段
+        attrs_used: dict = {
+            k: v.strip()
+            for k, v in adoc.items()
+            if isinstance(v, str) and v.strip()
+        }
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
             continue
@@ -381,7 +379,6 @@ def step4_build_stage8_5_asins(
         "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
         "MAX_USERS_PER_ASIN": MAX_USERS_PER_ASIN,
         "TOP_N_ASINS": TOP_N_ASINS,
-        "PREFERRED_ATTRS": PREFERRED_ATTRS,
     }
     out = {
         "config": config,
