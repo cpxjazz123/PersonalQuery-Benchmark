@@ -110,11 +110,22 @@ def stage_select():
     mahal_threshold = chi2.ppf(MAHAL_THRESHOLD_CHI2_PPF, MAHAL_THRESHOLD_DF)
     log(f"  Mahal² gating threshold = χ²({MAHAL_THRESHOLD_CHI2_PPF}, {MAHAL_THRESHOLD_DF}) = {mahal_threshold:.3f}")
 
+    # 用户指令 2026-08-28: per-ASIN greedy unique selection — argmin 时排除已被
+    # 其他用户分配走的 query,实现"只使用用户没被重叠覆盖的分布"。
+    # Algorithm:
+    #   1. 每个 asin entry: 收集所有 user 的 Mahal² distances (n_users × n_queries)
+    #   2. 按 min(distance) 升序遍历 user (最匹配的 user 优先分配)
+    #   3. 该 user 在 argmin 时, 只考虑 in_dist AND NOT used 的 query
+    #   4. 若无可用 → 退化到 in_dist (允许 reuse, 标记 mahal_min_duplicate)
+    #   5. 若完全无 in_dist → out_of_distribution
     selection_entries = []
+    used_q_per_asin: dict[str, set[int]] = {}
 
     n_skip_no_pool = 0
     n_out_of_distribution = 0
-    n_mahal_min = 0
+    n_mahal_min_unique = 0
+    n_mahal_min_duplicate = 0
+    n_no_pool_entry = 0
     for entry in asin_data:
         asin = entry["asin"]
         attrs = entry["attrs_used"]
@@ -126,10 +137,35 @@ def stage_select():
             # Dimensions 等)。这些 ASIN 不在 pool 是预期行为,跳过而非 raise。
             n_skip_no_pool += 1
             continue
-        n_pool_strict = sum(1 for z, q in zqs if q["strict"])
+        strict_zqs = [(z, q) for z, q in zqs if q["strict"]]
+        if not strict_zqs:
+            # 用户指令 2026-08-27: 不再用 all (含 invalid) 作 strict fallback;
+            # 上游 Stage 1 generation 失败/属性不匹配时, 该 ASIN 直接 no_pool
+            for uid in entry["users_sampled"]:
+                if uid not in users_gauss:
+                    raise KeyError(
+                        f"user {uid} (ASIN={asin}) not in user_gaussians. "
+                        f"上游 build_dataset.py 已过滤 MIN_REVIEWS_PER_USER=20, "
+                        f"但 Stage 3 没找到该 user 的 Gaussian — 字段提取不一致, "
+                        f"需修 build_dataset.py 或 gaussian/syntax_subspace_user_gaussians.py 的 user_id 提取。"
+                    )
+                n_no_pool_entry += 1
+                selection_entries.append({
+                    "asin": asin,
+                    "user_id": uid,
+                    "attrs_used": attrs,
+                    "selection_method": "no_pool",
+                    "selected": None,
+                    "selected_distance": None,
+                    "n_candidates": 0,
+                    "user_source": users_gauss[uid]["source"],
+                    "n_reviews": users_gauss[uid]["n_reviews"],
+                })
+            continue
 
+        # 收集该 ASIN 所有 user 的 Mahal² distances
+        user_distances = []
         for uid in entry["users_sampled"]:
-            # 用户指令 2026-08-27: 去掉 asin_centroid_fallback, 上游保证每个 user 都有 Gaussian
             if uid not in users_gauss:
                 raise KeyError(
                     f"user {uid} (ASIN={asin}) not in user_gaussians. "
@@ -139,78 +175,77 @@ def stage_select():
                 )
             mu = np.array(users_gauss[uid]["mu"])
             sigma = np.array(users_gauss[uid]["sigma_diag"])
-            source = users_gauss[uid]["source"]
-            n_reviews = users_gauss[uid]["n_reviews"]
-
-            strict_zqs = [(z, q) for z, q in zqs if q["strict"]]
-            if not strict_zqs:
-                # 用户指令 2026-08-27: 不再用 all (含 invalid) 作 strict fallback;
-                # 上游 Stage 1 generation 失败/属性不匹配时, 该 ASIN 直接 no_pool
-                selection_entries.append({
-                    "asin": asin,
-                    "user_id": uid,
-                    "attrs_used": attrs,
-                    "selection_method": "no_pool",
-                    "selected": None,
-                    "selected_distance": None,
-                    "n_candidates": 0,
-                    "user_source": source,
-                    "n_reviews": n_reviews,
-                })
-                continue
-
             distances = np.array([mahalanobis_sq(z, mu, sigma) for z, _ in strict_zqs])
-            best_idx = int(np.argmin(distances))
-            best_distance = float(distances[best_idx])
-            selected_q = strict_zqs[best_idx][1]
+            user_distances.append((uid, distances, users_gauss[uid]))
 
-            # 用户指令 2026-08-28: Mahal 阈值 gating — best_distance > mahal_threshold
-            # 表示"即便最匹配的 query 也在 95% confidence region 之外",即用户整体
-            # 句法骨架跟该 ASIN 的 strict pool 都不太搭。直接 selected=None,
-            # 标记 out_of_distribution 让下游 Stage 5 跳过这个 pair。
-            if best_distance > mahal_threshold:
+        # 按 min(distance) 升序 — 最匹配的 user 优先分配
+        user_distances.sort(key=lambda x: x[1].min())
+
+        used = used_q_per_asin.setdefault(asin, set())
+
+        for uid, distances, gauss_info in user_distances:
+            source = gauss_info["source"]
+            n_reviews = gauss_info["n_reviews"]
+            in_dist_mask = distances <= mahal_threshold
+            used_mask = np.array([qi in used for qi in range(len(strict_zqs))])
+            avail_mask = in_dist_mask & (~used_mask)
+
+            if avail_mask.any():
+                avail_dists = np.where(avail_mask, distances, np.inf)
+                best_qi = int(np.argmin(avail_dists))
+                best_dist = float(distances[best_qi])
+                used.add(best_qi)
+                method = "mahal_min_unique"
+                n_mahal_min_unique += 1
+                selected_q = strict_zqs[best_qi][1]
+            elif in_dist_mask.any():
+                # 无未用 in_dist, 退化到 in_dist (允许 reuse)
+                avail_dists = np.where(in_dist_mask, distances, np.inf)
+                best_qi = int(np.argmin(avail_dists))
+                best_dist = float(distances[best_qi])
+                method = "mahal_min_duplicate"
+                n_mahal_min_duplicate += 1
+                selected_q = strict_zqs[best_qi][1]
+            else:
+                # 无 in_dist → out_of_distribution
+                best_qi = int(np.argmin(distances))
+                best_dist = float(distances[best_qi])
+                method = "out_of_distribution"
                 n_out_of_distribution += 1
-                selection_entries.append({
-                    "asin": asin,
-                    "user_id": uid,
-                    "attrs_used": attrs,
-                    "selection_method": "out_of_distribution",
-                    "selected": None,
-                    "selected_distance": best_distance,
-                    "n_candidates": len(strict_zqs),
-                    "user_source": source,
-                    "n_reviews": n_reviews,
-                })
-                continue
+                selected_q = None
 
-            n_mahal_min += 1
-            selection_entries.append({
+            entry_dict = {
                 "asin": asin,
                 "user_id": uid,
                 "attrs_used": attrs,
-                "selection_method": "mahal_min",
+                "selection_method": method,
                 "selected": selected_q,
-                "selected_distance": best_distance,
+                "selected_distance": best_dist,
                 "n_candidates": len(strict_zqs),
                 "user_source": source,
                 "n_reviews": n_reviews,
-            })
+            }
+            selection_entries.append(entry_dict)
 
     log(f"  total entries: {len(selection_entries)}")
     log(f"  ASINs skipped (no pool, Stage 1 filtered): {n_skip_no_pool}/{len(asin_data)} "
         f"(Stage 1 N=5 + numeric/metadata filter 主动过滤 <5 非数值 attr 的 ASIN)")
+    log(f"  mahal_min_unique (in-dist, no overlap with other users): {n_mahal_min_unique}")
+    log(f"  mahal_min_duplicate (in-dist, allow reuse, all in-dist taken): "
+        f"{n_mahal_min_duplicate}")
     log(f"  out_of_distribution (Mahal² > χ²(0.95, 48)={mahal_threshold:.3f}): "
         f"{n_out_of_distribution}")
-    log(f"  mahal_min (在用户高斯 95% region 内): {n_mahal_min}")
+    log(f"  no_pool (no strict candidates from Stage 1): {n_no_pool_entry}")
 
     SELECTION_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": ("Stage 8.5: Mahalanobis selection from shared pool with Mahal² "
-                                "gating at χ²(0.95, 48). selection_method ∈ {mahal_min, "
-                                "out_of_distribution, no_pool}; out_of_distribution 的 "
-                                "pair 不进入 Stage 5 retrieval。"),
+                "description": ("Stage 8.5: per-ASIN greedy Mahalanobis selection with "
+                                "Mahal² gating at χ²(0.95, 48) AND unique-query exclusion "
+                                "(用户已被其他 user 选走的 query 不再被选)。selection_method "
+                                "∈ {mahal_min_unique, mahal_min_duplicate, out_of_distribution, "
+                                "no_pool}; out_of_distribution / no_pool 不参与 Stage 5 retrieval。"),
                 "SEED": SEED,
                 "MAHAL_THRESHOLD_CHI2_PPF": MAHAL_THRESHOLD_CHI2_PPF,
                 "MAHAL_THRESHOLD_DF": MAHAL_THRESHOLD_DF,
@@ -223,39 +258,81 @@ def stage_select():
 
     log("\n=== 7. Validation ===")
     mahal_entries = [e for e in selection_entries if e["selected_distance"] is not None]
-    mahal_min_entries = [e for e in mahal_entries if e["selection_method"] == "mahal_min"]
+    selected_entries = [e for e in mahal_entries
+                        if e["selection_method"] in ("mahal_min_unique", "mahal_min_duplicate")]
+    unique_entries = [e for e in selected_entries if e["selection_method"] == "mahal_min_unique"]
+    dup_entries = [e for e in selected_entries if e["selection_method"] == "mahal_min_duplicate"]
     ood_entries = [e for e in mahal_entries if e["selection_method"] == "out_of_distribution"]
-    selected = np.array([e["selected_distance"] for e in mahal_min_entries])
+    selected = np.array([e["selected_distance"] for e in selected_entries])
+    unique = np.array([e["selected_distance"] for e in unique_entries])
+    dup = np.array([e["selected_distance"] for e in dup_entries])
     ood_dist = np.array([e["selected_distance"] for e in ood_entries])
 
     log(f"  N pairs total: {len(mahal_entries)} "
-        f"(mahal_min={len(mahal_min_entries)}, out_of_distribution={len(ood_entries)})")
+        f"(mahal_min_unique={len(unique_entries)}, mahal_min_duplicate={len(dup_entries)}, "
+        f"out_of_distribution={len(ood_entries)})")
     if len(selected) > 0:
-        log(f"  selected (mahal_min, in-distribution): "
+        log(f"  selected (in-distribution, all): "
             f"mean={selected.mean():.3f}, std={selected.std():.3f}, median={np.median(selected):.3f}")
+    if len(unique) > 0:
+        log(f"  - mahal_min_unique (in-dist AND not used by others): "
+            f"n={len(unique)}, mean={unique.mean():.3f}, median={np.median(unique):.3f}")
+    if len(dup) > 0:
+        log(f"  - mahal_min_duplicate (in-dist, all in-dist taken, allow reuse): "
+            f"n={len(dup)}, mean={dup.mean():.3f}, median={np.median(dup):.3f}")
     if len(ood_dist) > 0:
         log(f"  out_of_distribution (Mahal² > χ²(0.95, 48)={mahal_threshold:.3f}): "
             f"n={len(ood_dist)}, mean={ood_dist.mean():.3f}, "
             f"min={ood_dist.min():.3f}, max={ood_dist.max():.3f}")
-    log(f"  (mahal 越小 = query 越接近 user 个体句法骨架; selected 是全 strict 池中的最小, "
-        f"且 ≤ 95% confidence region。无需 3-way 对比 — 删掉 random/farthest 2026-08-28)")
+    log(f"  (mahal 越小 = query 越接近 user 个体句法骨架; selected 是 (in-dist AND NOT covered) "
+        f"的最小,且 ≤ 95% confidence region。无 fallback — mahal_min_duplicate 是用户被迫"
+        f"接受重复而非错选,out_of_distribution 不参与 Stage 5。)")
+
+    # per-ASIN uniqueness 量化
+    by_asin_queries = collections.defaultdict(list)
+    for e in selected_entries:
+        by_asin_queries[e["asin"]].append(e["selected"]["query"])
+    uniqueness = []
+    for asin, qs in by_asin_queries.items():
+        n_users = len(qs)
+        n_unique = len(set(qs))
+        uniqueness.append({"asin": asin, "n_users": n_users, "n_unique": n_unique})
+    n_users_arr = np.array([u["n_users"] for u in uniqueness])
+    n_unique_arr = np.array([u["n_unique"] for u in uniqueness])
+    log(f"\n=== Per-ASIN uniqueness ===")
+    log(f"  ASINs with selected queries: {len(uniqueness)}")
+    log(f"  avg n_users/ASIN: {n_users_arr.mean():.2f}")
+    log(f"  avg n_unique/ASIN: {n_unique_arr.mean():.2f}")
+    log(f"  avg unique ratio (unique/users): {(n_unique_arr / np.maximum(n_users_arr, 1)).mean():.3f}")
+    log(f"  all-same ASINs (1 unique): {sum(1 for u in uniqueness if u['n_unique'] == 1)}/{len(uniqueness)}")
+    log(f"  (期望: per-ASIN greedy 让 n_unique 接近 n_users; mahal_min_duplicate 接受重复)")
 
     by_source = collections.defaultdict(list)
-    for e in mahal_min_entries:
+    for e in selected_entries:
         by_source[e["user_source"]].append(e["selected_distance"])
 
-    log(f"\n=== Per-source breakdown (mahal_min only) ===")
+    log(f"\n=== Per-source breakdown (in-distribution only) ===")
     for src, ds in by_source.items():
         arr = np.array(ds)
         log(f"  {src} (n={len(ds)}): mean={arr.mean():.3f}, median={np.median(arr):.3f}")
 
     with open(SELECTION_STATS_OUT, "w", encoding="utf-8") as f:
         json.dump({
-            "n_pairs": len(mahal_min_entries),
+            "n_pairs": len(selected_entries),
+            "n_mahal_min_unique": len(unique_entries),
+            "n_mahal_min_duplicate": len(dup_entries),
             "n_out_of_distribution": len(ood_entries),
             "selected_mean": float(selected.mean()) if len(selected) > 0 else None,
             "selected_std": float(selected.std()) if len(selected) > 0 else None,
             "selected_median": float(np.median(selected)) if len(selected) > 0 else None,
+            "uniqueness": {
+                "n_asins": len(uniqueness),
+                "avg_n_users_per_asin": float(n_users_arr.mean()) if len(n_users_arr) > 0 else None,
+                "avg_n_unique_per_asin": float(n_unique_arr.mean()) if len(n_unique_arr) > 0 else None,
+                "avg_unique_ratio": float((n_unique_arr / np.maximum(n_users_arr, 1)).mean())
+                    if len(uniqueness) > 0 else None,
+                "n_all_same_asins": sum(1 for u in uniqueness if u["n_unique"] == 1),
+            },
             "per_source": {
                 src: {
                     "n": len(ds),
