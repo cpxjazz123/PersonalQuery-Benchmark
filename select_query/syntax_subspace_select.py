@@ -125,16 +125,18 @@ def stage_select():
             continue
 
         for uid in entry["users_sampled"]:
-            if uid in users_gauss:
-                mu = np.array(users_gauss[uid]["mu"])
-                sigma = np.array(users_gauss[uid]["sigma_diag"])
-                source = users_gauss[uid]["source"]
-                n_reviews = users_gauss[uid]["n_reviews"]
-            else:
-                mu = c_asin
-                sigma = np.maximum(global_var, 1e-3)
-                source = "asin_centroid_fallback"
-                n_reviews = 0
+            # 用户指令 2026-08-27: 去掉 asin_centroid_fallback, 上游保证每个 user 都有 Gaussian
+            if uid not in users_gauss:
+                raise KeyError(
+                    f"user {uid} (ASIN={asin}) not in user_gaussians. "
+                    f"上游 build_dataset.py 已过滤 MIN_REVIEWS_PER_USER=20, "
+                    f"但 Stage 3 没找到该 user 的 Gaussian — 字段提取不一致, "
+                    f"需修 build_dataset.py 或 gaussian/syntax_subspace_user_gaussians.py 的 user_id 提取。"
+                )
+            mu = np.array(users_gauss[uid]["mu"])
+            sigma = np.array(users_gauss[uid]["sigma_diag"])
+            source = users_gauss[uid]["source"]
+            n_reviews = users_gauss[uid]["n_reviews"]
 
             strict_zqs = [(z, q) for z, q in zqs if q["strict"]]
             if not strict_zqs:
@@ -168,18 +170,11 @@ def stage_select():
             random_idx = rng_u.randint(0, len(strict_zqs) - 1)
             random_q = strict_zqs[random_idx][1]
 
-            if source == "per_user" or source == "global_var_fallback":
-                method = "mahal_min"
-                n_mahal += 1
-            else:
-                method = "asin_centroid_fallback"
-                n_asin_fallback += 1
-
             selection_entries.append({
                 "asin": asin,
                 "user_id": uid,
                 "attrs_used": attrs,
-                "selection_method": method,
+                "selection_method": "mahal_min",
                 "selected": selected_q,
                 "random": random_q,
                 "farthest": farthest_q,
@@ -192,8 +187,7 @@ def stage_select():
             })
 
     log(f"  total entries: {len(selection_entries)}")
-    log(f"    mahal_min: {n_mahal}")
-    log(f"    asin_centroid_fallback: {n_asin_fallback}")
+    log(f"    mahal_min: {len(selection_entries)}")
 
     SELECTION_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:

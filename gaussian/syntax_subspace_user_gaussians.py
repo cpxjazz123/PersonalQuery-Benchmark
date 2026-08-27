@@ -74,9 +74,11 @@ def stage_user_gaussians():
     log("\n=== 3. Scanning review corpus ===")
     user_review_texts = collections.defaultdict(list)
     n_records = 0
+    # 用户指令 2026-08-27: 字段提取与 attribute_extraction/build_dataset.py 一致,
+    # 否则上游 ≥20 reviews 过滤过的 user 在 Stage 3 找不到 Gaussian
     for line in gzip.open(REVIEW_GZ, "rt", encoding="utf-8"):
         r = json.loads(line)
-        uid = r.get("user_id", "")
+        uid = r.get("reviewerID") or r.get("user_id")
         if uid in target_users and r.get("text"):
             user_review_texts[uid].append(r["text"])
         n_records += 1
@@ -110,16 +112,19 @@ def stage_user_gaussians():
     log(f"  cache loaded: {len(feat_map)} features")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
+    # 用户指令 2026-08-27: 不设切句阈值, 用整条 review 作为 1 个 sample。
+    # 原因: 86 个 short_users (mean_wc<3) 的 review 多是 1-2 词短句,
+    # 切句后平均 nz=0-7 全 0 污染; 整条 review 至少含 token-based features。
+    # 抽完特征后按 non-zero count >= K 过滤, 1-2 词 review 大多被自然过滤。
     all_sents = []
     sent_to_user = []
     for uid, texts in user_review_texts.items():
         for t in texts:
-            for s in t.replace("\n", " ").split(". "):
-                s = s.strip()
-                if s and len(s.split()) >= 3:
-                    all_sents.append(s)
-                    sent_to_user.append(uid)
-    log(f"  total sentences: {len(all_sents)}")
+            t = t.replace("\n", " ").strip()
+            if t:  # 任意非空 review 都保留, 后面按特征过滤
+                all_sents.append(t)
+                sent_to_user.append(uid)
+    log(f"  total reviews (no length threshold, no sentence split): {len(all_sents)}")
 
     new_sents = [s for s in all_sents if feat_key(s) not in feat_map]
     log(f"  unique sentences: {len(set(all_sents))}, new to extract: {len(new_sents)}")
@@ -155,18 +160,30 @@ def stage_user_gaussians():
         log(f"  saved cache: {len(feat_map)} entries")
 
     log("\n=== 6. Computing z_user per user (mean-pool) ===")
+    # 用户指令 2026-08-27: K=0 不过滤 nz (只过滤 feats is None)。
+    # 原因: 7 个纯 1 词 review user 即使 K=1 也只过 0.66 条 (1 词 review 96.7% nz=0);
+    # 如果不过滤 nz, 这些 user 的全 0 z 进 Gaussian 后 σ²_diag=VAR_EPS,
+    # Mahalanobis 全 0 等价于 random selection (符合"用户无 personal style"的现实)。
+    # LAMBDA=0.1 收缩 var 到 var.mean(),让 0 方差维度不发散。
+    MIN_NONZERO_FEATS = 0
     user_z_list = collections.defaultdict(list)
-    n_skip = 0
+    n_skip_no_feats = 0
+    n_skip_sparse = 0
     for s, uid in zip(all_sents, sent_to_user):
         feats = feat_map.get(feat_key(s))
         if not feats:
-            n_skip += 1
+            n_skip_no_feats += 1
+            continue
+        nonzero_count = sum(1 for v in feats.values() if v != 0.0)
+        if nonzero_count < MIN_NONZERO_FEATS:
+            n_skip_sparse += 1
             continue
         vec = np.array([feats.get(n, 0.0) for n in fnames], dtype=np.float64)
         vec_scaled = scaler.transform(vec[None, :])[0]
         z = pca.transform(vec_scaled[None, :])[0]
         user_z_list[uid].append(z)
-    log(f"  sentences projected: {len(all_sents) - n_skip}, skipped: {n_skip}")
+    log(f"  reviews projected: {sum(len(v) for v in user_z_list.values())}, "
+        f"skipped(no_feats): {n_skip_no_feats}, skipped(sparse<{MIN_NONZERO_FEATS}): {n_skip_sparse}")
 
     log("\n=== 7. Building global pooled variance ===")
     all_z = []
@@ -178,30 +195,25 @@ def stage_user_gaussians():
 
     log("\n=== 8. Building per-user Gaussians ===")
     user_gaussians = {}
-    n_per_user = 0
-    n_fallback = 0
+    missing_users = []
 
     for uid in target_users:
         zs = user_z_list.get(uid, [])
         n_reviews = len(user_review_texts.get(uid, []))
         n_words = sum(len(t.split()) for t in user_review_texts.get(uid, []))
 
-        if len(zs) >= MIN_REVIEWS_FOR_PER_USER:
-            Z = np.stack(zs, axis=0)
-            mu = Z.mean(axis=0)
-            var = Z.var(axis=0)
-            var_shrink = (1 - LAMBDA) * var + LAMBDA * var.mean()
-            sigma_diag = np.maximum(var_shrink, VAR_EPS)
-            source = "per_user"
-            n_per_user += 1
-        elif len(zs) >= 1:
-            Z = np.stack(zs, axis=0)
-            mu = Z.mean(axis=0)
-            sigma_diag = np.maximum(global_var, VAR_EPS)
-            source = "global_var_fallback"
-            n_fallback += 1
-        else:
+        # 用户指令 2026-08-27: 去掉 fallback 逻辑, 上游 build_dataset.py 已用
+        # MIN_REVIEWS_PER_USER=20 过滤, 每个 target_user 都应有足够 sentences。
+        # 数据不足直接 raise, 让上游数据问题显式暴露。
+        if len(zs) < MIN_REVIEWS_FOR_PER_USER:
+            missing_users.append((uid, n_reviews, len(zs)))
             continue
+
+        Z = np.stack(zs, axis=0)
+        mu = Z.mean(axis=0)
+        var = Z.var(axis=0)
+        var_shrink = (1 - LAMBDA) * var + LAMBDA * var.mean()
+        sigma_diag = np.maximum(var_shrink, VAR_EPS)
 
         user_gaussians[uid] = {
             "mu": mu.tolist(),
@@ -209,12 +221,21 @@ def stage_user_gaussians():
             "n_reviews": n_reviews,
             "n_words": n_words,
             "n_sentences": len(zs),
-            "source": source,
+            "source": "per_user",
         }
 
-    log(f"  per-user Gaussians: {n_per_user}")
-    log(f"  global-var fallback: {n_fallback}")
-    log(f"  no reviews (skip): {len(target_users) - len(user_gaussians)}")
+    if missing_users:
+        log(f"  ❌ ERROR: {len(missing_users)}/{len(target_users)} users lack per-user Gaussian:")
+        for uid, n_reviews, n_sents in missing_users[:20]:
+            log(f"      {uid[:12]}... reviews={n_reviews} sents={n_sents}")
+        raise RuntimeError(
+            f"上游过滤条件不足: {len(missing_users)} users have <{MIN_REVIEWS_FOR_PER_USER} sentences. "
+            f"需修 attribute_extraction/build_dataset.py 的 user_id 字段提取逻辑, "
+            f"或降低 MIN_REVIEWS_PER_USER。"
+        )
+
+    log(f"  per-user Gaussians: {len(user_gaussians)}")
+    log(f"  (no fallback chain: upstream MIN_REVIEWS_PER_USER=20 保证所有 user 都有 Gaussian)")
 
     log("\n=== 9. Saving ===")
     GAUSSIANS_OUT.parent.mkdir(parents=True, exist_ok=True)

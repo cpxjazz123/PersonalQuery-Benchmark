@@ -44,7 +44,7 @@ META_GZ = DATA / "meta_Baby_Products_2023.jsonl.gz"
 # === Outputs ===
 PRODUCT_ATTRS_JSON = REPO_ROOT / "result" / "product_attributes.json"
 QUERY_RECORDS_JSON = REPO_ROOT / "result" / "query_records_10k.json"
-STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins_1409_u20.json"
+STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
 
 # === Step 1 — extract_attrs 参数 ===
 MAX_STR_LEN = 200
@@ -360,8 +360,12 @@ def step4_build_stage8_5_asins(
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
             continue
-        top_users = [u for u, _ in user_per_asin_count[asin]
-                     .most_common(MAX_USERS_PER_ASIN)]
+        top_users = sorted(
+            [u for u in user_per_asin_count[asin]
+             if user_total[u] >= MIN_REVIEWS_PER_USER],
+            key=lambda u: user_per_asin_count[asin][u],
+            reverse=True,
+        )[:MAX_USERS_PER_ASIN]
         asins_out.append({
             "asin": asin,
             "n_users_eligible": eligible_count[asin],

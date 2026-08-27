@@ -1,30 +1,30 @@
 {
   "config": {
-    "description": "Stability flip metrics on selected_only (per-ASIN Hit@K flip + RR Std)",
+    "description": "Stability flip metrics on selected_only (per-ASIN Hit@1/@5/@10/@20 flip rate)",
     "slice": "selected_only"
   },
   "stability_flip": {
     "selected_only": {
       "bm25": {
         "n_asins": 1892,
-        "Hit@1_FlipRate_mean": 0.01118158327460653,
+        "Hit@1_FlipRate_mean": 0.02645055203194738,
         "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.01939159032182288,
+        "Hit@5_FlipRate_mean": 0.05554381019497299,
         "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.021834625322997417,
+        "Hit@10_FlipRate_mean": 0.06734789758045572,
         "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.02450082217524078,
+        "Hit@20_FlipRate_mean": 0.0788231148696265,
         "Hit@20_FlipRate_median": 0.0
       },
       "minilm": {
         "n_asins": 1892,
-        "Hit@1_FlipRate_mean": 0.005038759689922481,
+        "Hit@1_FlipRate_mean": 0.011569180173831337,
         "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.009466760629551327,
+        "Hit@5_FlipRate_mean": 0.01930937279774489,
         "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.01223866572703782,
+        "Hit@10_FlipRate_mean": 0.02781301385952549,
         "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.017582804792107116,
+        "Hit@20_FlipRate_mean": 0.03603476626732441,
         "Hit@20_FlipRate_median": 0.0
       }
     }
