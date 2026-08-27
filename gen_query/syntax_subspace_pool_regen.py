@@ -54,7 +54,11 @@ GEN_SYSTEM_TMPL_NATURAL = (
     "include attribute field names (no 'Brand:', 'material_type:', "
     "'material_composition:', 'main category', 'Style:') in the query — "
     "only the values. Each value keeps the meaning of its attribute name. "
-    "Write a natural sentence of 12 to 16 words (strict). Output ONLY the query, no preamble.\n\n"
+    "Write the query from YOUR OWN first-person perspective as the shopper — "
+    "use 'I', 'I'm', 'my', 'looking for', 'I want', 'I need', 'hoping to find', "
+    "etc. The query must read as something YOU (the shopper) would type, not "
+    "as a third-party product description. Write a natural sentence (any length "
+    "is fine). Output ONLY the query, no preamble.\n\n"
     "Attributes ({N_INPUT}):\n{ATTRIBUTES}"
 )
 
@@ -150,19 +154,29 @@ def has_invalid_punct(text: str) -> bool:
     return any(re.search(p, text_lower) for p in bad_patterns)
 
 
+# First-person indicators: must be shopper's own perspective, not 3rd-person description.
+# Require at least one first-person pronoun (i, my, me, mine, we, our) OR first-person
+# verb phrase (looking for, want, need, hoping, searching, shopping for).
+# Match as whole words (avoid "I" inside "icon" / "image"; "my" inside "mystery"; etc.).
+_FIRST_PERSON_RE = re.compile(
+    r"\b(i'm|im|i|my|me|mine|we|our|us|looking for|looking to|i want|i need|i'm hoping|i'm looking|i'm searching|hoping to|shopping for|searching for|in search of|want to buy|need to find|wanting|needing)\b",
+    re.IGNORECASE,
+)
+
+
+def has_first_person(text: str) -> bool:
+    """True iff query is written in shopper's first-person perspective.
+
+    第三人称描述 ("A modern cotton frame..." / "This product..." / "Goodpick
+    modern...") 不算 first-person,即使包含 attribute values 也不通过。
+    """
+    if not text:
+        return False
+    return bool(_FIRST_PERSON_RE.search(text))
+
+
 def n_tokens_simple(text: str) -> int:
     return len(text.split())
-
-
-# 用户指令 2026-08-27: query 长度区间 [12, 16] 词 + ±2 容差,
-# 解决 Stage 5 BM25 flip = length flip 伪信号 (短命中/长不命中)
-MIN_QUERY_WORDS = 10
-MAX_QUERY_WORDS = 18
-
-
-def is_length_in_range(text: str) -> bool:
-    """检查 query 词数是否在 [MIN_QUERY_WORDS, MAX_QUERY_WORDS] 区间内."""
-    return MIN_QUERY_WORDS <= len(text.split()) <= MAX_QUERY_WORDS
 
 
 # ===========================================================================
@@ -205,9 +219,8 @@ def stage_pool_regen():
             continue
         n_cov = count_attrs_covered(text, attrs)
         invalid = has_invalid_punct(text)
-        length_ok = is_length_in_range(text)
-        # 用户指令 2026-08-27: strict = (4/4 attrs) AND no invalid AND length ∈ [10, 18]
-        is_strict = (n_cov == n_input) and (not invalid) and length_ok
+        # 用户指令 2026-08-27: 还原 strict = (4/4 attrs) AND no invalid (length 控制已删除)
+        is_strict = (n_cov == n_input) and (not invalid)
         if is_strict:
             n_total_strict += 1
             strict_counts[a] = strict_counts.get(a, 0) + 1
@@ -230,11 +243,6 @@ def stage_pool_regen():
             f"mean={sum(strict_counts.values()) / len(strict_counts):.1f}")
     log(f"  ASINs with ≥10 strict: {sum(1 for v in strict_counts.values() if v >= 10)}")
     log(f"  ASINs with ≥20 strict: {sum(1 for v in strict_counts.values() if v >= 20)}")
-    # 用户指令 2026-08-27: query length 区间统计 (10-18 词)
-    n_with_text = sum(1 for qs in pools.values() for q in qs)
-    n_len_pass = sum(1 for qs in pools.values() for q in qs if MIN_QUERY_WORDS <= q['n_tok'] <= MAX_QUERY_WORDS)
-    log(f"  queries in length [{MIN_QUERY_WORDS}, {MAX_QUERY_WORDS}]: "
-        f"{n_len_pass}/{n_with_text} ({100 * n_len_pass / max(1, n_with_text):.1f}%)")
 
     POOL_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(POOL_OUT, "w", encoding="utf-8") as f:

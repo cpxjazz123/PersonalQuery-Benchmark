@@ -29,7 +29,7 @@ from syntax_subspace_utils import (
 )
 from syntax_subspace_pool_regen import (
     make_prompt, batch_generate_vllm,
-    count_attrs_covered, has_invalid_punct, n_tokens_simple,
+    count_attrs_covered, has_invalid_punct, has_first_person, n_tokens_simple,
 )
 from attribute_extraction.build_dataset import select_top_attrs
 
@@ -99,7 +99,8 @@ def run_pool_for_n(N: int):
         attrs = asin_attrs[a]
         n_cov = count_attrs_covered(text, attrs)
         invalid = has_invalid_punct(text)
-        is_strict = (n_cov == N) and (not invalid)
+        first_p = has_first_person(text)
+        is_strict = (n_cov == N) and (not invalid) and first_p
         if is_strict:
             n_total_strict += 1
         pools[a].append({

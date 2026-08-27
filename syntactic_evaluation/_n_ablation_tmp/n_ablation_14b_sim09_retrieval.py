@@ -226,6 +226,7 @@ def main():
             })
 
         per_asin_flip = []
+        per_asin_rr_std = []
         for asin, qs in asin_groups.items():
             n_pairs = len(qs) * (len(qs) - 1) // 2
             if n_pairs == 0: continue
@@ -238,20 +239,36 @@ def main():
                     ml_hi = 1 if (qs[i]["mlm_rank"] is not None and qs[i]["mlm_rank"] <= 10) else 0
                     ml_hj = 1 if (qs[j]["mlm_rank"] is not None and qs[j]["mlm_rank"] <= 10) else 0
                     if ml_hi != ml_hj: ml_dis += 1
+            # RR Std: std of 1/rank across queries within this ASIN
+            bm_rrs = [1.0/r for r in [q["bm_rank"] for q in qs] if r is not None and r > 0]
+            ml_rrs = [1.0/r for r in [q["mlm_rank"] for q in qs] if r is not None and r > 0]
+            bm_rr_std = float(np.std(bm_rrs, ddof=0)) if len(bm_rrs) >= 2 else None
+            ml_rr_std = float(np.std(ml_rrs, ddof=0)) if len(ml_rrs) >= 2 else None
             per_asin_flip.append({
                 "asin": asin, "n_q": len(qs), "n_pairs": n_pairs,
                 "bm_flip": bm_dis / n_pairs, "mlm_flip": ml_dis / n_pairs,
             })
+            if bm_rr_std is not None and ml_rr_std is not None:
+                per_asin_rr_std.append({"asin": asin, "bm_rr_std": bm_rr_std, "ml_rr_std": ml_rr_std})
 
         n_asins_eff = len(per_asin_flip)
         bm_flip_mean = float(np.mean([p["bm_flip"] for p in per_asin_flip]))
         mlm_flip_mean = float(np.mean([p["mlm_flip"] for p in per_asin_flip]))
         bm_hit10 = float(np.mean([1 if (r is not None and r <= 10) else 0 for r in per_q_bm_rank]))
         mlm_hit10 = float(np.mean([1 if (r is not None and r <= 10) else 0 for r in mlm_ranks]))
+        # RR Std aggregation
+        bm_rr_std_arr = np.array([p["bm_rr_std"] for p in per_asin_rr_std])
+        ml_rr_std_arr = np.array([p["ml_rr_std"] for p in per_asin_rr_std])
+        bm_rr_std_mean = float(bm_rr_std_arr.mean()) if len(bm_rr_std_arr) else None
+        bm_rr_std_median = float(np.median(bm_rr_std_arr)) if len(bm_rr_std_arr) else None
+        bm_rr_std_p95 = float(np.percentile(bm_rr_std_arr, 95)) if len(bm_rr_std_arr) else None
+        ml_rr_std_mean = float(ml_rr_std_arr.mean()) if len(ml_rr_std_arr) else None
+        ml_rr_std_median = float(np.median(ml_rr_std_arr)) if len(ml_rr_std_arr) else None
+        ml_rr_std_p95 = float(np.percentile(ml_rr_std_arr, 95)) if len(ml_rr_std_arr) else None
 
         log(f"  N={N}: n_asins={n_asins_eff}, n_queries={len(all_queries)}")
-        log(f"  BM25:   hit@10={bm_hit10:.4f}, flip_mean={bm_flip_mean:.4f}")
-        log(f"  MiniLM: hit@10={mlm_hit10:.4f}, flip_mean={mlm_flip_mean:.4f}")
+        log(f"  BM25:   hit@10={bm_hit10:.4f}, flip_mean={bm_flip_mean:.4f}, RR_Std mean={bm_rr_std_mean:.4f} median={bm_rr_std_median:.4f} p95={bm_rr_std_p95:.4f}")
+        log(f"  MiniLM: hit@10={mlm_hit10:.4f}, flip_mean={mlm_flip_mean:.4f}, RR_Std mean={ml_rr_std_mean:.4f} median={ml_rr_std_median:.4f} p95={ml_rr_std_p95:.4f}")
 
         out = {
             "N": N, "model": "Qwen2.5-14B-Instruct",
@@ -262,6 +279,10 @@ def main():
             "n_dropped_sim": n_dropped_sim if N == 10 else None,
             "bm25_hit10": bm_hit10, "minilm_hit10": mlm_hit10,
             "bm25_flip_mean": bm_flip_mean, "minilm_flip_mean": mlm_flip_mean,
+            "bm25_rr_std_mean": bm_rr_std_mean, "bm25_rr_std_median": bm_rr_std_median,
+            "bm25_rr_std_p95": bm_rr_std_p95,
+            "minilm_rr_std_mean": ml_rr_std_mean, "minilm_rr_std_median": ml_rr_std_median,
+            "minilm_rr_std_p95": ml_rr_std_p95,
         }
         # 输出到对应 pool dir
         if N == 10:
