@@ -2,12 +2,9 @@
 
 gaussian/ 只保留"计算用户先验分布"逻辑:从 Baby_Products review corpus
 为每个 target user 构建 per-user Mahalanobis 高斯 (PCA48 + 收缩,
-LAMBDA=0.1, VAR_EPS=1e-3, MIN_REVIEWS_FOR_PER_USER=3)。
+LAMBDA=0.1, VAR_EPS=1e-3, MIN_REVIEWS_FOR_PER_USER=1)。
 
-fallback 链:
-  - per_user      (≥ MIN_REVIEWS_FOR_PER_USER 条 user reviews)
-  - global_var    (1-2 条 user reviews, 用全局方差兜底)
-  - asin_centroid (0 条 reviews, 用 ASIN 候选池中心兜底, 由下游 select 用)
+不设 fallback 链:若 user 无 Gaussian 直接 raise,让上游数据问题显式暴露。
 
 用法:
   python gaussian/syntax_subspace_user_gaussians.py
@@ -17,7 +14,7 @@ I/O 路径:
         data/Baby_Products_2023.jsonl.gz (review corpus)
         stage7b_query_features.jsonl.gz (spaCy 182d features cache)
   输出: stage8_5_user_gaussians.json
-        (per-user mu/sigma_diag + global_var fallback)
+        (per-user mu/sigma_diag)
 
 共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
   common/syntax_subspace_utils.py
@@ -95,9 +92,9 @@ def stage_user_gaussians():
     n_high = sum(1 for c in review_counts if c >= MIN_REVIEWS_FOR_PER_USER)
     log(f"  users with ≥{MIN_REVIEWS_FOR_PER_USER} reviews (per_user Gaussian): {n_high}")
     n_low = sum(1 for c in review_counts if c < MIN_REVIEWS_FOR_PER_USER and c >= 1)
-    log(f"  users with 1-2 reviews (global var fallback): {n_low}")
+    log(f"  users with 1-2 reviews: {n_low}")
     n_zero = len(target_users) - len(user_review_texts)
-    log(f"  users with 0 reviews (asin centroid fallback): {n_zero}")
+    log(f"  users with 0 reviews: {n_zero}")
 
     log("\n=== 4. Loading feature cache ===")
     feat_map = {}
@@ -248,7 +245,6 @@ def stage_user_gaussians():
                 "VAR_EPS": VAR_EPS,
                 "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
             },
-            "global_var": global_var.tolist(),
             "users": user_gaussians,
             "n_users_with_gaussian": len(user_gaussians),
             "n_users_skipped": len(target_users) - len(user_gaussians),

@@ -66,7 +66,6 @@ def stage_select():
     pools = pool_data["pools"]
     gauss_data = json.load(open(GAUSSIANS_IN))
     users_gauss = gauss_data["users"]
-    global_var = np.array(gauss_data["global_var"])
     log(f"  ASINs: {len(asin_data)}, pools: {len(pools)}")
     log(f"  user Gaussians: {len(users_gauss)}")
 
@@ -97,32 +96,24 @@ def stage_select():
         pool_z[asin] = zs_for_asin
     log(f"  ASINs with pool_z: {len(pool_z)}, missing features: {miss}")
 
-    log("\n=== 4. ASIN centroid fallback ===")
-    asin_centroid = {}
-    for asin, zqs in pool_z.items():
-        zs = np.stack([z for z, _ in zqs], axis=0)
-        asin_centroid[asin] = zs.mean(axis=0)
-    log(f"  ASIN centroids: {len(asin_centroid)}")
-
-    log("\n=== 5. Selection per (asin, user) ===")
+    log("\n=== 4. Selection per (asin, user) ===")
     rng = random.Random(SEED)
 
     selection_entries = []
-    n_mahal = 0
-    n_asin_fallback = 0
-    n_random_fallback = 0
 
     for entry in asin_data:
         asin = entry["asin"]
         attrs = entry["attrs_used"]
         n_input = len(attrs)
-        zqs = pool_z.get(asin, [])
+        zqs = pool_z.get(asin)
+        if zqs is None:
+            raise KeyError(
+                f"ASIN {asin} has no pool features. "
+                f"上游 Stage 2 features 已抽取全部 90981 queries, "
+                f"但 Stage 4 找不到 {asin} 的 pool_z — Stage 1 pool 没生成该 ASIN 的 queries, "
+                f"需重跑 Stage 1。"
+            )
         n_pool_strict = sum(1 for z, q in zqs if q["strict"])
-
-        c_asin = asin_centroid.get(asin)
-        if c_asin is None:
-            log(f"  WARNING: no centroid for {asin}, skipping users")
-            continue
 
         for uid in entry["users_sampled"]:
             # 用户指令 2026-08-27: 去掉 asin_centroid_fallback, 上游保证每个 user 都有 Gaussian
@@ -140,8 +131,8 @@ def stage_select():
 
             strict_zqs = [(z, q) for z, q in zqs if q["strict"]]
             if not strict_zqs:
-                strict_zqs = zqs
-            if not strict_zqs:
+                # 用户指令 2026-08-27: 不再用 all (含 invalid) 作 strict fallback;
+                # 上游 Stage 1 generation 失败/属性不匹配时, 该 ASIN 直接 no_pool
                 selection_entries.append({
                     "asin": asin,
                     "user_id": uid,
@@ -187,7 +178,6 @@ def stage_select():
             })
 
     log(f"  total entries: {len(selection_entries)}")
-    log(f"    mahal_min: {len(selection_entries)}")
 
     SELECTION_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:
@@ -197,9 +187,6 @@ def stage_select():
                 "SEED": SEED,
             },
             "n_entries": len(selection_entries),
-            "n_mahal": n_mahal,
-            "n_asin_fallback": n_asin_fallback,
-            "n_random_fallback": n_random_fallback,
             "entries": selection_entries,
         }, f, ensure_ascii=False, indent=2)
     log(f"wrote → {SELECTION_OUT}")

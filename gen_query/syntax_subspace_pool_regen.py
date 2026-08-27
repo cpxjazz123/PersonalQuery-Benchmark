@@ -74,6 +74,13 @@ def make_prompt(attrs: dict, n_input: int, k: int = 0) -> str:
 
 
 def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int = MAX_TOKENS) -> List[str]:
+    """Batched vLLM generation.
+
+    用户指令 2026-08-27: 去掉 batch→single→"" fallback 三层降级。
+    失败直接 raise,让 Stage 1 重跑 (网络/timeout 问题应在 batch 入口 retry)。
+
+    Returns: list of generated texts, len == len(prompts).
+    """
     outputs = []
     full_prompts = []
     for p in prompts:
@@ -85,43 +92,35 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
     bs = 512   # 用户指令 2026-08-27: 8× 客户端 batch, 减少 HTTP overhead
     for i in range(0, len(prompts), bs):
         chunk = full_prompts[i: i + bs]
-        try:
-            resp = requests.post(
-                VLLM_URL,
-                json={
-                    "model": MODEL_NAME,
-                    "prompt": chunk,
-                    "temperature": temp,
-                    "max_tokens": max_tokens,
-                    "top_p": 0.95 if temp > 0 else 1.0,
-                },
-                timeout=600,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            for choice in data["choices"]:
-                outputs.append(choice["text"].strip())
-        except Exception as e:
-            log(f"  batch error: {e!r}, falling back to single requests")
-            for single_prompt in chunk:
-                try:
-                    r = requests.post(
-                        VLLM_URL,
-                        json={
-                            "model": MODEL_NAME,
-                            "prompt": [single_prompt],
-                            "temperature": temp,
-                            "max_tokens": max_tokens,
-                            "top_p": 0.95 if temp > 0 else 1.0,
-                        },
-                        timeout=60,
-                    )
-                    r.raise_for_status()
-                    rj = r.json()
-                    outputs.append(rj["choices"][0]["text"].strip())
-                except Exception as _e:
-                    log(f"  single fallback failed: {_e!r}")
-                    outputs.append("")
+        # 重试 3 次 batch 请求 (网络瞬时错误), 都失败则 raise
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    VLLM_URL,
+                    json={
+                        "model": MODEL_NAME,
+                        "prompt": chunk,
+                        "temperature": temp,
+                        "max_tokens": max_tokens,
+                        "top_p": 0.95 if temp > 0 else 1.0,
+                    },
+                    timeout=600,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                for choice in data["choices"]:
+                    outputs.append(choice["text"].strip())
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                log(f"  batch {i}-{i+bs} attempt {attempt+1}/3 failed: {e!r}")
+        if last_err is not None:
+            raise RuntimeError(
+                f"vLLM batch generation failed for prompts {i}-{i+bs} after 3 attempts: "
+                f"{last_err!r}. 不要降级 — 请检查 vLLM server 状态后重跑 Stage 1。"
+            ) from last_err
     return outputs
 
 

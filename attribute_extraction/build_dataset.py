@@ -105,19 +105,10 @@ def extract_attrs(d: dict) -> dict:
             continue
         out[k] = s
 
-    # Brand fallback: details 无 Brand 时用 store / title
-    if "Brand" not in out:
-        store = d.get("store")
-        if isinstance(store, str) and store.strip():
-            out["Brand"] = store.strip()
-        else:
-            title = d.get("title")
-            if isinstance(title, str):
-                tok = title.split()
-                if tok:
-                    cand = tok[0].strip()
-                    if cand:
-                        out["Brand"] = cand
+    # 用户指令 2026-08-27: 删除 Brand fallback (Rule 7 禁止降级)
+    # 原代码: details 无 Brand → store → title[0], 三层降级
+    # 现: 仅从 details 取; Brand 缺失则 out 无 Brand 键,
+    # 下游 select_top_attrs 按 ATTR_PRIORITY 跳过, 不影响其他字段
 
     # top-level 结构化字段
     main_cat = d.get("main_category")
