@@ -1,0 +1,62 @@
+{
+  "config": {
+    "description": "Stage 4 v6f-A: Posterior Exclusivity Audit. Reads selection.json (v6f posterior_max entries), recomputes full Mahal²/log_p/posterior matrix per ASIN, computes 4 exclusivity metrics (target_rank / lift / margin / coverage) + sanity check (posterior vs log_det)."
+  },
+  "aggregate": {
+    "n_total": 7002,
+    "target_posterior": {
+      "mean": 0.3278182333649332,
+      "median": 0.01671477793793429,
+      "std": 0.4205880454958815,
+      "min": 3.234457591202319e-37,
+      "max": 1.0,
+      "q25": 1.9213563830827625e-06,
+      "q75": 0.8433646904187956
+    },
+    "target_rank": {
+      "mean": 3.895601256783776,
+      "median": 3.0,
+      "fraction_rank1": 0.3416166809483005,
+      "fraction_rank_le_2": 0.450157097972008,
+      "fraction_rank_le_3": 0.5428449014567267
+    },
+    "posterior_margin": {
+      "mean": -0.21716843657935117,
+      "median": -0.5712686848062555,
+      "std": 0.7787316996022348,
+      "fraction_positive": 0.3416166809483005,
+      "fraction_negative": 0.6583833190516996
+    },
+    "other_max_posterior": {
+      "mean": 0.5449866699442845,
+      "median": 0.6141858307701362
+    },
+    "posterior_lift_over_chance": {
+      "mean": 3.181017225198485,
+      "median": 0.1615877579516214,
+      "fraction_above_chance": 0.419594401599543
+    },
+    "exclusive_coverage": {
+      "P(u|q*) > 0.5": 0.3274778634675807,
+      "P(u|q*) > 0.25": 0.37932019423021995,
+      "P(u|q*) > 1/K (chance)": 0.419594401599543
+    },
+    "K_per_asin": {
+      "mean": 9.713510425592688,
+      "median": 10.0,
+      "min": 5,
+      "max": 10,
+      "mean_chance": 0.1035418451870894
+    },
+    "sanity_posterior_vs_log_det": {
+      "pearson_r": -0.5704244366972736,
+      "pearson_p": 0.0,
+      "spearman_r": -0.7348485881771694,
+      "spearman_p": 0.0,
+      "log_det_mean": 91.64863896206035,
+      "log_det_std": 44.896355235571235,
+      "log_det_min": -16.648601236834413,
+      "log_det_max": 286.45048271917165
+    }
+  }
+}
