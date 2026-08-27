@@ -101,18 +101,18 @@ def stage_select():
 
     selection_entries = []
 
+    n_skip_no_pool = 0
     for entry in asin_data:
         asin = entry["asin"]
         attrs = entry["attrs_used"]
         n_input = len(attrs)
         zqs = pool_z.get(asin)
         if zqs is None:
-            raise KeyError(
-                f"ASIN {asin} has no pool features. "
-                f"上游 Stage 2 features 已抽取全部 90981 queries, "
-                f"但 Stage 4 找不到 {asin} 的 pool_z — Stage 1 pool 没生成该 ASIN 的 queries, "
-                f"需重跑 Stage 1。"
-            )
+            # 用户指令 2026-08-28: Stage 1 N=5 + numeric/metadata filter 主动过滤
+            # 掉 <5 非数值 attr 的 ASIN(典型原因:商品页 attrs 多数是 numeric/Country/Department/
+            # Dimensions 等)。这些 ASIN 不在 pool 是预期行为,跳过而非 raise。
+            n_skip_no_pool += 1
+            continue
         n_pool_strict = sum(1 for z, q in zqs if q["strict"])
 
         for uid in entry["users_sampled"]:
@@ -178,6 +178,8 @@ def stage_select():
             })
 
     log(f"  total entries: {len(selection_entries)}")
+    log(f"  ASINs skipped (no pool, Stage 1 filtered): {n_skip_no_pool}/{len(asin_data)} "
+        f"(Stage 1 N=5 + numeric/metadata filter 主动过滤 <5 非数值 attr 的 ASIN)")
 
     SELECTION_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SELECTION_OUT, "w", encoding="utf-8") as f:
