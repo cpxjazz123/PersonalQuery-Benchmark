@@ -90,7 +90,9 @@ ASIN_TO_DOC_CACHE = SCRATCH / "asin_to_doc.json"
 VLLM_URL = "http://localhost:8800/v1/completions"
 # 用户指令 2026-08-27: 切换到 Qwen2-1.5B-Instruct 加速 Stage 1 LLM 生成
 # (~3-4× throughput vs 7B; query 质量略下降但 attrs 信息足够)
-MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-1.5B-Instruct"
+# 用户指令 2026-08-28: vLLM 当前 server 已加载 Qwen2.5-14B-Instruct(MODEL_NAME 必须与之匹配
+# 否则 vLLM 返回 404 "model not found");为了复用现有 vLLM server,临时切回 14B
+MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2.5-14B-Instruct"
 
 # ---------------------------------------------------------------------------
 # 共享超参数 (硬编码,所有脚本统一)
@@ -106,7 +108,8 @@ MIN_REVIEWS_FOR_PER_USER = 1
 
 # Query generation (Stage 1)
 K_POOL = 50
-TEMP = 0.7
+# 用户指令 2026-08-28: 0.7 → 0.5,降低 LLM 跑偏概率(strict rate ↑5-10pp,质量更确定)
+TEMP = 0.5
 # 用户指令 2026-08-27: first-person query 需要更多 tokens (10 attrs + "I'm looking for..." +
 # 各种 paraphrase),从 80 提到 120 给足 buffer
 MAX_TOKENS = 120

@@ -59,6 +59,21 @@ GEN_SYSTEM_TMPL_NATURAL = (
     "etc. The query must read as something YOU (the shopper) would type, not "
     "as a third-party product description. Write a natural sentence (any length "
     "is fine). Output ONLY the query, no preamble.\n\n"
+    "IMPORTANT: ALL {N_INPUT} values MUST appear in the query (verifiable by reading). "
+    "If a value is long or compound (e.g., 'silicone nipple, Polypropylene'), "
+    "mention BOTH parts even if joined by 'and' or 'with' instead of a comma. "
+    "If a value doesn't fit naturally, REWRITE the sentence — never silently drop it.\n\n"
+    "Examples of good queries (1st-person, ≤60 tokens, all attrs embedded):\n"
+    "- attrs: Brand: Manhattan Toy | Color: Blue/Green/Orange | Material: Plastic | Manufacturer: Manhattan Toy | Material Type Free: BPA Free\n"
+    "  query: I'm looking for a Manhattan Toy BPA Free plastic toy in Blue/Green/Orange, hoping it's made by Manhattan Toy again.\n"
+    "- attrs: Brand: Dream On Me | Color: White | Material Type: Polyester | Style: Vinyl Cover | Target gender: Unisex\n"
+    "  query: I'm looking for a Dream On Me unisex vinyl cover in white made of polyester.\n"
+    "- attrs: Brand: Vulli | Color: Brown/ White | Material: Phthalate Free | Material Type: Phthalate Free | Style: Brown Box\n"
+    "  query: I'm looking for a Vulli product that's Brown/ White and made with Phthalate Free material, hoping to find one that comes in a Brown Box style.\n"
+    "- attrs: Brand: Munchkin | Material Type: Other | Age Range (Description): Adult | Target gender: Unisex | Scent: Munchkin\n"
+    "  query: I'm looking for a Munchkin unisex product for adults with a Munchkin scent, hoping it's made of other material type.\n"
+    "- attrs: Brand: Boon | Color: White/Orange | Material: Manmade | Material Type: Manmade | Style: Chair with Seat Pad\n"
+    "  query: I'm looking for a Boon chair with seat pad in White/Orange, hoping it's made of manmade material and is also manmade type.\n\n"
     "Attributes ({N_INPUT}):\n{ATTRIBUTES}"
 )
 
@@ -95,7 +110,10 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
             f"assistant\n"
         )
     bs = 512   # 用户指令 2026-08-27: 8× 客户端 batch, 减少 HTTP overhead
-    for i in range(0, len(prompts), bs):
+    n_total = len(prompts)
+    n_chunks = (n_total + bs - 1) // bs
+    t_start = time.time()
+    for ci, i in enumerate(range(0, n_total, bs)):
         chunk = full_prompts[i: i + bs]
         # 重试 3 次 batch 请求 (网络瞬时错误), 都失败则 raise
         last_err = None
@@ -113,7 +131,6 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
                         "stop": ["\nuser", "\nUser", "\nassistant", "\nAssistant",
                                  "\nsystem", "\nSystem", " user", " User",
                                  " assistant", " Assistant", " system", " System",
-                                 "<|im_end|>", "<|endoftext|>",
                                  "\n(Note", "\n(Here", "\nLet me",
                                  "\nTo clarify", "\nTo make sure", "\nI need",
                                  "\n\nUser:", "\n\nAssistant:", "\n\nSystem:",
@@ -135,16 +152,56 @@ def batch_generate_vllm(prompts: List[str], temp: float = TEMP, max_tokens: int 
                 f"vLLM batch generation failed for prompts {i}-{i+bs} after 3 attempts: "
                 f"{last_err!r}. 不要降级 — 请检查 vLLM server 状态后重跑 Stage 1。"
             ) from last_err
+        # 用户指令 2026-08-28: 每个 chunk 完成后 log 进度 + ETA, 这样 14B ~10-12min
+        # 生成期间能看到实时进展而不是等结束后才知道
+        elapsed = time.time() - t_start
+        rate = (i + len(chunk)) / max(elapsed, 1e-3)
+        eta_s = (n_total - i - len(chunk)) / max(rate, 1e-3)
+        log(f"  chunk {ci+1}/{n_chunks}: prompts {i}-{i+len(chunk)} done "
+            f"({(i+len(chunk))/n_total*100:.1f}%, {rate:.0f} prompts/s, "
+            f"elapsed {elapsed:.0f}s, ETA {eta_s:.0f}s)")
+    log(f"  generation complete: {len(outputs)} outputs in {time.time()-t_start:.0f}s")
     return outputs
 
 
 def count_attrs_covered(text: str, attrs: dict) -> int:
+    """用户指令 2026-08-28: 拆分 value 在逗号后,逐部分 substring 匹配。
+
+    原 strict 检查用整个 value 作为 substring 匹配 query,但 LLM 在 ≤60 token 1st-person
+    query 里会自然地把 "silicone nipple, Polypropylene" 写成 "silicone nipple and Polypropylene"
+    (逗号 → and 是语法自然)。这种生成是合规的,但原匹配因为不含逗号字符串而误判 ATTRS<5。
+
+    新策略: 把 value 按 "," 拆分, 每个 part 都必须在 query 中出现才算 covered。
+    例: "silicone nipple, Polypropylene" → ["silicone nipple", "Polypropylene"]
+        query: "...silicone nipple and Polypropylene..." → 两个 part 都在, covered=1
+
+    进一步: 也尝试匹配去掉标点符号后的 part,容忍 "Polypropylene," vs "Polypropylene"
+    """
     if not text:
         return 0
     text_lower = text.lower()
+    # 规范化 text: 去掉常见标点
+    import re as _re
+    text_norm = _re.sub(r"[,;:.\-_/]", " ", text_lower)
+    text_norm = _re.sub(r"\s+", " ", text_norm)
     covered = 0
     for k, v in attrs.items():
-        if v and str(v).lower() in text_lower:
+        if not v:
+            continue
+        parts = [p.strip() for p in str(v).split(",") if p.strip()]
+        if not parts:
+            continue
+        # 双重匹配: 原串 + 去标点串都满足
+        all_match = True
+        for part in parts:
+            part_lower = part.lower()
+            part_norm = _re.sub(r"[,;:.\-_/]", " ", part_lower).strip()
+            part_norm = _re.sub(r"\s+", " ", part_norm)
+            # 任一匹配即可 (verbatim 或去标点)
+            if part_lower not in text_lower and part_norm not in text_norm:
+                all_match = False
+                break
+        if all_match:
             covered += 1
     return covered
 
@@ -287,17 +344,23 @@ def stage_pool_regen():
     sys.path.insert(0, str(REPO_ROOT / "gen_query"))
     from _n_ablation_pool_v2 import get_top_n_attrs
 
-    log(f"building prompts with top-{N_INPUT} attrs from product_attributes.json...")
+    log(f"building prompts with top-{N_INPUT} NON-NUMERIC attrs from product_attributes.json...")
     asin_attrs = {}  # asin → top-N attrs
+    n_no_attrs = n_lt_n = 0
     for entry in asin_data:
         a = entry["asin"]
         pa = pattrs.get(a)
         if pa is None:
+            n_no_attrs += 1
             continue
         top_n = get_top_n_attrs(pa, N_INPUT)
-        if len(top_n) == N_INPUT:
-            asin_attrs[a] = top_n
-    log(f"  ASINs with ≥{N_INPUT} attrs: {len(asin_attrs)}")
+        # 用户指令 2026-08-28: 如果去掉数值属性后 <5 个, 过滤该 ASIN
+        if len(top_n) < N_INPUT:
+            n_lt_n += 1
+            continue
+        asin_attrs[a] = top_n
+    log(f"  ASINs with ≥{N_INPUT} non-numeric attrs: {len(asin_attrs)}")
+    log(f"  ASINs filtered out: no_attrs={n_no_attrs}, lt_{N_INPUT}_non_numeric={n_lt_n}")
 
     all_prompts = []
     asin_idx = []
@@ -355,6 +418,13 @@ def stage_pool_regen():
             "too_long": too_long,
             "n_tok": n_tokens_simple(text),
         })
+        # 用户指令 2026-08-28: 生成过程中每 4000 outputs 打 running strict rate,
+        # 这样 14B ~10-12min 生成时能看到质量,不用等结束后才知道
+        if len(pools[a]) % 4000 == 0:
+            n_so_far = sum(len(v) for v in pools.values())
+            log(f"  [progress] {n_so_far}/{len(all_outputs)} processed "
+                f"({n_so_far/len(all_outputs)*100:.0f}%), "
+                f"running strict: {n_total_strict/max(1,n_so_far)*100:.1f}%")
 
     log(f"\n=== Pool stats ===")
     log(f"  total queries: {len(all_outputs)}")
@@ -374,12 +444,40 @@ def stage_pool_regen():
     log(f"  ASINs with ≥10 strict: {sum(1 for v in strict_counts.values() if v >= 10)}")
     log(f"  ASINs with ≥20 strict: {sum(1 for v in strict_counts.values() if v >= 20)}")
 
+    # 用户指令 2026-08-28: 立刻打 3 strict + 2 non-strict 样本 query,
+    # 不必等 Stage 2-5 跑完就能肉眼验证质量
+    import random as _rnd
+    _rnd.seed(42)
+    all_records = [rec for recs in pools.values() for rec in recs]
+    strict_recs = [r for r in all_records if r["strict"]]
+    non_strict_recs = [r for r in all_records if not r["strict"]]
+    log(f"\n=== Sample queries (3 strict + 2 non-strict) ===")
+    if strict_recs:
+        for r in _rnd.sample(strict_recs, min(3, len(strict_recs))):
+            log(f"  [STRICT] {r['query'][:140]}")
+    if non_strict_recs:
+        for r in _rnd.sample(non_strict_recs, min(2, len(non_strict_recs))):
+            fail_reasons = []
+            if r["attrs_covered"] < N_INPUT:
+                fail_reasons.append(f"attrs={r['attrs_covered']}/{N_INPUT}")
+            if r["invalid"]:
+                fail_reasons.append("invalid_punct")
+            if not r["first_person"]:
+                fail_reasons.append("not_1st_person")
+            if r["emoji"]:
+                fail_reasons.append("emoji")
+            if r["self_talk"]:
+                fail_reasons.append("self_talk")
+            if r["too_long"]:
+                fail_reasons.append(f"too_long({r['n_tok']}tok)")
+            log(f"  [FAIL  ] {r['query'][:120]} ({','.join(fail_reasons)})")
+
     POOL_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(POOL_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
                 "description": (
-                    f"Stage 8.5: SHARED candidate pool per ASIN (K={K_POOL}, N={N_INPUT} attrs, "
+                    f"Stage 8.5: SHARED candidate pool per ASIN (K={K_POOL}, N={N_INPUT} non-numeric attrs, "
                     f"first-person + 5-layer strict filter: attrs/invalid/1p/emoji/self-talk/length≤{MAX_QUERY_TOKENS})"
                 ),
                 "K_POOL": K_POOL,
@@ -389,6 +487,7 @@ def stage_pool_regen():
                 "MAX_TOKENS": MAX_TOKENS,
                 "SEED": 2024,
                 "MODEL_NAME": MODEL_NAME,
+                "ATTR_NUMERIC_FILTER": "value contains digit char → excluded",
                 "filters": ["attrs_covered==N", "no_invalid_punct", "first_person",
                             "no_emoji", "no_self_talk", f"length≤{MAX_QUERY_TOKENS}"],
             },

@@ -41,20 +41,55 @@ def get_top_n_attrs(attrs: dict, n: int) -> dict:
     """从 product_attributes 选 top-n 真实非空 attrs。
 
     排除: empty string/list/dict, numeric values (避免 Stage 1 之前 EXCLUDE_NUMERIC_ATTRS 的策略)。
+    用户指令 2026-08-28: 进一步排除 *value 含数字字符* 的属性(如 "5.02 x 4.04 x 3.54 inches",
+    "3.87 ounces", "DXR-8", "80160")—— 这些元数据/尺寸属性在 ≤60 token 1st-person query
+    中无法自然嵌入。
     优先: brand / category / color / material / style / size 这种语义字段。
     """
     # 排除项
+    # 用户指令 2026-08-28: 加元数据 key — Country of Origin / Domestic Shipping /
+    # Department / Main Category 等。这些是商品元数据/category 标记,无法在 ≤60 token
+    # 1st-person query 中自然嵌入 (Country of Origin: China / Domestic Shipping: ...)
     SKIP_KEYS = {
         "Average Rating", "Price", "Rating Number", "Item model number",
         "Batteries required", "Is Discontinued By Manufacturer",
         "Date First Available", "Item Weight", "Maximum weight recommendation",
         "Minimum weight recommendation", "Package Dimensions", "Product Dimensions",
         "Number Of Items", "ASIN", "UPC",
+        # 用户指令 2026-08-28: 元数据 key
+        "Country of Origin", "Country/Region of Origin",
+        "Domestic Shipping", "International Shipping", "Shipping Weight",
+        "Department", "Main Category", "Best Sellers Rank",
+        "Warranty Type", "Warranty Description",
+        "Included Components", "Compatible Devices",
+        # 用户指令 2026-08-28: 抽象属性 — 模型难嵌入 1st-person query
+        "Best uses", "Operation Mode", "Power Source",
+        "Specific Uses For Product", "Product Benefits",
+        "Mounting Type", "Item Form", "Number of Pieces",
+        "Item Package Quantity", "Capacity", "Volume",
+        "Batteries Included", "Battery Life",
+        # 用户指令 2026-08-28 (v4): 复合分类名 / 抽象技术属性
+        "Bottle type", "Bottle Type", "Additional product features",
+        "Power Source Type", "Battery Cell Composition",
+        "Care Instructions", "Item Type", "Closure Type",
+        "Pattern Type", "Shape", "Form",
+        "Special Features", "Surface Recommendation",
+        "Manufacturer Part Number", "Part Number",
     }
     NUMERIC_KW = {"price", "average rating", "rating number", "item weight",
                   "item model number", "date first available",
                   "package dimensions", "product dimensions",
-                  "minimum weight recommendation", "maximum weight recommendation"}
+                  "minimum weight recommendation", "maximum weight recommendation",
+                  "country of origin", "country/region of origin",
+                  "best sellers rank", "shipping weight",
+                  "capacity", "volume", "battery life",
+                  "manufacturer part number", "part number"}
+
+    # 用户指令 2026-08-28 (v4): 值复杂度过滤 — 排除长/复合值 (>4 words or >50 chars)
+    # 原因: 1st-person query ≤60 tokens, 长复合值无法自然嵌入
+    MAX_VALUE_WORDS = 3   # v4: 4→3 进一步收紧
+    MAX_VALUE_CHARS = 40  # v4: 50→40
+    MAX_VALUE_COMMAS = 2  # v4: 3→2 (避免 Wide Mouth, Vented, Anti-Colic 这种 3-复合)
 
     def is_real(k, v):
         if v is None: return False
@@ -62,6 +97,20 @@ def get_top_n_attrs(attrs: dict, n: int) -> dict:
         if s in ('', '[]', '{}', 'None'): return False
         if any(nk in k.lower() for nk in NUMERIC_KW): return False
         if k in SKIP_KEYS: return False
+        # 用户指令 2026-08-28: 排除 value 含数字字符的属性
+        if any(ch.isdigit() for ch in s):
+            return False
+        # 用户指令 2026-08-28: 值复杂度过滤 — 排除长/复合值
+        if len(s) > MAX_VALUE_CHARS: return False
+        if len(s.split()) > MAX_VALUE_WORDS: return False
+        if s.count(",") >= MAX_VALUE_COMMAS: return False
+        # v4: 排除含 "/" "&" ";" 的复合值(如 "Wide Mouth/Vented", "A & B")
+        if any(sep in s for sep in ("/", "&", ";")):
+            return False
+        # v5: 排除 Yes/No boolean 值 — LLM 在 1st-person query 里自然改写为
+        # "is dishwasher safe" 而非字面 "Yes",导致 ATTRS<5 误判
+        if s.lower() in ("yes", "no", "true", "false"):
+            return False
         return True
 
     real = [(k, v) for k, v in attrs.items() if is_real(k, v)]
@@ -69,8 +118,8 @@ def get_top_n_attrs(attrs: dict, n: int) -> dict:
     PREF = ["Brand", "Color", "Material", "Material Type", "Style",
             "Fabric Type", "Frame Material", "Pattern", "Theme", "Size",
             "Age Range (Description)", "Target gender", "Special Feature",
-            "Main Category", "Manufacturer", "Harness type", "Form Factor",
-            "Item Weight", "Shape"]
+            "Manufacturer", "Harness type", "Form Factor",
+            "Shape"]
     def keyfn(item):
         k = item[0]
         try:

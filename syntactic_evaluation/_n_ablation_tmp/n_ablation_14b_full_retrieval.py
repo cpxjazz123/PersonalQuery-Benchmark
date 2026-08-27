@@ -20,7 +20,7 @@ from syntax_subspace_utils import (
 
 OUT_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/n_ablation_14b_full")
 SEED = 2024
-K_SELECT = 8
+K_SELECT = 10
 N_LIST = [5, 7, 10]
 
 
@@ -52,7 +52,7 @@ def main():
         all_queries = []
         for asin, qs in pools.items():
             strict_qs = [q for q in qs if q["strict"]]
-            if len(strict_qs) < 2:
+            if len(strict_qs) < 10:
                 continue
             chosen = rng.sample(strict_qs, min(K_SELECT, len(strict_qs)))
             for q in chosen:
