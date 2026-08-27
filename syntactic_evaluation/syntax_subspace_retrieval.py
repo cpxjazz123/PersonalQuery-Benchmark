@@ -286,7 +286,7 @@ def stage_retrieval():
     with open(VOLATILITY_SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stability flip metrics on selected_only (per-ASIN Hit@K flip + RR Std)",
+                "description": "Stability flip metrics on selected_only (per-ASIN Hit@1/@5/@10/@20 flip rate)",
                 "slice": "selected_only",
             },
             "stability_flip": stability_flip,
@@ -303,7 +303,7 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
     Flip rate definition: of all unique query pairs within the slice, fraction
     of pairs whose top-K hit/miss labels disagree (one hit, one miss).
     """
-    log("\n=== Computing Hit@K Flip Rate + RR Std (per ASIN, per retriever, selected_only) ===")
+    log("\n=== Computing Hit@K Flip Rate (per ASIN, per retriever, selected_only) ===")
     data = json.load(open(retrieval_per_query_path))
     queries = data["queries"]
     log(f"  loaded {len(queries)} queries from {retrieval_per_query_path.name}")
@@ -328,30 +328,30 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
     summary: dict = {"selected_only": {}}
     for retriever in ("bm25", "minilm"):
         rank_key = f"{retriever}_rank"
-        rr_key = f"{retriever}_RR"
-        flip1_list, flip5_list, flip10_list, rrstd_list = [], [], [], []
+        flip1_list, flip5_list, flip10_list, flip20_list = [], [], [], []
         n_asins_used = 0
         for asin, qs in by_asin.items():
             if len(qs) < 2:
                 continue
             ranks = [q.get(rank_key) for q in qs]
-            rrs = [q.get(rr_key, 0.0) for q in qs]
             if any(r is None for r in ranks):
                 continue
             hit1 = [1 if r == 1 else 0 for r in ranks]
             hit5 = [1 if r <= 5 else 0 for r in ranks]
             hit10 = [1 if r <= 10 else 0 for r in ranks]
+            hit20 = [1 if r <= 20 else 0 for r in ranks]
             f1 = flip_rate(hit1)
             f5 = flip_rate(hit5)
             f10 = flip_rate(hit10)
-            rs = float(np.std(rrs))
+            f20 = flip_rate(hit20)
             if f1 is not None:
                 flip1_list.append(f1)
             if f5 is not None:
                 flip5_list.append(f5)
             if f10 is not None:
                 flip10_list.append(f10)
-            rrstd_list.append(rs)
+            if f20 is not None:
+                flip20_list.append(f20)
             n_asins_used += 1
         summary["selected_only"][retriever] = {
             "n_asins": n_asins_used,
@@ -361,18 +361,17 @@ def _compute_stability_flip_metrics(retrieval_per_query_path) -> dict:
             "Hit@5_FlipRate_median": float(np.median(flip5_list)) if flip5_list else None,
             "Hit@10_FlipRate_mean": float(np.mean(flip10_list)) if flip10_list else None,
             "Hit@10_FlipRate_median": float(np.median(flip10_list)) if flip10_list else None,
-            "RR_Std_mean": float(np.mean(rrstd_list)) if rrstd_list else None,
-            "RR_Std_median": float(np.median(rrstd_list)) if rrstd_list else None,
-            "RR_Std_p90": float(np.percentile(rrstd_list, 90)) if rrstd_list else None,
+            "Hit@20_FlipRate_mean": float(np.mean(flip20_list)) if flip20_list else None,
+            "Hit@20_FlipRate_median": float(np.median(flip20_list)) if flip20_list else None,
         }
     log(f"  selected_only × BM25: Hit@1={summary['selected_only']['bm25']['Hit@1_FlipRate_mean']:.3f}  "
         f"Hit@5={summary['selected_only']['bm25']['Hit@5_FlipRate_mean']:.3f}  "
         f"Hit@10={summary['selected_only']['bm25']['Hit@10_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only']['bm25']['RR_Std_mean']:.4f}")
+        f"Hit@20={summary['selected_only']['bm25']['Hit@20_FlipRate_mean']:.3f}")
     log(f"  selected_only × MiniLM: Hit@1={summary['selected_only']['minilm']['Hit@1_FlipRate_mean']:.3f}  "
         f"Hit@5={summary['selected_only']['minilm']['Hit@5_FlipRate_mean']:.3f}  "
         f"Hit@10={summary['selected_only']['minilm']['Hit@10_FlipRate_mean']:.3f}  "
-        f"RR_Std={summary['selected_only']['minilm']['RR_Std_mean']:.4f}")
+        f"Hit@20={summary['selected_only']['minilm']['Hit@20_FlipRate_mean']:.3f}")
     return summary
 
 
