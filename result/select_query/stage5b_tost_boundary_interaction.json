@@ -1,0 +1,223 @@
+{
+  "config": {
+    "description": "Stage 5B: TOST Equivalence Test + Boundary Interaction. Part A: TOST (Two One-Sided Tests) on G+/G- in BM25/MiniLM RR + rank, with equivalence margins ε_RR=0.01, ε_rank=200/2000. Part B: OLS regression of log(rank) on M + boundary + M×boundary, where boundary = 1/(1+log(rank)). ASIN-cluster bootstrap for CI.",
+    "n_pairs": 7299,
+    "n_G_pos": 4651,
+    "n_G_neg": 2648,
+    "equivalence_margins": {
+      "RR": 0.01,
+      "BM25_rank": 200,
+      "MiniLM_rank": 2000,
+      "cohen_d": 0.1
+    }
+  },
+  "tost_equivalence": {
+    "bm25_RR": {
+      "eps": 0.01,
+      "n1": 4651,
+      "n2": 2648,
+      "mean1": 0.17441852362002613,
+      "mean2": 0.1744206565524226,
+      "diff": -2.132932396453624e-06,
+      "se_diff": 0.0076592642361900986,
+      "df": 5452.253678524804,
+      "t_lower": 1.3053299585048297,
+      "t_upper": -1.305886913410857,
+      "p_lower_one_sided": 0.09591779875039341,
+      "p_upper_one_sided": 0.09582305554635083,
+      "tost_p": 0.09591779875039341,
+      "alpha": 0.05,
+      "ci_90_low": -0.012602642430685353,
+      "ci_90_high": 0.012598376565892445,
+      "ci_90_in_band": false,
+      "cohen_d": -6.800426350509242e-06,
+      "equivalence_pass_at_alpha": false
+    },
+    "minilm_RR": {
+      "eps": 0.01,
+      "n1": 4651,
+      "n2": 2648,
+      "mean1": 0.06994733900460225,
+      "mean2": 0.07215511186343412,
+      "diff": -0.0022077728588318773,
+      "se_diff": 0.0050093570582318584,
+      "df": 5404.550609600613,
+      "t_lower": 1.5555343830728106,
+      "t_upper": -2.43699395290078,
+      "p_lower_one_sided": 0.059938702413076084,
+      "p_upper_one_sided": 0.00742098791794902,
+      "tost_p": 0.059938702413076084,
+      "alpha": 0.05,
+      "ci_90_low": -0.010448844575890383,
+      "ci_90_high": 0.006033298858226628,
+      "ci_90_in_band": false,
+      "cohen_d": -0.010793883882065036,
+      "equivalence_pass_at_alpha": false
+    },
+    "bm25_rank": {
+      "eps": 200,
+      "n1": 4651,
+      "n2": 2648,
+      "mean1": 1788.7903676628682,
+      "mean2": 1519.2050604229607,
+      "diff": 269.5853072399075,
+      "se_diff": 108.02719140947175,
+      "df": 6055.421740009446,
+      "t_lower": 4.34691767057025,
+      "t_upper": 0.6441462221872251,
+      "p_lower_one_sided": 7.0162185183964e-06,
+      "p_upper_one_sided": 0.7402474915576107,
+      "tost_p": 0.7402474915576107,
+      "alpha": 0.05,
+      "ci_90_low": 91.86920180017361,
+      "ci_90_high": 447.3014126796413,
+      "ci_90_in_band": false,
+      "cohen_d": 0.058803570605691025,
+      "equivalence_pass_at_alpha": false
+    },
+    "minilm_rank": {
+      "eps": 2000,
+      "n1": 4651,
+      "n2": 2648,
+      "mean1": 14752.249408729305,
+      "mean2": 14369.462613293052,
+      "diff": 382.78679543625367,
+      "se_diff": 809.7549226934137,
+      "df": 5653.1474551462825,
+      "t_lower": 2.942602420384933,
+      "t_upper": -1.9971637828203106,
+      "p_lower_one_sided": 0.00163394381407167,
+      "p_upper_one_sided": 0.022927622775941032,
+      "tost_p": 0.022927622775941032,
+      "alpha": 0.05,
+      "ci_90_low": -949.3598262628825,
+      "ci_90_high": 1714.9334171353898,
+      "ci_90_in_band": true,
+      "cohen_d": 0.011405674064106091,
+      "equivalence_pass_at_alpha": true
+    }
+  },
+  "boundary_interaction_per_pair": {
+    "bm25_log_rank_model_B": {
+      "intercept": {
+        "beta": -0.0002360743524578051,
+        "se": 0.005627231429839628,
+        "t": -0.04195213141687564,
+        "p": 0.9665380061966302
+      },
+      "M_z": {
+        "beta": 0.007679952154378184,
+        "se": 0.005631119881358039,
+        "t": 1.363840997206054,
+        "p": 0.17265969369364087
+      },
+      "boundary_z": {
+        "beta": -0.8768868875491815,
+        "se": 0.00562771289412185,
+        "t": -155.81585344644898,
+        "p": 0.0
+      },
+      "M_z × boundary": {
+        "beta": -0.015847476536353232,
+        "se": 0.005659297223024104,
+        "t": -2.8002552104667457,
+        "p": 0.0051196527334624875
+      }
+    },
+    "minilm_log_rank_model_B": {
+      "intercept": {
+        "beta": -0.00011168508745358082,
+        "se": 0.006163791868629425,
+        "t": -0.01811954229376259,
+        "p": 0.9855439835396744
+      },
+      "M_z": {
+        "beta": -0.0011743749180411099,
+        "se": 0.006170982514991843,
+        "t": -0.19030598696205547,
+        "p": 0.8490746577075519
+      },
+      "boundary_z": {
+        "beta": -0.850461163478753,
+        "se": 0.006166972952987179,
+        "t": -137.90577159363147,
+        "p": 0.0
+      },
+      "M_z × boundary": {
+        "beta": -0.006513409601158822,
+        "se": 0.0057623776719874795,
+        "t": -1.130333687224688,
+        "p": 0.25837280642462357
+      }
+    }
+  },
+  "boundary_interaction_asin_level": {
+    "bm25_RR_model": {
+      "intercept": {
+        "beta": -0.001179284191104494,
+        "se": 0.012553144222883263,
+        "t": -0.09394333165986926,
+        "p": 0.9251800922512903
+      },
+      "M_z": {
+        "beta": -0.004319039033526106,
+        "se": 0.012570288988000913,
+        "t": -0.3435910691988772,
+        "p": 0.7312533208914449
+      },
+      "boundary_z": {
+        "beta": 0.9391088995439275,
+        "se": 0.012576369989082813,
+        "t": 74.672492965708,
+        "p": 0.0
+      },
+      "M_z × boundary": {
+        "beta": -0.023891276714253288,
+        "se": 0.012102277220903205,
+        "t": -1.9741141504334387,
+        "p": 0.04874742830239098
+      }
+    },
+    "minilm_RR_model": {
+      "intercept": {
+        "beta": -0.00029739756578012357,
+        "se": 0.015421436167845035,
+        "t": -0.01928468675311979,
+        "p": 0.9846192984676092
+      },
+      "M_z": {
+        "beta": 0.007359557297336469,
+        "se": 0.015483922703819502,
+        "t": 0.4753031539947592,
+        "p": 0.6347138753913693
+      },
+      "boundary_z": {
+        "beta": 0.9098207312166129,
+        "se": 0.015535725986086607,
+        "t": 58.56312939809988,
+        "p": 0.0
+      },
+      "M_z × boundary": {
+        "beta": -0.004609769744293394,
+        "se": 0.01535297948297407,
+        "t": -0.3002524525878167,
+        "p": 0.7640705511176478
+      }
+    }
+  },
+  "asin_cluster_bootstrap_interaction": {
+    "bm25_interaction_beta": -0.023891276714253288,
+    "bm25_interaction_CI_low": -0.05089219442421607,
+    "bm25_interaction_CI_high": 0.012389882259602296,
+    "minilm_interaction_beta": -0.004609769744293394,
+    "minilm_interaction_CI_low": -0.07099278655308666,
+    "minilm_interaction_CI_high": 0.05693833626935142
+  },
+  "interpretation": {
+    "tost_pass_RR": false,
+    "boundary_interaction_sig_bm25": true,
+    "boundary_interaction_sig_minilm": false,
+    "key_finding": "TOST + boundary interaction analysis tests whether G+ vs G- are practically equivalent retrieval outcomes (within ε margin), and whether M's role is mediated by retrieval boundary proximity. If TOST passes and interaction is NS while boundary is strong, M is a constraint not a volatility driver."
+  },
+  "total_elapsed_s": 0.775233268737793
+}
