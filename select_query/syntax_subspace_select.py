@@ -38,6 +38,26 @@ from syntax_subspace_utils import (  # noqa: E402
     PCA_DIM, PCA_SEED, SEED, log, feat_key,
 )
 from scipy.stats import chi2
+from sklearn.preprocessing import StandardScaler
+
+
+# ===========================================================================
+# 用户指令 2026-08-28: F3_CoreStruct 切到 main pipeline (Pareto 2D ablation 推荐)
+# 排除 open_/close_/posbg_/postg_/depbg_ n-gram + has_passive/is_interrog/
+# has_cond/stype(都已被 sorted() numeric filter 排除,但显式列出仍可读)。
+# 实际数值特征从 182 → 103;PCA_DIM=48 不变。
+# ===========================================================================
+FEATURE_SUBSET = "F3_CoreStruct"
+NGRAM_PREFIXES = ("open_", "close_", "posbg_", "postg_", "depbg_")
+SEMANTIC_TAGS = ("has_passive", "is_interrog", "has_cond", "stype",
+                 "acl", "advcl", "ccomp", "xcomp", "relcl", "opener")
+
+
+def apply_feature_subset(all_fnames: list[str]) -> list[str]:
+    keep = [n for n in all_fnames
+            if not any(n.startswith(p) for p in NGRAM_PREFIXES)
+            and n not in SEMANTIC_TAGS]
+    return keep
 
 
 # ===========================================================================
@@ -51,18 +71,29 @@ def mahalanobis_sq(z: np.ndarray, mu: np.ndarray, sigma_diag: np.ndarray) -> flo
 
 def stage_select():
     log("=== STAGE 4 — MAHA SELECT ===")
+    log(f"  feature subset: {FEATURE_SUBSET}")
 
     log("\n=== 1. Loading PCA48 ===")
     from syntax_subspace_utils import _syntax_subspace_prepare
     P = _syntax_subspace_prepare()
-    scaler = P["scaler"]
-    fnames = P["feature_names_ordered"]
+    all_fnames = P["feature_names_ordered"]
+    X = P["X"]  # raw features for subset refit
     train_idx = P["train_idx"]
 
+    # 用户指令 2026-08-28: 用 F3_CoreStruct (Pareto 2D 推荐) + 重新 fit StandardScaler
+    fnames = apply_feature_subset(all_fnames)
+    col_idx = [all_fnames.index(n) for n in fnames]
+    X_sub = X[:, col_idx]
+    log(f"  features: {len(all_fnames)} → {len(fnames)} ({FEATURE_SUBSET})")
+    scaler_sub = StandardScaler()
+    scaler_sub.fit(X_sub[train_idx])
+    X_sub_scaled = scaler_sub.transform(X_sub)
+    log(f"  StandardScaler refit on subset, X_sub_scaled: {X_sub_scaled.shape}")
+
     from sklearn.decomposition import PCA
-    pca = PCA(n_components=PCA_DIM, random_state=42)
-    pca.fit(P["X_scaled"][train_idx])
-    log(f"  PCA48 ready")
+    pca = PCA(n_components=PCA_DIM, random_state=PCA_SEED)
+    pca.fit(X_sub_scaled[train_idx])
+    log(f"  PCA{PCA_DIM} ready")
 
     log("\n=== 2. Loading inputs ===")
     asin_data = json.load(open(ASINS_IN))["asins"]
@@ -98,7 +129,7 @@ def stage_select():
                 miss += 1
                 continue
             vec = np.array([feats.get(n, 0.0) for n in fnames], dtype=np.float64)
-            z = pca.transform(scaler.transform(vec[None, :]))[0]
+            z = pca.transform(scaler_sub.transform(vec[None, :]))[0]
             z_white = z / sqrt_lambda
             zs_for_asin.append((z, q))
             zs_white.append((z_white, q))
@@ -111,15 +142,14 @@ def stage_select():
     # 原始 z-space ||z-μ|| 中位数 24.16 — 远大于理论 √χ²(0.95,48)=8.073。
     # 直接用理论阈值是 selection effect (v6i 5% pass rate 是假的 GO)。
     # 正确做法: whitening + 真实历史评论校准 shared R_99。
-    X_scaled = P["X_scaled"]
     user_to_indices = P["user_to_indices"]
-    log(f"  X_scaled shape: {X_scaled.shape}")
+    log(f"  X_sub_scaled shape: {X_sub_scaled.shape}")
 
     # 计算 whitened μ̃_u 和 user_z_white (PCA48 z / √λ)
     user_z_white_means = {}
     for uid in user_to_indices:
         idx = user_to_indices[uid]
-        z_user = pca.transform(X_scaled[idx]) / sqrt_lambda
+        z_user = pca.transform(X_sub_scaled[idx]) / sqrt_lambda
         user_z_white_means[uid] = z_user.mean(axis=0)
 
     # 计算 pooled R_99 from whitened residuals
@@ -127,7 +157,7 @@ def stage_select():
     all_residuals = []
     for uid in user_to_indices:
         idx = user_to_indices[uid]
-        z_user = pca.transform(X_scaled[idx]) / sqrt_lambda
+        z_user = pca.transform(X_sub_scaled[idx]) / sqrt_lambda
         mu = user_z_white_means[uid]
         residuals = np.linalg.norm(z_user - mu, axis=1)
         all_residuals.append(residuals)
