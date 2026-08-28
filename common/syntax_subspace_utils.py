@@ -107,7 +107,7 @@ VAR_EPS = 1e-3
 MIN_REVIEWS_FOR_PER_USER = 1
 
 # Query generation (Stage 1)
-K_POOL = 50
+K_POOL = 200  # 用户指令 2026-08-28 K-sweep: 50 → 100 → 200 → 400
 # 用户指令 2026-08-28: 0.7 → 0.5,降低 LLM 跑偏概率(strict rate ↑5-10pp,质量更确定)
 TEMP = 0.5
 # 用户指令 2026-08-27: first-person query 需要更多 tokens (10 attrs + "I'm looking for..." +
