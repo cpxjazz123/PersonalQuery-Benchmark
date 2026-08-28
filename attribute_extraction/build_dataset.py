@@ -89,14 +89,11 @@ MAX_ATTRS_FOR_LLM = 4
 # cohort 不再 cap 每 ASIN 上限, 也不再要求最低 user 数 / 最低 review 数。
 MIN_MEAN_WC = 20
 
-# 用户指令 2026-08-29: 二级过滤 = 总字数 MIN_TOTAL_WORDS = 1000
-# 实证 (旧 4324-user cohort 分布): median 1736 words, p10=703, p25=1017
-# < 500 words: σ² Ledoit-Wolf 收缩必要, μ 估计不可靠 (n_samples < PCA_dim=48)
-# 500-1000 words: 渐近稳定, μ 误差 < 5%
-# 1000-2000 words: σ² 收敛, μ 误差 < 2% (推荐下限)
-# > 2000 words: 接近真实分布, SOTA
-# 用户决策: 1000 (≈ 50 reviews × 20 wc 或 30 reviews × 33 wc)
-MIN_TOTAL_WORDS = 1000
+# 用户指令 2026-08-29: 撤销 MIN_TOTAL_WORDS = 1000 限制
+# 原因: 用户要求"去掉min1000的限制, 重新对每个评论都需要提取特征值"
+# 原 12,966 users → 685K users 全量回归
+# 后果: Stage 3 user_gaussians 量级回到 685K, Stage 4 selection cohort 暴增
+MIN_TOTAL_WORDS = 0
 
 
 def log(msg: str) -> None:

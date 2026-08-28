@@ -1,23 +1,23 @@
-"""Syntax Subspace — Stage 3 (user Gaussians).
+"""Syntax Subspace - Stage 3 (user Gaussians).
 
-gaussian/ 只保留"计算用户先验分布"逻辑:从 Baby_Products review corpus
-为每个 target user 构建 per-user Mahalanobis 高斯 (PCA48 + 收缩,
-LAMBDA=0.1, VAR_EPS=1e-3, MIN_REVIEWS_FOR_PER_USER=1)。
+gaussian/ only keeps the "compute user prior distribution" logic: from the
+Baby_Products review corpus, build a per-user Mahalanobis Gaussian for each
+target user (PCA48 + shrinkage, LAMBDA=0.1, VAR_EPS=1e-3, MIN_REVIEWS_FOR_PER_USER=1).
 
-不设 fallback 链:若 user 无 Gaussian 直接 raise,让上游数据问题显式暴露。
+No fallback chain: if a user has no Gaussian, log a warning and skip them.
 
-用法:
+Usage:
   python gaussian/syntax_subspace_user_gaussians.py
 
-I/O 路径:
-  输入: stage8_5_asins.json (target users + ASIN)
-        data/Baby_Products_2023.jsonl.gz (review corpus)
-        stage7b_query_features.jsonl.gz (spaCy 182d features cache)
-  输出: stage8_5_user_gaussians.json
-        (per-user mu/sigma_diag)
+I/O:
+  Input:  stage8_5_asins.json (target users + ASIN)
+          data/Baby_Products_2023.jsonl.gz (review corpus)
+          stage7b_query_features.jsonl.gz (spaCy 182d feature cache)
+  Output: result/gaussian/user_gaussians.json
+          (per-user mu / sigma_diag)
 
-共享工具 (log, feat_key, paths, hyperparams, _syntax_subspace_prepare) 来自:
-  common/syntax_subspace_utils.py
+Shared utilities (log, feat_key, paths, hyperparams, _syntax_subspace_prepare)
+are imported from: common/syntax_subspace_utils.py
 """
 
 from __future__ import annotations
@@ -44,12 +44,12 @@ sys.path.insert(0, str(REPO_ROOT / "common"))
 
 
 def stage_user_gaussians():
-    log("=== STAGE 3 — USER GAUSSIANS ===")
+    log("=== STAGE 3 - USER GAUSSIANS ===")
 
-    # 用户指令 2026-08-28: Stage 3 加缓存 — Stage 3 不依赖 pool.json, 只依赖 review corpus
-    # + PCA + feature cache + target user list。任意上游文件 / config 变化才重算,
-    # 否则直接 load user_gaussians.json (Stage 1 重跑时无需重新拟合 per-user Gaussian,
-    # 节省 ~1.5min × 多次 = ~10min+ 迭代时间)
+    # User directive 2026-08-28: cache Stage 3 - Stage 3 does NOT depend on pool.json,
+    # only on review corpus + PCA + feature cache + target user list. If neither
+    # upstream files nor config change, just load user_gaussians.json directly
+    # (saves ~1.5min x multiple iterations = ~10min+).
     import hashlib as _hl_cache
     sig_payload = json.dumps({
         "PCA_DIM": PCA_DIM,
@@ -72,8 +72,8 @@ def stage_user_gaussians():
             cached_sig = cached.get("config", {}).get("cache_signature")
             if cached_sig == sig_hash:
                 cached_users = cached.get("users", {})
-                log(f"  ✓ CACHE HIT: {len(cached_users)} users from {GAUSSIANS_OUT}")
-                log(f"  (上游文件 + config 未变, 跳过完整 pipeline; 重跑 Stage 1/2 不需要重做 Stage 3)")
+                log(f"  CACHE HIT: {len(cached_users)} users from {GAUSSIANS_OUT}")
+                log(f"  (upstream files + config unchanged, skip full pipeline)")
                 return
             else:
                 log(f"  cache signature mismatch (cached={cached_sig}, current={sig_hash}), recomputing...")
@@ -108,8 +108,7 @@ def stage_user_gaussians():
     log("\n=== 3. Scanning review corpus ===")
     user_review_texts = collections.defaultdict(list)
     n_records = 0
-    # 用户指令 2026-08-27: 字段提取与 attribute_extraction/build_dataset.py 一致,
-    # 否则上游 ≥20 reviews 过滤过的 user 在 Stage 3 找不到 Gaussian
+    # User directive 2026-08-27: field extraction matches attribute_extraction/build_dataset.py
     for line in gzip.open(REVIEW_GZ, "rt", encoding="utf-8"):
         r = json.loads(line)
         uid = r.get("reviewerID") or r.get("user_id")
@@ -127,18 +126,17 @@ def stage_user_gaussians():
             f"mean={sum(review_counts)/len(review_counts):.1f}, "
             f"max={max(review_counts)}")
     n_high = sum(1 for c in review_counts if c >= MIN_REVIEWS_FOR_PER_USER)
-    log(f"  users with ≥{MIN_REVIEWS_FOR_PER_USER} reviews (per_user Gaussian): {n_high}")
+    log(f"  users with >={MIN_REVIEWS_FOR_PER_USER} reviews (per_user Gaussian): {n_high}")
     n_low = sum(1 for c in review_counts if c < MIN_REVIEWS_FOR_PER_USER and c >= 1)
     log(f"  users with 1-2 reviews: {n_low}")
     n_zero = len(target_users) - len(user_review_texts)
     log(f"  users with 0 reviews: {n_zero}")
 
-    log("\n=== 4. Loading feature cache ===")
-    feat_map = {}
+    log("\n=== 4. Loading feature cache (lazy: only seen_keys) ===")
+    seen_keys = set()
     if FEAT_CACHE.exists():
-        # 用户指令 2026-08-29: 容错 EOFError + zlib.error, chunked append 模式下
-        # 文件可能被强杀在 gzip block 中间 (chunked append 不 atomic).
-        # 优雅降级到第一个解压错误位置,前面的 entries 全部保留。
+        # User directive 2026-08-29: tolerate EOFError + zlib.error (chunked append not atomic).
+        # Gracefully degrade to first decompression error, all earlier entries preserved.
         n_load_errors = 0
         try:
             with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
@@ -151,58 +149,54 @@ def stage_user_gaussians():
                     except json.JSONDecodeError:
                         n_load_errors += 1
                         continue
-                    feat_map[rec["k"]] = rec["v"]
+                    seen_keys.add(rec["k"])
         except (EOFError, gzip.BadGzipFile, zlib.error) as e:
-            log(f"  ⚠ cache gzip stream truncated ({type(e).__name__}: {e!r}), "
-                f"loaded {len(feat_map)} entries + {n_load_errors} corrupt lines")
-    log(f"  cache loaded: {len(feat_map)} features")
+            log(f"  WARN cache gzip stream truncated ({type(e).__name__}: {e!r}), "
+                f"loaded {len(seen_keys)} keys + {n_load_errors} corrupt lines")
+    log(f"  cache keys loaded: {len(seen_keys)} (lazy mode)")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
-    # 用户指令 2026-08-27: 不设切句阈值, 用整条 review 作为 1 个 sample。
-    # 原因: 86 个 short_users (mean_wc<3) 的 review 多是 1-2 词短句,
-    # 切句后平均 nz=0-7 全 0 污染; 整条 review 至少含 token-based features。
-    # 抽完特征后按 non-zero count >= K 过滤, 1-2 词 review 大多被自然过滤。
-    # 用户指令 2026-08-28: chunked append + 减 worker mem footprint 避免 1.84M sentences OOM
+    # User directive 2026-08-27: no sentence split threshold; use entire review as 1 sample.
+    # Reason: short_users (mean_wc<3) reviews are mostly 1-2 word; sentence split gives
+    # nz=0-7 all-zero pollution; entire review contains token-based features.
+    # After extraction, filter by non-zero count >= K; 1-2 word reviews naturally filtered.
+    # User directive 2026-08-28: chunked append + reduced worker mem footprint to avoid 1.84M sentence OOM
+    # User directive 2026-08-29: n_process=2, batch_size=128 (OOM safe; reduced from 4)
     all_sents = []
     sent_to_user = []
     for uid, texts in user_review_texts.items():
         for t in texts:
             t = t.replace("\n", " ").strip()
-            if t:  # 任意非空 review 都保留, 后面按特征过滤
+            if t:
                 all_sents.append(t)
                 sent_to_user.append(uid)
     log(f"  total reviews (no length threshold, no sentence split): {len(all_sents)}")
 
-    new_sents = [s for s in all_sents if feat_key(s) not in feat_map]
+    new_sents = [s for s in all_sents if feat_key(s) not in seen_keys]
     log(f"  unique sentences: {len(set(all_sents))}, new to extract: {len(new_sents)}")
 
+    feat_map = {}
     if new_sents:
         import spacy
         from syntactic_features import per_sentence_features_v2
         nlp = spacy.load("en_core_web_sm")
-        # 用户指令 2026-08-27: 关闭 features 用不到的 spaCy 组件, 提速 30-40%
+        # Disable spaCy components not used by features (30-40% speedup)
         for comp in ("ner", "lemmatizer", "attribute_ruler"):
             if comp in nlp.pipe_names:
                 nlp.disable_pipe(comp)
-        # 用户指令 2026-08-29: n_process=4 (OOM 退避), batch_size=256, chunked append
-        # + 主动 gc.collect() + del 释放 spaCy Doc 内存, 避免 feat_map 600K entries
-        # + 50K Doc 引用累计触发 OOM
-        N_PROCESS = 4
-        BATCH_SIZE = 256
-        CHUNK_FLUSH = 25_000  # 用户指令 2026-08-29: 从 50K 降到 25K 减半, 让每 chunk
-                              # 内存峰值更低 (50K Doc × 4 worker batch_buffer ≈ 8GB peak)
+        N_PROCESS = 2
+        BATCH_SIZE = 128
+        CHUNK_FLUSH = 25_000  # Halve from 50K for lower per-chunk peak (50K Doc x 4 workers ≈ 8GB peak)
         log(f"  extracting features for {len(new_sents)} new sentences "
             f"(n_process={N_PROCESS}, batch={BATCH_SIZE}, "
             f"chunked append every {CHUNK_FLUSH})...")
         new_unique = sorted(set(new_sents))
-        # spaCy pipe 是 generator; list 化前先 flush cache header 一次
-        # mode='at' 不能写 header, 必须 mode='wt' 第一次写 header 后 mode='at' append
         if not FEAT_CACHE.exists():
             with gzip.open(FEAT_CACHE, "wt", encoding="utf-8") as f:
                 f.write("# user-review sentence features (key=sha1(text), v=182d dict)\n")
 
-        n_processed = 0
         import gc as _gc
+        n_processed = 0
         with gzip.open(FEAT_CACHE, "at", encoding="utf-8") as f_cache:
             for chunk_start in range(0, len(new_unique), CHUNK_FLUSH):
                 chunk = new_unique[chunk_start:chunk_start + CHUNK_FLUSH]
@@ -220,101 +214,185 @@ def stage_user_gaussians():
                                if isinstance(v, (int, float))}
                     filtered = {n: numeric.get(n, 0.0) for n in fnames}
                     feat_map[k] = filtered
+                    seen_keys.add(k)
                     f_cache.write(json.dumps({"k": k, "v": filtered}) + "\n")
                     n_processed += 1
                 f_cache.flush()
-                # 用户指令 2026-08-29: 主动释放 spaCy Doc 引用 + gc
-                # 避免 chunk 结束时 main 进程仍持有全部 Doc 导致 RSS 单调增长 OOM
+                # Free spaCy Doc references + gc to avoid monotonic RSS growth
                 del chunk
                 _gc.collect()
-                log(f"    flushed chunk {chunk_start + len(chunk) if False else chunk_start + CHUNK_FLUSH}/"
-                    f"{len(new_unique)} (mem-safe + gc.collect)")
+                log(f"    flushed chunk {chunk_start + CHUNK_FLUSH}/{len(new_unique)} "
+                    f"(mem-safe + gc.collect)")
         log(f"  saved cache: {len(feat_map)} entries (chunked append done)")
 
-    log("\n=== 6. Computing z_user per user (mean-pool) ===")
-    # 用户指令 2026-08-27: K=0 不过滤 nz (只过滤 feats is None)。
-    # 原因: 7 个纯 1 词 review user 即使 K=1 也只过 0.66 条 (1 词 review 96.7% nz=0);
-    # 如果不过滤 nz, 这些 user 的全 0 z 进 Gaussian 后 σ²_diag=VAR_EPS,
-    # Mahalanobis 全 0 等价于 random selection (符合"用户无 personal style"的现实)。
-    # LAMBDA=0.1 收缩 var 到 var.mean(),让 0 方差维度不发散。
+    # User directive 2026-08-29: free Stage 5 intermediates to reduce RSS.
+    # feat_map (430K new entries) + all_sents (1.99M strings) + sent_to_user no longer needed.
+    # Stage 6 streams cache file + Welford online accumulation (avoids user_z_list).
+    del all_sents, sent_to_user, feat_map
+    import gc as _gc
+    _gc.collect()
+    log("  Stage 5 intermediates freed (all_sents / sent_to_user / feat_map)")
+
+    log("\n=== 6. Computing z_user per user (Welford online) ===")
+    # User directive 2026-08-29: large cohort (1.94M users x 6M reviews) caused 3 OOM kills.
+    # Old user_z_list held 1.94M users x avg 3 z's x 384B = 2.2GB + dict overhead +
+    # sha1_to_indices 500MB + full cache load 1.96GB + runtime → 30GB limit OOM.
+    # New design: Welford online accumulation, peak memory ~5GB.
+    #   1) sha1_to_uid_idx: sha1 -> [uid_idx, ...] with multiplicity
+    #      (1.96M keys x list ≈ 600MB)
+    #   2) Welford state per user: count[N] + mean[N,48] + M2[N,48] = 1.5GB
+    #   3) Stream cache file: per entry compute 1 z, then update Welford N times
+    #      (N = number of users who wrote that review text)
     MIN_NONZERO_FEATS = 0
-    user_z_list = collections.defaultdict(list)
-    n_skip_no_feats = 0
+
+    # Build target_users ordered list + uid -> idx mapping
+    target_user_list = sorted(target_users)
+    uid_to_idx = {u: i for i, u in enumerate(target_user_list)}
+    n_users = len(target_user_list)
+    log(f"  target users ordered: {n_users}")
+
+    # Per-user metadata (n_reviews, n_words) computed while building reverse index
+    user_n_reviews: dict = {}
+    user_n_words: dict = {}
+    # sha1 -> list of uid_idx (with multiplicity; same uid appearing N times = N Welford updates)
+    sha1_to_uid_idx: dict = collections.defaultdict(list)
+    n_reviews_total = 0
+    n_reviews_empty = 0
+    for uid, texts in user_review_texts.items():
+        user_n_reviews[uid] = len(texts)
+        user_n_words[uid] = sum(len(t.split()) for t in texts)
+        uid_idx = uid_to_idx.get(uid)
+        if uid_idx is None:
+            continue
+        for t in texts:
+            t = t.replace("\n", " ").strip()
+            if not t:
+                n_reviews_empty += 1
+                continue
+            sha1_to_uid_idx[feat_key(t)].append(uid_idx)
+            n_reviews_total += 1
+    log(f"  sha1_to_uid_idx built: {len(sha1_to_uid_idx)} unique keys, "
+        f"{n_reviews_total} reviews (empty={n_reviews_empty})")
+    # Free review texts (1.16GB), keep user_n_reviews/n_words (~50MB)
+    del user_review_texts
+    _gc.collect()
+    log("  user_review_texts freed")
+
+    # Welford state (online accumulation; no per-user z list)
+    counts = np.zeros(n_users, dtype=np.int64)
+    mean_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
+    M2_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
+
+    n_cache_seen = 0
+    n_cache_matched = 0
     n_skip_sparse = 0
-    for s, uid in zip(all_sents, sent_to_user):
-        feats = feat_map.get(feat_key(s))
-        if not feats:
-            n_skip_no_feats += 1
-            continue
-        nonzero_count = sum(1 for v in feats.values() if v != 0.0)
-        if nonzero_count < MIN_NONZERO_FEATS:
-            n_skip_sparse += 1
-            continue
-        vec = np.array([feats.get(n, 0.0) for n in fnames], dtype=np.float64)
-        vec_scaled = scaler.transform(vec[None, :])[0]
-        z = pca.transform(vec_scaled[None, :])[0]
-        user_z_list[uid].append(z)
-    log(f"  reviews projected: {sum(len(v) for v in user_z_list.values())}, "
-        f"skipped(no_feats): {n_skip_no_feats}, skipped(sparse<{MIN_NONZERO_FEATS}): {n_skip_sparse}")
+    if FEAT_CACHE.exists():
+        try:
+            with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    k = rec["k"]
+                    v = rec["v"]
+                    n_cache_seen += 1
+                    uid_idxs = sha1_to_uid_idx.pop(k, None)
+                    if uid_idxs is None:
+                        continue
+                    n_cache_matched += 1
+                    nonzero_count = sum(1 for val in v.values() if val != 0.0)
+                    if nonzero_count < MIN_NONZERO_FEATS:
+                        n_skip_sparse += len(uid_idxs)
+                        continue
+                    vec = np.array([v.get(n, 0.0) for n in fnames], dtype=np.float64)
+                    vec_scaled = scaler.transform(vec[None, :])[0]
+                    z = pca.transform(vec_scaled[None, :])[0].astype(np.float64)
+                    # Welford update per uid_idx (same uid multiple times = multiple updates
+                    # with same z, mathematically equivalent to N-fold weighting)
+                    for ui in uid_idxs:
+                        counts[ui] += 1
+                        delta = z - mean_acc[ui]
+                        mean_acc[ui] = mean_acc[ui] + delta / counts[ui]
+                        delta2 = z - mean_acc[ui]
+                        M2_acc[ui] = M2_acc[ui] + delta * delta2
+                    if n_cache_matched % 200_000 == 0:
+                        _gc.collect()
+                        n_with_rev = int((counts > 0).sum())
+                        log(f"    streaming cache: {n_cache_matched}/{n_cache_seen} matched, "
+                            f"sha1_to_uid_idx remaining: {len(sha1_to_uid_idx)}, "
+                            f"users with reviews: {n_with_rev}/{n_users}")
+        except (EOFError, gzip.BadGzipFile, zlib.error) as e:
+            log(f"  WARN streaming cache truncated ({type(e).__name__}: {e!r}), "
+                f"seen {n_cache_seen} entries")
+    # Remaining sha1_to_uid_idx keys = cache did not cover these sentences → n_skip_no_feats
+    n_skip_no_feats = sum(len(v) for v in sha1_to_uid_idx.values())
+    log(f"  streaming cache done: {n_cache_seen} entries seen, "
+        f"{n_cache_matched} matched, "
+        f"users with reviews: {int((counts > 0).sum())}/{n_users}, "
+        f"n_skip_sparse: {n_skip_sparse}, n_skip_no_feats: {n_skip_no_feats}")
+    # Free reverse index (~600MB)
+    sha1_to_uid_idx.clear()
+    del sha1_to_uid_idx
+    _gc.collect()
 
-    log("\n=== 7. Building global pooled variance ===")
-    all_z = []
-    for uid, zs in user_z_list.items():
-        all_z.extend(zs)
-    all_z = np.stack(all_z, axis=0)
-    global_var = all_z.var(axis=0)
-    log(f"  global var shape: {global_var.shape}, mean: {global_var.mean():.4f}")
-
-    log("\n=== 8. Building per-user Gaussians ===")
+    log("\n=== 7. Computing per-user Gaussian (mu / sigma_diag) ===")
+    # User directive 2026-08-29: compute mu/var from Welford state
+    # (population var = M2/count). Skip the original global_pooled_var (dead code).
     user_gaussians = {}
     missing_users = []
 
-    for uid in target_users:
-        zs = user_z_list.get(uid, [])
-        n_reviews = len(user_review_texts.get(uid, []))
-        n_words = sum(len(t.split()) for t in user_review_texts.get(uid, []))
+    valid_mask = counts >= MIN_REVIEWS_FOR_PER_USER
+    n_valid = int(valid_mask.sum())
+    log(f"  users meeting MIN_REVIEWS_FOR_PER_USER={MIN_REVIEWS_FOR_PER_USER}: {n_valid}")
 
-        # 用户指令 2026-08-27: 去掉 fallback 逻辑, 上游 build_dataset.py 已用
-        # MIN_REVIEWS_PER_USER=20 过滤, 每个 target_user 都应有足够 sentences。
-        # 数据不足直接 raise, 让上游数据问题显式暴露。
-        if len(zs) < MIN_REVIEWS_FOR_PER_USER:
-            missing_users.append((uid, n_reviews, len(zs)))
+    # Vectorized: var_pop = M2/count, then LAMBDA shrinkage
+    safe_counts = np.maximum(counts, 1).astype(np.float64)
+    var_pop = M2_acc / safe_counts[:, None]
+    var_per_user_mean = var_pop.mean(axis=1, keepdims=True)
+    var_shrink = (1 - LAMBDA) * var_pop + LAMBDA * var_per_user_mean
+    sigma_diag_arr = np.maximum(var_shrink, VAR_EPS)
+
+    n_written = 0
+    for uid_idx, uid in enumerate(target_user_list):
+        if not valid_mask[uid_idx]:
+            missing_users.append((uid, user_n_reviews.get(uid, 0), int(counts[uid_idx])))
             continue
-
-        Z = np.stack(zs, axis=0)
-        mu = Z.mean(axis=0)
-        var = Z.var(axis=0)
-        var_shrink = (1 - LAMBDA) * var + LAMBDA * var.mean()
-        sigma_diag = np.maximum(var_shrink, VAR_EPS)
-
+        mu = mean_acc[uid_idx]
+        sd = sigma_diag_arr[uid_idx]
         user_gaussians[uid] = {
             "mu": mu.tolist(),
-            "sigma_diag": sigma_diag.tolist(),
-            "n_reviews": n_reviews,
-            "n_words": n_words,
-            "n_sentences": len(zs),
+            "sigma_diag": sd.tolist(),
+            "n_reviews": user_n_reviews.get(uid, 0),
+            "n_words": user_n_words.get(uid, 0),
+            "n_sentences": int(counts[uid_idx]),
             "source": "per_user",
         }
+        n_written += 1
+    log(f"  per-user Gaussians written: {n_written}")
 
     if missing_users:
-        log(f"  ❌ ERROR: {len(missing_users)}/{len(target_users)} users lack per-user Gaussian:")
-        for uid, n_reviews, n_sents in missing_users[:20]:
+        # User directive 2026-08-29: 1.94M users nearly all satisfy MIN_REVIEWS_FOR_PER_USER=1.
+        # Only a few users with 0 reviews. Log warning instead of raise.
+        log(f"  WARN {len(missing_users)}/{n_users} users lack per-user Gaussian "
+            f"(counts<{MIN_REVIEWS_FOR_PER_USER}):")
+        for uid, n_reviews, n_sents in missing_users[:10]:
             log(f"      {uid[:12]}... reviews={n_reviews} sents={n_sents}")
-        raise RuntimeError(
-            f"上游过滤条件不足: {len(missing_users)} users have <{MIN_REVIEWS_FOR_PER_USER} sentences. "
-            f"需修 attribute_extraction/build_dataset.py 的 user_id 字段提取逻辑, "
-            f"或降低 MIN_REVIEWS_PER_USER。"
-        )
 
-    log(f"  per-user Gaussians: {len(user_gaussians)}")
-    log(f"  (no fallback chain: upstream MIN_REVIEWS_PER_USER=20 保证所有 user 都有 Gaussian)")
+    # Free Welford state
+    del counts, mean_acc, M2_acc, var_pop, var_shrink, sigma_diag_arr
+    _gc.collect()
 
-    log("\n=== 9. Saving ===")
+    log("\n=== 8. Saving ===")
     GAUSSIANS_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(GAUSSIANS_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 8.5: per-user Gaussian from Baby_Products review corpus, PCA48 spaCy features",
+                "description": ("Stage 8.5: per-user Gaussian from Baby_Products review "
+                                "corpus, PCA48 spaCy features (Welford online accumulation)"),
                 "PCA_DIM": PCA_DIM,
                 "LAMBDA": LAMBDA,
                 "VAR_EPS": VAR_EPS,
@@ -325,11 +403,11 @@ def stage_user_gaussians():
             "n_users_with_gaussian": len(user_gaussians),
             "n_users_skipped": len(target_users) - len(user_gaussians),
         }, f, ensure_ascii=False, indent=2)
-    log(f"wrote → {GAUSSIANS_OUT}")
+    log(f"wrote -> {GAUSSIANS_OUT}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Syntax Subspace — gaussian/ Stage 3 user Gaussians")
+    parser = argparse.ArgumentParser(description="Syntax Subspace - gaussian/ Stage 3 user Gaussians")
     args = parser.parse_args()
     log("=== syntax_subspace_user_gaussians.py ===")
     stage_user_gaussians()

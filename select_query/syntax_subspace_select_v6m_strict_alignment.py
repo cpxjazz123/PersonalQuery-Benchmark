@@ -54,7 +54,7 @@ from syntax_subspace_select import apply_feature_subset  # noqa: E402
 # User instruction 2026-08-28: strict alignment threshold
 R_95_PERCENTILE = 11.308  # from Stage 5C, real-history whitened L2 P95
 
-POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48.json"
+POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
 FEAT_CACHE_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz"
 # 主 pipeline 已切到 v6m (用户指令 2026-08-28): 直接覆盖 canonical paths,
 # 让 Stage 5 retrieval 默认读取 v6m 数据。备份在 *_v6k_main_backup.json。
@@ -165,6 +165,7 @@ def main():
     selection_entries = []
     n_no_pool = 0
     n_no_pool_for_user = 0
+    n_no_user_for_asin = 0          # 用户指令 2026-08-29: 初始化, 否则 n_users==0 分支 raise UnboundLocalError
     n_l2_margin_max_v6k_compat = 0  # argmax M among R_99 gate (v6k legacy)
     n_strict_personalized = 0       # NEW: M>0 AND d_self ≤ R_95
     n_no_strict_candidate = 0      # NEW: no candidate passes both gates
@@ -213,6 +214,11 @@ def main():
             asin_users.append((uid, mu_white, {"source": meta_source, "n_reviews": meta_n_reviews}))
 
         n_users = len(asin_users)
+        if n_users == 0:
+            # 边界: 该 ASIN 没有合格用户 (全部 <2 句子)。记录 no_user_for_asin 后 continue
+            n_no_user_for_asin += 1
+            log(f"  no eligible users for asin {asin}, skip")
+            continue
         n_queries = len(strict_pool)
 
         # ---- 7a. Compute whitened L2 matrix ||z̃_q − μ̃_u|| ----
@@ -274,7 +280,12 @@ def main():
             sorted_for_q = np.sort(l2_q)
             is_self_min = (l2_q == sorted_for_q[0])
             # For each ui: if ui is self-min → sorted_for_q[1], else → sorted_for_q[0]
-            d_other_l2[:, qi] = np.where(is_self_min, sorted_for_q[1], sorted_for_q[0])
+            # 边界: cohort 只有 1 个 user 时 sorted_for_q[1] 不存在, 用 sorted_for_q[0] (== self 距离) → M=0
+            if len(sorted_for_q) >= 2:
+                d_other_l2[:, qi] = np.where(is_self_min, sorted_for_q[1], sorted_for_q[0])
+            else:
+                # 单 user cohort: M=0 (no other user to compare)
+                d_other_l2[:, qi] = sorted_for_q[0]
         M_L2 = d_other_l2 - l2_white_matrix  # (n_users, n_valid_q)
 
         # ---- 7c. NEW GATE: M>0 AND d_self ≤ R_95 ----
@@ -369,6 +380,7 @@ def main():
     stats_data = {
         "n_pairs": len(selection_entries),
         "n_missing_user_gauss_metadata": n_missing_gauss,
+        "n_no_user_for_asin": n_no_user_for_asin,
         "by_selection_method": dict(by_method),
         "strict_personalized": {
             "n": len(selected_entries),
