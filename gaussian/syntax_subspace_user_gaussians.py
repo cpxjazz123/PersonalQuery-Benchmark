@@ -27,6 +27,7 @@ import collections
 import gzip
 import json
 import sys
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -135,13 +136,25 @@ def stage_user_gaussians():
     log("\n=== 4. Loading feature cache ===")
     feat_map = {}
     if FEAT_CACHE.exists():
-        with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                rec = json.loads(line)
-                feat_map[rec["k"]] = rec["v"]
+        # 用户指令 2026-08-29: 容错 EOFError + zlib.error, chunked append 模式下
+        # 文件可能被强杀在 gzip block 中间 (chunked append 不 atomic).
+        # 优雅降级到第一个解压错误位置,前面的 entries 全部保留。
+        n_load_errors = 0
+        try:
+            with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        n_load_errors += 1
+                        continue
+                    feat_map[rec["k"]] = rec["v"]
+        except (EOFError, gzip.BadGzipFile, zlib.error) as e:
+            log(f"  ⚠ cache gzip stream truncated ({type(e).__name__}: {e!r}), "
+                f"loaded {len(feat_map)} entries + {n_load_errors} corrupt lines")
     log(f"  cache loaded: {len(feat_map)} features")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
@@ -149,6 +162,7 @@ def stage_user_gaussians():
     # 原因: 86 个 short_users (mean_wc<3) 的 review 多是 1-2 词短句,
     # 切句后平均 nz=0-7 全 0 污染; 整条 review 至少含 token-based features。
     # 抽完特征后按 non-zero count >= K 过滤, 1-2 词 review 大多被自然过滤。
+    # 用户指令 2026-08-28: chunked append + 减 worker mem footprint 避免 1.84M sentences OOM
     all_sents = []
     sent_to_user = []
     for uid, texts in user_review_texts.items():
@@ -170,27 +184,52 @@ def stage_user_gaussians():
         for comp in ("ner", "lemmatizer", "attribute_ruler"):
             if comp in nlp.pipe_names:
                 nlp.disable_pipe(comp)
-        log(f"  extracting features for {len(new_sents)} new sentences (n_process=8, batch=512)...")
+        # 用户指令 2026-08-29: n_process=4 (OOM 退避), batch_size=256, chunked append
+        # + 主动 gc.collect() + del 释放 spaCy Doc 内存, 避免 feat_map 600K entries
+        # + 50K Doc 引用累计触发 OOM
+        N_PROCESS = 4
+        BATCH_SIZE = 256
+        CHUNK_FLUSH = 25_000  # 用户指令 2026-08-29: 从 50K 降到 25K 减半, 让每 chunk
+                              # 内存峰值更低 (50K Doc × 4 worker batch_buffer ≈ 8GB peak)
+        log(f"  extracting features for {len(new_sents)} new sentences "
+            f"(n_process={N_PROCESS}, batch={BATCH_SIZE}, "
+            f"chunked append every {CHUNK_FLUSH})...")
         new_unique = sorted(set(new_sents))
-        docs = list(nlp.pipe(new_unique, batch_size=512, n_process=8))
-        for i, doc in enumerate(docs):
-            s = new_unique[i]
-            k = feat_key(s)
-            try:
-                feats = per_sentence_features_v2(doc)
-                feats = feats if feats is not None else {}
-            except Exception:
-                feats = {}
-            numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
-            filtered = {n: numeric.get(n, 0.0) for n in fnames}
-            feat_map[k] = filtered
-            if (i + 1) % 5000 == 0:
-                log(f"    {i + 1}/{len(new_unique)}")
-        with gzip.open(FEAT_CACHE, "wt", encoding="utf-8") as f:
-            f.write("# user-review sentence features (key=sha1(text), v=182d dict)\n")
-            for k, v in feat_map.items():
-                f.write(json.dumps({"k": k, "v": v}) + "\n")
-        log(f"  saved cache: {len(feat_map)} entries")
+        # spaCy pipe 是 generator; list 化前先 flush cache header 一次
+        # mode='at' 不能写 header, 必须 mode='wt' 第一次写 header 后 mode='at' append
+        if not FEAT_CACHE.exists():
+            with gzip.open(FEAT_CACHE, "wt", encoding="utf-8") as f:
+                f.write("# user-review sentence features (key=sha1(text), v=182d dict)\n")
+
+        n_processed = 0
+        import gc as _gc
+        with gzip.open(FEAT_CACHE, "at", encoding="utf-8") as f_cache:
+            for chunk_start in range(0, len(new_unique), CHUNK_FLUSH):
+                chunk = new_unique[chunk_start:chunk_start + CHUNK_FLUSH]
+                for i, doc in enumerate(
+                    nlp.pipe(chunk, batch_size=BATCH_SIZE, n_process=N_PROCESS)
+                ):
+                    s = chunk[i]
+                    k = feat_key(s)
+                    try:
+                        feats = per_sentence_features_v2(doc)
+                        feats = feats if feats is not None else {}
+                    except Exception:
+                        feats = {}
+                    numeric = {n: float(v) for n, v in feats.items()
+                               if isinstance(v, (int, float))}
+                    filtered = {n: numeric.get(n, 0.0) for n in fnames}
+                    feat_map[k] = filtered
+                    f_cache.write(json.dumps({"k": k, "v": filtered}) + "\n")
+                    n_processed += 1
+                f_cache.flush()
+                # 用户指令 2026-08-29: 主动释放 spaCy Doc 引用 + gc
+                # 避免 chunk 结束时 main 进程仍持有全部 Doc 导致 RSS 单调增长 OOM
+                del chunk
+                _gc.collect()
+                log(f"    flushed chunk {chunk_start + len(chunk) if False else chunk_start + CHUNK_FLUSH}/"
+                    f"{len(new_unique)} (mem-safe + gc.collect)")
+        log(f"  saved cache: {len(feat_map)} entries (chunked append done)")
 
     log("\n=== 6. Computing z_user per user (mean-pool) ===")
     # 用户指令 2026-08-27: K=0 不过滤 nz (只过滤 feats is None)。

@@ -34,6 +34,7 @@ import gzip
 import json
 import sys
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -62,22 +63,35 @@ STATS_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selectio
 
 
 def load_query_features(path: str) -> dict[str, np.ndarray]:
-    """Load sha1(text) -> 182d features from sentence features cache."""
+    """Load sha1(text) -> 182d features from sentence features cache.
+    用户指令 2026-08-29: 容错 zlib + JSON 错误 (chunked append 模式下
+    cache 文件可能被强杀在 gzip block 中间).
+    """
     import hashlib
     log(f"  Loading sentence features cache {path} ...")
     feat_lookup: dict[str, np.ndarray] = {}
     n_header = 0
-    with gzip.open(path, "rt") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("#"):
-                n_header += 1
-                continue
-            e = json.loads(line)
-            if "k" in e and "v" in e:
-                feat_lookup[e["k"]] = np.array(list(e["v"].values()), dtype=np.float64)
+    n_skip = 0
+    try:
+        with gzip.open(path, "rt") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("#"):
+                    n_header += 1
+                    continue
+                try:
+                    e = json.loads(line)
+                except json.JSONDecodeError:
+                    # 末尾 line 可能被截断 (chunked append + kill)
+                    n_skip += 1
+                    continue
+                if "k" in e and "v" in e:
+                    feat_lookup[e["k"]] = np.array(list(e["v"].values()), dtype=np.float64)
+    except (EOFError, gzip.BadGzipFile, zlib.error) as exc:
+        log(f"  ⚠ cache gzip stream truncated ({type(exc).__name__}), "
+            f"loaded {len(feat_lookup)} entries + skipped {n_skip} corrupt")
     log(f"  feat_lookup (sha1 -> 182d) size: {len(feat_lookup)}, header lines: {n_header}")
     return feat_lookup
 

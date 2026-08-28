@@ -73,21 +73,30 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "batteries required", "is discontinued by manufacturer"}
 
 # === Step 4 — build_stage8_5_asins 参数 ===
-# 用户指令: 1) 去掉有数字的属性(value 含数字), 2) 传给 LLM 上限 4 个,
-#           3) 去掉 TOP_N_ASINS = 1409 硬上限, 让全部候选 ASIN 通过
+# 用户指令 2026-08-28: 删除 cohort user per ASIN 的所有硬阈值 (MIN_REVIEWS_PER_USER=20,
+# MIN_USERS_PER_ASIN=10, MAX_USERS_PER_ASIN=10)。
+# 每 ASIN 配所有评论过该 ASIN 的 heavy+strong-signal 用户 (mean_wc≥MIN_MEAN_WC)。
+# 用户质量过滤 (Gaussian fit reliability) 推迟到 Stage 3 之后,
+# 由 selection 阶段按 LBF/n_samples 过滤, 而不是 cohort 阶段。
 # Step 4 复用 Step 3 的 select_top_attrs(max_n=4) — 包含数值过滤 + 4 上限
-MIN_REVIEWS_PER_USER = 20
-MIN_USERS_PER_ASIN = 10
-MAX_USERS_PER_ASIN = 10
 TOP_N_ASINS = 10_000   # 去掉 1409 硬上限, 取全部候选
 MAX_ATTRS_FOR_LLM = 4
 # 用户指令 2026-08-27: "强信号用户" = mean_wc ≥ 20 词/review
 # 实证 (feat_density_diag3.py): 1-2 词 review 96.7% all-zero nz,
 # mean_wc < 20 用户 Gaussian 与 global pool LBF 中位数 ≤ 0,
 # Mahalanobis 信号无法独立于 random selection。
-# 每个 ASIN 必须有 ≥10 个强信号用户才进入评估 (Stage 3-5)。
+# 强信号用户筛选保留 (mean_wc 过滤仍是有意义的最低信号条件);
+# cohort 不再 cap 每 ASIN 上限, 也不再要求最低 user 数 / 最低 review 数。
 MIN_MEAN_WC = 20
-MIN_STRONG_SIGNAL_USERS_PER_ASIN = 10
+
+# 用户指令 2026-08-29: 二级过滤 = 总字数 MIN_TOTAL_WORDS = 1000
+# 实证 (旧 4324-user cohort 分布): median 1736 words, p10=703, p25=1017
+# < 500 words: σ² Ledoit-Wolf 收缩必要, μ 估计不可靠 (n_samples < PCA_dim=48)
+# 500-1000 words: 渐近稳定, μ 误差 < 5%
+# 1000-2000 words: σ² 收敛, μ 误差 < 2% (推荐下限)
+# > 2000 words: 接近真实分布, SOTA
+# 用户决策: 1000 (≈ 50 reviews × 20 wc 或 30 reviews × 33 wc)
+MIN_TOTAL_WORDS = 1000
 
 
 def log(msg: str) -> None:
@@ -338,34 +347,38 @@ def step4_build_stage8_5_asins(
     user_words_total: Counter[str],
 ) -> None:
     log("=== Step 4: build_stage8_5_asins ===")
-    heavy_users = {u for u, c in user_total.items()
-                   if c >= MIN_REVIEWS_PER_USER}
-    log(f"  heavy users (≥{MIN_REVIEWS_PER_USER} total reviews): {len(heavy_users)}")
+    # 用户指令 2026-08-28: 删除 MIN_REVIEWS_PER_USER 阈值, 所有评论过该 ASIN 的 user 进入 cohort。
+    # 用户质量 (Gaussian reliability) 推迟到 Stage 3 + reliability filter。
+    eligible_users_set = set(user_total.keys())
 
     # 用户指令 2026-08-27: 强信号用户 = mean_wc ≥ MIN_MEAN_WC (20 词/review)
     # mean_wc = user_words_total[u] / user_total[u]
     # 短 review (1-2 词) 的 spaCy 182d features 96.7% 全 0,
     # 强信号用户在 Mahalanobis 空间才能与 global pool 区分, 否则 random 等价
     strong_users: dict[str, float] = {}
-    for u in heavy_users:
+    for u in eligible_users_set:
         wc = user_words_total.get(u, 0)
         nt = user_total[u]
         if nt == 0:
             continue
+        # 用户指令 2026-08-29: 二级过滤 = 总字数 MIN_TOTAL_WORDS = 1000
+        # 单 review ≥ 20 words (强信号) AND 总 ≥ 1000 words (拟合质量)
+        if wc < MIN_TOTAL_WORDS:
+            continue
         mean_wc = wc / nt
         if mean_wc >= MIN_MEAN_WC:
             strong_users[u] = mean_wc
-    log(f"  strong-signal users (mean_wc ≥ {MIN_MEAN_WC}): {len(strong_users)} "
-        f"({100 * len(strong_users) / max(1, len(heavy_users)):.1f}% of heavy)")
+    log(f"  strong-signal users (mean_wc ≥ {MIN_MEAN_WC} AND "
+        f"total ≥ {MIN_TOTAL_WORDS} words): {len(strong_users)} "
+        f"(of {len(eligible_users_set)} all commenters)")
 
     eligible_count: dict[str, int] = {}
     for asin, uset in asin_users.items():
-        # 同时满足: heavy + strong-signal
+        # 用户指令 2026-08-28: 删除 MIN_STRONG_SIGNAL_USERS_PER_ASIN 下限。
+        # 每 ASIN 配全部 strong-signal 用户, 即使只有 1 个用户也允许进入 cohort。
         c = len([u for u in uset if u in strong_users])
-        if c >= MIN_STRONG_SIGNAL_USERS_PER_ASIN:
-            eligible_count[asin] = c
-    log(f"  ASINs with ≥{MIN_STRONG_SIGNAL_USERS_PER_ASIN} strong-signal "
-        f"users (mean_wc≥{MIN_MEAN_WC}): {len(eligible_count)}")
+        eligible_count[asin] = c
+    log(f"  ASINs with ≥1 strong-signal users (mean_wc≥{MIN_MEAN_WC}): {len(eligible_count)}")
 
     ranked = sorted(eligible_count.items(), key=lambda kv: kv[1], reverse=True)
     ranked = ranked[:TOP_N_ASINS]
@@ -383,13 +396,13 @@ def step4_build_stage8_5_asins(
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
             continue
-        # 用户指令 2026-08-27: top_users 限定为 strong-signal 用户
+        # 用户指令 2026-08-28: 删除 MAX_USERS_PER_ASIN 上限, 保留所有 strong-signal 用户
         top_users = sorted(
             [u for u in user_per_asin_count[asin]
              if u in strong_users],
             key=lambda u: user_per_asin_count[asin][u],
             reverse=True,
-        )[:MAX_USERS_PER_ASIN]
+        )
         asins_out.append({
             "asin": asin,
             "n_users_eligible": eligible_count[asin],
@@ -397,7 +410,6 @@ def step4_build_stage8_5_asins(
             "attrs_used": attrs_used,
             "filter": {
                 "MIN_MEAN_WC": MIN_MEAN_WC,
-                "MIN_STRONG_SIGNAL_USERS_PER_ASIN": MIN_STRONG_SIGNAL_USERS_PER_ASIN,
             },
         })
 
@@ -405,14 +417,10 @@ def step4_build_stage8_5_asins(
         f"{skipped_no_attrs}")
 
     config = {
-        "description": (f"top {TOP_N_ASINS} ASINs × top-{MAX_USERS_PER_ASIN} "
-                        f"strong-signal users (mean_wc ≥ {MIN_MEAN_WC}, "
-                        f"≥ {MIN_REVIEWS_PER_USER} reviews, "
-                        f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN)"),
-        "MIN_REVIEWS_PER_USER": MIN_REVIEWS_PER_USER,
-        "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
-        "MIN_STRONG_SIGNAL_USERS_PER_ASIN": MIN_STRONG_SIGNAL_USERS_PER_ASIN,
-        "MAX_USERS_PER_ASIN": MAX_USERS_PER_ASIN,
+        "description": (f"top {TOP_N_ASINS} ASINs × all strong-signal users "
+                        f"(mean_wc ≥ {MIN_MEAN_WC}, "
+                        f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN, "
+                        f"no per-ASIN user cap, no min review count)"),
         "TOP_N_ASINS": TOP_N_ASINS,
         "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
         "MIN_MEAN_WC": MIN_MEAN_WC,
