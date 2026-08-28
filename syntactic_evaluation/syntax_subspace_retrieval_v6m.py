@@ -1,22 +1,21 @@
-"""Syntax Subspace — Stage 5 retrieval on v6m strict alignment selection.
+"""Syntax Subspace — Stage 5 retrieval on v6m strict alignment selection (HISTORICAL ABLATION).
+
+⚠️ 用户指令 2026-08-28: 主 pipeline 已切到 v6m strict alignment。本脚本是切换前
+的 ablation reference,保留用于 (a) 重现 v6m vs v6k 对比 (b) 历史 backtrack。
+默认 Stage 5 retrieval 走 `syntax_subspace_retrieval.py` 直接读 canonical paths
+(`stage8_5_selection.json` 现已 = v6m),不再需要这个脚本。
 
 对比 v6k K=200 L2-margin-max 与 v6m M>0 AND d_self ≤ R_95 strict alignment 在
 BM25 / MiniLM 上的 retrieval outcome。
 
 输入:
   /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_v6m.json
-  (Stage 4 v6m selection, 3781 strict + 3508 no_strict_candidate)
+  (Stage 4 v6m selection, 3781 strict + 3508 no_strict_candidate; 备份用,
+   主 pipeline 现已用 stage8_5_selection.json 同一份)
 
 输出:
   /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_v6m_per_query.json
   /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_v6m_summary.json
-
-流程:
-  1. 读 v6m selection (n_entries=7289), filter out no_strict_candidate (selected=None)
-     → 3781 strict queries
-  2. 跑 BM25 retrieval (bm25s)
-  3. 跑 MiniLM retrieval (GPU)
-  4. 输出 retrieval summary + per-query breakdown
 """
 from __future__ import annotations
 

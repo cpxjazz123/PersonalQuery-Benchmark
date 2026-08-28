@@ -55,8 +55,10 @@ R_95_PERCENTILE = 11.308  # from Stage 5C, real-history whitened L2 P95
 
 POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48.json"
 FEAT_CACHE_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz"
-SEL_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_v6m.json"
-STATS_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_v6m_stats.json"
+# 主 pipeline 已切到 v6m (用户指令 2026-08-28): 直接覆盖 canonical paths,
+# 让 Stage 5 retrieval 默认读取 v6m 数据。备份在 *_v6k_main_backup.json。
+SEL_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json"
+STATS_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_stats.json"
 
 
 def load_query_features(path: str) -> dict[str, np.ndarray]:
