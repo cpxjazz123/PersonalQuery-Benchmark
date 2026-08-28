@@ -1,0 +1,75 @@
+{
+  "config": {
+    "description": "Stage 4 v6l Intrinsic User Syntax Overlap Audit. Leave-one-out identification on real user history in F3_CoreStruct+PCA48 whitened 48d space. Quantifies the ceiling of user-level syntax separability so we can measure how close K=200 generated queries are to the real intrinsic ceiling.",
+    "feature_subset": "F3_CoreStruct",
+    "pca_dim": 48,
+    "lambda_shrinkage": 0.1,
+    "R_99": 16.68710874067205,
+    "n_residuals_for_R99": 298740,
+    "cumulative_variance_explained": 0.9721727130151392,
+    "reference_generated_K200_M_gt_0": 0.637,
+    "reference_generated_K200_Rank_at_1": 0.297
+  },
+  "overall_metrics": {
+    "n_evaluations": 298740,
+    "n_in_R99": 295108,
+    "frac_in_R99": 0.9878422708709915,
+    "M_gt_0_fraction": 0.004825352074494761,
+    "M_mean": -1.1673178198710639,
+    "M_median": -1.0679158199568402,
+    "M_std": 0.7182575772624394,
+    "M_min": -10.34004683080163,
+    "M_max": 9.296589403258292,
+    "Rank_at_1": 0.004825352074494761,
+    "Rank_le_3": 0.010545291893137427,
+    "Rank_at_1_loose": 0.007976740718652155,
+    "self_L2_mean": 5.930645228160002,
+    "self_L2_median": 5.328229042086301,
+    "self_L2_std": 2.517496031971477
+  },
+  "history_size_strata": {
+    "[2, 10)": {
+      "n_total": 68,
+      "n_in_R99": 68,
+      "M_gt_0_fraction": 0.20588235294117646,
+      "Rank_at_1": 0.20588235294117646,
+      "Rank_le_3": 0.23529411764705882,
+      "M_mean": -0.5696026667999108,
+      "M_median": -0.761079111319722,
+      "self_L2_mean": 5.634240425510453
+    },
+    "[10, 35)": {
+      "n_total": 298672,
+      "n_in_R99": 295040,
+      "M_gt_0_fraction": 0.004779013015184382,
+      "Rank_at_1": 0.004779013015184382,
+      "Rank_le_3": 0.010493492407809111,
+      "M_mean": -1.167455579599944,
+      "M_median": -1.0679391623881989,
+      "self_L2_mean": 5.930713542715927
+    }
+  },
+  "coverage_ratio": {
+    "M_gt_0_ratio": 132.01109269662922,
+    "Rank_at_1_ratio": 61.549912921348316,
+    "verdict": "SATURATION: Generation 已经达到真实可分上限 (≥95%), 剩下 overlap 几乎完全是用户真实句法风格重叠, 不应继续调 K, 应该接受这是 user-style 的 intrinsic ceiling"
+  },
+  "per_user_separability_summary": {
+    "n_users_with_5plus_in_gate": 9992,
+    "per_user_M_gt_0_fraction_mean": 0.005033609804926858,
+    "per_user_M_gt_0_fraction_median": 0.0,
+    "per_user_M_gt_0_fraction_min": 0.0,
+    "per_user_M_gt_0_fraction_max": 0.7142857142857143,
+    "per_user_M_mean": -1.1718566061304259,
+    "per_user_M_median": -1.1097408931514352
+  },
+  "interpretation": {
+    "intrinsic_M_gt_0_pct": 0.4825352074494761,
+    "generated_K200_M_gt_0_pct": 63.7,
+    "intrinsic_Rank_at_1_pct": 0.4825352074494761,
+    "generated_K200_Rank_at_1_pct": 29.7,
+    "gap_M_gt_0_pp": -63.21746479255053,
+    "gap_Rank_at_1_pp": -29.217464792550523
+  },
+  "total_elapsed_s": 382.2486238479614
+}
