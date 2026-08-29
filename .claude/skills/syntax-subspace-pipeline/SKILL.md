@@ -244,20 +244,21 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 
 ## Stage 5 期望输出参考(v7 on v6m strict alignment, 1095 ASINs sim09)
 
-| retriever | Hit@1_flip | Hit@10_flip | RR_Std |
-|---|---:|---:|---:|
-| bm25 | 4.70% | 9.06% | 0.0499 |
-| splade | 3.95% | 5.80% | 0.0419 |
-| minilm | 2.71% | 4.76% | 0.0272 |
-| mpnet | 2.75% | 5.23% | 0.0325 |
-| bge_base_v15 | 3.01% | 5.29% | 0.0339 |
-| gte_base | 4.05% | 6.85% | 0.0420 |
-| colbertv2 | 2.40% | 6.21% | 0.0347 |
+| retriever | Hit@1_flip | Hit@5_flip | Hit@10_flip | Hit@20_flip | RR_Std |
+|---|---:|---:|---:|---:|---:|
+| bm25 | 4.70% | 7.68% | 9.06% | 8.82% | 0.0499 |
+| splade | 3.95% | 4.94% | 5.80% | 4.60% | 0.0419 |
+| minilm | 2.71% | 2.98% | 4.76% | 4.90% | 0.0272 |
+| mpnet | 2.75% | 4.61% | 5.23% | 6.66% | 0.0325 |
+| bge_base_v15 | 3.01% | 4.56% | 5.29% | 6.03% | 0.0339 |
+| gte_base | 4.05% | 5.58% | 6.85% | 7.59% | 0.0420 |
+| colbertv2 | 2.40% | 4.99% | 6.21% | 8.14% | 0.0347 |
 
 **关键观察**:
 - BM25 在 minilm-sim09 聚类下 Hit@10_flip 最高(9.06%)— 同义改写最脆弱
 - minilm 综合最稳(RR_Std=0.0272)— 自我引用最自洽
-- gte_base 中等偏高 — 检索强但不稳
+- colbertv2 Hit@1_flip=2.40%(rank-1 最稳)但 Hit@20_flip=8.14%(top-20 最不稳)— max-sim 对 rank-1 边界敏感,top-20 散开
+- gte_base Hit@K_flip 随 K 单调递增(4.05% → 5.58% → 6.85% → 7.59%)— 检索强但不稳
 
 ## 规则遵守(CLAUDE.md)
 
