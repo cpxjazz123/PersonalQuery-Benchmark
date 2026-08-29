@@ -21,7 +21,10 @@ env/
 .DS_Store
 
 # Claude local state (project-level)
-.claude/
+# Whitelist skills/ for sharing; keep all settings files local (they may contain auth tokens)
+.claude/settings.json
+.claude/settings.local.json
+.claude/settings minimax.json
 
 # Project scratch / outputs
 result/
