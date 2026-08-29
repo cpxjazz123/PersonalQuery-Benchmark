@@ -1,6 +1,6 @@
 ---
 name: syntax-subspace-pipeline
-description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs + 5-layer strict filter (attrs/invalid/1st-person/emoji/self-talk/length≤60)。LLM pool → spaCy 特征 → per-user Gaussian → v6m Mahalanobis strict alignment → 7-retriever 评估 (BM25/SPLADE/4 dense/ColBERTv2, NO rerank) + minilm-canonical sim09 volatility
+description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs + 5-layer strict filter (attrs/invalid/1st-person/emoji/self-talk/length≤60)。LLM pool → spaCy 特征 → per-user review metadata → Mahalanobis strict alignment → 7-retriever 评估 (BM25/SPLADE/4 dense/ColBERTv2, NO rerank) + minilm-canonical sim09 volatility
 ---
 
 # Syntax Subspace Pipeline — 5 Stages
@@ -42,7 +42,7 @@ attribute_extraction/   extract_product_attrs.py                  (Step 1: produ
 common/                 syntax_subspace_utils.py                  (318d features + paths)
 gaussian/               build_user.py                             (Phase 1: Steps 2+4 cohort + Phase 2: Stage 3 Gaussian)
 gen_query/              syntax_subspace_pool_regen.py             (Stage 1: pool generation only)
-select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 2 spaCy features + Stage 4 v6m)
+select_query/           syntax_subspace_select_strict_alignment.py  (Stage 2 spaCy features + Stage 4 strict alignment)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
@@ -110,7 +110,7 @@ ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
   gaussian/build_user.py
 ```
-`build_user.py` Phase 1 自动检测 `result/product_attributes.json`(缺失则报错),Phase 2 自动检测 `result/gaussian/user_gaussians.json` signature(命中跳过)。
+`build_user.py` Phase 1 自动检测 `result/product_attributes.json`(缺失则报错),Phase 2 自动检测 `scratch2/stage8_5_user_gaussians.json` signature(命中跳过)。
 
 ## 路径约定(Rule 13/16)
 
@@ -121,7 +121,7 @@ ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
   - `scratch2/stage8_5_retrieval_per_query.json` + `multiretrieval_embeds/<retr_name>/`(Stage 5)
 - **Final results**(`/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/<name>.json`):
   - `result/gen_query/pool.json`
-  - `result/gaussian/user_gaussians.json`
+  - `scratch2/stage8_5_user_gaussians.json`(Stage 3 — 用户 metadata >1.5GB,Rule 10 放 scratch2 不放 result/)
   - `result/syntactic_evaluation/retrieval_summary.json`(7 retriever volatility only)
   - `result/syntactic_evaluation/volatility.json`(canonical BM25+MiniLM slice)
 
@@ -157,7 +157,7 @@ done
 
 ### Stage 2: spaCy features(Stage 2 of 5)
 
-用户指令 2026-08-29:Stage 2 已合并到 `select_query/syntax_subspace_select_v6m_strict_alignment.py`,与 Stage 4 同脚本,跑 select_query 时自动先跑 Stage 2。无需单独运行 Stage 2 命令。
+用户指令 2026-08-29:Stage 2 已合并到 `select_query/syntax_subspace_select_strict_alignment.py`,与 Stage 4 同脚本,跑 select_query 时自动先跑 Stage 2。无需单独运行 Stage 2 命令。
 
 ```bash
 # Stage 2 自动作为 select_query main() 的第一阶段执行
@@ -171,7 +171,7 @@ done
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python -c "
 import sys; sys.path.insert(0, '.')
-from select_query.syntax_subspace_select_v6m_strict_alignment import stage_features
+from select_query.syntax_subspace_select_strict_alignment import stage_features
 stage_features()
 "
 ```
@@ -195,18 +195,18 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 ```
 
-**完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...result/gaussian/user_gaussians.json`,或 `Phase 2 CACHE HIT` 表示已缓存跳过。
+**完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...scratch2/stage8_5_user_gaussians.json`,或 `Phase 2 CACHE HIT` 表示已缓存跳过。
 
-### Stage 4: v6m Mahalanobis strict alignment(Stage 4 of 5)
+### Stage 4: Mahalanobis strict alignment(Stage 4 of 5)
 
-v6m 是当前 main pipeline:PCA48 whitening + R_99 from real historical + L2 margin。
+当前 main pipeline (strict alignment): PCA48 whitening + R_99 from real historical + L2 margin。
 **Stage 2 spaCy features 自动作为 main() 第一阶段执行**(合并到 2026-08-29)。
 无参数(规则 3),直接跑:
 
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  select_query/syntax_subspace_select_v6m_strict_alignment.py \
+  select_query/syntax_subspace_select_strict_alignment.py \
   > /home/wlia0047/hj82_scratch2/wenyu/logs/stage4_select.log 2>&1 &
 ```
 
@@ -269,12 +269,12 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 期望产物:
 - `result/gen_query/pool.json`(Stage 1)
 - `select_query/stage7b_query_features.jsonl.gz`(Stage 2 intermediate,在 `select_query/` 下)
-- `result/gaussian/user_gaussians.json`(Stage 3)
+- `scratch2/stage8_5_user_gaussians.json`(Stage 3)
 - `scratch2/stage8_5_selection.json` + `scratch2/stage8_5_selection_stats.json`(Stage 4 intermediate)
 - `result/syntactic_evaluation/retrieval_summary.json`(Stage 5 Part B,7 retriever volatility)
 - `result/syntactic_evaluation/volatility.json`(Stage 5 canonical BM25+MiniLM slice)
 
-## Stage 5 期望输出参考(v7 on v6m strict alignment, 1095 ASINs sim09)
+## Stage 5 期望输出参考(strict alignment, 1095 ASINs sim09)
 
 | retriever | Hit@1_flip | Hit@5_flip | Hit@10_flip | Hit@20_flip | RR_Std |
 |---|---:|---:|---:|---:|---:|

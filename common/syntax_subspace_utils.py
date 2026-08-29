@@ -3,32 +3,27 @@
 Centralized helpers + path constants used by the 4 sibling scripts:
 
   - gaussian/build_user.py                     (Phase 1 cohort + Phase 2 per-user Gaussian)
-  - gen_query/syntax_subspace_pool_regen.py     (LLM pool generation + features)
-  - select_query/syntax_subspace_select.py      (Mahalanobis select)
-  - syntactic_evaluation/syntax_subspace_retrieval.py  (BM25/MiniLM + volatility)
+  - gen_query/syntax_subspace_pool_regen.py     (Stage 1 LLM pool generation)
+  - select_query/syntax_subspace_select_strict_alignment.py  (Stage 2 features + Stage 4 strict alignment)
+  - syntactic_evaluation/syntax_subspace_retrieval_unified.py  (Stage 5: 7-retriever + volatility)
 
 Exposes:
-  - Path constants: REPO_ROOT, SCRATCH, ASINS_IN, POOL_*, FEAT_CACHE,
-                    GAUSSIANS_*, SELECTION_*, REVIEW_GZ, META_FILE,
-                    RETRIEVAL_*, VOLATILITY_*, VLLM_URL, MODEL_NAME
+  - Path constants: REPO_ROOT, RESULT, SCRATCH, ASINS_IN, REVIEW_GZ, META_FILE,
+                    POOL_IN/OUT, FEAT_CACHE, GAUSSIANS_OUT, ASIN_TO_DOC_CACHE,
+                    VLLM_URL, MODEL_NAME
   - Hyperparameters: PCA_DIM, PCA_SEED, LAMBDA, VAR_EPS, MIN_REVIEWS_FOR_PER_USER,
-                    K_POOL, TEMP, MAX_TOKENS, K_SET, MIN_LEN, PRIMARY_LEN_DELTA,
-                    LEN_BAND_FALLBACK, SEED
+                    K_POOL, TEMP, MAX_TOKENS, MAX_QUERY_TOKENS, N_INPUT
   - `log`: timestamped log print
   - `feat_key`: sha1(text) feature cache key
-  - `load_jsonl`: load a JSONL file
-  - `_syntax_subspace_prepare`: load 10k user sentence cache + scaler + rewrites
-
-The full pipeline (pool regen, feature extraction, user Gaussians, ASIN
-selection, retrieval + volatility calibration) imports from here.
+  - `_syntax_subspace_prepare`: load 10k user sentence cache + scaler + user_to_indices
+                                (only fields consumed by main pipeline)
 
 Inputs (paths under `RESIDUAL_SCRATCH`):
   - sentences_for_rewrite_10k.jsonl
   - sentences_318d_cache.jsonl.gz
-  - rewrites_10k.jsonl
 
-Outputs: dict with scaler / feature_names_ordered / X_scaled / train_idx /
-user_to_indices / etc.
+Outputs: dict with X / X_scaled / scaler / feature_names_ordered / train_idx /
+user_to_indices / user_ids / asins (only fields consumed by main pipeline).
 """
 
 from __future__ import annotations
@@ -70,24 +65,12 @@ POOL_IN = POOL_OUT
 # Stage 3 Gaussian 通过 select_query.FEAT_CACHE 路径同步读取。
 FEAT_CACHE = REPO_ROOT / "select_query" / "stage7b_query_features.jsonl.gz"
 
-# --- Stage 3 (gaussian/) → result ---
-GAUSSIANS_OUT = RESULT / "gaussian/user_gaussians.json"
-GAUSSIANS_IN = GAUSSIANS_OUT
-
-# --- Stage 4 (intermediate) → SCRATCH (下游 Stage 5 读取) ---
-SELECTION_OUT = SCRATCH / "stage8_5_selection.json"
-SELECTION_IN = SELECTION_OUT
-SELECTION_STATS_OUT = SCRATCH / "stage8_5_selection_stats.json"
-
-# --- Stage 5 (intermediate) → SCRATCH (下游 Stage 6 读取) ---
-RETRIEVAL_PER_QUERY_OUT = SCRATCH / "stage8_5_retrieval_per_query.json"
-RETRIEVAL_SUMMARY_OUT = RESULT / "syntactic_evaluation/retrieval_summary.json"
-
-# --- Stage 5 (syntactic_evaluation/) → result ---
-VOLATILITY_SUMMARY_OUT = RESULT / "syntactic_evaluation/volatility.json"
+# --- Stage 3 (gaussian/) → scratch2 ---
+# User instruction 2026-08-29: 移动到 scratch2/ 避免 git 100MB push limit
+# (no-cohort 后 user_gaussians.json 涨到 2.9GB,远超 GitLab 100MiB 单文件上限)
+GAUSSIANS_OUT = SCRATCH / "stage8_5_user_gaussians.json"
 
 # --- Stage 5 corpus cache (Part A → Part B reuse) ---
-MINILM_CORPUS_EMBEDS_CACHE = SCRATCH / "minilm_corpus_embeds.npy"
 ASIN_TO_DOC_CACHE = SCRATCH / "asin_to_doc.json"
 
 VLLM_URL = "http://localhost:8800/v1/completions"
@@ -100,8 +83,6 @@ MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B
 # ---------------------------------------------------------------------------
 # 共享超参数 (硬编码,所有脚本统一)
 # ---------------------------------------------------------------------------
-SEED = 2024
-
 # PCA / Gaussian
 PCA_DIM = 48
 PCA_SEED = 2024
@@ -124,20 +105,6 @@ MAX_QUERY_TOKENS = 60
 # 用户指令 2026-08-28: N=5 是生成甜点(N=4 太薄,N=7/10 模型失控)。
 # Stage 1 从 product_attributes.json 里挑 top-N attrs 给 LLM
 N_INPUT = 5
-
-# 用户指令 2026-08-28: Stage 4 Mahalanobis 阈值 gating — 只选 Mahal² ≤ χ²(0.95, df=48)
-# 的 query,即"在用户高斯 95% confidence region 内"的候选。阈值外的 query 不参与
-# argmin,标记为 out_of_distribution → selected=None。
-# χ²(0.95, 48) ≈ 65.22 (stats chi2.ppf(0.95, 48));保守起见给到 99% = 74.68。
-# 选 95% 让"略偏候选"也保留,只在明显 outlier (Mahal² > 65) 时 gating。
-MAHAL_THRESHOLD_CHI2_PPF = 0.95
-MAHAL_THRESHOLD_DF = PCA_DIM  # 48
-
-# Selection (Stage 4)
-K_SET = 8
-MIN_LEN = 5
-PRIMARY_LEN_DELTA = 2
-LEN_BAND_FALLBACK = 5
 
 
 # ---------------------------------------------------------------------------

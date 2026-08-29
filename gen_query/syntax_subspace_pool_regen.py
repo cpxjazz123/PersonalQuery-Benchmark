@@ -1,7 +1,7 @@
 """Syntax Subspace — Stage 1 (pool regen only).
 
 用户指令 2026-08-29: Stage 2 spaCy features 已合并到 select_query/ 下
-(select_query/syntax_subspace_select_v6m_strict_alignment.py stage_features()),
+(select_query/syntax_subspace_select_strict_alignment.py stage_features()),
 本脚本只负责 Stage 1 vLLM pool generation。
 
 归 gen_query/: 用 vLLM LLM 为 100 个 ASIN 各生成 K=50 共享候选查询池。
@@ -34,8 +34,8 @@ import requests
 # Ensure common/ is on sys.path so we can import the shared utils
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
-    ASINS_IN, FEAT_CACHE, POOL_IN, POOL_OUT, REPO_ROOT, SCRATCH, VLLM_URL, MODEL_NAME,
-    K_POOL, TEMP, MAX_TOKENS, MAX_QUERY_TOKENS, N_INPUT, PCA_DIM, log, feat_key,
+    ASINS_IN, POOL_IN, POOL_OUT, REPO_ROOT, VLLM_URL, MODEL_NAME,
+    K_POOL, TEMP, MAX_TOKENS, MAX_QUERY_TOKENS, N_INPUT, log,
 )
 
 # Stage 2 also imports per_sentence_features_v2 from common/syntactic_features

@@ -33,3 +33,8 @@
 15. **禁止写 iter / iterator 文档文件**: 任务完成直接在 chat 输出总结(按 AGENTS.md 规则 4 打印任务摘要并以"当前任务已完成,请做下一个任务的指示。"结尾),不要写 `iter_*.md` / `iter_*_*_*.md` / `iteration_*.md` / `*_iter.md` 之类的过程文档到任何目录(包括 `iterations/`、`result/`、项目根)。
 
 16. **每个功能目录只对应一个结果文件**: 每个功能目录(`gen_query/` / `select_query/` / `gaussian/` / `syntactic_evaluation/` / `attribute_extraction/` / `syntactic_analysis/` 等)运行后**只允许**在 `result/` 产出对应其职责的**单一结果文件**(或最小化的输出集,如该 stage 唯一的 JSON + summary),禁止在同一目录下堆叠 ablation / sweep / variant 的多个变体文件(如 `query_records_with_query_inject_b_L16_a0.05.json` / `query_records_with_query_inject_b_L16_a0.10.json` / `query_records_with_query_inject_b_L16_a0.20.json` ……),不同超参的多次实验结果必须收**缩到一个文件**(如 `sweep_results.json` 内含 `{"b_L16_a0.05": [...], "b_L16_a0.10": [...], ...}`),或在文件名前加 hash 后缀避免堆积。
+
+17. **名字不允许有版本号(脚本和产物都算)**: 所有脚本文件名与产物文件名(`.py` / `.json` / `.jsonl` / `.npz` / `.pt` / `.csv` / `.log` / 任何扩展名)禁止出现版本号后缀(`v6m` / `v6k` / `v2` / `_v10` 等),包括但不限于:
+    - 算法迭代版本号(`v6m` / `v6k` / `v6g` / `v6h` / `v6i` / `v6j` / `v6l` / `v6f` 等 Stage 4 ablation 编号)
+    - 通用版本后缀(`v1` / `v2` / `v3` / `version_X` / `*_v2_backup` 等)
+    - 命名含义应反映"做什么"而非"第几版"(如 `syntax_subspace_select_strict_alignment.py`,不是 `syntax_subspace_select_v6m_strict_alignment.py`)。历史迭代信息应在 commit message / PR description / CLAUDE.md / docs/ 中追溯,而非藏在文件名里。

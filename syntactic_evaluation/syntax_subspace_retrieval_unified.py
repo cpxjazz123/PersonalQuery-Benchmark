@@ -1,4 +1,4 @@
-"""Stage 5 unified multi-retriever on v6m strict alignment (NO rerank).
+"""Stage 5 unified multi-retriever on strict alignment (NO rerank).
 
 按用户指令 2026-08-29: 整合所有 retrievers 到单一主 pipeline,删除
 cross-encoder rerank。Stage 4 选出的 strict_personalized queries 在 7 个
@@ -802,7 +802,7 @@ def main():
     with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 5 unified multi-retriever on v6m strict alignment (NO rerank)",
+                "description": "Stage 5 unified multi-retriever on strict alignment (NO rerank)",
                 "retrievers": RETR_NAMES,
                 "selection_file": str(SEL_IN),
                 "corpus_size": len(asins),
@@ -847,7 +847,7 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
     with open(SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
+                "description": "Stage 5 unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
                 "retrievers": RETR_NAMES,
                 "n_retrievers": len(RETR_NAMES),
                 "sim09_reference": canonical_embeds_name,
@@ -893,7 +893,7 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
     log(f"  wrote → {VOLATILITY_OUT}")
 
     # ---- 10. Final volatility table ----
-    log("\n=== Final Volatility (multi-retriever on v6m strict alignment, NO rerank) ===")
+    log("\n=== Final Volatility (multi-retriever on strict alignment, NO rerank) ===")
     header = (f"{'retriever':<14} {'n_asins':>8} {'Hit@1_flip':>11} {'Hit@10_flip':>12} {'RR_Std':>8}")
     log(header)
     log("-" * len(header))
