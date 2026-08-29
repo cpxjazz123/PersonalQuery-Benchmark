@@ -12,18 +12,18 @@
   "stability_flip": {
     "selected_only_sim09": {
       "bm25": {
-        "n_asins": 0,
-        "Hit@1_FlipRate_mean": null,
+        "n_asins": 1095,
+        "Hit@1_FlipRate_mean": 0.046964524679012194,
         "Hit@1_FlipRate_median": null,
-        "Hit@5_FlipRate_mean": null,
+        "Hit@5_FlipRate_mean": 0.07684152581300208,
         "Hit@5_FlipRate_median": null,
-        "Hit@10_FlipRate_mean": null,
+        "Hit@10_FlipRate_mean": 0.09062732159673667,
         "Hit@10_FlipRate_median": null,
-        "Hit@20_FlipRate_mean": null,
+        "Hit@20_FlipRate_mean": 0.08822468258057027,
         "Hit@20_FlipRate_median": null,
-        "RR_Std_mean": null,
-        "RR_Std_median": null,
-        "RR_Std_std": null
+        "RR_Std_mean": 0.0498737887087668,
+        "RR_Std_median": 0.004137962506778723,
+        "RR_Std_std": 0.09457799511887352
       },
       "minilm": {
         "n_asins": 1095,

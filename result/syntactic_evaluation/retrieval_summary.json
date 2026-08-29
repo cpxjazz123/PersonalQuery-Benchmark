@@ -1,6 +1,6 @@
 {
   "config": {
-    "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). Headline dropped per user directive.",
+    "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
     "retrievers": [
       "bm25",
       "splade",
@@ -11,17 +11,30 @@
       "colbertv2"
     ],
     "n_retrievers": 7,
+    "sim09_reference": "minilm",
     "selection_file": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json",
     "corpus_size": 217722
   },
   "volatility_sim09": {
     "bm25": {
-      "n_asins": 0,
-      "note": "bm25 sim09 not applicable (no query embedding available)"
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.046964524679012194,
+      "Hit@5_FlipRate_mean": 0.07684152581300208,
+      "Hit@10_FlipRate_mean": 0.09062732159673667,
+      "Hit@20_FlipRate_mean": 0.08822468258057027,
+      "RR_Std_mean": 0.0498737887087668,
+      "RR_Std_median": 0.004137962506778723,
+      "RR_Std_std": 0.09457799511887352
     },
     "splade": {
-      "n_asins": 0,
-      "note": "splade sim09 not applicable (no query embedding available)"
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.03952780660272619,
+      "Hit@5_FlipRate_mean": 0.049373118871828936,
+      "Hit@10_FlipRate_mean": 0.05798811976236772,
+      "Hit@20_FlipRate_mean": 0.046036858752821964,
+      "RR_Std_mean": 0.04191209501013379,
+      "RR_Std_median": 0.0024773496754545562,
+      "RR_Std_std": 0.08998246746467864
     },
     "minilm": {
       "n_asins": 1095,
@@ -35,40 +48,40 @@
     },
     "mpnet": {
       "n_asins": 1095,
-      "Hit@1_FlipRate_mean": 0.025722229399615777,
-      "Hit@5_FlipRate_mean": 0.04563561915915312,
-      "Hit@10_FlipRate_mean": 0.05107613143870273,
-      "Hit@20_FlipRate_mean": 0.06686711266608748,
+      "Hit@1_FlipRate_mean": 0.0275263310634867,
+      "Hit@5_FlipRate_mean": 0.04609779274189181,
+      "Hit@10_FlipRate_mean": 0.05227284115104304,
+      "Hit@20_FlipRate_mean": 0.06661854402471856,
       "RR_Std_mean": 0.03252678672159415,
       "RR_Std_median": 0.0012390895779068522,
       "RR_Std_std": 0.08056598601648592
     },
     "bge_base_v15": {
       "n_asins": 1095,
-      "Hit@1_FlipRate_mean": 0.03148870296756065,
-      "Hit@5_FlipRate_mean": 0.04870153289188558,
-      "Hit@10_FlipRate_mean": 0.056506966417047756,
-      "Hit@20_FlipRate_mean": 0.06326777749408041,
+      "Hit@1_FlipRate_mean": 0.03007064779060871,
+      "Hit@5_FlipRate_mean": 0.04564549024688362,
+      "Hit@10_FlipRate_mean": 0.052876188573730706,
+      "Hit@20_FlipRate_mean": 0.06032879880570903,
       "RR_Std_mean": 0.033858347484651205,
       "RR_Std_median": 0.0014086005825008124,
       "RR_Std_std": 0.08187478829684937
     },
     "gte_base": {
       "n_asins": 1095,
-      "Hit@1_FlipRate_mean": 0.04405547521985878,
-      "Hit@5_FlipRate_mean": 0.07154585140886512,
-      "Hit@10_FlipRate_mean": 0.07585395831971174,
-      "Hit@20_FlipRate_mean": 0.08308091576154966,
+      "Hit@1_FlipRate_mean": 0.04051147823798384,
+      "Hit@5_FlipRate_mean": 0.055767911371368405,
+      "Hit@10_FlipRate_mean": 0.06852503868289414,
+      "Hit@20_FlipRate_mean": 0.07590448814834053,
       "RR_Std_mean": 0.04195877667841695,
       "RR_Std_median": 0.0028429485307752563,
       "RR_Std_std": 0.08856120149612098
     },
     "colbertv2": {
       "n_asins": 1095,
-      "Hit@1_FlipRate_mean": 0.02200026796283346,
-      "Hit@5_FlipRate_mean": 0.04469936054303316,
-      "Hit@10_FlipRate_mean": 0.05419291081446302,
-      "Hit@20_FlipRate_mean": 0.06523140828694794,
+      "Hit@1_FlipRate_mean": 0.023958056125983125,
+      "Hit@5_FlipRate_mean": 0.04992662125167063,
+      "Hit@10_FlipRate_mean": 0.062119628949600006,
+      "Hit@20_FlipRate_mean": 0.08141965443615774,
       "RR_Std_mean": 0.034654436728695524,
       "RR_Std_median": 0.0010895357137776789,
       "RR_Std_std": 0.08800036845139268

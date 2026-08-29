@@ -564,16 +564,22 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
 # VOLATILITY (per retriever, sim09 slice)
 # ===========================================================================
 def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
-                                    q_embeds: np.ndarray | None = None,
+                                    q_embeds: np.ndarray,
                                     sim_threshold: float = 0.9) -> dict:
+    """Compute per-ASIN volatility (flip rate + RR std) for one retriever.
+
+    q_embeds is the canonical sim09 reference embedding (always minilm's 384d
+    dense), shared across all retrievers per user directive 2026-08-29.
+    The retriever's own rank/RR are used for flip detection; only the
+    pairwise query-query similarity threshold (sim09) comes from minilm.
+    """
     by_asin: dict[str, list] = collections.defaultdict(list)
     for r in per_query:
         by_asin[r["asin"]].append(r)
     rank_key = f"{retr_name}_rank"
     rr_key = f"{retr_name}_RR"
     if q_embeds is None:
-        log(f"  ({retr_name}) no q_embeds, skipping volatility")
-        return {"n_asins": 0, "note": f"{retr_name} sim09 not applicable (no query embedding available)"}
+        raise ValueError(f"q_embeds must not be None for {retr_name} (canonical sim09 reference required)")
     n = sum(len(qs) for qs in by_asin.values())
     log(f"  ({retr_name}) computing sim09 pairs on {n} queries...")
     selected_qs = [q for qs in by_asin.values() for q in qs]
@@ -663,7 +669,29 @@ def main():
         # ---- 4-10 from cache: build aggregates ----
         query_records = cached["queries"]
         asins_count = cached["config"]["corpus_size"]
-        _build_aggregates_and_save(query_records, asins_count, t_start)
+
+        # Load minilm q_embeds from disk so canonical sim09 reference is available
+        # without re-running all 7 retrievers
+        minilm_q_cache = EMBED_CACHE_DIR / "minilm" / "query_embeds.npy"
+        if minilm_q_cache.exists():
+            cached_minilm = np.load(minilm_q_cache)
+            if cached_minilm.shape[0] == len(query_records):
+                retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
+                canonical_name = "minilm"
+                log(f"  ✓ loaded minilm q_embeds from disk ({cached_minilm.shape}) "
+                    f"for canonical sim09 reference")
+            else:
+                raise RuntimeError(
+                    f"minilm q_embeds cache stale (cached={cached_minilm.shape[0]}, "
+                    f"current={len(query_records)}); delete {minilm_q_cache} and re-run"
+                )
+        else:
+            raise RuntimeError(
+                f"minilm q_embeds cache not found at {minilm_q_cache}; "
+                f"cannot build canonical sim09 reference"
+            )
+        _build_aggregates_and_save(query_records, asins_count, t_start,
+                                   retr_q_embeds_cached, canonical_name)
         return
     log("  no cache hit (signature mismatch or missing), running 7 retrievers fresh")
 
@@ -725,6 +753,29 @@ def main():
             raise ValueError(f"Unknown retriever kind: {kind}")
         retr_results[retr["name"]] = results
 
+    # ---- 3b. Canonical sim09 reference embedding (minilm) ----
+    # Per user directive 2026-08-29: ALL retrievers use the same query-query
+    # similarity threshold for sim09 clustering, anchored to minilm's 384d
+    # dense embedding. BM25/SPLADE have no dense query embed — they borrow
+    # minilm's. This makes cross-retriever volatility comparable.
+    canonical_q_embeds = retr_q_embeds.get("minilm")
+    if canonical_q_embeds is None:
+        # Fallback: pick any available dense retriever's embeds
+        for n in ("mpnet", "bge_base_v15", "gte_base", "colbertv2"):
+            if retr_q_embeds.get(n) is not None:
+                canonical_q_embeds = retr_q_embeds[n]
+                log(f"  canonical sim09 reference: minilm missing → using {n}")
+                break
+    if canonical_q_embeds is None:
+        raise RuntimeError("No dense retriever produced query embeddings; cannot build sim09 reference")
+    canonical_embeds_name = "minilm" if retr_q_embeds.get("minilm") is not None else \
+        next((n for n in ("mpnet", "bge_base_v15", "gte_base", "colbertv2")
+              if retr_q_embeds.get(n) is not None), "unknown")
+    log(f"  canonical sim09 reference: {canonical_embeds_name} (shape={canonical_q_embeds.shape})")
+    # Override: every retriever's sim09 clustering uses canonical_embeds
+    for n in RETR_NAMES:
+        retr_q_embeds[n] = canonical_q_embeds
+
     # ---- 4. Merge into query_records ----
     log("\n=== 4. Merging per-retriever results ===")
     log(f"  query_records: {len(query_records)}")
@@ -763,16 +814,18 @@ def main():
     log(f"  wrote → {PER_QUERY_OUT} (signature={selection_sig})")
 
     # ---- 6-10. Build aggregates + save ----
-    _build_aggregates_and_save(query_records, len(asins), t_start, retr_q_embeds)
+    _build_aggregates_and_save(query_records, len(asins), t_start, retr_q_embeds, canonical_embeds_name)
 
 
 def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
                                t_start: float,
-                               retr_q_embeds: dict[str, np.ndarray | None] | None = None) -> None:
+                               retr_q_embeds: dict[str, np.ndarray | None] | None = None,
+                               canonical_embeds_name: str = "minilm") -> None:
     """Build headline + volatility + save summary JSONs.
 
     retr_q_embeds is None when called from cache-hit path (volatility is skipped
     since q_embeds aren't cached). Fresh-run path passes the in-memory dict.
+    canonical_embeds_name labels the sim09 reference embedding in the config.
     """
     if retr_q_embeds is None:
         # Cache hit: skip volatility (no q_embeds), only compute headline
@@ -794,9 +847,10 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
     with open(SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). Headline dropped per user directive.",
+                "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
                 "retrievers": RETR_NAMES,
                 "n_retrievers": len(RETR_NAMES),
+                "sim09_reference": canonical_embeds_name,
                 "selection_file": str(SEL_IN),
                 "corpus_size": asins_count,
             },
