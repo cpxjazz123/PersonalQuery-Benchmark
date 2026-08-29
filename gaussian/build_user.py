@@ -1,56 +1,291 @@
-"""Syntax Subspace - Stage 3 (user Gaussians).
+#!/usr/bin/env python3
+"""User pipeline: cohort construction + per-user Gaussian fitting.
 
-gaussian/ only keeps the "compute user prior distribution" logic: from the
-Baby_Products review corpus, build a per-user Mahalanobis Gaussian for each
-target user (PCA48 + shrinkage, LAMBDA=0.1, VAR_EPS=1e-3, MIN_REVIEWS_FOR_PER_USER=1).
+合并 gaussian/ 的两个职责到单一脚本(用户指令 2026-08-29):
+  - Phase 1 (Steps 2-4): cohort construction
+      - step2_scan_reviews: 单次扫描 reviews → 4-tuple
+      - step3_build_query_records: top-10K users × primary asin × top-5 attrs
+      - step4_build_stage8_5_asins: top-10K ASINs × all commenters × top-4 attrs
+  - Phase 2 (Stage 3): per-user Gaussian fitting
+      - PCA48 + Welford online + shrinkage
+      - writes user_gaussians.json (1.5GB, 599177 users)
 
-No fallback chain: if a user has no Gaussian, log a warning and skip them.
+Idempotent: 每 phase 检查输出文件 + signature, 命中 cache 直接跳过。
 
-Usage:
-  python gaussian/syntax_subspace_user_gaussians.py
+参数全部硬编码 (Rule 3), 不接受 CLI 参数.
 
-I/O:
-  Input:  stage8_5_asins.json (target users + ASIN)
-          data/Baby_Products_2023.jsonl.gz (review corpus)
-          stage7b_query_features.jsonl.gz (spaCy 182d feature cache)
-  Output: result/gaussian/user_gaussians.json
-          (per-user mu / sigma_diag)
-
-Shared utilities (log, feat_key, paths, hyperparams, _syntax_subspace_prepare)
-are imported from: common/syntax_subspace_utils.py
+Running order:
+  python attribute_extraction/extract_product_attrs.py   # Step 1
+  python gaussian/build_user.py                          # Phase 1 + Phase 2
 """
-
 from __future__ import annotations
 
-import argparse
 import collections
+import gc
 import gzip
+import hashlib
 import json
 import sys
 import zlib
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
 
-# Ensure common/ is on sys.path so we can import the shared utils
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-from syntax_subspace_utils import (  # noqa: E402
-    ASINS_IN, FEAT_CACHE, GAUSSIANS_OUT, REPO_ROOT, REVIEW_GZ,
-    LAMBDA, MIN_REVIEWS_FOR_PER_USER, PCA_DIM, VAR_EPS, log, feat_key,
-)
+REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
-# Stage 3 also imports per_sentence_features_v2 from common/syntactic_features
+# 让 build_user.py 能 import 兄弟目录 attribute_extraction/extract_product_attrs
+sys.path.insert(0, str(REPO_ROOT))
+from attribute_extraction.extract_product_attrs import select_top_attrs  # noqa: E402
+
+# 让 build_user.py 能 import 兄弟目录 common/syntax_subspace_utils
+sys.path.insert(0, str(REPO_ROOT / "common"))
+from syntax_subspace_utils import (  # noqa: E402
+    ASINS_IN, FEAT_CACHE, GAUSSIANS_OUT, LAMBDA,
+    MIN_REVIEWS_FOR_PER_USER, PCA_DIM, REVIEW_GZ, VAR_EPS, log, feat_key,
+)
+# common/syntactic_features (per_sentence_features_v2) 也需要 REPO_ROOT/common on path
 sys.path.insert(0, str(REPO_ROOT / "common"))
 
+# === Inputs ===
+DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
+REVIEWS_GZ = DATA / "Baby_Products_2023.jsonl.gz"
 
-def stage_user_gaussians():
-    log("=== STAGE 3 - USER GAUSSIANS ===")
+# === Outputs ===
+QUERY_RECORDS_JSON = REPO_ROOT / "result" / "query_records_10k.json"
+STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
 
-    # User directive 2026-08-28: cache Stage 3 - Stage 3 does NOT depend on pool.json,
-    # only on review corpus + PCA + feature cache + target user list. If neither
-    # upstream files nor config change, just load user_gaussians.json directly
-    # (saves ~1.5min x multiple iterations = ~10min+).
-    import hashlib as _hl_cache
+# === Phase 1 — cohort construction 参数 ===
+TOP_K_USERS = 10_000
+MAX_RECORDS = 10_000
+TOP_N_ASINS = 10_000
+MAX_ATTRS_FOR_LLM = 4
+
+
+# ============================================================================
+# Phase 1 — cohort construction (Steps 2-4)
+# ============================================================================
+def phase1_cohort_construction() -> bool:
+    """Steps 2-4: scan reviews + build_query_records + build_stage8_5_asins.
+
+    Returns True if Phase 1 ran end-to-end, False if skipped (cache hit).
+    """
+    # --- Cache detection ---
+    sig_payload = json.dumps({
+        "TOP_K_USERS": TOP_K_USERS,
+        "MAX_RECORDS": MAX_RECORDS,
+        "TOP_N_ASINS": TOP_N_ASINS,
+        "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
+        "REVIEWS_GZ": str(REVIEWS_GZ),
+        "REVIEWS_GZ_mtime": REVIEWS_GZ.stat().st_mtime if REVIEWS_GZ.exists() else 0,
+        "PRODUCT_ATTRS_JSON": "result/product_attributes.json",
+        "PRODUCT_ATTRS_JSON_mtime": (REPO_ROOT / "result/product_attributes.json").stat().st_mtime
+            if (REPO_ROOT / "result/product_attributes.json").exists() else 0,
+    }, sort_keys=True)
+    sig_hash = hashlib.sha1(sig_payload.encode("utf-8")).hexdigest()[:12]
+    log(f"[build_user] Phase 1 signature: {sig_hash}")
+
+    if STAGE8_5_ASINS_JSON.exists():
+        try:
+            cached = json.load(open(STAGE8_5_ASINS_JSON))
+            cached_sig = cached.get("config", {}).get("cache_signature")
+            if cached_sig == sig_hash:
+                cached_n = cached.get("n_asins", 0)
+                log(f"[build_user] Phase 1 CACHE HIT: {cached_n} ASINs from {STAGE8_5_ASINS_JSON}")
+                log("  (upstream files + config unchanged, skip Phase 1)")
+                return False
+            else:
+                log(f"  Phase 1 cache signature mismatch (cached={cached_sig}, current={sig_hash}), recomputing...")
+        except Exception as e:
+            log(f"  Phase 1 cache load failed ({e!r}), recomputing...")
+    else:
+        log(f"  no Phase 1 cache at {STAGE8_5_ASINS_JSON}, computing from scratch...")
+
+    log("[build_user] === Phase 1: cohort construction ===")
+
+    # 必须先跑 Step 1 生成 product_attributes.json
+    product_attrs_path = REPO_ROOT / "result" / "product_attributes.json"
+    if not product_attrs_path.exists():
+        log(f"ERROR: {product_attrs_path} 不存在")
+        log("请先跑: python attribute_extraction/extract_product_attrs.py")
+        raise SystemExit(1)
+    product_attrs = json.loads(product_attrs_path.read_text(encoding="utf-8"))
+    log(f"  loaded {len(product_attrs)} ASIN attrs from {product_attrs_path.name}")
+
+    # Step 2
+    asin_users, user_per_asin_count, user_total, first_asin_per_user = _step2_scan_reviews()
+
+    # Step 3
+    _step3_build_query_records(product_attrs, user_total, first_asin_per_user)
+
+    # Step 4
+    _step4_build_stage8_5_asins(product_attrs, asin_users, user_per_asin_count, user_total)
+
+    # Tag cache signature into stage8_5_asins.json for idempotent re-runs
+    if STAGE8_5_ASINS_JSON.exists():
+        cached = json.load(open(STAGE8_5_ASINS_JSON))
+        cached.setdefault("config", {})["cache_signature"] = sig_hash
+        cached.setdefault("config", {})["phase"] = "1_cohort_construction"
+        STAGE8_5_ASINS_JSON.write_text(
+            json.dumps(cached, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        log(f"[build_user] Phase 1 wrote → {STAGE8_5_ASINS_JSON} (signature={sig_hash})")
+
+    return True
+
+
+def _step2_scan_reviews() -> tuple[dict[str, set[str]], dict[str, Counter[str]],
+                                  Counter[str], dict[str, str]]:
+    log("  [Step 2] scan_reviews (single pass)")
+    asin_users: dict[str, set[str]] = defaultdict(set)
+    user_per_asin_count: dict[str, Counter[str]] = defaultdict(Counter)
+    user_total: Counter[str] = Counter()
+    first_asin_per_user: dict[str, str] = {}
+
+    n = 0
+    with gzip.open(REVIEWS_GZ, "rt") as f:
+        for line in f:
+            try:
+                r = json.loads(line)
+            except Exception:
+                continue
+            uid = r.get("reviewerID") or r.get("user_id")
+            asin = r.get("asin")
+            if not uid or not asin:
+                continue
+            user_total[uid] += 1
+            asin_users[asin].add(uid)
+            user_per_asin_count[asin][uid] += 1
+            if uid not in first_asin_per_user:
+                first_asin_per_user[uid] = asin
+            n += 1
+            if n % 1_000_000 == 0:
+                log(f"    {n/1e6:.1f}M records")
+
+    log(f"  done: {n} records, {len(asin_users)} products, "
+        f"{len(user_total)} users (no user-level filter)")
+    return asin_users, user_per_asin_count, user_total, first_asin_per_user
+
+
+def _step3_build_query_records(
+    product_attrs: dict[str, dict],
+    user_total: Counter[str],
+    first_asin_per_user: dict[str, str],
+) -> None:
+    log("  [Step 3] build_query_records")
+    top_users = [u for u, _ in user_total.most_common(TOP_K_USERS)]
+    log(f"    top-{TOP_K_USERS} active users selected")
+
+    records: list[dict] = []
+    n_with_attrs = 0
+    n_no_attrs = 0
+    for uid in top_users:
+        primary_asin = first_asin_per_user.get(uid)
+        if not primary_asin:
+            continue
+        asin_attrs = product_attrs.get(primary_asin)
+        if not asin_attrs:
+            n_no_attrs += 1
+            continue
+        attrs = select_top_attrs(asin_attrs)  # default max_n=5
+        if not attrs:
+            n_no_attrs += 1
+            continue
+        n_with_attrs += 1
+        records.append({
+            "user_id": uid,
+            "asin": primary_asin,
+            "attrs_used": attrs,
+            "n_attrs": len(attrs),
+            "n_product_attrs": len(asin_attrs),
+        })
+        if len(records) >= MAX_RECORDS:
+            break
+
+    QUERY_RECORDS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    QUERY_RECORDS_JSON.write_text(
+        json.dumps(records, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    log(f"    wrote {len(records)} records, with_attrs={n_with_attrs}, "
+        f"skipped={n_no_attrs}")
+    log(f"    wrote → {QUERY_RECORDS_JSON}")
+
+
+def _step4_build_stage8_5_asins(
+    product_attrs: dict[str, dict],
+    asin_users: dict[str, set[str]],
+    user_per_asin_count: dict[str, Counter[str]],
+    user_total: Counter[str],
+) -> None:
+    log("  [Step 4] build_stage8_5_asins")
+    eligible_users_set = set(user_total.keys())
+    log(f"    all commenters (no user filter): {len(eligible_users_set)}")
+
+    eligible_count: dict[str, int] = {}
+    for asin, uset in asin_users.items():
+        c = len([u for u in uset if u in eligible_users_set])
+        eligible_count[asin] = c
+    log(f"    ASINs with ≥1 commenters: {len(eligible_count)}")
+
+    ranked = sorted(eligible_count.items(), key=lambda kv: kv[1], reverse=True)
+    ranked = ranked[:TOP_N_ASINS]
+    counts = [c for _, c in ranked]
+    if counts:
+        log(f"    top {TOP_N_ASINS} ASINs: min={min(counts)}, "
+            f"median={sorted(counts)[len(counts)//2]}, max={max(counts)}")
+
+    asins_out: list[dict] = []
+    skipped_no_attrs = 0
+    for asin, _ in ranked:
+        adoc = product_attrs.get(asin) or {}
+        attrs_used = select_top_attrs(adoc, max_n=MAX_ATTRS_FOR_LLM)
+        if len(attrs_used) < 1:
+            skipped_no_attrs += 1
+            continue
+        top_users = sorted(
+            [u for u in user_per_asin_count[asin] if u in eligible_users_set],
+            key=lambda u: user_per_asin_count[asin][u],
+            reverse=True,
+        )
+        asins_out.append({
+            "asin": asin,
+            "n_users_eligible": eligible_count[asin],
+            "users_sampled": top_users,
+            "attrs_used": attrs_used,
+            "filter": {"note": "no user filter (all commenters enter cohort)"},
+        })
+
+    log(f"    final ASINs: {len(asins_out)}, skipped (no attrs): {skipped_no_attrs}")
+
+    config = {
+        "description": (f"top {TOP_N_ASINS} ASINs × all commenters "
+                        f"(no user filter, "
+                        f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN, "
+                        f"no per-ASIN user cap, no min review count)"),
+        "TOP_N_ASINS": TOP_N_ASINS,
+        "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
+    }
+    out = {
+        "config": config,
+        "n_asins": len(asins_out),
+        "asins": asins_out,
+    }
+    STAGE8_5_ASINS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    STAGE8_5_ASINS_JSON.write_text(
+        json.dumps(out, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    log(f"    wrote → {STAGE8_5_ASINS_JSON}")
+
+
+# ============================================================================
+# Phase 2 — Stage 3 user Gaussians
+# ============================================================================
+def phase2_user_gaussians() -> None:
+    """Stage 3: per-user Gaussian fitting (PCA48 + Welford online + shrinkage)."""
+    # --- Cache detection ---
     sig_payload = json.dumps({
         "PCA_DIM": PCA_DIM,
         "LAMBDA": LAMBDA,
@@ -63,8 +298,8 @@ def stage_user_gaussians():
         "REVIEW_GZ": str(REVIEW_GZ),
         "REVIEW_GZ_mtime": REVIEW_GZ.stat().st_mtime if REVIEW_GZ.exists() else 0,
     }, sort_keys=True)
-    sig_hash = _hl_cache.sha1(sig_payload.encode("utf-8")).hexdigest()[:12]
-    log(f"  cache signature: {sig_hash}")
+    sig_hash = hashlib.sha1(sig_payload.encode("utf-8")).hexdigest()[:12]
+    log(f"[build_user] Phase 2 signature: {sig_hash}")
 
     if GAUSSIANS_OUT.exists():
         try:
@@ -72,15 +307,17 @@ def stage_user_gaussians():
             cached_sig = cached.get("config", {}).get("cache_signature")
             if cached_sig == sig_hash:
                 cached_users = cached.get("users", {})
-                log(f"  CACHE HIT: {len(cached_users)} users from {GAUSSIANS_OUT}")
-                log(f"  (upstream files + config unchanged, skip full pipeline)")
+                log(f"[build_user] Phase 2 CACHE HIT: {len(cached_users)} users from {GAUSSIANS_OUT}")
+                log("  (upstream files + config unchanged, skip Phase 2)")
                 return
             else:
-                log(f"  cache signature mismatch (cached={cached_sig}, current={sig_hash}), recomputing...")
+                log(f"  Phase 2 cache signature mismatch (cached={cached_sig}, current={sig_hash}), recomputing...")
         except Exception as e:
-            log(f"  cache load failed ({e!r}), recomputing...")
+            log(f"  Phase 2 cache load failed ({e!r}), recomputing...")
     else:
-        log(f"  no cache file at {GAUSSIANS_OUT}, computing from scratch...")
+        log(f"  no Phase 2 cache at {GAUSSIANS_OUT}, computing from scratch...")
+
+    log("[build_user] === Phase 2: per-user Gaussian (Stage 3) ===")
 
     log("\n=== 1. Loading PCA48 ===")
     from syntax_subspace_utils import _syntax_subspace_prepare
@@ -108,7 +345,6 @@ def stage_user_gaussians():
     log("\n=== 3. Scanning review corpus ===")
     user_review_texts = collections.defaultdict(list)
     n_records = 0
-    # User directive 2026-08-27: field extraction matches attribute_extraction/build_dataset.py
     for line in gzip.open(REVIEW_GZ, "rt", encoding="utf-8"):
         r = json.loads(line)
         uid = r.get("reviewerID") or r.get("user_id")
@@ -135,8 +371,6 @@ def stage_user_gaussians():
     log("\n=== 4. Loading feature cache (lazy: only seen_keys) ===")
     seen_keys = set()
     if FEAT_CACHE.exists():
-        # User directive 2026-08-29: tolerate EOFError + zlib.error (chunked append not atomic).
-        # Gracefully degrade to first decompression error, all earlier entries preserved.
         n_load_errors = 0
         try:
             with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
@@ -156,12 +390,6 @@ def stage_user_gaussians():
     log(f"  cache keys loaded: {len(seen_keys)} (lazy mode)")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
-    # User directive 2026-08-27: no sentence split threshold; use entire review as 1 sample.
-    # Reason: short_users (mean_wc<3) reviews are mostly 1-2 word; sentence split gives
-    # nz=0-7 all-zero pollution; entire review contains token-based features.
-    # After extraction, filter by non-zero count >= K; 1-2 word reviews naturally filtered.
-    # User directive 2026-08-28: chunked append + reduced worker mem footprint to avoid 1.84M sentence OOM
-    # User directive 2026-08-29: n_process=2, batch_size=128 (OOM safe; reduced from 4)
     all_sents = []
     sent_to_user = []
     for uid, texts in user_review_texts.items():
@@ -180,13 +408,12 @@ def stage_user_gaussians():
         import spacy
         from syntactic_features import per_sentence_features_v2
         nlp = spacy.load("en_core_web_sm")
-        # Disable spaCy components not used by features (30-40% speedup)
         for comp in ("ner", "lemmatizer", "attribute_ruler"):
             if comp in nlp.pipe_names:
                 nlp.disable_pipe(comp)
         N_PROCESS = 2
         BATCH_SIZE = 128
-        CHUNK_FLUSH = 25_000  # Halve from 50K for lower per-chunk peak (50K Doc x 4 workers ≈ 8GB peak)
+        CHUNK_FLUSH = 25_000
         log(f"  extracting features for {len(new_sents)} new sentences "
             f"(n_process={N_PROCESS}, batch={BATCH_SIZE}, "
             f"chunked append every {CHUNK_FLUSH})...")
@@ -195,7 +422,6 @@ def stage_user_gaussians():
             with gzip.open(FEAT_CACHE, "wt", encoding="utf-8") as f:
                 f.write("# user-review sentence features (key=sha1(text), v=182d dict)\n")
 
-        import gc as _gc
         n_processed = 0
         with gzip.open(FEAT_CACHE, "at", encoding="utf-8") as f_cache:
             for chunk_start in range(0, len(new_unique), CHUNK_FLUSH):
@@ -218,43 +444,26 @@ def stage_user_gaussians():
                     f_cache.write(json.dumps({"k": k, "v": filtered}) + "\n")
                     n_processed += 1
                 f_cache.flush()
-                # Free spaCy Doc references + gc to avoid monotonic RSS growth
                 del chunk
-                _gc.collect()
+                gc.collect()
                 log(f"    flushed chunk {chunk_start + CHUNK_FLUSH}/{len(new_unique)} "
                     f"(mem-safe + gc.collect)")
         log(f"  saved cache: {len(feat_map)} entries (chunked append done)")
 
-    # User directive 2026-08-29: free Stage 5 intermediates to reduce RSS.
-    # feat_map (430K new entries) + all_sents (1.99M strings) + sent_to_user no longer needed.
-    # Stage 6 streams cache file + Welford online accumulation (avoids user_z_list).
     del all_sents, sent_to_user, feat_map
-    import gc as _gc
-    _gc.collect()
+    gc.collect()
     log("  Stage 5 intermediates freed (all_sents / sent_to_user / feat_map)")
 
     log("\n=== 6. Computing z_user per user (Welford online) ===")
-    # User directive 2026-08-29: large cohort (1.94M users x 6M reviews) caused 3 OOM kills.
-    # Old user_z_list held 1.94M users x avg 3 z's x 384B = 2.2GB + dict overhead +
-    # sha1_to_indices 500MB + full cache load 1.96GB + runtime → 30GB limit OOM.
-    # New design: Welford online accumulation, peak memory ~5GB.
-    #   1) sha1_to_uid_idx: sha1 -> [uid_idx, ...] with multiplicity
-    #      (1.96M keys x list ≈ 600MB)
-    #   2) Welford state per user: count[N] + mean[N,48] + M2[N,48] = 1.5GB
-    #   3) Stream cache file: per entry compute 1 z, then update Welford N times
-    #      (N = number of users who wrote that review text)
     MIN_NONZERO_FEATS = 0
 
-    # Build target_users ordered list + uid -> idx mapping
     target_user_list = sorted(target_users)
     uid_to_idx = {u: i for i, u in enumerate(target_user_list)}
     n_users = len(target_user_list)
     log(f"  target users ordered: {n_users}")
 
-    # Per-user metadata (n_reviews, n_words) computed while building reverse index
     user_n_reviews: dict = {}
     user_n_words: dict = {}
-    # sha1 -> list of uid_idx (with multiplicity; same uid appearing N times = N Welford updates)
     sha1_to_uid_idx: dict = collections.defaultdict(list)
     n_reviews_total = 0
     n_reviews_empty = 0
@@ -273,12 +482,10 @@ def stage_user_gaussians():
             n_reviews_total += 1
     log(f"  sha1_to_uid_idx built: {len(sha1_to_uid_idx)} unique keys, "
         f"{n_reviews_total} reviews (empty={n_reviews_empty})")
-    # Free review texts (1.16GB), keep user_n_reviews/n_words (~50MB)
     del user_review_texts
-    _gc.collect()
+    gc.collect()
     log("  user_review_texts freed")
 
-    # Welford state (online accumulation; no per-user z list)
     counts = np.zeros(n_users, dtype=np.int64)
     mean_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
     M2_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
@@ -311,8 +518,6 @@ def stage_user_gaussians():
                     vec = np.array([v.get(n, 0.0) for n in fnames], dtype=np.float64)
                     vec_scaled = scaler.transform(vec[None, :])[0]
                     z = pca.transform(vec_scaled[None, :])[0].astype(np.float64)
-                    # Welford update per uid_idx (same uid multiple times = multiple updates
-                    # with same z, mathematically equivalent to N-fold weighting)
                     for ui in uid_idxs:
                         counts[ui] += 1
                         delta = z - mean_acc[ui]
@@ -320,7 +525,7 @@ def stage_user_gaussians():
                         delta2 = z - mean_acc[ui]
                         M2_acc[ui] = M2_acc[ui] + delta * delta2
                     if n_cache_matched % 200_000 == 0:
-                        _gc.collect()
+                        gc.collect()
                         n_with_rev = int((counts > 0).sum())
                         log(f"    streaming cache: {n_cache_matched}/{n_cache_seen} matched, "
                             f"sha1_to_uid_idx remaining: {len(sha1_to_uid_idx)}, "
@@ -328,20 +533,16 @@ def stage_user_gaussians():
         except (EOFError, gzip.BadGzipFile, zlib.error) as e:
             log(f"  WARN streaming cache truncated ({type(e).__name__}: {e!r}), "
                 f"seen {n_cache_seen} entries")
-    # Remaining sha1_to_uid_idx keys = cache did not cover these sentences → n_skip_no_feats
     n_skip_no_feats = sum(len(v) for v in sha1_to_uid_idx.values())
     log(f"  streaming cache done: {n_cache_seen} entries seen, "
         f"{n_cache_matched} matched, "
         f"users with reviews: {int((counts > 0).sum())}/{n_users}, "
         f"n_skip_sparse: {n_skip_sparse}, n_skip_no_feats: {n_skip_no_feats}")
-    # Free reverse index (~600MB)
     sha1_to_uid_idx.clear()
     del sha1_to_uid_idx
-    _gc.collect()
+    gc.collect()
 
     log("\n=== 7. Computing per-user Gaussian (mu / sigma_diag) ===")
-    # User directive 2026-08-29: compute mu/var from Welford state
-    # (population var = M2/count). Skip the original global_pooled_var (dead code).
     user_gaussians = {}
     missing_users = []
 
@@ -349,7 +550,6 @@ def stage_user_gaussians():
     n_valid = int(valid_mask.sum())
     log(f"  users meeting MIN_REVIEWS_FOR_PER_USER={MIN_REVIEWS_FOR_PER_USER}: {n_valid}")
 
-    # Vectorized: var_pop = M2/count, then LAMBDA shrinkage
     safe_counts = np.maximum(counts, 1).astype(np.float64)
     var_pop = M2_acc / safe_counts[:, None]
     var_per_user_mean = var_pop.mean(axis=1, keepdims=True)
@@ -375,16 +575,13 @@ def stage_user_gaussians():
     log(f"  per-user Gaussians written: {n_written}")
 
     if missing_users:
-        # User directive 2026-08-29: 1.94M users nearly all satisfy MIN_REVIEWS_FOR_PER_USER=1.
-        # Only a few users with 0 reviews. Log warning instead of raise.
         log(f"  WARN {len(missing_users)}/{n_users} users lack per-user Gaussian "
             f"(counts<{MIN_REVIEWS_FOR_PER_USER}):")
         for uid, n_reviews, n_sents in missing_users[:10]:
             log(f"      {uid[:12]}... reviews={n_reviews} sents={n_sents}")
 
-    # Free Welford state
     del counts, mean_acc, M2_acc, var_pop, var_shrink, sigma_diag_arr
-    _gc.collect()
+    gc.collect()
 
     log("\n=== 8. Saving ===")
     GAUSSIANS_OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -403,14 +600,22 @@ def stage_user_gaussians():
             "n_users_with_gaussian": len(user_gaussians),
             "n_users_skipped": len(target_users) - len(user_gaussians),
         }, f, ensure_ascii=False, indent=2)
-    log(f"wrote -> {GAUSSIANS_OUT}")
+    log(f"  wrote → {GAUSSIANS_OUT}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Syntax Subspace - gaussian/ Stage 3 user Gaussians")
-    args = parser.parse_args()
-    log("=== syntax_subspace_user_gaussians.py ===")
-    stage_user_gaussians()
+# ============================================================================
+# Main
+# ============================================================================
+def main() -> None:
+    log("=== build_user.py — Phase 1 (cohort) + Phase 2 (Stage 3 Gaussian) ===")
+
+    # Phase 1 — cohort construction (Steps 2-4)
+    ran_p1 = phase1_cohort_construction()
+
+    # Phase 2 — per-user Gaussian fitting (Stage 3)
+    phase2_user_gaussians()
+
+    log("=== build_user.py — ALL DONE ===")
 
 
 if __name__ == "__main__":

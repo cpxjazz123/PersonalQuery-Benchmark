@@ -30,26 +30,27 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
 
 ## 规范目录结构(2026-08-29 整理后)
 
-**每个功能目录按职责划分,无 ablation/legacy 残留**。所有冗余脚本已归档删除,git history 保留可查:
+**每个功能目录 = 1 个主脚本**(共 6 个)。所有 ablation/legacy 脚本已归档删除,git history 保留可查:
 
-- `attribute_extraction/` `gaussian/` `gen_query/` `select_query/` `syntactic_evaluation/`:主脚本 + (按需)数据准备脚本
+- `attribute_extraction/`:商品属性抽取
+- `gaussian/`:用户 cohort 构建 + per-user Gaussian 拟合
+- `gen_query/` `select_query/` `syntactic_evaluation/`:各 stage 主脚本
 - `common/` / `syntactic_analysis/`:共享底座或预留目录
 
 ```
 attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
 common/                 syntax_subspace_utils.py                  (318d features + paths)
-gaussian/               syntax_subspace_user_gaussians.py         (Stage 3: per-user Gaussian)
-                        build_user_cohort.py                      (Steps 2-4: review scan + query_records + stage8_5 cohort)
+gaussian/               build_user.py                             (Phase 1: Steps 2-4 cohort + Phase 2: Stage 3 Gaussian)
 gen_query/              syntax_subspace_pool_regen.py             (Stage 1+2: pool + features, --stage)
 select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 4: v6m main)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
 
-**目录职责(2026-08-29 拆分后)**:
-- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user_cohort.py` 的 Step 3/4 共用。
-- `gaussian/`: 用户相关操作。`build_user_cohort.py`(Steps 2-4: 评论扫描 + query_records + cohort)负责数据准备,`syntax_subspace_user_gaussians.py`(Stage 3)负责 per-user Gaussian 拟合,二者解耦但都在用户域。
-- **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user_cohort.py`(Steps 2-4)。`build_user_cohort.py` 会自动检测 `result/product_attributes.json`,缺失则报错。
+**目录职责(2026-08-29 合并后)**:
+- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user.py` 的 Phase 1 Step 3/4 共用。
+- `gaussian/build_user.py`: 用户相关操作的单一入口。Phase 1 = Steps 2-4(评论扫描 + query_records + cohort),Phase 2 = Stage 3(per-user Gaussian)。两 phase 自动检测 signature,命中 cache 跳过。
+- **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user.py`(Phase 1 + Phase 2)。`build_user.py` Phase 1 会自动检测 `result/product_attributes.json`,缺失则报错。
 
 ## 前置检查
 
@@ -104,10 +105,11 @@ ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
   attribute_extraction/extract_product_attrs.py
 
-# Steps 2-4 — 用户 cohort 构造(扫描 reviews + query_records + stage8_5_asins)
+# Phase 1 + Phase 2 — 用户 cohort 构造 + per-user Gaussian 拟合(单脚本)
 /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  gaussian/build_user_cohort.py
+  gaussian/build_user.py
 ```
+`build_user.py` Phase 1 自动检测 `result/product_attributes.json`(缺失则报错),Phase 2 自动检测 `result/gaussian/user_gaussians.json` signature(命中跳过)。
 
 ## 路径约定(Rule 13/16)
 
@@ -170,10 +172,12 @@ done
 
 ### Stage 3: per-user Gaussians(Stage 3 of 5)
 
+`gaussian/build_user.py` 同时跑 Phase 1(cohort)+ Phase 2(Gaussian)。若 Phase 1 缓存命中(只跑 Phase 2)同样合法:
+
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  gaussian/syntax_subspace_user_gaussians.py \
+  gaussian/build_user.py \
   > /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log 2>&1 &
 ```
 
@@ -181,11 +185,11 @@ nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
 ```bash
 for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 60; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log
-  if grep -q "wrote →" /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log; then break; fi
+  if grep -qE "wrote →|Phase 2 CACHE HIT" /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log; then break; fi
 done
 ```
 
-**完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...result/gaussian/user_gaussians.json`
+**完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...result/gaussian/user_gaussians.json`,或 `Phase 2 CACHE HIT` 表示已缓存跳过。
 
 ### Stage 4: v6m Mahalanobis strict alignment(Stage 4 of 5)
 

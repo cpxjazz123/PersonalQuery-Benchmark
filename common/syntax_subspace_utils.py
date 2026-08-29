@@ -2,7 +2,7 @@
 
 Centralized helpers + path constants used by the 4 sibling scripts:
 
-  - gaussian/syntax_subspace_user_gaussians.py  (per-user Gaussian fitting)
+  - gaussian/build_user.py                     (Phase 1 cohort + Phase 2 per-user Gaussian)
   - gen_query/syntax_subspace_pool_regen.py     (LLM pool generation + features)
   - select_query/syntax_subspace_select.py      (Mahalanobis select)
   - syntactic_evaluation/syntax_subspace_retrieval.py  (BM25/MiniLM + volatility)

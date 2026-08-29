@@ -5,7 +5,7 @@ Reads product metadata, extracts structured attributes per ASIN (Brand,
 Main Category, Color, Material, Size, ..., no numeric values), writes to
 result/product_attributes.json.
 
-Also exports select_top_attrs() utility used by gaussian/build_user_cohort.py
+Also exports select_top_attrs() utility used by gaussian/build_user.py
 to pick top-N attrs per ASIN with numeric value exclusion.
 
 参数全部硬编码 (Rule 3), 不接受 CLI 参数.
