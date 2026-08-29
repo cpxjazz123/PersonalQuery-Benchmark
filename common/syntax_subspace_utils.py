@@ -15,32 +15,17 @@ Exposes:
                     K_POOL, TEMP, MAX_TOKENS, MAX_QUERY_TOKENS, N_INPUT
   - `log`: timestamped log print
   - `feat_key`: sha1(text) feature cache key
-  - `_syntax_subspace_prepare`: load 10k user sentence cache + scaler + user_to_indices
-                                (only fields consumed by main pipeline)
-
-Inputs (paths under `RESIDUAL_SCRATCH`):
-  - sentences_for_rewrite_10k.jsonl
-  - sentences_318d_cache.jsonl.gz
-
-Outputs: dict with X / X_scaled / scaler / feature_names_ordered / train_idx /
-user_to_indices / user_ids / asins (only fields consumed by main pipeline).
+  - `load_jsonl`: load JSONL as list[dict]
 """
 
 from __future__ import annotations
 
-import gzip
 import hashlib as _hl
 import json
 import time
-from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-
-# Legacy alias kept for backwards-compatibility (used by _syntax_subspace_prepare)
-# SCRATCH 仅用于输入数据 + 下游 stage 读取的中间 cache (per_query / selection intermediate)
+# SCRATCH only used for input data + intermediate cache (downstream stage reads)
 RESIDUAL_SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
 # ---------------------------------------------------------------------------
@@ -125,95 +110,3 @@ def load_jsonl(path: Path) -> list[dict]:
     """Load a JSONL file as a list of dicts."""
     with open(path, "r", encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
-
-
-def _syntax_subspace_prepare(
-    sents_path: Path | None = None,
-    feat_cache_path: Path | None = None,
-    feature_names_ordered: list | None = None,
-) -> dict[str, Any]:
-    """Stage 1 / Stage 2 共用的数据准备 (加载 318d cache + 标准化 + 切分).
-
-    User directive 2026-08-29: 精简返回字段, 只保留 Stage 4 strict alignment
-    chain 实际消费的 keys:
-      X / X_scaled / user_ids / asins / train_idx / scaler /
-      user_to_indices / user_id_list / feature_names_ordered
-
-    已删除 (zero consumer):
-      Y_probes, rewrites_by_user_text, pair_idx, raw_dist, top_asins,
-      asin_to_label, label_y, leak_train, leak_test, probe_train_idx,
-      probe_test_idx, PROBE_TARGETS, rng
-    """
-    spacy_sents = Path(sents_path) if sents_path else RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
-    feat_cache = Path(feat_cache_path) if feat_cache_path else RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
-
-    if not spacy_sents.exists():
-        raise FileNotFoundError(f"missing: {spacy_sents}")
-    if not feat_cache.exists():
-        raise FileNotFoundError(f"missing: {feat_cache}")
-
-    # --- 1. Load feature cache ---
-    log("[subspace] loading sentence feature cache...")
-    feat_map: dict = {}
-    with gzip.open(feat_cache, "rt", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            rec = json.loads(line)
-            feat_map[rec["k"]] = rec["v"]
-
-    # --- 2. Load sentences ---
-    sents_raw = load_jsonl(spacy_sents)
-    log(f"[subspace] {len(sents_raw)} sentences")
-
-    # Build matrix + meta
-    sents_meta: list = []
-    feature_names_ordered_local: list = []
-    for row in sents_raw:
-        text = row.get("sentence_text", "")
-        k = _hl.sha1(text.strip().lower().encode("utf-8")).hexdigest()
-        feats = feat_map.get(k, {})
-        if not feats:
-            continue
-        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
-        if not feature_names_ordered_local:
-            feature_names_ordered_local = sorted(numeric.keys())
-        vec = np.array([numeric[n] for n in feature_names_ordered_local], dtype=np.float64)
-        sents_meta.append({
-            "user_id": row["user_id"],
-            "asin": row.get("asin", ""),
-            "text": text,
-            "vec": vec,
-        })
-    log(f"[subspace] {len(sents_meta)} valid sentences")
-
-    if feature_names_ordered is None:
-        feature_names_ordered = feature_names_ordered_local
-
-    X = np.stack([s["vec"] for s in sents_meta], axis=0)
-    user_ids = np.array([s["user_id"] for s in sents_meta])
-    asins = np.array([s["asin"] for s in sents_meta])
-    log(f"[subspace] X shape: {X.shape}")
-
-    # --- 3. StandardScaler fit on 5000 sentences ---
-    rng = np.random.default_rng(42)
-    train_idx = rng.choice(len(X), size=min(5000, len(X)), replace=False)
-    scaler = StandardScaler()
-    scaler.fit(X[train_idx])
-    X_scaled = scaler.transform(X)
-    log(f"[subspace] StandardScaler fitted on {len(train_idx)} sentences")
-
-    # --- 4. Per-user aggregation ---
-    user_to_indices: dict = defaultdict(list)
-    for i, uid in enumerate(user_ids):
-        user_to_indices[uid].append(i)
-    user_id_list = sorted(user_to_indices.keys())
-    log(f"[subspace] {len(user_id_list)} unique users")
-
-    return {
-        "X": X, "X_scaled": X_scaled, "user_ids": user_ids, "asins": asins,
-        "train_idx": train_idx, "scaler": scaler,
-        "user_to_indices": user_to_indices, "user_id_list": user_id_list,
-        "feature_names_ordered": feature_names_ordered,
-    }

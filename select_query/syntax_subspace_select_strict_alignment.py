@@ -143,19 +143,18 @@ def sha1_of(text: str) -> str:
 
 
 def stage_features():
-    """Stage 2 — extract spaCy 318d features for pool queries.
+    """Stage 2 — extract spaCy 182d features for pool queries.
 
     用户指令 2026-08-29: 从 gen_query/syntax_subspace_pool_regen.py --stage features
     迁移过来, cache 文件路径同步移到 select_query/ 目录下。
     Stage 3 Gaussian (gaussian/build_user.py) 通过 FEAT_CACHE 常量同步读这个文件。
+
+    用户指令 2026-08-29 (10K 移除): 不再调 _syntax_subspace_prepare()。
+    canonical fnames 直接从已有 FEAT_CACHE 条目的 keys 推断,
+    若 cache 为空则以第一条新记录作为 canonical, 保证后续 Phase 2/Stage 4
+    PCA48 投影维度一致。
     """
     log("=== STAGE 2 — FEATURES ===")
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-    from syntax_subspace_utils import _syntax_subspace_prepare
-    P = _syntax_subspace_prepare()
-    fnames = P["feature_names_ordered"]
-    log(f"  fnames: {len(fnames)}")
 
     log(f"loading {POOL_IN}")
     pool_data = json.load(open(POOL_IN))
@@ -176,6 +175,15 @@ def stage_features():
                 rec = json.loads(line)
                 feat_map[rec["k"]] = rec["v"]
     log(f"  cache keys: {len(feat_map)}")
+
+    # canonical fnames: from existing FEAT_CACHE entries (sorted); empty cache → defer to first new record
+    fnames: list[str] = []
+    if feat_map:
+        fnames_set: set = set()
+        for v in feat_map.values():
+            fnames_set.update(v.keys())
+        fnames = sorted(fnames_set)
+    log(f"  canonical fnames (from FEAT_CACHE): {len(fnames)}")
 
     missing_q = [q for q in all_queries if feat_key(q) not in feat_map]
     log(f"  missing: {len(missing_q)}")
@@ -208,6 +216,9 @@ def stage_features():
             n_skip += 1
             continue
         numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
+        # If FEAT_CACHE was empty, bootstrap fnames from first new record
+        if not fnames:
+            fnames = sorted(numeric.keys())
         filtered = {n: numeric.get(n, 0.0) for n in fnames}
         feat_map[k] = filtered
         new_entries.append({"k": k, "v": filtered})
@@ -240,28 +251,37 @@ def main():
     log(f"  pool ASINs: {len(asin_pool)}")
     log(f"  total queries: {pool_data['n_total_strict']}")
 
-    # ---- 2. Load F3 + StandardScaler + PCA48 + whitening ----
-    # (用户指令 2026-08-29: 用 full Gaussian 取代 10K-derived whitened means。
-    #  StandardScaler + PCA48 仍需 10K cache 标定, query 特征投影复用同一空间)
-    log("\n=== 2. Loading _syntax_subspace_prepare() for F3_CoreStruct + PCA48 ===")
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-    from syntax_subspace_utils import _syntax_subspace_prepare  # noqa: E402
-    P = _syntax_subspace_prepare()
-    X = P["X"]; all_fnames = P["feature_names_ordered"]
-    train_idx = P["train_idx"]
-
-    cfg = {"exclude_prefixes": _EXCLUDE_PREFIXES, "exclude_exact": _EXCLUDE_EXACT}
-    fnames = select_feature_names(all_fnames, cfg["exclude_prefixes"], cfg["exclude_exact"])
-    col_idx = [all_fnames.index(n) for n in fnames]
-    ss = StandardScaler()
-    ss.fit(X[train_idx][:, col_idx])
-    pca, sqrt_lambda = fit_pca(ss.transform(X[train_idx][:, col_idx]), PCA_DIM, PCA_SEED)
-    log(f"  F3_CoreStruct: {len(fnames)} features, PCA{PCA_DIM}: cumvar={pca.explained_variance_ratio_.sum():.4f}")
-
-    # ---- 3. Load full Gaussian (mu + sigma_diag) from user_gaussians.json ----
-    log("\n=== 3. Full per-user Gaussian μ_u / σ²_u (from user_gaussians.json) ===")
+    # ---- 2 + 3. Load scaler + PCA48 + per-user Gaussian (from user_gaussians.json) ----
+    # User directive 2026-08-29: 删 _syntax_subspace_prepare() + sentences_for_rewrite_10k.jsonl。
+    # Phase 2 自己 fit StandardScaler + PCA48 on FEAT_CACHE (target users' sentences),
+    # 把 scaler_mean/scale + pca_components + fnames 写进 user_gaussians.json。
+    # select_query 直接从这里读, 不再调 10K cache。
+    log("\n=== 2+3. Loading scaler + PCA48 + per-user Gaussian (from user_gaussians.json) ===")
     gauss_data = json.load(open(GAUSSIANS_OUT))
+
+    ss = StandardScaler()
+    ss.mean_ = np.array(gauss_data["scaler_mean"], dtype=np.float64)
+    ss.scale_ = np.array(gauss_data["scaler_scale"], dtype=np.float64)
+    ss.n_features_in_ = len(ss.mean_)
+
+    pca = PCA(n_components=PCA_DIM)
+    pca.components_ = np.array(gauss_data["pca_components"], dtype=np.float64)
+    pca.explained_variance_ = np.array(gauss_data["pca_explained_variance"], dtype=np.float64)
+    pca.explained_variance_ratio_ = np.array(
+        gauss_data["pca_explained_variance_ratio"], dtype=np.float64
+    )
+    pca.mean_ = np.array(gauss_data["pca_mean"], dtype=np.float64)
+    pca.n_components_ = PCA_DIM
+    pca.n_features_in_ = len(pca.mean_)
+
+    sqrt_lambda = np.sqrt(pca.explained_variance_)
+    all_fnames = gauss_data["feature_names_ordered"]
+    fnames_sub = gauss_data["fnames_f3"]
+    col_idx = [all_fnames.index(n) for n in fnames_sub]
+
     users_gauss = gauss_data["users"]
+    log(f"  F3: {len(fnames_sub)} features, scaler.mean_.shape={ss.mean_.shape}, "
+        f"PCA{PCA_DIM}: cumvar={pca.explained_variance_ratio_.sum():.4f}")
     log(f"  users with full Gaussian: {len(users_gauss)}")
 
     # ---- 5. Load ASINs with cohort users_sampled ----

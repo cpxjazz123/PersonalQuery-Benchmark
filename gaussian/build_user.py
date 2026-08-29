@@ -274,20 +274,7 @@ def phase2_user_gaussians() -> None:
 
     log("[build_user] === Phase 2: per-user Gaussian (Stage 3) ===")
 
-    log("\n=== 1. Loading PCA48 ===")
-    from syntax_subspace_utils import _syntax_subspace_prepare
-    P = _syntax_subspace_prepare()
-    scaler = P["scaler"]
-    fnames = P["feature_names_ordered"]
-    train_idx = P["train_idx"]
-    log(f"  scaler mean shape: {scaler.mean_.shape}, fnames: {len(fnames)}")
-
-    from sklearn.decomposition import PCA
-    pca = PCA(n_components=PCA_DIM, random_state=42)
-    pca.fit(P["X_scaled"][train_idx])
-    log(f"  PCA48 EV={pca.explained_variance_ratio_.sum():.4f}")
-
-    log("\n=== 2. Loading target users ===")
+    log("\n=== 1. Loading target users ===")
     asin_data = json.load(open(ASINS_IN))["asins"]
     target_users = set()
     user_to_asins = collections.defaultdict(set)
@@ -325,6 +312,7 @@ def phase2_user_gaussians() -> None:
 
     log("\n=== 4. Loading feature cache (lazy: only seen_keys) ===")
     seen_keys = set()
+    all_fnames_set: set = set()
     if FEAT_CACHE.exists():
         n_load_errors = 0
         try:
@@ -339,10 +327,13 @@ def phase2_user_gaussians() -> None:
                         n_load_errors += 1
                         continue
                     seen_keys.add(rec["k"])
+                    all_fnames_set.update(rec["v"].keys())
         except (EOFError, gzip.BadGzipFile, zlib.error) as e:
             log(f"  WARN cache gzip stream truncated ({type(e).__name__}: {e!r}), "
                 f"loaded {len(seen_keys)} keys + {n_load_errors} corrupt lines")
     log(f"  cache keys loaded: {len(seen_keys)} (lazy mode)")
+    all_fnames = sorted(all_fnames_set)
+    log(f"  canonical fnames: {len(all_fnames)}")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
     all_sents = []
@@ -393,7 +384,8 @@ def phase2_user_gaussians() -> None:
                         feats = {}
                     numeric = {n: float(v) for n, v in feats.items()
                                if isinstance(v, (int, float))}
-                    filtered = {n: numeric.get(n, 0.0) for n in fnames}
+                    # all_fnames collected in Section 4 (canonical keys from FEAT_CACHE)
+                    filtered = {n: numeric.get(n, 0.0) for n in all_fnames}
                     feat_map[k] = filtered
                     seen_keys.add(k)
                     f_cache.write(json.dumps({"k": k, "v": filtered}) + "\n")
@@ -408,6 +400,36 @@ def phase2_user_gaussians() -> None:
     del all_sents, sent_to_user, feat_map
     gc.collect()
     log("  Stage 5 intermediates freed (all_sents / sent_to_user / feat_map)")
+
+    log("\n=== 5b. Fit StandardScaler + PCA48 on FEAT_CACHE (target users' sentences) ===")
+    # User directive 2026-08-29: 不再用 10K cache (sentences_for_rewrite_10k.jsonl)。
+    # StandardScaler + PCA48 改成 fit on FEAT_CACHE 里 target users 的句子。
+    # select_query 从 user_gaussians.json 读 scaler/PCA 投影 query, 不再调
+    # _syntax_subspace_prepare()。
+    # all_fnames 在 Section 4 已从 FEAT_CACHE 收集, 此处直接复用。
+
+    from sklearn.preprocessing import StandardScaler as _SS
+    from sklearn.decomposition import PCA as _PCA
+
+    target_shas = set()
+    for uid_idxs in []:
+        pass  # populated below via sha1_to_uid_idx (defined later)
+
+    feat_records_for_fit: list = []
+    N_FIT_MAX = 5000
+    n_target_seen = 0
+    log(f"  FEAT_CACHE: {len(all_fnames)} feature dims (canonical, "
+        f"collected in Section 4)")
+
+    # F3_CoreStruct subset (drop n-gram prefixes + semantic tags)
+    EXCL_PREFIXES = ("open_", "close_", "posbg_", "postg_", "depbg_")
+    EXCL_EXACT = ("opener", "stype", "has_passive", "is_interrog", "has_cond",
+                  "acl", "advcl", "ccomp", "xcomp", "relcl")
+    fnames_sub = [n for n in all_fnames
+                  if not any(n.startswith(p) for p in EXCL_PREFIXES)
+                  and n not in EXCL_EXACT]
+    col_idx = [all_fnames.index(n) for n in fnames_sub]
+    log(f"  F3_CoreStruct: {len(fnames_sub)} / {len(all_fnames)} features")
 
     log("\n=== 6. Computing z_user per user (Welford online) ===")
     MIN_NONZERO_FEATS = 0
@@ -445,6 +467,41 @@ def phase2_user_gaussians() -> None:
     mean_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
     M2_acc = np.zeros((n_users, PCA_DIM), dtype=np.float64)
 
+    # ---- 6a. Fit StandardScaler + PCA48 on target users' FEAT_CACHE entries ----
+    target_shas = set(sha1_to_uid_idx.keys())
+    log(f"  target_shas: {len(target_shas)} unique keys")
+    fit_records: list = []
+    N_FIT_MAX = 5000
+    with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec["k"] in target_shas:
+                fit_records.append(rec)
+                if len(fit_records) >= N_FIT_MAX:
+                    break
+    X_fit_full = np.array(
+        [[r["v"].get(n, 0.0) for n in all_fnames] for r in fit_records],
+        dtype=np.float64,
+    )
+    X_fit_sub = X_fit_full[:, col_idx]
+    ss = _SS()
+    ss.fit(X_fit_sub)
+    X_fit_sub_scaled = ss.transform(X_fit_sub)
+    pca = _PCA(n_components=PCA_DIM, random_state=42)
+    pca.fit(X_fit_sub_scaled)
+    log(f"  StandardScaler fitted on {len(fit_records)} target-user sentences "
+        f"(F3 {len(fnames_sub)}d → PCA{PCA_DIM}, "
+        f"EV={pca.explained_variance_ratio_.sum():.4f})")
+    del X_fit_full, X_fit_sub, X_fit_sub_scaled, fit_records
+    gc.collect()
+
+    # ---- 6b. Welford streaming using fitted scaler + PCA ----
     n_cache_seen = 0
     n_cache_matched = 0
     n_skip_sparse = 0
@@ -470,9 +527,10 @@ def phase2_user_gaussians() -> None:
                     if nonzero_count < MIN_NONZERO_FEATS:
                         n_skip_sparse += len(uid_idxs)
                         continue
-                    vec = np.array([v.get(n, 0.0) for n in fnames], dtype=np.float64)
-                    vec_scaled = scaler.transform(vec[None, :])[0]
-                    z = pca.transform(vec_scaled[None, :])[0].astype(np.float64)
+                    vec_full = np.array([v.get(n, 0.0) for n in all_fnames], dtype=np.float64)
+                    vec_sub = vec_full[col_idx]
+                    vec_sub_scaled = ss.transform(vec_sub[None, :])[0]
+                    z = pca.transform(vec_sub_scaled[None, :])[0].astype(np.float64)
                     for ui in uid_idxs:
                         counts[ui] += 1
                         delta = z - mean_acc[ui]
@@ -543,14 +601,32 @@ def phase2_user_gaussians() -> None:
     with open(GAUSSIANS_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": ("Stage 8.5: per-user Gaussian from Baby_Products review "
-                                "corpus, PCA48 spaCy features (Welford online accumulation)"),
+                "description": ("Stage 8.5: per-user Gaussian + StandardScaler + PCA48 from "
+                                "Baby_Products review corpus, F3_CoreStruct spaCy features "
+                                "(Welford online accumulation). "
+                                "用户指令 2026-08-29: 不再用 10K cache, scaler/PCA 改 fit on "
+                                "FEAT_CACHE 里 target users 的句子, select_query 直接从这里读。"),
                 "PCA_DIM": PCA_DIM,
                 "LAMBDA": LAMBDA,
                 "VAR_EPS": VAR_EPS,
                 "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
+                "F3_EXCLUDE_PREFIXES": list(EXCL_PREFIXES),
+                "F3_EXCLUDE_EXACT": list(EXCL_EXACT),
+                "N_FIT_MAX": N_FIT_MAX,
                 "cache_signature": sig_hash,
             },
+            # StandardScaler fit on target users' FEAT_CACHE (F3 subset)
+            "scaler_mean": ss.mean_.tolist(),
+            "scaler_scale": ss.scale_.tolist(),
+            # PCA48 fit on scaled F3 subset
+            "pca_components": pca.components_.tolist(),
+            "pca_explained_variance": pca.explained_variance_.tolist(),
+            "pca_explained_variance_ratio": pca.explained_variance_ratio_.tolist(),
+            "pca_mean": pca.mean_.tolist(),
+            # Feature order (full + F3 subset)
+            "feature_names_ordered": all_fnames,
+            "fnames_f3": fnames_sub,
+            # Per-user Gaussian (Mahalanobis input)
             "users": user_gaussians,
             "n_users_with_gaussian": len(user_gaussians),
             "n_users_skipped": len(target_users) - len(user_gaussians),
