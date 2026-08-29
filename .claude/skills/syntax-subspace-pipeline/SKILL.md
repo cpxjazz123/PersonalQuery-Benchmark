@@ -1,13 +1,13 @@
 ---
 name: syntax-subspace-pipeline
-description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs + 5-layer strict filter (attrs/invalid/1st-person/emoji/self-talk/length≤60)。LLM pool → spaCy 特征 → per-user Gaussian → Mahalanobis 选 query → MiniLM/BM25 评估 + 波动率标定
+description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs + 5-layer strict filter (attrs/invalid/1st-person/emoji/self-talk/length≤60)。LLM pool → spaCy 特征 → per-user Gaussian → v6m Mahalanobis strict alignment → 7-retriever 评估 (BM25/SPLADE/4 dense/ColBERTv2, NO rerank) + minilm-canonical sim09 volatility
 ---
 
 # Syntax Subspace Pipeline — 5 Stages
 
 ## 何时用
 
-完整端到端跑通 Syntax Subspace 流水线:从用户评论 → 句法特征 → per-user Gaussian → Mahalanobis 选 query → MiniLM/BM25 评估 + 波动率标定。
+完整端到端跑通 Syntax Subspace 流水线:从用户评论 → 句法特征 → per-user Gaussian → Mahalanobis 选 query → 7-retriever 评估 + 波动率标定。
 
 **输入**:
 - `scratch2/wenyu/gaussian_vades/stage8_5_asins.json`(target users + ASIN,1619 个)
@@ -15,7 +15,7 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
 
 **输出**:`/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/<name>.json`(最终聚合结果,按 Rule 13/16 写到 result/)
 
-**预计耗时**:Stage 1(LLM 5-10min) → Stage 2-3(spaCy CPU 30min) → Stage 4(CPU 5min) → Stage 5(GPU MiniLM 30min)。总计 ~1.5h。
+**预计耗时**:Stage 1(LLM 5-10min) → Stage 2-3(spaCy CPU 30min) → Stage 4(CPU 5min) → Stage 5(GPU MiniLM+SPLADE+ColBERTv2 ~10min)。总计 ~1.5h。
 
 **用户指令 2026-08-28 锁定配置**:
 - `N_INPUT = 5`(从 `product_attributes.json` 取 top-5 **非数值** attrs)
@@ -27,6 +27,20 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
   4. `!has_emoji`(Unicode emoji block 0x1F000-0x1FFFF, 0x2600-0x27BF 等)
   5. `!has_self_talk`(`can someone help`、`thanks!`、`let's try again`、`just those exact attributes` 等自言自语)
   6. `len(query) ≤ MAX_QUERY_TOKENS=60`(避免 80+ token 长尾失控污染 strict 池)
+
+## 规范目录结构(2026-08-29 整理后)
+
+**每个功能目录 = 1 个主脚本**(共 6 个)。所有 ablation/legacy 脚本已归档删除,git history 保留可查:
+
+```
+attribute_extraction/   build_dataset.py                          (上游 dataset 构造)
+common/                 syntax_subspace_utils.py                  (318d features + paths)
+gaussian/               syntax_subspace_user_gaussians.py         (Stage 3: per-user Gaussian)
+gen_query/              syntax_subspace_pool_regen.py             (Stage 1+2: pool + features, --stage)
+select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 4: v6m main)
+syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
+syntactic_analysis/     (空)
+```
 
 ## 前置检查
 
@@ -67,7 +81,7 @@ nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python -m vllm.entrypoints.op
 nvidia-smi --query-gpu=memory.free --format=csv,noheader
 ```
 
-需 ≥ 20GB free(MiniLM 6GB + spaCy 小 + vLLM 14GB)。
+需 ≥ 20GB free(MiniLM 6GB + SPLADE 13GB chunked-stream + ColBERTv2 8GB + vLLM 14GB)。
 
 ### 5. 输入数据
 
@@ -75,17 +89,17 @@ nvidia-smi --query-gpu=memory.free --format=csv,noheader
 ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 ```
 
-不存在则需先跑 `attribute_extraction/build_query_records.py` 生成上游数据。
+不存在则需先跑 `attribute_extraction/build_dataset.py` 生成上游数据。
 
 ## 路径约定(Rule 13/16)
 
 - **Inputs**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json` + `data/`):只读
-- **Intermediate cache**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz` + `stage8_5_selection.json` + `stage8_5_retrieval_per_query.json`):下游 stage 读取
+- **Intermediate cache**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz` + `stage8_5_selection.json` + `stage8_5_retrieval_per_query.json` + `multiretrieval_embeds/<retr_name>/`):下游 stage 读取
 - **Final results**(`/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/<name>.json`):
   - `result/gen_query/pool.json`
   - `result/gaussian/user_gaussians.json`
-  - `result/syntactic_evaluation/retrieval_summary.json`
-  - `result/syntactic_evaluation/volatility.json`
+  - `result/syntactic_evaluation/retrieval_summary.json`(7 retriever volatility only)
+  - `result/syntactic_evaluation/volatility.json`(canonical BM25+MiniLM slice)
 
 ## 跑 5 stages
 
@@ -155,12 +169,15 @@ done
 
 **完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...result/gaussian/user_gaussians.json`
 
-### Stage 4: Mahalanobis select(Stage 4 of 5)
+### Stage 4: v6m Mahalanobis strict alignment(Stage 4 of 5)
+
+v6m 是当前 main pipeline:PCA48 whitening + R_99 from real historical + L2 margin。
+无参数(规则 3),直接跑:
 
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  select_query/syntax_subspace_select.py --stage select \
+  select_query/syntax_subspace_select_v6m_strict_alignment.py \
   > /home/wlia0047/hj82_scratch2/wenyu/logs/stage4_select.log 2>&1 &
 ```
 
@@ -172,31 +189,44 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 ```
 
-**完成标志**:`stage4_select.log` 含 `wrote → ...scratch2/stage8_5_selection.json`(intermediate cache)
+**完成标志**:`stage4_select.log` 含 `wrote → ...scratch2/stage8_5_selection.json`(intermediate cache)+ `stage8_5_selection_stats.json`(~6KB 统计,6357 strict personalized + 15318 no_strict_candidate)
 
-### Stage 5: retrieval + volatility(Stage 5 of 5,GPU MiniLM)
+### Stage 5: 7-retriever 评估 + minilm-canonical sim09 volatility(Stage 5 of 5)
 
-Part A: Stage 4 选出的 {selected, random, farthest} 三组查询全量跑 BM25 + MiniLM。
-Part B: 同一个脚本末尾自动跑 V_low / V_user / V_high 波动率标定。
+**集成 7 个 retriever(NO rerank)**:
+1. **BM25**(lexical_sparse)— `bm25s` lib, k1=1.5 b=0.75
+2. **SPLADE**(learned_sparse)— `naver/splade-cocondenser-ensembledistil`,chunked-stream encoding 避免 13GB OOM
+3. **MiniLM**(dense_biencoder 384d, 22M)— `sentence-transformers/all-MiniLM-L6-v2`
+4. **MPNet**(dense_biencoder 768d, 110M)— `sentence-transformers/all-mpnet-base-v2`
+5. **BGE-base-v1.5**(dense_biencoder 768d, 110M)— `BAAI/bge-base-en-v1.5`
+6. **GTE-base**(dense_biencoder 768d, 110M)— `thenlper/gte-base`
+7. **ColBERTv2**(late_interaction, 768→128 投影)— `colbert-ir/colbertv2.0`
+
+**sim09 锚定**:所有 retriever 的 query-query 相似度阈值统一参考 minilm 384d dense embedding(用户指令 2026-08-29)。BM25/SPLADE 无 dense query embed,自动借用 minilm;这样 7 个 retriever 的 volatility 数值可比(共享同一聚类)。
+
+无参数(规则 3),直接跑:
 
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  syntactic_evaluation/syntax_subspace_retrieval.py --stage retrieval \
+  syntactic_evaluation/syntax_subspace_retrieval_unified.py \
   > /home/wlia0047/hj82_scratch2/wenyu/logs/stage5_retrieval.log 2>&1 &
 ```
 
-**轮询**(Stage 5 较慢 ~30min):
+**轮询**(Stage 5 较慢 ~8min for 7 retrievers;vLLM 不需要):
 ```bash
-for i in $(seq 1 20); do
-  sleep 90; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage5_retrieval.log
+for i in $(seq 1 30); do
+  sleep 60; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage5_retrieval.log
   if grep -qE "wrote →" /home/wlia0047/hj82_scratch2/wenyu/logs/stage5_retrieval.log; then break; fi
 done
 ```
 
 **完成标志**:`stage5_retrieval.log` 含两条 `wrote →`:
-- `result/syntactic_evaluation/retrieval_summary.json`(Part A)
-- `result/syntactic_evaluation/volatility.json`(Part B)
+- `scratch2/.../stage8_5_retrieval_per_query.json`(7.9MB,signature=`1442eea563ce0a2d`,per-query rank/RR/hit@1/5/10)
+- `result/syntactic_evaluation/retrieval_summary.json`(per-retriever sim09 volatility,7 retrievers,`config.sim09_reference = "minilm"`)
+- `result/syntactic_evaluation/volatility.json`(canonical BM25+MiniLM slice)
+
+**Cache 命中**:如果 `stage8_5_selection.json` 的 signature 未变且 `stage8_5_retrieval_per_query.json` 已存在,Stage 5 直接读 cache + 重算 volatility,只需 ~2 秒。
 
 ## 验证所有 stage 完成
 
@@ -209,19 +239,37 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 - `scratch2/stage7b_query_features.jsonl.gz`(Stage 2 intermediate)
 - `result/gaussian/user_gaussians.json`(Stage 3)
 - `scratch2/stage8_5_selection.json` + `scratch2/stage8_5_selection_stats.json`(Stage 4 intermediate)
-- `result/syntactic_evaluation/retrieval_summary.json`(Stage 5 Part A)
-- `result/syntactic_evaluation/volatility.json`(Stage 5 Part B)
+- `result/syntactic_evaluation/retrieval_summary.json`(Stage 5 Part B,7 retriever volatility)
+- `result/syntactic_evaluation/volatility.json`(Stage 5 canonical BM25+MiniLM slice)
+
+## Stage 5 期望输出参考(v7 on v6m strict alignment, 1095 ASINs sim09)
+
+| retriever | Hit@1_flip | Hit@10_flip | RR_Std |
+|---|---:|---:|---:|
+| bm25 | 4.70% | 9.06% | 0.0499 |
+| splade | 3.95% | 5.80% | 0.0419 |
+| minilm | 2.71% | 4.76% | 0.0272 |
+| mpnet | 2.75% | 5.23% | 0.0325 |
+| bge_base_v15 | 3.01% | 5.29% | 0.0339 |
+| gte_base | 4.05% | 6.85% | 0.0420 |
+| colbertv2 | 2.40% | 6.21% | 0.0347 |
+
+**关键观察**:
+- BM25 在 minilm-sim09 聚类下 Hit@10_flip 最高(9.06%)— 同义改写最脆弱
+- minilm 综合最稳(RR_Std=0.0272)— 自我引用最自洽
+- gte_base 中等偏高 — 检索强但不稳
 
 ## 规则遵守(CLAUDE.md)
 
-- Rule 3:所有参数硬编码,运行统一 `python <script> [--stage X]`(无参数传入)
+- Rule 3:所有参数硬编码到脚本,运行统一 `python <script>`(可选 `--stage X` 仅 Stage 1/2)。Stage 3/4/5 无参数传入
 - Rule 7:只用 `pq_env` (`/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`)
 - Rule 8:所有 stage 用 `nohup ... &` 后台运行,**禁止 sbatch/srun**
 - Rule 9:用 `tail` + `grep` 轮询完成标志,**禁止 `sleep X; tail`** 长休眠
 - Rule 10:中间 cache + log 写 `/home/wlia0047/hj82_scratch2/wenyu/`,**最终聚合结果写 `/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/`**
 - Rule 11:cwd = `/home/wlia0047/ar57/wenyu/PersoanlQuery`
-- Rule 12:脚本留在项目目录(gen_query/gaussian/select_query/syntactic_evaluation/),不写到 scratch2
+- Rule 12:脚本留在 6 个项目目录(attribute_extraction/common/gaussian/gen_query/select_query/syntactic_evaluation/),不写到 scratch2
 - Rule 13:`result/` 只放 JSON/NPZ/CSV/log 产物,无 .py/.sh
+- Rule 14:每个功能目录 1 个主脚本(2026-08-29 整理后)
 - Rule 16:每个功能目录在 result/ 下对应单一 JSON(允许 stage 唯一 JSON + summary 配对)
 
 ## 故障排查
@@ -231,10 +279,11 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 | Stage 1 卡住 | `tail vllm_server.log`,确认 vLLM 已加载 Qwen2-7B |
 | Stage 2 OOM | spaCy n_process=8 占用过大,可改 `n_process=4` |
 | Stage 3 找不到 review | 确认 `data/Baby_Products_2023.jsonl.gz` 存在 |
-| Stage 5 GPU OOM | 减小 batch_size,或单独跑 BM25 不用 MiniLM |
+| Stage 5 GPU OOM | 减小 batch_size;SPLADE 用 chunked-stream(默认开启) |
+| Stage 5 dense retriever stale cache | 删除 `scratch2/multiretrieval_embeds/<retr_name>/query_embeds.npy` 让脚本重编码 |
 | vLLM 起不来 (flashinfer JIT nvcc 错) | `export VLLM_USE_FLASHINFER_SAMPLER=0` + `export VLLM_FLASHINFER_AUTOTUNE_SKIP_OPS="..."` 后再启 vLLM |
 | pq_env 找不到 | `ls /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`,确认环境存在 |
 
 ## 完成后
 
-按 AGENTS.md 规则 4 输出任务摘要 + 5 stage 状态 + 关键统计(选 query 数 / rank-1 hit rate / V_user 中位数等),并以"当前任务已完成,请做下一个任务的指示。"结尾。
+按 AGENTS.md 规则 4 输出任务摘要 + 5 stage 状态 + 关键统计(选 query 数 / per-retriever Hit@1_flip / Hit@10_flip / RR_Std 等),并以"当前任务已完成,请做下一个任务的指示。"结尾。
