@@ -714,8 +714,7 @@ def main():
 
     # ---- 4. Merge into query_records ----
     log("\n=== 4. Merging per-retriever results ===")
-    for r in query_records:
-        gi = query_records.index(r)
+    for gi, r in enumerate(query_records):
         for n in RETR_NAMES:
             res = retr_results[n][gi]
             r[f"{n}_rank"] = res["rank"]
