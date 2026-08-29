@@ -369,11 +369,24 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
         np.save(corpus_cache, corpus_embeds)
 
     if query_cache.exists():
-        q_embeds = np.load(query_cache)
+        q_embeds_cached = np.load(query_cache)
+        if q_embeds_cached.shape[0] == len(queries):
+            q_embeds = q_embeds_cached
+            log(f"  ✓ query embeds cache ({q_embeds.shape})")
+        else:
+            log(f"  ⚠ query embeds cache stale (cached={q_embeds_cached.shape[0]}, "
+                f"current={len(queries)}), re-encoding...")
+            t0 = time.time()
+            q_embeds = model.encode(queries, batch_size=512, show_progress_bar=False,
+                                    convert_to_numpy=True, normalize_embeddings=True)
+            log(f"  re-encoded in {time.time() - t0:.1f}s, shape={q_embeds.shape}")
+            np.save(query_cache, q_embeds)
     else:
         log(f"  encoding {len(queries)} queries (batch=512)...")
+        t0 = time.time()
         q_embeds = model.encode(queries, batch_size=512, show_progress_bar=False,
                                 convert_to_numpy=True, normalize_embeddings=True)
+        log(f"  encoded in {time.time() - t0:.1f}s, shape={q_embeds.shape}")
         np.save(query_cache, q_embeds)
 
     log(f"  matmul + ranks on GPU...")
@@ -714,8 +727,18 @@ def main():
 
     # ---- 4. Merge into query_records ----
     log("\n=== 4. Merging per-retriever results ===")
+    log(f"  query_records: {len(query_records)}")
+    for n in RETR_NAMES:
+        log(f"  retr_results[{n}]: {len(retr_results[n])}")
     for gi, r in enumerate(query_records):
         for n in RETR_NAMES:
+            if gi >= len(retr_results[n]):
+                raise IndexError(
+                    f"gi={gi} out of range for retr_results[{n}] "
+                    f"(len={len(retr_results[n])}). "
+                    f"query_records len={len(query_records)}. "
+                    f"All lengths: " + ", ".join(f"{x}={len(retr_results[x])}" for x in RETR_NAMES)
+                )
             res = retr_results[n][gi]
             r[f"{n}_rank"] = res["rank"]
             r[f"{n}_RR"] = res["RR"]
