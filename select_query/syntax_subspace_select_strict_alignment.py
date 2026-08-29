@@ -96,10 +96,19 @@ _R_95_SQ = chi2.ppf(0.95, PCA_DIM)  # = 65.17, Mahal² ≤ R²_95 = 65.17
 POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
 # 用户指令 2026-08-29: FEAT_CACHE 改到 select_query/ 目录下(Stage 3 metadata 也同步)
 FEAT_CACHE_LOCAL = str(FEAT_CACHE)  # from syntax_subspace_utils
-# Main pipeline (用户指令 2026-08-28): 直接覆盖 canonical paths,
-# 让 Stage 5 retrieval 默认读取 strict alignment 数据。
-SEL_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json"
-STATS_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_stats.json"
+# 用户指令 2026-08-29: 3-arm cohort 通过 ASIN_ARM 环境变量切换 (random/quality/bhatta),
+# 输出 stage8_5_selection_{arm}.json + stage8_5_selection_stats_{arm}.json,
+# 默认覆盖 canonical paths (Stage 5 retrieval 默认读 strict alignment 数据)。
+import os as _os
+_ASIN_ARM = _os.environ.get("ASIN_ARM", "").strip()
+if _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta"):
+    ASIN_ARM_TAG = f"_{_ASIN_ARM}"
+    ASIN_ARM_LABEL = _ASIN_ARM
+else:
+    ASIN_ARM_TAG = ""
+    ASIN_ARM_LABEL = "default"
+SEL_OUT = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection{ASIN_ARM_TAG}.json"
+STATS_OUT = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_stats{ASIN_ARM_TAG}.json"
 
 
 def load_query_features(path: str) -> dict[str, np.ndarray]:
@@ -292,7 +301,15 @@ def main():
 
     # ---- 5. Load ASINs with cohort users_sampled ----
     log("\n=== 5. Loading stage8_5_asins.json ===")
-    asin_data_full = json.load(open(ASINS_IN))["asins"]
+    # 用户指令 2026-08-29: 3-arm cohort (random/quality/bhatta) 通过 ASIN_ARM 环境变量切换。
+    # arm != default 时读 stage8_5_asins_{arm}.json, 否则读 canonical ASINS_IN。
+    if _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta"):
+        cohort_path = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins_{_ASIN_ARM}.json"
+        log(f"  [arm={_ASIN_ARM}] loading cohort: {cohort_path}")
+    else:
+        cohort_path = str(ASINS_IN)
+        log(f"  [arm=default] loading cohort: {cohort_path}")
+    asin_data_full = json.load(open(cohort_path))["asins"]
     asin_data = [a for a in asin_data_full if a["asin"] in asin_pool]
     log(f"  ASINs with K=200 pool: {len(asin_data)} / {len(asin_data_full)}")
 
@@ -330,8 +347,13 @@ def main():
                 })
             continue
         # Collect user cohort (full Gaussian: mu + sigma_diag)
+        # 用户指令 2026-08-29: 3-arm cohort (random/quality/bhatta) 用 users_selected 字段
+        # (由 user_selection.py 输出), 默认 cohort 用 users_sampled。
         asin_users = []
-        for uid in entry["users_sampled"]:
+        users_field = "users_selected" if (
+            _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta")
+        ) else "users_sampled"
+        for uid in entry[users_field]:
             if uid not in users_gauss:
                 # 用户不在 Phase 2 全量 Gaussian 表中 → 无法算 Mahalanobis → 跳过
                 n_missing_gauss += 1

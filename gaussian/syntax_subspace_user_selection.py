@@ -162,37 +162,51 @@ def main():
     arm_data = {arm: [] for arm in ARMS}
 
     log(f"\n=== Generating 3 arm cohorts (K_PER_ASIN={K_PER_ASIN}) ===")
+    # 用户指令 2026-08-29: 用户 1.29M cohort, ≥2 quality users 准入后 median=5 users/ASIN。
+    # 3 arm 比较需要在每个 ASIN 选相同数量的用户, 所以用 min(K_PER_ASIN, n_qualified)
+    # per ASIN。当 n_qualified < K_PER_ASIN 时 3 个 arm 都用全部 qualified users。
+    k_actual_dist: list = []
     for entry in asins_eligible:
         asin = entry["asin"]
         qualified = entry["qualified_users"]
+        k = min(K_PER_ASIN, len(qualified))
+        k_actual_dist.append(k)
 
-        # Arm 1: random 10 (deterministic via seed=42)
+        # Arm 1: random k (deterministic via seed=42)
         arm_data["random"].append({
             "asin": asin,
             "n_qualified": entry["n_qualified"],
-            "users_selected": rng.sample(qualified, K_PER_ASIN),
+            "k_actual": k,
+            "users_selected": rng.sample(qualified, k),
             "attrs_used": entry.get("attrs_used", {}),
         })
 
-        # Arm 2: quality-only 10 (top-10 by n_sentences)
+        # Arm 2: quality-only k (top-k by n_sentences)
         sorted_by_n = sorted(qualified,
                               key=lambda u: users_g[u]["n_sentences"],
                               reverse=True)
         arm_data["quality"].append({
             "asin": asin,
             "n_qualified": entry["n_qualified"],
-            "users_selected": sorted_by_n[:K_PER_ASIN],
+            "k_actual": k,
+            "users_selected": sorted_by_n[:k],
             "attrs_used": entry.get("attrs_used", {}),
         })
 
-        # Arm 3: max-min Bhattacharyya 10
-        selected = max_min_select(qualified, users_g, K_PER_ASIN, seed=RANDOM_SEED)
+        # Arm 3: max-min Bhattacharyya k
+        selected = max_min_select(qualified, users_g, k, seed=RANDOM_SEED)
         arm_data["bhatta"].append({
             "asin": asin,
             "n_qualified": entry["n_qualified"],
+            "k_actual": k,
             "users_selected": selected,
             "attrs_used": entry.get("attrs_used", {}),
         })
+
+    if k_actual_dist:
+        log(f"  k_actual per ASIN: min={min(k_actual_dist)}, "
+            f"median={sorted(k_actual_dist)[len(k_actual_dist)//2]}, "
+            f"max={max(k_actual_dist)} (vs K_PER_ASIN={K_PER_ASIN})")
 
     log(f"  ASINs per arm: {len(arm_data['random'])}")
 

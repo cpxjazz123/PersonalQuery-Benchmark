@@ -87,7 +87,7 @@ R_95 = 8.073                # √χ²(0.95, 48) — 用于 Q3 self-consistency �
 MIN_INLIER_FRAC = 0.5       # Q3: ≥50% 自己历史落在 G_u 内
 # 用户指令 2026-08-29: ASIN 必须有 ≥MIN_N_QUALITY_USERS_PER_ASIN 个通过全部 3 项
 # Gaussian 质量门控的用户 (与评论数无关)。
-MIN_N_QUALITY_USERS_PER_ASIN = 10  # 3-arm 实验每个 arm 选 10, 至少保证 ≥10 候选
+MIN_N_QUALITY_USERS_PER_ASIN = 2  # 用户指令 2026-08-29: cohort ASIN 准入门槛降到 2 个 quality user
 N_SENTENCES_THRESHOLDS = (5, 10, 20)  # 敏感性分析 sweep (用于 n_u 单变量 ablate, 不是主 filter)
 
 # Query generation (Stage 1)

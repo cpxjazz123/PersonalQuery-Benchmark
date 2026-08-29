@@ -39,6 +39,20 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "minimum weight recommendation",
                      "maximum weight recommendation",
                      "batteries required", "is discontinued by manufacturer"}
+# 用户指令 2026-08-29: 非语义属性类型一并过滤 (和数值属性同等处理)。
+# 这些 key 描述的是商品 metadata (路由/分类/产地/计数/日期/排名),
+# 而非商品本身的语义特征 (品牌/颜色/材质/尺寸等)。LLM 用这些 attrs 生成
+# query 时无意义 (例如 "Main Category: Baby Products" 对 query 无信息量)。
+_NON_SEMANTIC_KEYWORDS = {
+    # 路由/分类 (非特征)
+    "main category", "department",
+    # 产地 (metadata)
+    "country", "country of origin", "country/region of origin",
+    # 计数 (非特征)
+    "number of items", "number of pieces", "unit count",
+    # 日期/排名 (metadata)
+    "date", "date listed", "best sellers rank",
+}
 ATTR_PRIORITY = [
     "Brand", "Main Category", "Item model number", "Manufacturer",
     "Color", "Material", "Material Type", "Fabric Type", "Frame Material",
@@ -116,8 +130,11 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
     def _skip(k: str, s: str) -> bool:
         if not s or len(s) > MAX_ATTR_VALUE_LEN:
             return True
+        k_low = k.lower()
+        # 用户指令 2026-08-29: 非语义属性类型过滤 (与数值属性同等处理)
+        if any(nk in k_low for nk in _NON_SEMANTIC_KEYWORDS):
+            return True
         if EXCLUDE_NUMERIC_ATTRS:
-            k_low = k.lower()
             if any(nk in k_low for nk in _NUMERIC_KEYWORDS):
                 return True
             if has_digit(s):
