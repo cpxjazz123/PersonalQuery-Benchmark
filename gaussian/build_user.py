@@ -45,7 +45,9 @@ from attribute_extraction.extract_product_attrs import select_top_attrs  # noqa:
 sys.path.insert(0, str(REPO_ROOT / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, GAUSSIANS_OUT, LAMBDA,
-    MIN_REVIEWS_FOR_PER_USER, PCA_DIM, REVIEW_GZ, VAR_EPS, log, feat_key,
+    MAX_R_FLOOR, MIN_INLIER_FRAC, MIN_N_QUALITY_USERS_PER_ASIN,
+    MIN_REVIEWS_FOR_PER_USER, MIN_SIGMA_MEAN,
+    PCA_DIM, R_95, REVIEW_GZ, VAR_EPS, log, feat_key,
 )
 
 # === Inputs ===
@@ -54,9 +56,19 @@ REVIEWS_GZ = DATA / "Baby_Products_2023.jsonl.gz"
 
 # === Outputs ===
 STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
+# 用户指令 2026-08-29: Section 6 Welford streaming (~13 min) 输出缓存。
+# 当 MIN_REVIEWS_FOR_PER_USER / MIN_SIGMA_MEAN / LAMBDA / PCA_DIM 不变,只重跑
+# Section 7 即可。下次 Phase 2 跳过 streaming 节省 ~13 min。
+WELFORD_CHECKPOINT = SCRATCH / "welford_checkpoint.npz"
+WELFORD_SIG_JSON = SCRATCH / "welford_sig.json"
 
 # === Phase 1 — cohort construction 参数 ===
-TOP_N_ASINS = 10_000
+# 用户指令 2026-08-29: 拆掉 TOP_N_ASINS=10_000 上限, 改为全集 296K ASINs,
+# 但加 MIN_USERS_PER_ASIN=2 下限(至少 2 个用户评论, 后续 Phase 2 Gaussian 质量过滤后再收紧)。
+# "Gaussian 质量" 的判定在 Phase 2 末尾 (基于 mean(sigma_diag) ≥ MIN_SIGMA_MEAN, 不是评论数),
+# 在 step_post_filter_cohort_by_gaussian_quality() 里重新过滤 ASIN。
+TOP_N_ASINS = None  # None = include all ASINs (Baby Products 296K)
+MIN_USERS_PER_ASIN = 2  # 评论者门槛 (Phase 1 粗筛, Gaussian 质量门槛在 Phase 2 后重判)
 # 用户指令 2026-08-29: 对齐 Stage 1 N_INPUT=5(原 MAX_ATTRS_FOR_LLM=4 是遗留,
 # Stage 1 已直接读 product_attributes.json 取 top-5, stage8_5_asins.json 的 attrs_used
 # 仅供 Stage 4 select 链路追踪)。
@@ -74,12 +86,21 @@ def phase1_cohort_construction() -> bool:
     # --- Cache detection ---
     sig_payload = json.dumps({
         "TOP_N_ASINS": TOP_N_ASINS,
+        "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
         "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
+        "MIN_ATTRS_REQUIRED": MAX_ATTRS_FOR_LLM,  # 用户指令 2026-08-29: 严格 <5 attrs 过滤
         "REVIEWS_GZ": str(REVIEWS_GZ),
         "REVIEWS_GZ_mtime": REVIEWS_GZ.stat().st_mtime if REVIEWS_GZ.exists() else 0,
         "PRODUCT_ATTRS_JSON": "result/product_attributes.json",
         "PRODUCT_ATTRS_JSON_mtime": (REPO_ROOT / "result/product_attributes.json").stat().st_mtime
             if (REPO_ROOT / "result/product_attributes.json").exists() else 0,
+        # 用户指令 2026-08-29: 非语义属性过滤 (hash of the list to capture change)
+        "NON_SEMANTIC_KEYWORDS": sorted([
+            "main category", "department",
+            "country", "country of origin", "country/region of origin",
+            "number of items", "number of pieces", "unit count",
+            "date", "date listed", "best sellers rank",
+        ]),
     }, sort_keys=True)
     sig_hash = hashlib.sha1(sig_payload.encode("utf-8")).hexdigest()[:12]
     log(f"[build_user] Phase 1 signature: {sig_hash}")
@@ -178,6 +199,9 @@ def _step4_build_stage8_5_asins(
     eligible_users_set = set(user_total.keys())
     log(f"    all commenters (no user filter): {len(eligible_users_set)}")
 
+    # 用户指令 2026-08-29: Phase 1 cohort 仍按 raw 评论者数 (≥MIN_USERS_PER_ASIN=2) 粗筛,
+    # Gaussian 质量门槛 (mean sigma_diag ≥ MIN_SIGMA_MEAN) 在 Phase 2 末尾
+    # step_post_filter_cohort_by_gaussian_quality() 重新判定。
     eligible_count: dict[str, int] = {}
     for asin, uset in asin_users.items():
         c = len([u for u in uset if u in eligible_users_set])
@@ -185,18 +209,24 @@ def _step4_build_stage8_5_asins(
     log(f"    ASINs with ≥1 commenters: {len(eligible_count)}")
 
     ranked = sorted(eligible_count.items(), key=lambda kv: kv[1], reverse=True)
-    ranked = ranked[:TOP_N_ASINS]
+    # Apply TOP_N_ASINS upper limit (None = no upper limit)
+    if TOP_N_ASINS is not None:
+        ranked = ranked[:TOP_N_ASINS]
+    # Apply MIN_USERS_PER_ASIN lower limit (用户指令 2026-08-29)
+    ranked = [(a, c) for a, c in ranked if c >= MIN_USERS_PER_ASIN]
     counts = [c for _, c in ranked]
+    label = f"all (TOP_N_ASINS={TOP_N_ASINS})" if TOP_N_ASINS is None else f"top {TOP_N_ASINS}"
     if counts:
-        log(f"    top {TOP_N_ASINS} ASINs: min={min(counts)}, "
-            f"median={sorted(counts)[len(counts)//2]}, max={max(counts)}")
+        log(f"    {label} ASINs (≥{MIN_USERS_PER_ASIN} users): n={len(ranked)}, "
+            f"min={min(counts)}, median={sorted(counts)[len(counts)//2]}, max={max(counts)}")
 
     asins_out: list[dict] = []
     skipped_no_attrs = 0
     for asin, _ in ranked:
         adoc = product_attrs.get(asin) or {}
         attrs_used = select_top_attrs(adoc, max_n=MAX_ATTRS_FOR_LLM)
-        if len(attrs_used) < 1:
+        # 用户指令 2026-08-29: 严格 attrs filter (<5 直接过滤, 之前 <1 太宽松)
+        if len(attrs_used) < MAX_ATTRS_FOR_LLM:
             skipped_no_attrs += 1
             continue
         top_users = sorted(
@@ -209,17 +239,21 @@ def _step4_build_stage8_5_asins(
             "n_users_eligible": eligible_count[asin],
             "users_sampled": top_users,
             "attrs_used": attrs_used,
-            "filter": {"note": "no user filter (all commenters enter cohort)"},
+            "filter": {
+                "note": (f"no user filter (all commenters enter cohort), "
+                         f"TOP_N_ASINS={TOP_N_ASINS}, MIN_USERS_PER_ASIN={MIN_USERS_PER_ASIN}")
+            },
         })
 
     log(f"    final ASINs: {len(asins_out)}, skipped (no attrs): {skipped_no_attrs}")
 
     config = {
-        "description": (f"top {TOP_N_ASINS} ASINs × all commenters "
+        "description": (f"{label} ASINs (≥{MIN_USERS_PER_ASIN} users) × all commenters "
                         f"(no user filter, "
                         f"max {MAX_ATTRS_FOR_LLM} non-numeric attrs/ASIN, "
                         f"no per-ASIN user cap, no min review count)"),
         "TOP_N_ASINS": TOP_N_ASINS,
+        "MIN_USERS_PER_ASIN": MIN_USERS_PER_ASIN,
         "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
     }
     out = {
@@ -246,6 +280,12 @@ def phase2_user_gaussians() -> None:
         "LAMBDA": LAMBDA,
         "VAR_EPS": VAR_EPS,
         "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
+        # 用户指令 2026-08-29: 3-class Gaussian quality gate (不再用 n_sentences 过滤)
+        "MIN_SIGMA_MEAN": MIN_SIGMA_MEAN,
+        "MAX_R_FLOOR": MAX_R_FLOOR,
+        "R_95": R_95,
+        "MIN_INLIER_FRAC": MIN_INLIER_FRAC,
+        "MIN_N_QUALITY_USERS_PER_ASIN": MIN_N_QUALITY_USERS_PER_ASIN,
         "ASINS_IN": str(ASINS_IN),
         "ASINS_IN_mtime": ASINS_IN.stat().st_mtime if ASINS_IN.exists() else 0,
         "FEAT_CACHE": str(FEAT_CACHE),
@@ -313,6 +353,11 @@ def phase2_user_gaussians() -> None:
     log("\n=== 4. Loading feature cache (lazy: only seen_keys) ===")
     seen_keys = set()
     all_fnames_set: set = set()
+    # Sample fnames from first 1000 entries only — per_sentence_features_v2
+    # produces consistent 182d keys, so sampling avoids 1.68M-entry full pass
+    # (~10GB set overhead → OOM). 1000 entries is plenty for canonical keys.
+    FNAMES_SAMPLE_N = 1000
+    n_fnames_samples = 0
     if FEAT_CACHE.exists():
         n_load_errors = 0
         try:
@@ -327,13 +372,15 @@ def phase2_user_gaussians() -> None:
                         n_load_errors += 1
                         continue
                     seen_keys.add(rec["k"])
-                    all_fnames_set.update(rec["v"].keys())
+                    if n_fnames_samples < FNAMES_SAMPLE_N:
+                        all_fnames_set.update(rec["v"].keys())
+                        n_fnames_samples += 1
         except (EOFError, gzip.BadGzipFile, zlib.error) as e:
             log(f"  WARN cache gzip stream truncated ({type(e).__name__}: {e!r}), "
                 f"loaded {len(seen_keys)} keys + {n_load_errors} corrupt lines")
     log(f"  cache keys loaded: {len(seen_keys)} (lazy mode)")
     all_fnames = sorted(all_fnames_set)
-    log(f"  canonical fnames: {len(all_fnames)}")
+    log(f"  canonical fnames (from first {n_fnames_samples} entries): {len(all_fnames)}")
 
     log("\n=== 5. Extracting spaCy features for user review texts ===")
     all_sents = []
@@ -357,8 +404,8 @@ def phase2_user_gaussians() -> None:
         for comp in ("ner", "lemmatizer", "attribute_ruler"):
             if comp in nlp.pipe_names:
                 nlp.disable_pipe(comp)
-        N_PROCESS = 2
-        BATCH_SIZE = 128
+        N_PROCESS = 3
+        BATCH_SIZE = 256
         CHUNK_FLUSH = 25_000
         log(f"  extracting features for {len(new_sents)} new sentences "
             f"(n_process={N_PROCESS}, batch={BATCH_SIZE}, "
@@ -501,11 +548,69 @@ def phase2_user_gaussians() -> None:
     del X_fit_full, X_fit_sub, X_fit_sub_scaled, fit_records
     gc.collect()
 
+    # ---- 6a-cache. Welford streaming 缓存 (用户指令 2026-08-29) ----
+    # 缓存 Section 6b streaming 的输出 (counts / mean_acc / M2_acc)。下次 Phase 2
+    # 只改 Section 7 阈值时跳过 ~13 min streaming。Signature 包含所有影响 streaming
+    # 输出的因素: target users, target sha1s, FEAT_CACHE mtime, scaler params, PCA params,
+    # fnames, col_idx, MIN_NONZERO_FEATS。
+    sorted_shas = sorted(target_shas)
+    sha_bytes = "|".join(sorted_shas).encode("utf-8")
+    user_bytes = "|".join(target_user_list).encode("utf-8")
+    fnames_all_bytes = "|".join(all_fnames).encode("utf-8")
+    fnames_sub_bytes = "|".join(fnames_sub).encode("utf-8")
+    col_idx_bytes = np.asarray(col_idx, dtype=np.int32).tobytes()
+    scaler_bytes = ss.mean_.tobytes() + ss.scale_.tobytes()
+    pca_bytes = pca.components_.tobytes() + pca.mean_.tobytes()
+    sig_payload = b"".join([
+        b"PCA_DIM=" + str(PCA_DIM).encode() + b"\n",
+        b"MIN_NONZERO_FEATS=" + str(MIN_NONZERO_FEATS).encode() + b"\n",
+        b"FEAT_CACHE_mtime=" + str(FEAT_CACHE.stat().st_mtime).encode() + b"\n",
+        b"n_users=" + str(len(target_user_list)).encode() + b"\n",
+        b"n_target_shas=" + str(len(target_shas)).encode() + b"\n",
+        b"user_hash=" + hashlib.sha1(user_bytes).hexdigest()[:16].encode() + b"\n",
+        b"sha_hash=" + hashlib.sha1(sha_bytes).hexdigest()[:16].encode() + b"\n",
+        b"fnames_all_hash=" + hashlib.sha1(fnames_all_bytes).hexdigest()[:16].encode() + b"\n",
+        b"fnames_sub_hash=" + hashlib.sha1(fnames_sub_bytes).hexdigest()[:16].encode() + b"\n",
+        b"col_idx_hash=" + hashlib.sha1(col_idx_bytes).hexdigest()[:16].encode() + b"\n",
+        b"scaler_hash=" + hashlib.sha1(scaler_bytes).hexdigest()[:16].encode() + b"\n",
+        b"pca_hash=" + hashlib.sha1(pca_bytes).hexdigest()[:16].encode() + b"\n",
+    ])
+    welford_sig = hashlib.sha1(sig_payload).hexdigest()[:12]
+    del sig_payload, sha_bytes, user_bytes, fnames_all_bytes, fnames_sub_bytes
+    del col_idx_bytes, scaler_bytes, pca_bytes
+    gc.collect()
+
+    welford_cache_hit = False
+    if WELFORD_CHECKPOINT.exists() and WELFORD_SIG_JSON.exists():
+        try:
+            cached_sig = json.load(open(WELFORD_SIG_JSON)).get("sig")
+            if cached_sig == welford_sig:
+                welford_cache_hit = True
+                log(f"  Welford checkpoint CACHE HIT (sig={welford_sig}), loading...")
+                npz = np.load(WELFORD_CHECKPOINT)
+                counts = npz["counts"]
+                mean_acc = npz["mean_acc"]
+                M2_acc = npz["M2_acc"]
+                npz.close()
+                log(f"  loaded counts.shape={counts.shape}, "
+                    f"mean_acc.shape={mean_acc.shape}")
+            else:
+                log(f"  Welford checkpoint signature mismatch "
+                    f"(cached={cached_sig}, current={welford_sig}), recomputing...")
+        except Exception as e:
+            log(f"  Welford checkpoint load failed ({type(e).__name__}: {e!r}), "
+                f"recomputing...")
+
     # ---- 6b. Welford streaming using fitted scaler + PCA ----
     n_cache_seen = 0
     n_cache_matched = 0
     n_skip_sparse = 0
-    if FEAT_CACHE.exists():
+    if welford_cache_hit:
+        # Cache 已加载, 跳过 streaming。仅恢复 log 用的统计量 (与 streaming 末尾一致)。
+        n_cache_matched = int((counts > 0).sum())  # 占位,只为日志
+        log(f"  [Welford CACHE] skipping streaming, counts.sum={int(counts.sum())}, "
+            f"users_with_reviews={int((counts > 0).sum())}/{n_users}")
+    elif FEAT_CACHE.exists():
         try:
             with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
                 for line in f:
@@ -519,7 +624,7 @@ def phase2_user_gaussians() -> None:
                     k = rec["k"]
                     v = rec["v"]
                     n_cache_seen += 1
-                    uid_idxs = sha1_to_uid_idx.pop(k, None)
+                    uid_idxs = sha1_to_uid_idx.get(k)
                     if uid_idxs is None:
                         continue
                     n_cache_matched += 1
@@ -551,9 +656,22 @@ def phase2_user_gaussians() -> None:
         f"{n_cache_matched} matched, "
         f"users with reviews: {int((counts > 0).sum())}/{n_users}, "
         f"n_skip_sparse: {n_skip_sparse}, n_skip_no_feats: {n_skip_no_feats}")
-    sha1_to_uid_idx.clear()
-    del sha1_to_uid_idx
-    gc.collect()
+    # 用户指令 2026-08-29: sha1_to_uid_idx 不删 — Section 7b self-consistency inlier check
+    # 还要复用 (iterate FEAT_CACHE → look up uid_idxs → compute d²(z, G_u))。在 7b 之后释放。
+    log(f"  sha1_to_uid_idx retained for Section 7b inlier check ({len(sha1_to_uid_idx)} keys)")
+
+    # 用户指令 2026-08-29: 缓存 Welford 输出 (counts / mean_acc / M2_acc) + signature。
+    # 下次 Phase 2 只改 Section 7 阈值时跳过 streaming 节省 ~13 min。
+    # 仅在非 cache-hit 且 streaming 完成时保存 (避免重复覆盖)。
+    if not welford_cache_hit:
+        log(f"  saving Welford checkpoint to {WELFORD_CHECKPOINT} (sig={welford_sig})...")
+        np.savez(WELFORD_CHECKPOINT,
+                 counts=counts.astype(np.int32),
+                 mean_acc=mean_acc.astype(np.float32),
+                 M2_acc=M2_acc.astype(np.float32))
+        with open(WELFORD_SIG_JSON, "w", encoding="utf-8") as f:
+            json.dump({"sig": welford_sig}, f)
+        log(f"  Welford checkpoint saved (npz + sig)")
 
     log("\n=== 7. Computing per-user Gaussian (mu / sigma_diag) ===")
     user_gaussians = {}
@@ -568,13 +686,100 @@ def phase2_user_gaussians() -> None:
     var_per_user_mean = var_pop.mean(axis=1, keepdims=True)
     var_shrink = (1 - LAMBDA) * var_pop + LAMBDA * var_per_user_mean
     sigma_diag_arr = np.maximum(var_shrink, VAR_EPS)
+    sigma_diag_mean_per_user = sigma_diag_arr.mean(axis=1)
+    mu_arr = mean_acc / safe_counts[:, None]
+    # Q2 指标: r_floor = #{σ_d ≤ VAR_EPS}/48 — 触底维度比例
+    r_floor_per_user = (sigma_diag_arr <= VAR_EPS).mean(axis=1)
+    log(f"  σ_mean: min={sigma_diag_mean_per_user[valid_mask].min():.4f}, "
+        f"median={np.median(sigma_diag_mean_per_user[valid_mask]):.4f}, "
+        f"max={sigma_diag_mean_per_user[valid_mask].max():.4f}")
+    log(f"  r_floor (Q2): min={r_floor_per_user[valid_mask].min():.4f}, "
+        f"median={np.median(r_floor_per_user[valid_mask]):.4f}, "
+        f"max={r_floor_per_user[valid_mask].max():.4f}")
+
+    # 用户指令 2026-08-29: Section 7b — Self-consistency inlier check
+    # Q3 = #{自己句子 d²(z, G_u) ≤ R_95}/N ≥ MIN_INLIER_FRAC。
+    # 这一指标直接量化 "Gaussian 是不是可靠地描述用户自己的句子", 完全不依赖评论数。
+    log(f"\n=== 7b. Self-consistency: per-user inlier fraction ===")
+    R_95_SQ = R_95 ** 2
+    inlier_count = np.zeros(n_users, dtype=np.int64)
+    seen_count = np.zeros(n_users, dtype=np.int64)
+    n_seen = 0
+    log(f"  iterating FEAT_CACHE for inlier check (R_95²={R_95_SQ:.2f})...")
+    with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            k = rec["k"]
+            v = rec["v"]
+            uid_idxs = sha1_to_uid_idx.get(k)
+            if uid_idxs is None:
+                continue
+            n_seen += 1
+            vec_full = np.array([v.get(n, 0.0) for n in all_fnames], dtype=np.float64)
+            vec_sub = vec_full[col_idx]
+            vec_sub_scaled = ss.transform(vec_sub[None, :])[0]
+            z = pca.transform(vec_sub_scaled[None, :])[0].astype(np.float64)
+            for ui in uid_idxs:
+                if not valid_mask[ui]:
+                    continue
+                seen_count[ui] += 1
+                mu_u = mu_arr[ui]
+                sigma_u = sigma_diag_arr[ui]
+                d_sq = np.sum((z - mu_u) ** 2 / sigma_u)
+                if d_sq <= R_95_SQ:
+                    inlier_count[ui] += 1
+    inlier_frac = np.where(seen_count > 0, inlier_count / seen_count, 0.0)
+    log(f"  inlier check done: {n_seen} matched sentences")
+    if (seen_count > 0).any():
+        valid_inlier = inlier_frac[seen_count > 0]
+        log(f"  inlier_frac: min={valid_inlier.min():.3f}, "
+            f"median={np.median(valid_inlier):.3f}, "
+            f"max={valid_inlier.max():.3f}")
+
+    # 用户指令 2026-08-29: Section 7c — 3-class Gaussian quality gate
+    # Q1 non-degenerate: σ_mean ≥ MIN_SIGMA_MEAN (0.01)
+    # Q2 non-floored:    r_floor ≤ MAX_R_FLOOR (0.3)
+    # Q3 self-consistent: inlier_frac ≥ MIN_INLIER_FRAC (0.5)
+    # 不使用评论数 (n_u) 作为质量信号。
+    q1_mask = sigma_diag_mean_per_user >= MIN_SIGMA_MEAN
+    q2_mask = r_floor_per_user <= MAX_R_FLOOR
+    q3_mask = inlier_frac >= MIN_INLIER_FRAC
+    quality_mask = q1_mask & q2_mask & q3_mask & valid_mask
+    n_quality = int(quality_mask.sum())
+    n_q1 = int((q1_mask & valid_mask).sum())
+    n_q2 = int((q2_mask & valid_mask).sum())
+    n_q3 = int((q3_mask & valid_mask).sum())
+    log(f"\n=== 7c. 3-class quality gate ===")
+    log(f"  Q1 σ_mean≥{MIN_SIGMA_MEAN}: {n_q1} pass ({n_q1/n_valid*100:.1f}%)")
+    log(f"  Q2 r_floor≤{MAX_R_FLOOR}: {n_q2} pass ({n_q2/n_valid*100:.1f}%)")
+    log(f"  Q3 inlier_frac≥{MIN_INLIER_FRAC}: {n_q3} pass ({n_q3/n_valid*100:.1f}%)")
+    log(f"  ALL Q1&Q2&Q3: {n_quality} pass ({n_quality/n_valid*100:.1f}% of valid)")
 
     n_written = 0
+    n_skipped_degenerate = 0
+    n_skip_q1 = 0
+    n_skip_q2 = 0
+    n_skip_q3 = 0
     for uid_idx, uid in enumerate(target_user_list):
         if not valid_mask[uid_idx]:
             missing_users.append((uid, user_n_reviews.get(uid, 0), int(counts[uid_idx])))
             continue
-        mu = mean_acc[uid_idx]
+        if not quality_mask[uid_idx]:
+            n_skipped_degenerate += 1
+            if not q1_mask[uid_idx]:
+                n_skip_q1 += 1
+            elif not q2_mask[uid_idx]:
+                n_skip_q2 += 1
+            elif not q3_mask[uid_idx]:
+                n_skip_q3 += 1
+            continue
+        mu = mu_arr[uid_idx]
         sd = sigma_diag_arr[uid_idx]
         user_gaussians[uid] = {
             "mu": mu.tolist(),
@@ -582,10 +787,16 @@ def phase2_user_gaussians() -> None:
             "n_reviews": user_n_reviews.get(uid, 0),
             "n_words": user_n_words.get(uid, 0),
             "n_sentences": int(counts[uid_idx]),
+            "sigma_mean": float(sigma_diag_mean_per_user[uid_idx]),
+            "r_floor": float(r_floor_per_user[uid_idx]),
+            "inlier_frac": float(inlier_frac[uid_idx]),
             "source": "per_user",
         }
         n_written += 1
     log(f"  per-user Gaussians written: {n_written}")
+    log(f"  skipped (3-class gate fail): {n_skipped_degenerate} "
+        f"(Q1 σ_mean fail: {n_skip_q1}, Q2 r_floor fail: {n_skip_q2}, "
+        f"Q3 inlier fail: {n_skip_q3})")
 
     if missing_users:
         log(f"  WARN {len(missing_users)}/{n_users} users lack per-user Gaussian "
@@ -593,7 +804,12 @@ def phase2_user_gaussians() -> None:
         for uid, n_reviews, n_sents in missing_users[:10]:
             log(f"      {uid[:12]}... reviews={n_reviews} sents={n_sents}")
 
+    # Free inlier intermediates + sha1_to_uid_idx (used by Section 7b, no longer needed)
     del counts, mean_acc, M2_acc, var_pop, var_shrink, sigma_diag_arr
+    del mu_arr, inlier_count, seen_count, inlier_frac
+    if 'sha1_to_uid_idx' in dir():
+        sha1_to_uid_idx.clear()
+        del sha1_to_uid_idx
     gc.collect()
 
     log("\n=== 8. Saving ===")
@@ -605,11 +821,19 @@ def phase2_user_gaussians() -> None:
                                 "Baby_Products review corpus, F3_CoreStruct spaCy features "
                                 "(Welford online accumulation). "
                                 "用户指令 2026-08-29: 不再用 10K cache, scaler/PCA 改 fit on "
-                                "FEAT_CACHE 里 target users 的句子, select_query 直接从这里读。"),
+                                "FEAT_CACHE 里 target users 的句子, select_query 直接从这里读。"
+                                "用户指令 2026-08-29: 3-class Gaussian quality gate (Q1 σ_mean ≥ "
+                                f"{MIN_SIGMA_MEAN}, Q2 r_floor ≤ {MAX_R_FLOOR}, "
+                                f"Q3 inlier_frac ≥ {MIN_INLIER_FRAC}); 不再使用 review count "
+                                "作为质量信号。"),
                 "PCA_DIM": PCA_DIM,
                 "LAMBDA": LAMBDA,
                 "VAR_EPS": VAR_EPS,
                 "MIN_REVIEWS_FOR_PER_USER": MIN_REVIEWS_FOR_PER_USER,
+                "MIN_SIGMA_MEAN": MIN_SIGMA_MEAN,
+                "MAX_R_FLOOR": MAX_R_FLOOR,
+                "R_95": R_95,
+                "MIN_INLIER_FRAC": MIN_INLIER_FRAC,
                 "F3_EXCLUDE_PREFIXES": list(EXCL_PREFIXES),
                 "F3_EXCLUDE_EXACT": list(EXCL_EXACT),
                 "N_FIT_MAX": N_FIT_MAX,
@@ -632,6 +856,67 @@ def phase2_user_gaussians() -> None:
             "n_users_skipped": len(target_users) - len(user_gaussians),
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {GAUSSIANS_OUT}")
+
+    # 用户指令 2026-08-29: Phase 1 cohort 是按 raw 评论者数 ≥MIN_USERS_PER_ASIN=2 粗筛,
+    # Gaussian 质量门槛在 Phase 2 末尾 step_post_filter_cohort_by_gaussian_quality()
+    # 重新判定 — 只保留有 ≥MIN_N_QUALITY_USERS_PER_ASIN 个 Gaussian 质量达标用户的 ASIN。
+    step_post_filter_cohort_by_gaussian_quality(user_gaussians)
+
+
+def step_post_filter_cohort_by_gaussian_quality(user_gaussians: dict) -> None:
+    """用户指令 2026-08-29: Phase 1 按 raw 评论者数粗筛, 此步骤用真实 Gaussian 质量
+    (3-class gate: Q1 σ_mean ≥ MIN_SIGMA_MEAN AND Q2 r_floor ≤ MAX_R_FLOOR AND
+     Q3 inlier_frac ≥ MIN_INLIER_FRAC) 重判 cohort。要求每个 ASIN 有
+    ≥MIN_N_QUALITY_USERS_PER_ASIN 个 Gaussian 质量达标的用户。
+
+    流程: 读 stage8_5_asins.json → 查 user_gaussians keys → 计数 → 过滤 → 重写文件。
+    """
+    log("\n=== 9. Re-filtering cohort by 3-class Gaussian quality ===")
+    quality_uids = set(user_gaussians.keys())  # 已被 3-class gate 过滤
+    log(f"  users with quality Gaussian (3-class gate): {len(quality_uids)}")
+
+    with open(STAGE8_5_ASINS_JSON, "r", encoding="utf-8") as f:
+        asins_doc = json.load(f)
+
+    old_asins = asins_doc.get("asins", [])
+    log(f"  cohort before filter: {len(old_asins)} ASINs")
+
+    new_asins = []
+    n_kept = 0
+    n_dropped_no_quality = 0
+    n_dropped_lt_min_quality = 0
+    for entry in old_asins:
+        users_sampled = entry.get("users_sampled", [])
+        n_quality = sum(1 for u in users_sampled if u in quality_uids)
+        entry["n_users_quality"] = n_quality
+        if n_quality == 0:
+            n_dropped_no_quality += 1
+            continue
+        if n_quality < MIN_N_QUALITY_USERS_PER_ASIN:
+            n_dropped_lt_min_quality += 1
+            continue
+        new_asins.append(entry)
+        n_kept += 1
+
+    log(f"  dropped (no quality users): {n_dropped_no_quality}")
+    log(f"  dropped (<{MIN_N_QUALITY_USERS_PER_ASIN} quality users): {n_dropped_lt_min_quality}")
+    log(f"  final cohort: {n_kept} ASINs (after Gaussian quality filter)")
+
+    asins_doc["asins"] = new_asins
+    asins_doc["n_asins"] = len(new_asins)
+    asins_doc["config"]["description"] = (
+        f"{len(new_asins)} ASINs with ≥{MIN_N_QUALITY_USERS_PER_ASIN} 3-class-quality users "
+        f"(Q1 σ_mean ≥ {MIN_SIGMA_MEAN}, Q2 r_floor ≤ {MAX_R_FLOOR}, "
+        f"Q3 inlier_frac ≥ {MIN_INLIER_FRAC})"
+    )
+    asins_doc["config"]["MIN_N_QUALITY_USERS_PER_ASIN"] = MIN_N_QUALITY_USERS_PER_ASIN
+    asins_doc["config"]["MIN_SIGMA_MEAN"] = MIN_SIGMA_MEAN
+    asins_doc["config"]["MAX_R_FLOOR"] = MAX_R_FLOOR
+    asins_doc["config"]["MIN_INLIER_FRAC"] = MIN_INLIER_FRAC
+
+    with open(STAGE8_5_ASINS_JSON, "w", encoding="utf-8") as f:
+        json.dump(asins_doc, f, ensure_ascii=False, indent=2)
+    log(f"  wrote → {STAGE8_5_ASINS_JSON}")
 
 
 # ============================================================================

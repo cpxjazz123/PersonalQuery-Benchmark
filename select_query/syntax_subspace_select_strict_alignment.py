@@ -165,6 +165,11 @@ def stage_features():
             all_queries.append(q["query"])
     log(f"  total pool queries: {len(all_queries)}")
 
+    # Build set of needed keys (queries in current pool) so we only keep those entries
+    # (FEAT_CACHE has ~1.68M historical entries, but current pool only has ~219K — saves ~8× memory)
+    needed_keys = set(feat_key(q) for q in all_queries)
+    log(f"  needed_keys (current pool): {len(needed_keys)}")
+
     feat_map = {}
     if Path(FEAT_CACHE_LOCAL).exists():
         with gzip.open(FEAT_CACHE_LOCAL, "rt", encoding="utf-8") as f:
@@ -173,8 +178,9 @@ def stage_features():
                 if not line or line.startswith("#"):
                     continue
                 rec = json.loads(line)
-                feat_map[rec["k"]] = rec["v"]
-    log(f"  cache keys: {len(feat_map)}")
+                if rec["k"] in needed_keys:
+                    feat_map[rec["k"]] = rec["v"]
+    log(f"  cache keys (filtered): {len(feat_map)}")
 
     # canonical fnames: from existing FEAT_CACHE entries (sorted); empty cache → defer to first new record
     fnames: list[str] = []

@@ -73,7 +73,22 @@ PCA_DIM = 48
 PCA_SEED = 2024
 LAMBDA = 0.1
 VAR_EPS = 1e-3
-MIN_REVIEWS_FOR_PER_USER = 1
+# 用户指令 2026-08-29: Gaussian 质量门控 = 3 项独立指标 (不显式使用评论数):
+# Q1 non-degenerate: mean(sigma_diag) ≥ MIN_SIGMA_MEAN (去方差塌陷)
+# Q2 non-floored:    r_floor = #{σ_d ≤ VAR_EPS}/48 ≤ MAX_R_FLOOR (去维度触底)
+# Q3 self-consistent: inlier_frac = #{自己句子 d² ≤ R_95}/N ≥ MIN_INLIER_FRAC (Gaussian
+#                    能合理解释自己历史)。这直接量化 "Gaussian 是不是可靠地描述该用户"。
+# 用户可以只有 6 条 review 但 Gaussian 稳定可解释就保留; 反之 50 条 review 但 Gaussian
+# 退化也丢弃。
+MIN_REVIEWS_FOR_PER_USER = 1  # 仅用于排除 0-review 用户, 不作为质量信号
+MIN_SIGMA_MEAN = 0.01       # Q1: 去方差塌陷
+MAX_R_FLOOR = 0.3           # Q2: 触底维度比例 ≤ 30%
+R_95 = 8.073                # √χ²(0.95, 48) — 用于 Q3 self-consistency 判断
+MIN_INLIER_FRAC = 0.5       # Q3: ≥50% 自己历史落在 G_u 内
+# 用户指令 2026-08-29: ASIN 必须有 ≥MIN_N_QUALITY_USERS_PER_ASIN 个通过全部 3 项
+# Gaussian 质量门控的用户 (与评论数无关)。
+MIN_N_QUALITY_USERS_PER_ASIN = 10  # 3-arm 实验每个 arm 选 10, 至少保证 ≥10 候选
+N_SENTENCES_THRESHOLDS = (5, 10, 20)  # 敏感性分析 sweep (用于 n_u 单变量 ablate, 不是主 filter)
 
 # Query generation (Stage 1)
 K_POOL = 50  # 用户指令 2026-08-29: 从 K=200 降到 K=50, 为剩余 4055 ASINs 补全 pool (vLLM batched 202K calls ~10-15min)
