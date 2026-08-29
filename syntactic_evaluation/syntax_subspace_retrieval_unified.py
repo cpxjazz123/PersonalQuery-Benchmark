@@ -213,10 +213,49 @@ def splade_encode(model, tok, texts: list[str], max_length: int = 128,
     return torch.cat(chunks, dim=0)
 
 
+def splade_encode_stream(model, tok, texts: list[str], cache_dir: Path,
+                         max_length: int = 128, batch_size: int = 128,
+                         tag: str = "corpus") -> None:
+    """Stream-encode texts to disk chunk-by-chunk. Each chunk is (batch, V) fp16.
+
+    Writes <cache_dir>/<tag>_chunk_NNN.pt files. Avoids the 14GB full-tensor
+    concat that triggered OOM-kill on 30GB cgroup.
+    """
+    n_texts = len(texts)
+    n_chunks = (n_texts + batch_size - 1) // batch_size
+    n_done = 0
+    t0 = time.time()
+    for chunk_idx in range(n_chunks):
+        chunk_path = cache_dir / f"{tag}_chunk_{chunk_idx:04d}.pt"
+        if chunk_path.exists():
+            n_done += min(batch_size, n_texts - chunk_idx * batch_size)
+            continue
+        s = chunk_idx * batch_size
+        e = min(s + batch_size, n_texts)
+        inputs = tok(texts[s:e], return_tensors="pt", truncation=True,
+                     max_length=max_length, padding=True).to(model.device)
+        with torch.no_grad():
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                logits = model(**inputs).logits  # (B, L, V)
+        rep = torch.log(1 + torch.relu(logits.float()))
+        rep = rep * inputs.attention_mask.unsqueeze(-1)
+        rep = rep.max(dim=1)[0]  # (B, V)
+        torch.save(rep.cpu().half(), chunk_path)
+        del logits, rep, inputs
+        torch.cuda.empty_cache()
+        n_done += (e - s)
+        if n_done % (batch_size * 50) == 0 or n_done == n_texts:
+            elapsed = time.time() - t0
+            rate = n_done / elapsed if elapsed > 0 else 0
+            eta = (n_texts - n_done) / rate if rate > 0 else 0
+            log(f"    {tag} encoded {n_done}/{n_texts} ({100 * n_done / n_texts:.1f}%) "
+                f"rate={rate:.0f}/s eta={eta:.0f}s")
+
+
 def splade_retrieve(queries: list[str], corpus_texts: list[str],
                     target_indices: np.ndarray) -> list[dict]:
     from transformers import AutoModelForMaskedLM, AutoTokenizer
-    log("\n=== SPLADE (learned_sparse) ===")
+    log("\n=== SPLADE (learned_sparse, chunked-streaming) ===")
     cache_dir = EMBED_CACHE_DIR / "splade"
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = "naver/splade-cocondenser-ensembledistil"
@@ -224,49 +263,76 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
     tok = AutoTokenizer.from_pretrained(name, cache_dir=HF_CACHE)
     model = AutoModelForMaskedLM.from_pretrained(name, cache_dir=HF_CACHE).to("cuda").eval()
 
-    corpus_cache = cache_dir / "corpus_splade.pt"
-    query_cache = cache_dir / "query_splade.pt"
+    n_corpus = len(corpus_texts)
+    n_query = len(queries)
+    n_corpus_chunks = (n_corpus + 127) // 128
 
-    if corpus_cache.exists():
-        log(f"  ✓ corpus SPLADE cache hit ({corpus_cache.stat().st_size / 1e9:.2f} GB)")
-        splade_corpus = torch.load(corpus_cache, weights_only=True)
-    else:
-        log(f"  encoding {len(corpus_texts)} corpus with SPLADE...")
-        t0 = time.time()
-        splade_corpus = splade_encode(model, tok, corpus_texts)
-        log(f"  encoded in {time.time() - t0:.1f}s, shape={splade_corpus.shape}")
-        torch.save(splade_corpus, corpus_cache)
+    # Encode corpus chunk-by-chunk to disk
+    log(f"  corpus: {n_corpus} docs in {n_corpus_chunks} chunks of 128")
+    splade_encode_stream(model, tok, corpus_texts, cache_dir, batch_size=128, tag="corpus")
 
-    if query_cache.exists():
-        splade_queries = torch.load(query_cache, weights_only=True)
-    else:
-        log(f"  encoding {len(queries)} queries with SPLADE...")
-        splade_queries = splade_encode(model, tok, queries)
-        torch.save(splade_queries, query_cache)
+    # Encode queries (small enough to fit; ~5MB fp16)
+    log(f"  encoding {n_query} queries...")
+    splade_queries = splade_encode(model, tok, queries, batch_size=128)
+    log(f"  queries shape={splade_queries.shape}")
 
-    log(f"  matmul Q × N on GPU...")
+    # Cleanup old monolithic cache (legacy from previous OOM-killed run)
+    legacy_corpus_cache = cache_dir / "corpus_splade.pt"
+    legacy_query_cache = cache_dir / "query_splade.pt"
+    if legacy_corpus_cache.exists():
+        log(f"  removing legacy monolithic corpus cache")
+        legacy_corpus_cache.unlink()
+    if legacy_query_cache.exists():
+        legacy_query_cache.unlink()
+
+    # Matmul: stream-load corpus chunks, compute scores chunk by chunk
+    log(f"  streaming matmul Q × N (chunked)...")
     t0 = time.time()
-    q_gpu = splade_queries.cuda().float()
-    c_gpu = splade_corpus.cuda().float()
-    results = []
+    q_gpu = splade_queries.cuda().float()  # (Q, V) fp32 — small
     Q_BATCH = 500
-    for s in range(0, q_gpu.shape[0], Q_BATCH):
-        e = min(s + Q_BATCH, q_gpu.shape[0])
-        sims = q_gpu[s:e] @ c_gpu.T
-        for j in range(e - s):
-            gi = s + j
-            tgt_idx = int(target_indices[gi])
-            if tgt_idx < 0:
-                results.append(rr_hit_from_rank(-1))
-                continue
-            sc = sims[j]
-            rank = int((sc > sc[tgt_idx]).sum().item()) + 1
-            results.append(rr_hit_from_rank(rank))
-        del sims
-    del q_gpu, c_gpu
+    N = n_corpus
+    results: list[dict] = [None] * n_query  # filled in place
+
+    # Phase 1: collect top-similarity-per-query (we need the per-query target_rank)
+    # We process chunk by chunk, keeping running top counts per query.
+    # For target_idx we need to compare against all corpus docs, so accumulate
+    # all scores in a (Q, N) matrix on GPU. Q=6357, N=217K, fp32=5.5GB → fits.
+    log(f"  allocating scores matrix ({n_query}×{N})...")
+    scores_gpu = torch.empty((n_query, N), dtype=torch.float32, device="cuda")
+
+    for chunk_idx in range(n_corpus_chunks):
+        s_idx = chunk_idx * 128
+        e_idx = min(s_idx + 128, N)
+        chunk_path = cache_dir / f"corpus_chunk_{chunk_idx:04d}.pt"
+        chunk = torch.load(chunk_path, weights_only=True).cuda().float()  # (chunk, V)
+        chunk_scores = q_gpu @ chunk.T  # (Q, chunk)
+        scores_gpu[:, s_idx:e_idx] = chunk_scores
+        del chunk, chunk_scores
+        if (chunk_idx + 1) % 100 == 0 or chunk_idx == n_corpus_chunks - 1:
+            elapsed = time.time() - t0
+            rate = (chunk_idx + 1) / elapsed if elapsed > 0 else 0
+            eta = (n_corpus_chunks - chunk_idx - 1) / rate if rate > 0 else 0
+            log(f"    matmul chunk {chunk_idx + 1}/{n_corpus_chunks} "
+                f"rate={rate:.1f}/s eta={eta:.0f}s")
+
+    # Compute rank from scores
+    log(f"  computing target ranks...")
+    t_rank = time.time()
+    tgt_all = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
+    for gi in range(n_query):
+        tgt_idx = int(tgt_all[gi].item())
+        if tgt_idx < 0:
+            results[gi] = rr_hit_from_rank(-1)
+            continue
+        sc = scores_gpu[gi]
+        rank = int((sc > sc[tgt_idx]).sum().item()) + 1
+        results[gi] = rr_hit_from_rank(rank)
+    log(f"  rank computation done in {time.time() - t_rank:.1f}s")
+    log(f"  full matmul done in {time.time() - t0:.1f}s")
+
+    del scores_gpu, q_gpu, splade_queries
     torch.cuda.empty_cache()
-    log(f"  matmul done in {time.time() - t0:.1f}s")
-    del model, tok, splade_corpus, splade_queries
+    del model, tok
     torch.cuda.empty_cache()
     return results
 
