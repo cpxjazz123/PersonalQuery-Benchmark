@@ -2,10 +2,10 @@
 """User pipeline: cohort construction + per-user Gaussian fitting.
 
 合并 gaussian/ 的两个职责到单一脚本(用户指令 2026-08-29):
-  - Phase 1 (Steps 2-4): cohort construction
-      - step2_scan_reviews: 单次扫描 reviews → 4-tuple
-      - step3_build_query_records: top-10K users × primary asin × top-5 attrs
-      - step4_build_stage8_5_asins: top-10K ASINs × all commenters × top-4 attrs
+  - Phase 1 (Steps 2 + 4): cohort construction
+      - step2_scan_reviews: 单次扫描 reviews → 3-tuple (用户操作未消费 first_asin_per_user)
+      - step4_build_stage8_5_asins: 全部 ASIN × all commenters × top-5 non-numeric attrs
+        (MAX_ATTRS_FOR_LLM=5, 对齐 Stage 1 N_INPUT=5; Step 3 删除, 无 consumer)
   - Phase 2 (Stage 3): per-user Gaussian fitting
       - PCA48 + Welford online + shrinkage
       - writes user_gaussians.json (1.5GB, 599177 users)
@@ -53,28 +53,26 @@ DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
 REVIEWS_GZ = DATA / "Baby_Products_2023.jsonl.gz"
 
 # === Outputs ===
-QUERY_RECORDS_JSON = REPO_ROOT / "result" / "query_records_10k.json"
 STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
 
 # === Phase 1 — cohort construction 参数 ===
-TOP_K_USERS = 10_000
-MAX_RECORDS = 10_000
 TOP_N_ASINS = 10_000
-MAX_ATTRS_FOR_LLM = 4
+# 用户指令 2026-08-29: 对齐 Stage 1 N_INPUT=5(原 MAX_ATTRS_FOR_LLM=4 是遗留,
+# Stage 1 已直接读 product_attributes.json 取 top-5, stage8_5_asins.json 的 attrs_used
+# 仅供 Stage 4 select 链路追踪)。
+MAX_ATTRS_FOR_LLM = 5
 
 
 # ============================================================================
 # Phase 1 — cohort construction (Steps 2-4)
 # ============================================================================
 def phase1_cohort_construction() -> bool:
-    """Steps 2-4: scan reviews + build_query_records + build_stage8_5_asins.
+    """Steps 2 + 4: scan reviews + build_stage8_5_asins.
 
     Returns True if Phase 1 ran end-to-end, False if skipped (cache hit).
     """
     # --- Cache detection ---
     sig_payload = json.dumps({
-        "TOP_K_USERS": TOP_K_USERS,
-        "MAX_RECORDS": MAX_RECORDS,
         "TOP_N_ASINS": TOP_N_ASINS,
         "MAX_ATTRS_FOR_LLM": MAX_ATTRS_FOR_LLM,
         "REVIEWS_GZ": str(REVIEWS_GZ),
@@ -113,11 +111,8 @@ def phase1_cohort_construction() -> bool:
     product_attrs = json.loads(product_attrs_path.read_text(encoding="utf-8"))
     log(f"  loaded {len(product_attrs)} ASIN attrs from {product_attrs_path.name}")
 
-    # Step 2
-    asin_users, user_per_asin_count, user_total, first_asin_per_user = _step2_scan_reviews()
-
-    # Step 3
-    _step3_build_query_records(product_attrs, user_total, first_asin_per_user)
+    # Step 2 (returns 3-tuple; first_asin_per_user dropped since Step 3 deleted)
+    asin_users, user_per_asin_count, user_total = _step2_scan_reviews()
 
     # Step 4
     _step4_build_stage8_5_asins(product_attrs, asin_users, user_per_asin_count, user_total)
@@ -136,12 +131,19 @@ def phase1_cohort_construction() -> bool:
 
 
 def _step2_scan_reviews() -> tuple[dict[str, set[str]], dict[str, Counter[str]],
-                                  Counter[str], dict[str, str]]:
+                                  Counter[str]]:
+    """单次扫描 reviews, 返回 3-tuple:
+      - asin_users: asin -> {uid set}
+      - user_per_asin_count: asin -> Counter[uid -> count]
+      - user_total: Counter[uid -> total reviews]
+
+    用户指令 2026-08-29: 去掉 first_asin_per_user(原为 Step 3 用,Step 3 已删除,
+    Rule 7 禁止保留无人消费的字段)。
+    """
     log("  [Step 2] scan_reviews (single pass)")
     asin_users: dict[str, set[str]] = defaultdict(set)
     user_per_asin_count: dict[str, Counter[str]] = defaultdict(Counter)
     user_total: Counter[str] = Counter()
-    first_asin_per_user: dict[str, str] = {}
 
     n = 0
     with gzip.open(REVIEWS_GZ, "rt") as f:
@@ -157,60 +159,13 @@ def _step2_scan_reviews() -> tuple[dict[str, set[str]], dict[str, Counter[str]],
             user_total[uid] += 1
             asin_users[asin].add(uid)
             user_per_asin_count[asin][uid] += 1
-            if uid not in first_asin_per_user:
-                first_asin_per_user[uid] = asin
             n += 1
             if n % 1_000_000 == 0:
                 log(f"    {n/1e6:.1f}M records")
 
     log(f"  done: {n} records, {len(asin_users)} products, "
         f"{len(user_total)} users (no user-level filter)")
-    return asin_users, user_per_asin_count, user_total, first_asin_per_user
-
-
-def _step3_build_query_records(
-    product_attrs: dict[str, dict],
-    user_total: Counter[str],
-    first_asin_per_user: dict[str, str],
-) -> None:
-    log("  [Step 3] build_query_records")
-    top_users = [u for u, _ in user_total.most_common(TOP_K_USERS)]
-    log(f"    top-{TOP_K_USERS} active users selected")
-
-    records: list[dict] = []
-    n_with_attrs = 0
-    n_no_attrs = 0
-    for uid in top_users:
-        primary_asin = first_asin_per_user.get(uid)
-        if not primary_asin:
-            continue
-        asin_attrs = product_attrs.get(primary_asin)
-        if not asin_attrs:
-            n_no_attrs += 1
-            continue
-        attrs = select_top_attrs(asin_attrs)  # default max_n=5
-        if not attrs:
-            n_no_attrs += 1
-            continue
-        n_with_attrs += 1
-        records.append({
-            "user_id": uid,
-            "asin": primary_asin,
-            "attrs_used": attrs,
-            "n_attrs": len(attrs),
-            "n_product_attrs": len(asin_attrs),
-        })
-        if len(records) >= MAX_RECORDS:
-            break
-
-    QUERY_RECORDS_JSON.parent.mkdir(parents=True, exist_ok=True)
-    QUERY_RECORDS_JSON.write_text(
-        json.dumps(records, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    log(f"    wrote {len(records)} records, with_attrs={n_with_attrs}, "
-        f"skipped={n_no_attrs}")
-    log(f"    wrote → {QUERY_RECORDS_JSON}")
+    return asin_users, user_per_asin_count, user_total
 
 
 def _step4_build_stage8_5_asins(

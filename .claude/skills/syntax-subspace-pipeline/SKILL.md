@@ -40,7 +40,7 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
 ```
 attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
 common/                 syntax_subspace_utils.py                  (318d features + paths)
-gaussian/               build_user.py                             (Phase 1: Steps 2-4 cohort + Phase 2: Stage 3 Gaussian)
+gaussian/               build_user.py                             (Phase 1: Steps 2+4 cohort + Phase 2: Stage 3 Gaussian)
 gen_query/              syntax_subspace_pool_regen.py             (Stage 1+2: pool + features, --stage)
 select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 4: v6m main)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
@@ -48,8 +48,9 @@ syntactic_analysis/     (空)
 ```
 
 **目录职责(2026-08-29 合并后)**:
-- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user.py` 的 Phase 1 Step 3/4 共用。
-- `gaussian/build_user.py`: 用户相关操作的单一入口。Phase 1 = Steps 2-4(评论扫描 + query_records + cohort),Phase 2 = Stage 3(per-user Gaussian)。两 phase 自动检测 signature,命中 cache 跳过。
+- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user.py` 的 Phase 1 Step 4 共用。
+- `gaussian/build_user.py`: 用户相关操作的单一入口。Phase 1 = Steps 2+4(评论扫描 + ASIN cohort,每 ASIN top-5 非数值 attrs 对齐 Stage 1 N_INPUT=5),Phase 2 = Stage 3(per-user Gaussian)。两 phase 自动检测 signature,命中 cache 跳过。
+  - Step 3(build_query_records + query_records_10k.json)已删除(2026-08-29):无 consumer,Rule 7 禁止保留 dead code。
 - **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user.py`(Phase 1 + Phase 2)。`build_user.py` Phase 1 会自动检测 `result/product_attributes.json`,缺失则报错。
 
 ## 前置检查
