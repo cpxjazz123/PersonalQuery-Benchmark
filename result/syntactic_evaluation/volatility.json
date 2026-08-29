@@ -1,36 +1,40 @@
 {
   "config": {
-    "description": "Stability flip + RR Std on selected_only_sim09 (MiniLM cosine ≥ 0.9) per-ASIN Hit@1/@5/@10/@20 flip rate + RR Std mean/median/std across ASINs",
+    "description": "Canonical Stage 5 volatility (BM25 + MiniLM, selected_only_sim09 slice) — supersedes prior volatility.json. Full multi-retriever volatility see retrieval_summary.json.",
     "slices": [
       "selected_only_sim09"
+    ],
+    "retrievers": [
+      "bm25",
+      "minilm"
     ]
   },
   "stability_flip": {
     "selected_only_sim09": {
       "bm25": {
-        "n_asins": 1095,
-        "Hit@1_FlipRate_mean": 0.046964524679012194,
-        "Hit@1_FlipRate_median": 0.0,
-        "Hit@5_FlipRate_mean": 0.07684152581300208,
-        "Hit@5_FlipRate_median": 0.0,
-        "Hit@10_FlipRate_mean": 0.09062732159673667,
-        "Hit@10_FlipRate_median": 0.0,
-        "Hit@20_FlipRate_mean": 0.08822468258057027,
-        "Hit@20_FlipRate_median": 0.0,
-        "RR_Std_mean": 0.0498737887087668,
-        "RR_Std_median": 0.004137962506778723,
-        "RR_Std_std": 0.09457799511887352
+        "n_asins": 0,
+        "Hit@1_FlipRate_mean": null,
+        "Hit@1_FlipRate_median": null,
+        "Hit@5_FlipRate_mean": null,
+        "Hit@5_FlipRate_median": null,
+        "Hit@10_FlipRate_mean": null,
+        "Hit@10_FlipRate_median": null,
+        "Hit@20_FlipRate_mean": null,
+        "Hit@20_FlipRate_median": null,
+        "RR_Std_mean": null,
+        "RR_Std_median": null,
+        "RR_Std_std": null
       },
       "minilm": {
         "n_asins": 1095,
         "Hit@1_FlipRate_mean": 0.027089326568817736,
-        "Hit@1_FlipRate_median": 0.0,
+        "Hit@1_FlipRate_median": null,
         "Hit@5_FlipRate_mean": 0.02975350270882163,
-        "Hit@5_FlipRate_median": 0.0,
+        "Hit@5_FlipRate_median": null,
         "Hit@10_FlipRate_mean": 0.04757129830120959,
-        "Hit@10_FlipRate_median": 0.0,
+        "Hit@10_FlipRate_median": null,
         "Hit@20_FlipRate_mean": 0.048960314173477695,
-        "Hit@20_FlipRate_median": 0.0,
+        "Hit@20_FlipRate_median": null,
         "RR_Std_mean": 0.027218440280302417,
         "RR_Std_median": 0.0008583282920659903,
         "RR_Std_std": 0.07290907189558742

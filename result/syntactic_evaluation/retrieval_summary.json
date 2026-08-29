@@ -1,0 +1,135 @@
+{
+  "config": {
+    "description": "Stage 5 unified multi-retriever on v6m strict alignment (NO rerank)",
+    "retrievers": [
+      "bm25",
+      "splade",
+      "minilm",
+      "mpnet",
+      "bge_base_v15",
+      "gte_base",
+      "colbertv2"
+    ],
+    "n_retrievers": 7,
+    "selection_file": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json",
+    "corpus_size": 217722
+  },
+  "headline_per_query_mean": {
+    "bm25": {
+      "RR_mean": 0.15252677269532128,
+      "RR_median": 0.014285714285714285,
+      "hit1": 0.08840648104451786,
+      "hit5": 0.2087462639609879,
+      "hit10": 0.27560169891458236,
+      "rank_median": 70.0
+    },
+    "splade": {
+      "RR_mean": 0.22911399368769206,
+      "RR_median": 0.037037037037037035,
+      "hit1": 0.14613811546326883,
+      "hit5": 0.3131980493943684,
+      "hit10": 0.3854019191442504,
+      "rank_median": 27.0
+    },
+    "minilm": {
+      "RR_mean": 0.06477002564139772,
+      "RR_median": 0.0018115942028985507,
+      "hit1": 0.030360232814220543,
+      "hit5": 0.09233915368884694,
+      "hit10": 0.13072203869749882,
+      "rank_median": 552.0
+    },
+    "mpnet": {
+      "RR_mean": 0.07437548596560552,
+      "RR_median": 0.002398081534772182,
+      "hit1": 0.041843636935661475,
+      "hit5": 0.10051911278905144,
+      "hit10": 0.1338681768129621,
+      "rank_median": 417.0
+    },
+    "bge_base_v15": {
+      "RR_mean": 0.09119678130367714,
+      "RR_median": 0.002824858757062147,
+      "hit1": 0.05049551675318546,
+      "hit5": 0.1256882177127576,
+      "hit10": 0.1656441717791411,
+      "rank_median": 354.0
+    },
+    "gte_base": {
+      "RR_mean": 0.14055668251909545,
+      "RR_median": 0.008849557522123894,
+      "hit1": 0.08274343243668397,
+      "hit5": 0.19553248387604216,
+      "hit10": 0.2464999213465471,
+      "rank_median": 113.0
+    },
+    "colbertv2": {
+      "RR_mean": 0.06936659347335722,
+      "RR_median": 0.001326259946949602,
+      "hit1": 0.0374390435740129,
+      "hit5": 0.09344030202925908,
+      "hit10": 0.12962089035708668,
+      "rank_median": 754.0
+    }
+  },
+  "volatility_sim09": {
+    "bm25": {
+      "n_asins": 0,
+      "note": "bm25 sim09 not applicable (no query embedding available)"
+    },
+    "splade": {
+      "n_asins": 0,
+      "note": "splade sim09 not applicable (no query embedding available)"
+    },
+    "minilm": {
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.027089326568817736,
+      "Hit@5_FlipRate_mean": 0.02975350270882163,
+      "Hit@10_FlipRate_mean": 0.04757129830120959,
+      "Hit@20_FlipRate_mean": 0.048960314173477695,
+      "RR_Std_mean": 0.027218440280302417,
+      "RR_Std_median": 0.0008583282920659903,
+      "RR_Std_std": 0.07290907189558742
+    },
+    "mpnet": {
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.025722229399615777,
+      "Hit@5_FlipRate_mean": 0.04563561915915312,
+      "Hit@10_FlipRate_mean": 0.05107613143870273,
+      "Hit@20_FlipRate_mean": 0.06686711266608748,
+      "RR_Std_mean": 0.03252678672159415,
+      "RR_Std_median": 0.0012390895779068522,
+      "RR_Std_std": 0.08056598601648592
+    },
+    "bge_base_v15": {
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.03148870296756065,
+      "Hit@5_FlipRate_mean": 0.04870153289188558,
+      "Hit@10_FlipRate_mean": 0.056506966417047756,
+      "Hit@20_FlipRate_mean": 0.06326777749408041,
+      "RR_Std_mean": 0.033858347484651205,
+      "RR_Std_median": 0.0014086005825008124,
+      "RR_Std_std": 0.08187478829684937
+    },
+    "gte_base": {
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.04405547521985878,
+      "Hit@5_FlipRate_mean": 0.07154585140886512,
+      "Hit@10_FlipRate_mean": 0.07585395831971174,
+      "Hit@20_FlipRate_mean": 0.08308091576154966,
+      "RR_Std_mean": 0.04195877667841695,
+      "RR_Std_median": 0.0028429485307752563,
+      "RR_Std_std": 0.08856120149612098
+    },
+    "colbertv2": {
+      "n_asins": 1095,
+      "Hit@1_FlipRate_mean": 0.02200026796283346,
+      "Hit@5_FlipRate_mean": 0.04469936054303316,
+      "Hit@10_FlipRate_mean": 0.05419291081446302,
+      "Hit@20_FlipRate_mean": 0.06523140828694794,
+      "RR_Std_mean": 0.034654436728695524,
+      "RR_Std_median": 0.0010895357137776789,
+      "RR_Std_std": 0.08800036845139268
+    }
+  }
+}
