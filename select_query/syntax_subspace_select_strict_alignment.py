@@ -299,12 +299,11 @@ def main():
     # 用到的 user Gaussian (从 stage8_5_asins.json 的 users_sampled 取并集)。
     # 否则加载全 1.22M 用户 (~12GB peak, 在 32GB cgroup 里只能跑单 worker)。
     users_gauss_full = gauss_data["users"]
-    if os.environ.get("STAGE4_USER_FILTER") == "1":
+    if _os.environ.get("STAGE4_USER_FILTER") == "1":
         # 先读 cohort, 收集 needed uids
-        asins_path = ASINS_IN if "_SUFFIX_BU" not in globals() else SCRATCH / f"stage8_5_asins{os.environ.get('ASINS_OUT_SUFFIX', '')}.json"
-        if "ASINS_OUT_SUFFIX" in os.environ:
-            from pathlib import Path as _P
-            asins_path = _P("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades") / f"stage8_5_asins{os.environ['ASINS_OUT_SUFFIX']}.json"
+        from pathlib import Path as _P
+        suffix = _os.environ.get("ASINS_OUT_SUFFIX", "")
+        asins_path = _P("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades") / f"stage8_5_asins{suffix}.json"
         cohort_for_filter = json.load(open(asins_path))
         needed_uids = set()
         for e in cohort_for_filter.get("asins", []):

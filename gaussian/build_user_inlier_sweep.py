@@ -24,7 +24,7 @@ ASINS_JSON = SCRATCH / "stage8_5_asins.json"
 RESULTS_OUT = REPO_ROOT / "result" / "gaussian" / "inlier_frac_sweep.json"
 LOG_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/logs")
 
-THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]
+THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
 PYTHON = "/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python"
 
 
