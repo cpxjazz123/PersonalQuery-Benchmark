@@ -87,13 +87,9 @@ MAX_ATTRS_FOR_LLM = 4
 # Mahalanobis 信号无法独立于 random selection。
 # 强信号用户筛选保留 (mean_wc 过滤仍是有意义的最低信号条件);
 # cohort 不再 cap 每 ASIN 上限, 也不再要求最低 user 数 / 最低 review 数。
-MIN_MEAN_WC = 20
-
 # 用户指令 2026-08-29: 撤销 MIN_TOTAL_WORDS = 1000 限制
-# 原因: 用户要求"去掉min1000的限制, 重新对每个评论都需要提取特征值"
-# 原 12,966 users → 685K users 全量回归
-# 后果: Stage 3 user_gaussians 量级回到 685K, Stage 4 selection cohort 暴增
-MIN_TOTAL_WORDS = 0
+# 不再过滤用户总字数, 只保留 mean_wc ≥ MIN_MEAN_WC=20 的最低信号条件
+MIN_MEAN_WC = 20
 
 
 def log(msg: str) -> None:
@@ -358,16 +354,11 @@ def step4_build_stage8_5_asins(
         nt = user_total[u]
         if nt == 0:
             continue
-        # 用户指令 2026-08-29: 二级过滤 = 总字数 MIN_TOTAL_WORDS = 1000
-        # 单 review ≥ 20 words (强信号) AND 总 ≥ 1000 words (拟合质量)
-        if wc < MIN_TOTAL_WORDS:
-            continue
         mean_wc = wc / nt
         if mean_wc >= MIN_MEAN_WC:
             strong_users[u] = mean_wc
-    log(f"  strong-signal users (mean_wc ≥ {MIN_MEAN_WC} AND "
-        f"total ≥ {MIN_TOTAL_WORDS} words): {len(strong_users)} "
-        f"(of {len(eligible_users_set)} all commenters)")
+    log(f"  strong-signal users (mean_wc ≥ {MIN_MEAN_WC}): "
+        f"{len(strong_users)} (of {len(eligible_users_set)} all commenters)")
 
     eligible_count: dict[str, int] = {}
     for asin, uset in asin_users.items():
