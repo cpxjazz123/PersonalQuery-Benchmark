@@ -778,28 +778,8 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
         # Cache hit: skip volatility (no q_embeds), only compute headline
         retr_q_embeds = {n: None for n in RETR_NAMES}
 
-    # ---- 6. Headline (per-retriever, per-query mean) ----
-    log("\n=== 6. Per-retriever headline ===")
-    headline: dict = {}
-    for n in RETR_NAMES:
-        rrs = [q[f"{n}_RR"] for q in query_records]
-        ranks = [q[f"{n}_rank"] for q in query_records]
-        hit1 = [q[f"{n}_hit1"] for q in query_records]
-        hit5 = [q[f"{n}_hit5"] for q in query_records]
-        hit10 = [q[f"{n}_hit10"] for q in query_records]
-        headline[n] = {
-            "RR_mean": float(np.mean(rrs)),
-            "RR_median": float(np.median(rrs)),
-            "hit1": float(np.mean(hit1)),
-            "hit5": float(np.mean(hit5)),
-            "hit10": float(np.mean(hit10)),
-            "rank_median": float(np.median(ranks)),
-        }
-        log(f"  {n:<12} RR={headline[n]['RR_mean']:.4f}  hit@10={headline[n]['hit10']:.4f}  "
-            f"rank_med={headline[n]['rank_median']:.0f}")
-
-    # ---- 7. Volatility (per retriever, sim09 slice) ----
-    log("\n=== 7. Per-retriever volatility (sim09) ===")
+    # ---- 6. Volatility (per retriever, sim09 slice) ----
+    log("\n=== 6. Per-retriever volatility (sim09) ===")
     volatility: dict = {}
     for n in RETR_NAMES:
         v = compute_volatility_by_retriever(query_records, n, retr_q_embeds[n])
@@ -809,18 +789,17 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
             f"Hit@10_flip={v.get('Hit@10_FlipRate_mean')}  "
             f"RR_Std={v.get('RR_Std_mean')}")
 
-    # ---- 8. Save retrieval_summary.json (per Rule 13/16) ----
+    # ---- 7. Save retrieval_summary.json (per Rule 13/16) ----
     SUMMARY_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 5 unified multi-retriever on v6m strict alignment (NO rerank)",
+                "description": "Stage 5 v6m unified multi-retriever volatility (sim09 selected_only slice, NO rerank). Headline dropped per user directive.",
                 "retrievers": RETR_NAMES,
                 "n_retrievers": len(RETR_NAMES),
                 "selection_file": str(SEL_IN),
                 "corpus_size": asins_count,
             },
-            "headline_per_query_mean": headline,
             "volatility_sim09": volatility,
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {SUMMARY_OUT}")
@@ -859,20 +838,18 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {VOLATILITY_OUT}")
 
-    # ---- 10. Final headline table ----
-    log("\n=== Final Headline (multi-retriever on v6m strict alignment, NO rerank) ===")
-    header = (f"{'retriever':<14} {'RR_mean':>8} {'hit@1':>6} {'hit@10':>7} {'rank_med':>9} "
-              f"{'Hit@1_flip':>11} {'Hit@10_flip':>12} {'RR_Std':>8}")
+    # ---- 10. Final volatility table ----
+    log("\n=== Final Volatility (multi-retriever on v6m strict alignment, NO rerank) ===")
+    header = (f"{'retriever':<14} {'n_asins':>8} {'Hit@1_flip':>11} {'Hit@10_flip':>12} {'RR_Std':>8}")
     log(header)
     log("-" * len(header))
     for n in RETR_NAMES:
-        h = headline[n]
         v = volatility[n]
+        n_asins = v.get("n_asins", 0)
         h1 = f"{v['Hit@1_FlipRate_mean'] * 100:>10.2f}%" if v.get("Hit@1_FlipRate_mean") is not None else f"{'n/a':>11}"
         h10 = f"{v['Hit@10_FlipRate_mean'] * 100:>11.2f}%" if v.get("Hit@10_FlipRate_mean") is not None else f"{'n/a':>12}"
         rrs = f"{v['RR_Std_mean']:.4f}" if v.get("RR_Std_mean") is not None else f"{'n/a':>8}"
-        log(f"{n:<14} {h['RR_mean']:>8.4f} {h['hit1']:>6.4f} {h['hit10']:>7.4f} "
-            f"{h['rank_median']:>9.0f} {h1} {h10} {rrs}")
+        log(f"{n:<14} {n_asins:>8d} {h1} {h10} {rrs}")
 
     log(f"\n=== Stage 5 unified complete ({time.time() - t_start:.1f}s) ===")
 
