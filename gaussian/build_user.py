@@ -27,6 +27,8 @@ import gc
 import gzip
 import hashlib
 import json
+import os
+import shutil
 import sys
 import zlib
 from collections import Counter, defaultdict
@@ -50,12 +52,27 @@ from syntax_subspace_utils import (  # noqa: E402
     PCA_DIM, R_95, REVIEW_GZ, VAR_EPS, log, feat_key,
 )
 
+# 用户指令 2026-08-29 (inlier_frac sweep): 支持环境变量覆盖阈值, 跑 sweep 时不改源码。
+# sweep 脚本会 export MIN_INLIER_FRAC_OVERRIDE=0.X, 这里直接用 env 替换。
+if "MIN_INLIER_FRAC_OVERRIDE" in os.environ:
+    MIN_INLIER_FRAC = float(os.environ["MIN_INLIER_FRAC_OVERRIDE"])
+    log(f"  [env override] MIN_INLIER_FRAC = {MIN_INLIER_FRAC}")
+if "MIN_SIGMA_MEAN_OVERRIDE" in os.environ:
+    MIN_SIGMA_MEAN = float(os.environ["MIN_SIGMA_MEAN_OVERRIDE"])
+    log(f"  [env override] MIN_SIGMA_MEAN = {MIN_SIGMA_MEAN}")
+if "MAX_R_FLOOR_OVERRIDE" in os.environ:
+    MAX_R_FLOOR = float(os.environ["MAX_R_FLOOR_OVERRIDE"])
+    log(f"  [env override] MAX_R_FLOOR = {MAX_R_FLOOR}")
+
 # === Inputs ===
 DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
 REVIEWS_GZ = DATA / "Baby_Products_2023.jsonl.gz"
 
 # === Outputs ===
-STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
+# 用户指令 2026-08-29 (sweep): 支持 ASINS_OUT_SUFFIX (e.g. "t0.7") 让 sweep 写
+# threshold-specific cohort 文件, 不互相覆盖默认 canonical cohort。
+_SUFFIX_BU = os.environ.get("ASINS_OUT_SUFFIX", "")
+STAGE8_5_ASINS_JSON = SCRATCH / f"stage8_5_asins{_SUFFIX_BU}.json"
 # 用户指令 2026-08-29: Section 6 Welford streaming (~13 min) 输出缓存。
 # 当 MIN_REVIEWS_FOR_PER_USER / MIN_SIGMA_MEAN / LAMBDA / PCA_DIM 不变,只重跑
 # Section 7 即可。下次 Phase 2 跳过 streaming 节省 ~13 min。
@@ -389,11 +406,13 @@ def phase2_user_gaussians() -> None:
             cached_pca_components, cached_pca_ev, cached_pca_evr, cached_pca_mean,
             cached_all_fnames, cached_fnames_f3,
         )
-        # Merge: cached (already passed gate) + new (passed gate this run)
+        # 用户指令 2026-08-29 (改): 合并 cache + new (新 cached all users, 不限质量)。
+        # 注: 旧 cache (sig 命中部分) 之前只含 gate-pass 用户; 新的 cache 是 all users。
+        # 下游 step_post_filter_cohort_by_gaussian_quality 会按需算 Q1/Q2/Q3 并过滤。
         user_gaussians = dict(cached_users)
         user_gaussians.update(user_gaussians_new)
         log(f"  merged: {len(user_gaussians)} total users "
-            f"({len(cached_users)} cached + {len(user_gaussians_new)} new passed gate)")
+            f"({len(cached_users)} cached + {len(user_gaussians_new)} new all)")
 
     log("\n=== 8. Saving ===")
     GAUSSIANS_OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -461,16 +480,54 @@ def phase2_user_gaussians() -> None:
 
 
 def step_post_filter_cohort_by_gaussian_quality(user_gaussians: dict) -> None:
-    """用户指令 2026-08-29: Phase 1 按 raw 评论者数粗筛, 此步骤用真实 Gaussian 质量
-    (3-class gate: Q1 σ_mean ≥ MIN_SIGMA_MEAN AND Q2 r_floor ≤ MAX_R_FLOOR AND
-     Q3 inlier_frac ≥ MIN_INLIER_FRAC) 重判 cohort。要求每个 ASIN 有
-    ≥MIN_N_QUALITY_USERS_PER_ASIN 个 Gaussian 质量达标的用户。
+    """用户指令 2026-08-29 (改): cache 不再过滤, 此步骤用 cached 字段
+    (sigma_mean / r_floor / inlier_frac) 重新计算 3-class gate 并过滤 cohort。
+    要求每个 ASIN 有 ≥MIN_N_QUALITY_USERS_PER_ASIN 个 Gaussian 质量达标的用户。
 
-    流程: 读 stage8_5_asins.json → 查 user_gaussians keys → 计数 → 过滤 → 重写文件。
+    用户指令 2026-08-29 (简化版): 不再做 random/quality/bhatta 三臂实验, 每个 ASIN
+    直接保留所有 Gaussian 质量合格的用户 (无 K_PER_ASIN cap), cohort 单文件即用。
+    - users_sampled: 过滤为只有 quality users (替代原全量评论者)
+    - users_raw_count: 保留 raw 评论者数, 用于 cohort 描述
+    - n_users_quality: 通过 3-class gate 的用户数 (= len(users_sampled) post-filter)
+
+    流程: 读 stage8_5_asins.json → 对每个 user 算 Q1/Q2/Q3 mask → 过滤 users_sampled →
+    按 MIN_N_QUALITY_USERS_PER_ASIN 淘汰 → 重写文件。
+
+    改 cache 后, 调阈值 (σ_mean / r_floor / inlier_frac) 不再触发 Welford 重算。
     """
     log("\n=== 9. Re-filtering cohort by 3-class Gaussian quality ===")
-    quality_uids = set(user_gaussians.keys())  # 已被 3-class gate 过滤
-    log(f"  users with quality Gaussian (3-class gate): {len(quality_uids)}")
+    # 用户指令 2026-08-29 (改): 基于 cached 字段 (sigma_mean / r_floor / inlier_frac)
+    # 现算 gate, 不依赖 user_gaussians keys 是否已被 gate 过滤。
+    quality_uids = set()
+    n_total_cached = 0
+    n_no_data = 0
+    n_pass_q1 = 0
+    n_pass_q2 = 0
+    n_pass_q3 = 0
+    for uid, gd in user_gaussians.items():
+        n_total_cached += 1
+        sigma_mean = gd.get("sigma_mean")
+        r_floor = gd.get("r_floor")
+        inlier_frac = gd.get("inlier_frac")
+        if sigma_mean is None or r_floor is None or inlier_frac is None:
+            n_no_data += 1
+            continue
+        if sigma_mean >= MIN_SIGMA_MEAN:
+            n_pass_q1 += 1
+        else:
+            continue
+        if r_floor <= MAX_R_FLOOR:
+            n_pass_q2 += 1
+        else:
+            continue
+        if inlier_frac >= MIN_INLIER_FRAC:
+            n_pass_q3 += 1
+            quality_uids.add(uid)
+    log(f"  cached users: {n_total_cached} (no data: {n_no_data})")
+    log(f"    Q1 σ_mean≥{MIN_SIGMA_MEAN}: {n_pass_q1}")
+    log(f"    Q2 r_floor≤{MAX_R_FLOOR}: {n_pass_q2}")
+    log(f"    Q3 inlier_frac≥{MIN_INLIER_FRAC}: {n_pass_q3}")
+    log(f"  quality users (Q1&Q2&Q3): {len(quality_uids)}")
 
     with open(STAGE8_5_ASINS_JSON, "r", encoding="utf-8") as f:
         asins_doc = json.load(f)
@@ -484,12 +541,15 @@ def step_post_filter_cohort_by_gaussian_quality(user_gaussians: dict) -> None:
     n_dropped_lt_min_quality = 0
     for entry in old_asins:
         users_sampled = entry.get("users_sampled", [])
-        n_quality = sum(1 for u in users_sampled if u in quality_uids)
-        entry["n_users_quality"] = n_quality
-        if n_quality == 0:
+        # 用户指令 2026-08-29: 过滤 users_sampled 为 quality users only
+        entry["users_raw_count"] = len(users_sampled)
+        users_quality = [u for u in users_sampled if u in quality_uids]
+        entry["n_users_quality"] = len(users_quality)
+        entry["users_sampled"] = users_quality  # 替换为只含 quality users
+        if len(users_quality) == 0:
             n_dropped_no_quality += 1
             continue
-        if n_quality < MIN_N_QUALITY_USERS_PER_ASIN:
+        if len(users_quality) < MIN_N_QUALITY_USERS_PER_ASIN:
             n_dropped_lt_min_quality += 1
             continue
         new_asins.append(entry)
@@ -497,7 +557,8 @@ def step_post_filter_cohort_by_gaussian_quality(user_gaussians: dict) -> None:
 
     log(f"  dropped (no quality users): {n_dropped_no_quality}")
     log(f"  dropped (<{MIN_N_QUALITY_USERS_PER_ASIN} quality users): {n_dropped_lt_min_quality}")
-    log(f"  final cohort: {n_kept} ASINs (after Gaussian quality filter)")
+    log(f"  final cohort: {n_kept} ASINs (after Gaussian quality filter, "
+        f"users_sampled=quality only)")
 
     asins_doc["asins"] = new_asins
     asins_doc["n_asins"] = len(new_asins)
@@ -524,14 +585,18 @@ def _welford_for_user_subset(target_users, sig_hash,
                               cached_pca_components, cached_pca_ev,
                               cached_pca_evr, cached_pca_mean,
                               cached_all_fnames, cached_fnames_f3):
-    """Welford + inlier + 3-class gate for a subset of users.
+    """Welford + inlier for a subset of users, cache ALL regardless of quality.
 
-    用户指令 2026-08-29: 重构 cache 后, 新用户 Gaussian 计算走这个函数。
+    用户指令 2026-08-29 (改): cache 不再做 3-class gate 过滤, 缓存所有用户 Gaussian。
+    Gate pass rate 只打印描述性统计, 不影响 cache 内容。3-class gate 改到
+    step_post_filter_cohort_by_gaussian_quality 里基于 cached 字段 (sigma_mean,
+    r_floor, inlier_frac) 重新判定。
+
     当 cached_scaler_mean 不为 None, 重用 user_gaussians.json 里的 scaler/PCA arrays
     (与 cached entries 在同一特征空间, 可直接对比)。当为 None 时 fit fresh, 并返回
     ss/pca 让 caller 写回 JSON。
 
-    Returns: (user_gaussians_new, ss_or_None, pca_or_None, all_fnames, fnames_sub, counts)
+    Returns: (user_gaussians_new, ss_or_None, pca_or_None, all_fnames, fnames_sub)
     """
     from sklearn.preprocessing import StandardScaler as _SS
     from sklearn.decomposition import PCA as _PCA
@@ -760,6 +825,11 @@ def _welford_for_user_subset(target_users, sig_hash,
             f"max={valid_inlier.max():.3f}")
 
     # --- 9. 3-class quality gate (Q1 σ_mean / Q2 r_floor / Q3 inlier_frac) ---
+    # 用户指令 2026-08-29 (改): cache **所有** 用户 Gaussian (不论质量), gate 推迟到
+    # step_post_filter_cohort_by_gaussian_quality 时再按需过滤。这样:
+    # - 调阈值 (σ_mean / r_floor / inlier_frac) 不再触发 Welford 重算
+    # - cohort 调整 (增删 ASIN) 复用所有 cache
+    # 这里仍打印 gate pass rate (描述性, 不写入 cache 过滤)
     q1_mask = sigma_diag_mean_per_user >= MIN_SIGMA_MEAN
     q2_mask = r_floor_per_user <= MAX_R_FLOOR
     q3_mask = inlier_frac >= MIN_INLIER_FRAC
@@ -768,7 +838,7 @@ def _welford_for_user_subset(target_users, sig_hash,
     n_q1 = int((q1_mask & valid_mask).sum())
     n_q2 = int((q2_mask & valid_mask).sum())
     n_q3 = int((q3_mask & valid_mask).sum())
-    log(f"\n  3-class quality gate:")
+    log(f"\n  3-class gate (descriptive, NOT applied to cache):")
     log(f"    Q1 σ_mean≥{MIN_SIGMA_MEAN}: {n_q1}/{n_valid} pass "
         f"({n_q1/max(1,n_valid)*100:.1f}%)")
     log(f"    Q2 r_floor≤{MAX_R_FLOOR}: {n_q2}/{n_valid} pass "
@@ -779,8 +849,10 @@ def _welford_for_user_subset(target_users, sig_hash,
         f"({n_quality/max(1,n_valid)*100:.1f}%)")
 
     user_gaussians_new: dict = {}
+    n_skipped_no_data = 0
     for uid_idx, uid in enumerate(target_user_list):
-        if not quality_mask[uid_idx]:
+        if not valid_mask[uid_idx]:
+            n_skipped_no_data += 1
             continue
         mu = mu_arr[uid_idx]
         sd = sigma_diag_arr[uid_idx]
@@ -795,7 +867,8 @@ def _welford_for_user_subset(target_users, sig_hash,
             "inlier_frac": float(inlier_frac[uid_idx]),
             "source": "per_user",
         }
-    log(f"  new users passing 3-class gate: {len(user_gaussians_new)}")
+    log(f"  new users cached (all): {len(user_gaussians_new)} "
+        f"(skipped no-data: {n_skipped_no_data})")
 
     # Free intermediates
     del mean_acc, M2_acc, var_pop, var_shrink, sigma_diag_arr
@@ -814,6 +887,27 @@ def _welford_for_user_subset(target_users, sig_hash,
 # ============================================================================
 def main() -> None:
     log("=== build_user.py — Phase 1 (cohort) + Phase 2 (Stage 3 Gaussian) ===")
+
+    # 用户指令 2026-08-29 (inlier_frac sweep): SWEEP_ONLY=1 时只跑 post-filter,
+    # 跳过 Phase 1 (cohort) + Phase 2 (Welford), 直接读 cache 然后按当前
+    # MIN_INLIER_FRAC_OVERRIDE 重过滤 cohort, 写 stage8_5_asins.json。
+    if os.environ.get("SWEEP_ONLY") == "1":
+        log("  SWEEP_ONLY=1: skip Phase 1 + Phase 2, just re-filter cohort")
+        if not GAUSSIANS_OUT.exists():
+            raise FileNotFoundError(f"cache not found: {GAUSSIANS_OUT}")
+        with open(GAUSSIANS_OUT, "r", encoding="utf-8") as f:
+            gdoc = json.load(f)
+        ug = gdoc.get("users", {})
+        log(f"  loaded {len(ug)} users from cache (MIN_INLIER_FRAC={MIN_INLIER_FRAC})")
+        # 用户指令 2026-08-29 (sweep): 若 ASINS_OUT_SUFFIX 已设, 先从 canonical
+        # stage8_5_asins.json 复制一份到 suffix 路径, 让 post-filter 读到源数据。
+        canonical = SCRATCH / "stage8_5_asins.json"
+        if _SUFFIX_BU and canonical.exists() and not STAGE8_5_ASINS_JSON.exists():
+            shutil.copy(canonical, STAGE8_5_ASINS_JSON)
+            log(f"  copied canonical cohort → {STAGE8_5_ASINS_JSON}")
+        step_post_filter_cohort_by_gaussian_quality(ug)
+        log("=== build_user.py — SWEEP_ONLY DONE ===")
+        return
 
     # Phase 1 — cohort construction (Steps 2-4)
     ran_p1 = phase1_cohort_construction()

@@ -96,19 +96,20 @@ _R_95_SQ = chi2.ppf(0.95, PCA_DIM)  # = 65.17, Mahal² ≤ R²_95 = 65.17
 POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
 # 用户指令 2026-08-29: FEAT_CACHE 改到 select_query/ 目录下(Stage 3 metadata 也同步)
 FEAT_CACHE_LOCAL = str(FEAT_CACHE)  # from syntax_subspace_utils
-# 用户指令 2026-08-29: 3-arm cohort 通过 ASIN_ARM 环境变量切换 (random/quality/bhatta),
-# 输出 stage8_5_selection_{arm}.json + stage8_5_selection_stats_{arm}.json,
-# 默认覆盖 canonical paths (Stage 5 retrieval 默认读 strict alignment 数据)。
+# Main pipeline (用户指令 2026-08-28): 直接覆盖 canonical paths,
+# 让 Stage 5 retrieval 默认读取 strict alignment 数据。
+# 用户指令 2026-08-29 (sweep): 支持环境变量覆盖 SEL_OUT / STATS_OUT, 让 sweep 跑多阈值
+# 不互相覆盖 stage8_5_selection.json。每个 threshold 用 SEL_OUT_SUFFIX (e.g. "t0.7")。
 import os as _os
-_ASIN_ARM = _os.environ.get("ASIN_ARM", "").strip()
-if _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta"):
-    ASIN_ARM_TAG = f"_{_ASIN_ARM}"
-    ASIN_ARM_LABEL = _ASIN_ARM
-else:
-    ASIN_ARM_TAG = ""
-    ASIN_ARM_LABEL = "default"
-SEL_OUT = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection{ASIN_ARM_TAG}.json"
-STATS_OUT = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_stats{ASIN_ARM_TAG}.json"
+_SUFFIX = _os.environ.get("SEL_OUT_SUFFIX", "")
+SEL_OUT = (
+    f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/"
+    f"stage8_5_selection{_SUFFIX}.json"
+)
+STATS_OUT = (
+    f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/"
+    f"stage8_5_selection_stats{_SUFFIX}.json"
+)
 
 
 def load_query_features(path: str) -> dict[str, np.ndarray]:
@@ -294,22 +295,35 @@ def main():
     fnames_sub = gauss_data["fnames_f3"]
     col_idx = [all_fnames.index(n) for n in fnames_sub]
 
-    users_gauss = gauss_data["users"]
+    # 用户指令 2026-08-29 (sweep 优化): 当 STAGE4_USER_FILTER=1 时, 只保留 cohort 实际
+    # 用到的 user Gaussian (从 stage8_5_asins.json 的 users_sampled 取并集)。
+    # 否则加载全 1.22M 用户 (~12GB peak, 在 32GB cgroup 里只能跑单 worker)。
+    users_gauss_full = gauss_data["users"]
+    if os.environ.get("STAGE4_USER_FILTER") == "1":
+        # 先读 cohort, 收集 needed uids
+        asins_path = ASINS_IN if "_SUFFIX_BU" not in globals() else SCRATCH / f"stage8_5_asins{os.environ.get('ASINS_OUT_SUFFIX', '')}.json"
+        if "ASINS_OUT_SUFFIX" in os.environ:
+            from pathlib import Path as _P
+            asins_path = _P("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades") / f"stage8_5_asins{os.environ['ASINS_OUT_SUFFIX']}.json"
+        cohort_for_filter = json.load(open(asins_path))
+        needed_uids = set()
+        for e in cohort_for_filter.get("asins", []):
+            needed_uids.update(e.get("users_sampled", []))
+        log(f"  cohort users_sampled (unique): {len(needed_uids)}")
+        users_gauss = {u: g for u, g in users_gauss_full.items() if u in needed_uids}
+        log(f"  filtered Gaussian cache: {len(users_gauss)} / {len(users_gauss_full)} "
+            f"users (saved ~{len(users_gauss_full)-len(users_gauss)} entries)")
+        del users_gauss_full, gauss_data
+        import gc; gc.collect()
+    else:
+        users_gauss = users_gauss_full
     log(f"  F3: {len(fnames_sub)} features, scaler.mean_.shape={ss.mean_.shape}, "
         f"PCA{PCA_DIM}: cumvar={pca.explained_variance_ratio_.sum():.4f}")
     log(f"  users with full Gaussian: {len(users_gauss)}")
 
     # ---- 5. Load ASINs with cohort users_sampled ----
     log("\n=== 5. Loading stage8_5_asins.json ===")
-    # 用户指令 2026-08-29: 3-arm cohort (random/quality/bhatta) 通过 ASIN_ARM 环境变量切换。
-    # arm != default 时读 stage8_5_asins_{arm}.json, 否则读 canonical ASINS_IN。
-    if _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta"):
-        cohort_path = f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins_{_ASIN_ARM}.json"
-        log(f"  [arm={_ASIN_ARM}] loading cohort: {cohort_path}")
-    else:
-        cohort_path = str(ASINS_IN)
-        log(f"  [arm=default] loading cohort: {cohort_path}")
-    asin_data_full = json.load(open(cohort_path))["asins"]
+    asin_data_full = json.load(open(ASINS_IN))["asins"]
     asin_data = [a for a in asin_data_full if a["asin"] in asin_pool]
     log(f"  ASINs with K=200 pool: {len(asin_data)} / {len(asin_data_full)}")
 
@@ -347,13 +361,8 @@ def main():
                 })
             continue
         # Collect user cohort (full Gaussian: mu + sigma_diag)
-        # 用户指令 2026-08-29: 3-arm cohort (random/quality/bhatta) 用 users_selected 字段
-        # (由 user_selection.py 输出), 默认 cohort 用 users_sampled。
         asin_users = []
-        users_field = "users_selected" if (
-            _ASIN_ARM and _ASIN_ARM in ("random", "quality", "bhatta")
-        ) else "users_sampled"
-        for uid in entry[users_field]:
+        for uid in entry["users_sampled"]:
             if uid not in users_gauss:
                 # 用户不在 Phase 2 全量 Gaussian 表中 → 无法算 Mahalanobis → 跳过
                 n_missing_gauss += 1
