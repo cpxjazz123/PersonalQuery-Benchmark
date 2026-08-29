@@ -6,7 +6,7 @@ Stage 2 (spaCy features):
   - 读 result/gen_query/pool.json → pool queries
   - 缺失 query → spaCy nlp.pipe(batch) 抽 318d 句法特征
   - 写 stage7b_query_features.jsonl.gz(本目录下,不是 scratch2)
-  - Stage 3 metadata 同步读取此 cache (旧 Phase 2 也曾消费,现已删)
+  - Stage 3 metadata 同步读取此 cache (Phase 2 Gaussian 用 user review texts 扩充)
 
 Stage 4 strict alignment:
   - 用户原话:
@@ -20,9 +20,11 @@ Stage 4 strict alignment:
     > 如果没有任何 Query 同时满足两个条件,就标记为 no_strict_candidate。
   - 两步 gate + 一步排序:
     1. M(q,u) > 0              (target user Rank@1 in cohort)
-    2. d_self(q,u) ≤ R_95       (query 落在真实用户历史 95% 距离内)
+    2. d_self(q,u) ≤ R_95       (query 落在真实用户历史 95% Mahalanobis 距离内)
     3. argmax M under Q_strict
-  - R_95 = 11.308 (real-history whitened L2 P95, 历史 ablation 标定)
+  - 用户指令 2026-08-29: 用 full Gaussian (mu + sigma_diag from user_gaussians.json)
+    算 Mahalanobis 距离, 取代之前 10K-derived L2 means。
+  - R_95 = sqrt(chi2.ppf(0.95, 48)) = 8.073 (Mahalanobis P95, d=48)
   - 复用 K=200 pool + F3_CoreStruct + PCA48 + whitening 已有 infrastructure。
 
 输出:
@@ -84,8 +86,12 @@ def fit_pca(X_train, n_dim, seed):
     return pca, np.sqrt(pca.explained_variance_)
 
 
-# User instruction 2026-08-28: strict alignment threshold
-R_95_PERCENTILE = 11.308  # real-history whitened L2 P95
+# User instruction 2026-08-29: full Gaussian (mu + sigma_diag) Mahalanobis.
+# R_95 = sqrt(chi2.ppf(0.95, 48)) = 8.073 (theoretical P95 for d=48 dim).
+# 替换之前 10K-derived L2 means + R_95=11.308。
+R_95_PERCENTILE = 8.073  # Mahalanobis P95, d=48
+from scipy.stats import chi2
+_R_95_SQ = chi2.ppf(0.95, PCA_DIM)  # = 65.17, Mahal² ≤ R²_95 = 65.17
 
 POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
 # 用户指令 2026-08-29: FEAT_CACHE 改到 select_query/ 目录下(Stage 3 metadata 也同步)
@@ -235,37 +241,28 @@ def main():
     log(f"  total queries: {pool_data['n_total_strict']}")
 
     # ---- 2. Load F3 + StandardScaler + PCA48 + whitening ----
-    log("\n=== 2. Loading _syntax_subspace_prepare() for F3_CoreStruct ===")
+    # (用户指令 2026-08-29: 用 full Gaussian 取代 10K-derived whitened means。
+    #  StandardScaler + PCA48 仍需 10K cache 标定, query 特征投影复用同一空间)
+    log("\n=== 2. Loading _syntax_subspace_prepare() for F3_CoreStruct + PCA48 ===")
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
     from syntax_subspace_utils import _syntax_subspace_prepare  # noqa: E402
     P = _syntax_subspace_prepare()
     X = P["X"]; all_fnames = P["feature_names_ordered"]
-    train_idx = P["train_idx"]; user_to_indices = P["user_to_indices"]
+    train_idx = P["train_idx"]
 
     cfg = {"exclude_prefixes": _EXCLUDE_PREFIXES, "exclude_exact": _EXCLUDE_EXACT}
     fnames = select_feature_names(all_fnames, cfg["exclude_prefixes"], cfg["exclude_exact"])
     col_idx = [all_fnames.index(n) for n in fnames]
     ss = StandardScaler()
     ss.fit(X[train_idx][:, col_idx])
-    X_sub_scaled = ss.transform(X[:, col_idx])
-    pca, sqrt_lambda = fit_pca(X_sub_scaled[train_idx], PCA_DIM, PCA_SEED)
+    pca, sqrt_lambda = fit_pca(ss.transform(X[train_idx][:, col_idx]), PCA_DIM, PCA_SEED)
     log(f"  F3_CoreStruct: {len(fnames)} features, PCA{PCA_DIM}: cumvar={pca.explained_variance_ratio_.sum():.4f}")
 
-    # ---- 3. Compute whitened user-means ----
-    log("\n=== 3. Whitened user-means μ̃_u ===")
-    Z_all = pca.transform(X_sub_scaled) / sqrt_lambda
-    user_z_white_means = {}
-    for uid, idx in user_to_indices.items():
-        if len(idx) < 2:
-            continue
-        user_z_white_means[uid] = Z_all[idx].mean(axis=0)
-    log(f"  users with ≥2 sents: {len(user_z_white_means)}")
-
-    # ---- 4. Load user_gaussians (for source/n_reviews fields) ----
-    log("\n=== 4. Loading user_gaussians (source / n_reviews metadata) ===")
+    # ---- 3. Load full Gaussian (mu + sigma_diag) from user_gaussians.json ----
+    log("\n=== 3. Full per-user Gaussian μ_u / σ²_u (from user_gaussians.json) ===")
     gauss_data = json.load(open(GAUSSIANS_OUT))
     users_gauss = gauss_data["users"]
-    log(f"  users_gauss: {len(users_gauss)} entries")
+    log(f"  users with full Gaussian: {len(users_gauss)}")
 
     # ---- 5. Load ASINs with cohort users_sampled ----
     log("\n=== 5. Loading stage8_5_asins.json ===")
@@ -306,23 +303,19 @@ def main():
                     "user_source": meta_source,
                 })
             continue
-        # Collect user cohort
+        # Collect user cohort (full Gaussian: mu + sigma_diag)
         asin_users = []
         for uid in entry["users_sampled"]:
-            if uid not in user_z_white_means:
-                # user has <2 sentences; skip (not eligible for M computation)
-                continue
-            mu_white = user_z_white_means[uid]
-            if uid in users_gauss:
-                meta_source = users_gauss[uid]["source"]
-                meta_n_reviews = users_gauss[uid]["n_reviews"]
-            else:
-                # user_gauss only has 294 entries (high-n_reviews subset); most users
-                # sampled per-ASIN are not in it — derive metadata heuristically.
-                meta_source = "non_gaussian_subset"
-                meta_n_reviews = None
+            if uid not in users_gauss:
+                # 用户不在 Phase 2 全量 Gaussian 表中 → 无法算 Mahalanobis → 跳过
                 n_missing_gauss += 1
-            asin_users.append((uid, mu_white, {"source": meta_source, "n_reviews": meta_n_reviews}))
+                continue
+            mu = np.array(users_gauss[uid]["mu"], dtype=np.float64)
+            sigma_diag = np.array(users_gauss[uid]["sigma_diag"], dtype=np.float64)
+            meta_source = users_gauss[uid]["source"]
+            meta_n_reviews = users_gauss[uid]["n_reviews"]
+            asin_users.append((uid, mu, sigma_diag,
+                               {"source": meta_source, "n_reviews": meta_n_reviews}))
 
         n_users = len(asin_users)
         if n_users == 0:
@@ -349,7 +342,7 @@ def main():
             Z_q_list.append(z_white[0])
             valid_q_idx.append(qi)
         if not Z_q_list:
-            for uid, mu_white, gauss_info in asin_users:
+            for uid, mu, sigma_diag, gauss_info in asin_users:
                 n_no_pool_for_user += 1
                 selection_entries.append({
                     "asin": asin, "user_id": uid,
@@ -362,55 +355,51 @@ def main():
         Z_q_arr = np.stack(Z_q_list, axis=0)  # (n_valid_q, 48)
         n_valid_q = Z_q_arr.shape[0]
         cohort_mus = np.stack([au[1] for au in asin_users], axis=0)  # (n_users, 48)
-        # L2 distance matrix: (n_users, n_valid_q)
-        l2_white_matrix = np.linalg.norm(
-            cohort_mus[:, None, :] - Z_q_arr[None, :, :], axis=2)
+        cohort_sigmas = np.stack([au[2] for au in asin_users], axis=0)  # (n_users, 48)
+        # ---- 7a. Mahalanobis distance matrix d_Mahal(q, u) ----
+        # d²_Mahal = sum_d ((z_q - mu_u)² / sigma_u²)
+        diff = cohort_mus[:, None, :] - Z_q_arr[None, :, :]  # (n_users, n_valid_q, 48)
+        mahal_sq = (diff ** 2 / cohort_sigmas[:, None, :]).sum(axis=2)  # (n_users, n_valid_q)
+        mahal_dist = np.sqrt(np.maximum(mahal_sq, 0.0))  # numerical floor
 
-        # ---- 7b. Compute M_L2 per (user, query) ----
-        # d_self = l2_white_matrix[ui, qi]
-        # d_other = min over v != ui of l2_white_matrix[v, qi]
-        # For each query qi the cohort L2 to all users, then for user ui
-        # take min over v != ui.
-        d_other_l2 = np.zeros((n_users, n_valid_q))
+        # ---- 7b. Compute M_Mahal per (user, query) ----
+        # d_self = mahal_dist[ui, qi]
+        # d_other = min over v != ui of mahal_dist[v, qi]
+        d_other_mahal = np.zeros((n_users, n_valid_q))
         for qi in range(n_valid_q):
-            l2_q = l2_white_matrix[:, qi]  # (n_users,)
-            # For each user ui, d_other is min over v != ui of l2_q[v]
-            # Use argmin excluding ui: get second-smallest if self is smallest, else smallest
-            sorted_for_q = np.sort(l2_q)
-            is_self_min = (l2_q == sorted_for_q[0])
-            # For each ui: if ui is self-min → sorted_for_q[1], else → sorted_for_q[0]
-            # 边界: cohort 只有 1 个 user 时 sorted_for_q[1] 不存在, 用 sorted_for_q[0] (== self 距离) → M=0
+            d_q = mahal_dist[:, qi]
+            sorted_for_q = np.sort(d_q)
+            is_self_min = (d_q == sorted_for_q[0])
             if len(sorted_for_q) >= 2:
-                d_other_l2[:, qi] = np.where(is_self_min, sorted_for_q[1], sorted_for_q[0])
+                d_other_mahal[:, qi] = np.where(is_self_min, sorted_for_q[1], sorted_for_q[0])
             else:
                 # 单 user cohort: M=0 (no other user to compare)
-                d_other_l2[:, qi] = sorted_for_q[0]
-        M_L2 = d_other_l2 - l2_white_matrix  # (n_users, n_valid_q)
+                d_other_mahal[:, qi] = sorted_for_q[0]
+        M_mahal = d_other_mahal - mahal_dist  # (n_users, n_valid_q)
 
-        # ---- 7c. NEW GATE: M>0 AND d_self ≤ R_95 ----
-        gate_strict = (M_L2 > 0) & (l2_white_matrix <= R_95_PERCENTILE)
+        # ---- 7c. NEW GATE: M>0 AND d_self ≤ R_95 (Mahalanobis P95 = 8.073) ----
+        gate_strict = (M_mahal > 0) & (mahal_dist <= R_95_PERCENTILE)
 
         # ---- 7d. Per-user selection ----
-        for ui, (uid, mu_white, gauss_info) in enumerate(asin_users):
+        for ui, (uid, mu, sigma_diag, gauss_info) in enumerate(asin_users):
             source = gauss_info["source"]
-            # `gauss_info` is a small dict with source/n_reviews from local lookup; safe.
 
             cand_strict_mask = gate_strict[ui]
             if not cand_strict_mask.any():
                 # No candidate passes both gates → mark no_strict_candidate
-                # DO NOT fallback to L2-margin-max or nearest
-                best_qi = int(np.argmin(l2_white_matrix[ui]))
-                best_dist = float(l2_white_matrix[ui][best_qi])
-                best_margin = float(M_L2[ui][best_qi])
+                # DO NOT fallback to margin-max or nearest
+                best_qi = int(np.argmin(mahal_dist[ui]))
+                best_dist = float(mahal_dist[ui][best_qi])
+                best_margin = float(M_mahal[ui][best_qi])
                 method = "no_strict_candidate"
                 n_no_strict_candidate += 1
                 selected_q = None
             else:
-                avail_M = np.where(cand_strict_mask, M_L2[ui], -np.inf)
+                avail_M = np.where(cand_strict_mask, M_mahal[ui], -np.inf)
                 best_qi = int(np.argmax(avail_M))
-                best_dist = float(l2_white_matrix[ui][best_qi])
-                best_margin = float(M_L2[ui][best_qi])
-                method = "strict_personalized_l2_margin_max"
+                best_dist = float(mahal_dist[ui][best_qi])
+                best_margin = float(M_mahal[ui][best_qi])
+                method = "strict_personalized_mahal_margin_max"
                 n_strict_personalized += 1
                 # Map best_qi back to original strict_pool index
                 orig_qi = valid_q_idx[best_qi]
@@ -434,15 +423,16 @@ def main():
         json.dump({
             "config": {
                 "description": ("Stage 4 strict alignment: Strict Personalized Alignment Selection. "
-                                "Two-gate: M(q,u) > 0 (target user Rank@1) AND "
-                                "d_self(q,u) ≤ R_95=11.308 (query lies within "
-                                "real-history 95% radius). Then argmax M under gate. "
+                                "Two-gate: M(q,u) > 0 (target user Rank@1 in Mahalanobis) AND "
+                                "d_self(q,u) ≤ R_95=8.073 (Mahalanobis P95, sqrt(chi2(0.95, 48))). "
+                                "Then argmax M under gate. "
                                 "If no candidate passes both, mark 'no_strict_candidate' "
-                                "WITHOUT fallback to L2-margin-max."),
+                                "WITHOUT fallback to margin-max."),
                 "feature_subset": "F3_CoreStruct",
                 "pca_dim": PCA_DIM,
                 "R_95_threshold": R_95_PERCENTILE,
-                "gate_conditions": ["M > 0", f"d_self <= R_95={R_95_PERCENTILE}"],
+                "distance_metric": "mahalanobis (mu + sigma_diag from user_gaussians.json)",
+                "gate_conditions": ["M > 0", f"d_self <= R_95={R_95_PERCENTILE} (Mahalanobis P95)"],
                 "selection_logic": "argmax M under (M > 0 AND d_self ≤ R_95)",
                 "no_strict_candidate_handling": "no fallback — mark as no_strict_candidate",
             },
@@ -458,7 +448,7 @@ def main():
         log(f"    {m}: {n}")
 
     selected_entries = [e for e in selection_entries
-                        if e["selection_method"] == "strict_personalized_l2_margin_max"]
+                        if e["selection_method"] == "strict_personalized_mahal_margin_max"]
     no_strict = [e for e in selection_entries if e["selection_method"] == "no_strict_candidate"]
 
     log("\n  Stats on strict_personalized selected (n={}):".format(len(selected_entries)))
