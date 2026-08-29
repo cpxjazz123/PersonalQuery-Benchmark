@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
-"""End-to-end dataset construction for Syntax Subspace pipeline + copy_aware route.
+"""User cohort construction for Syntax Subspace pipeline.
 
-Step 1: extract_attrs
-    meta_Baby_Products_2023.jsonl.gz -> result/product_attributes.json
-    (结构化属性: details 中的短字符串 + top-level 兜底 Brand/Main Category/...)
-
-Step 2: scan_reviews
-    Baby_Products_2023.jsonl.gz 单次扫描, 同时累计:
-      - user_total[uid] = 评论总数
-      - asin_users[asin] = 评论过该 ASIN 的 user set
-      - user_per_asin_count[asin][uid] = (uid, asin) 关联计数
-      - all_pairs[(uid, asin)] = 全部 (user, asin) 关联, 用于 build_query_records
+Step 2: scan_reviews (single pass over Baby_Products_2023.jsonl.gz)
+    Returns:
+      - asin_users[asin]            -> {uid set} (commenters per ASIN)
+      - user_per_asin_count[asin]   -> Counter[uid -> count] (multi-review per ASIN)
+      - user_total[uid]             -> total reviews
+      - first_asin_per_user[uid]    -> first asin (供 query_records primary)
 
 Step 3: build_query_records
-    top-10K most active users × primary (user, asin) pair + product_attributes
+    top-K most-active users × primary asin × top-5 non-numeric attrs
     -> result/query_records_10k.json
-    (供 copy_aware_generate / copy_aware_train 使用, 属性选择策略:
-     ATTR_PRIORITY + MAX_ATTRS=5 + exclude_numeric=True)
+    (供 copy_aware_generate / copy_aware_train 使用;
+     Stage 1 vLLM pool 不再依赖此文件, 仅 legacy copy_aware 链路消费)
 
 Step 4: build_stage8_5_asins
-    heavy users (≥MIN_REVIEWS_PER_USER) × ASINs with ≥MIN_USERS_PER_ASIN
-    × top-10 users/ASIN × attrs_used (PREFERRED_ATTRS) filter
-    -> scratch2/stage8_5_asins_1409_u20.json
+    Top-N ASINs × ALL commenters × top-4 non-numeric attrs
+    -> scratch2/stage8_5_asins.json
     (供 Syntax Subspace pipeline 5 stages 使用)
+
+无用户级过滤 (用户指令 2026-08-29):
+  - MIN_TOTAL_WORDS / mean_wc ≥ 20 全部撤销
+  - 每个有至少 1 条评论的用户都进入 cohort
+  - 用户质量过滤推迟到 Stage 3 Gaussian fit + reliability filter
+
+属性字段选择复用 attribute_extraction/extract_product_attrs.select_top_attrs:
+  - Step 3: max_n = 5 (Step 3 默认)
+  - Step 4: max_n = 4 (Stage 4 prompt 上限)
 
 参数全部硬编码 (Rule 3), 不接受 CLI 参数.
 """
@@ -30,156 +34,48 @@ from __future__ import annotations
 
 import gzip
 import json
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SCRATCH = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades")
 
+# 让 build_user_cohort.py 能 import 兄弟目录 attribute_extraction/extract_product_attrs
+sys.path.insert(0, str(REPO_ROOT))
+from attribute_extraction.extract_product_attrs import select_top_attrs  # noqa: E402
+
 # === Inputs ===
 DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
 REVIEWS_GZ = DATA / "Baby_Products_2023.jsonl.gz"
-META_GZ = DATA / "meta_Baby_Products_2023.jsonl.gz"
 
 # === Outputs ===
-PRODUCT_ATTRS_JSON = REPO_ROOT / "result" / "product_attributes.json"
 QUERY_RECORDS_JSON = REPO_ROOT / "result" / "query_records_10k.json"
 STAGE8_5_ASINS_JSON = SCRATCH / "stage8_5_asins.json"
-
-# === Step 1 — extract_attrs 参数 ===
-MAX_STR_LEN = 200
-TOP_LEVEL_NUMERIC_FIELDS = ("average_rating", "rating_number", "price")
 
 # === Step 3 — build_query_records 参数 ===
 TOP_K_USERS = 10_000
 MAX_RECORDS = 10_000
-ATTR_PRIORITY = [
-    "Brand", "Main Category", "Item model number", "Manufacturer",
-    "Color", "Material", "Material Type", "Fabric Type", "Frame Material",
-    "Item Weight", "Product Dimensions", "Size", "Style", "Pattern", "Theme",
-    "Age Range (Description)", "Special Feature", "Target gender",
-    "Batteries required", "Number Of Items", "Is Discontinued By Manufacturer",
-    "Date First Available", "Country/Region of origin", "Country of Origin",
-    "Price", "Average Rating", "Rating Number",
-]
-MAX_ATTRS = 5
-MAX_ATTR_VALUE_LEN = 100
-EXCLUDE_NUMERIC_ATTRS = True
-_NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
-                     "item model number", "date first available",
-                     "package dimensions", "product dimensions",
-                     "minimum weight recommendation",
-                     "maximum weight recommendation",
-                     "batteries required", "is discontinued by manufacturer"}
 
 # === Step 4 — build_stage8_5_asins 参数 ===
-# 用户指令 2026-08-28: 删除 cohort user per ASIN 的所有硬阈值 (MIN_REVIEWS_PER_USER=20,
-# MIN_USERS_PER_ASIN=10, MAX_USERS_PER_ASIN=10)。
+# 用户指令 2026-08-28: 删除 cohort user per ASIN 的所有硬阈值
+# (MIN_REVIEWS_PER_USER=20, MIN_USERS_PER_ASIN=10, MAX_USERS_PER_ASIN=10)。
 # 用户指令 2026-08-29: 撤销所有用户级过滤 (MIN_TOTAL_WORDS=1000, mean_wc≥20)。
-# 每个有评论的用户都进入 cohort, 无 mean_wc / total_words 任何下限。
-# 用户质量过滤 (Gaussian fit reliability) 推迟到 Stage 3 之后,
-# 由 selection 阶段按 LBF/n_samples 过滤, 而不是 cohort 阶段。
-# Step 4 复用 Step 3 的 select_top_attrs(max_n=4) — 包含数值过滤 + 4 上限
-TOP_N_ASINS = 10_000   # 去掉 1409 硬上限, 取全部候选
+# 用户质量 (Gaussian reliability) 推迟到 Stage 3 + reliability filter。
+TOP_N_ASINS = 10_000  # 去掉 1409 硬上限, 取全部候选
 MAX_ATTRS_FOR_LLM = 4
 
 
 def log(msg: str) -> None:
-    print(f"[build_dataset] {msg}", flush=True)
+    print(f"[build_user_cohort] {msg}", flush=True)
 
 
 # ============================================================
-# Step 1 — extract_attrs
+# Step 2 — scan_reviews (single pass)
 # ============================================================
-def extract_attrs(d: dict) -> dict:
-    details = d.get("details")
-    if not isinstance(details, dict):
-        details = {}
-    out: dict = {}
-
-    # details 中的所有短字符串字段
-    for k, v in details.items():
-        if not isinstance(v, str):
-            continue
-        s = v.strip()
-        if not s or len(s) > MAX_STR_LEN:
-            continue
-        out[k] = s
-
-    # 用户指令 2026-08-27: 删除 Brand fallback (Rule 7 禁止降级)
-    # 原代码: details 无 Brand → store → title[0], 三层降级
-    # 现: 仅从 details 取; Brand 缺失则 out 无 Brand 键,
-    # 下游 select_top_attrs 按 ATTR_PRIORITY 跳过, 不影响其他字段
-
-    # top-level 结构化字段
-    main_cat = d.get("main_category")
-    if isinstance(main_cat, str) and main_cat.strip():
-        out["Main Category"] = main_cat.strip()
-
-    for field in TOP_LEVEL_NUMERIC_FIELDS:
-        v = d.get(field)
-        if v is None or v == "":
-            continue
-        out[field.replace("_", " ").title().replace(" ", " ")] = v
-
-    return out
-
-
-def step1_extract_attrs() -> dict[str, dict]:
-    log("=== Step 1: extract_attrs ===")
-    product_attrs: dict[str, dict] = {}
-    n_total = 0
-    n_with_attrs = 0
-    n_with_details = 0
-    n_top_level_only = 0
-    field_counter: dict[str, int] = {}
-
-    with gzip.open(META_GZ, "rt") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            d = json.loads(line)
-            n_total += 1
-            asin = d.get("parent_asin")
-            if not asin:
-                continue
-            attrs = extract_attrs(d)
-            if attrs:
-                product_attrs[asin] = attrs
-                n_with_attrs += 1
-                has_details = any(
-                    k not in ("Brand", "Main Category", "Average Rating",
-                              "Rating Number", "Price")
-                    for k in attrs
-                )
-                if has_details:
-                    n_with_details += 1
-                else:
-                    n_top_level_only += 1
-                for k in attrs:
-                    field_counter[k] = field_counter.get(k, 0) + 1
-
-    PRODUCT_ATTRS_JSON.parent.mkdir(parents=True, exist_ok=True)
-    PRODUCT_ATTRS_JSON.write_text(
-        json.dumps(product_attrs, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    log(f"  total metadata products={n_total}, with attrs={n_with_attrs}")
-    log(f"    details-based={n_with_details}, top-level only={n_top_level_only}")
-    log(f"    distinct attr fields={len(field_counter)}")
-    log(f"  wrote → {PRODUCT_ATTRS_JSON}")
-    return product_attrs
-
-
-# ============================================================
-# Step 2 — scan_reviews
-# ============================================================
-def step2_scan_reviews(
-    product_attrs: dict[str, dict],
-) -> tuple[dict[str, set[str]], dict[str, Counter[str]], Counter[str],
-           Counter[str], dict[str, str]]:
-    """单次扫描 reviews: 返回
+def step2_scan_reviews() -> tuple[dict[str, set[str]], dict[str, Counter[str]],
+                                  Counter[str], dict[str, str]]:
+    """单次扫描 reviews, 返回
       - asin_users: asin -> {uid set}
       - user_per_asin_count: asin -> Counter[uid -> count]
       - user_total: Counter[uid -> total reviews]
@@ -200,7 +96,6 @@ def step2_scan_reviews(
                 continue
             uid = r.get("reviewerID") or r.get("user_id")
             asin = r.get("asin")
-            text = r.get("text") or ""
             if not uid or not asin:
                 continue
             user_total[uid] += 1
@@ -213,59 +108,13 @@ def step2_scan_reviews(
                 log(f"  {n/1e6:.1f}M records")
 
     log(f"  done: {n} records, {len(asin_users)} products, "
-        f"{len(user_total)} users (no word-count filter)")
+        f"{len(user_total)} users (no user-level filter)")
     return asin_users, user_per_asin_count, user_total, first_asin_per_user
 
 
 # ============================================================
 # Step 3 — build_query_records
 # ============================================================
-def has_digit(s: str) -> bool:
-    return any(ch.isdigit() for ch in s)
-
-
-def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
-    """与原 build_query_records.py::select_top_attrs 一致的字段选择逻辑.
-    用户指令: 去掉含数字的 value, 上限 max_n (Step 3 默认 5, Step 4 用 4).
-    """
-    def _skip(k: str, s: str) -> bool:
-        if not s or len(s) > MAX_ATTR_VALUE_LEN:
-            return True
-        if EXCLUDE_NUMERIC_ATTRS:
-            k_low = k.lower()
-            if any(nk in k_low for nk in _NUMERIC_KEYWORDS):
-                return True
-            if has_digit(s):
-                return True
-        return False
-
-    out: dict = {}
-    used: set[str] = set()
-    for k in ATTR_PRIORITY:
-        v = asin_attrs.get(k)
-        if not v:
-            continue
-        s = str(v).strip()
-        if _skip(k, s):
-            continue
-        out[k] = s
-        used.add(k)
-        if len(out) >= max_n:
-            return out
-    for k, v in asin_attrs.items():
-        if k in used:
-            continue
-        if v is None:
-            continue
-        s = str(v).strip()
-        if _skip(k, s):
-            continue
-        out[k] = s
-        if len(out) >= max_n:
-            break
-    return out
-
-
 def step3_build_query_records(
     product_attrs: dict[str, dict],
     user_total: Counter[str],
@@ -286,6 +135,7 @@ def step3_build_query_records(
         if not asin_attrs:
             n_no_attrs += 1
             continue
+        # Step 3: max_n 默认 = 5 (select_top_attrs 默认参数)
         attrs = select_top_attrs(asin_attrs)
         if not attrs:
             n_no_attrs += 1
@@ -350,7 +200,7 @@ def step4_build_stage8_5_asins(
     skipped_no_attrs = 0
     for asin, _ in ranked:
         adoc = product_attrs.get(asin) or {}
-        # 复用 Step 3 的 select_top_attrs: 去掉含数字的 value, 上限 4 个
+        # Step 4: max_n = MAX_ATTRS_FOR_LLM = 4 (Stage 4 prompt 上限)
         attrs_used = select_top_attrs(adoc, max_n=MAX_ATTRS_FOR_LLM)
         if len(attrs_used) < 1:
             skipped_no_attrs += 1
@@ -400,21 +250,28 @@ def step4_build_stage8_5_asins(
 # Main
 # ============================================================
 def main() -> None:
-    log("=== build_dataset.py — 4-step end-to-end ===")
+    log("=== build_user_cohort.py — Steps 2-4 ===")
+    log("(Step 1 由 attribute_extraction/extract_product_attrs.py 单独跑)")
 
-    # Step 1
-    product_attrs = step1_extract_attrs()
+    # 必须先跑 Step 1 生成 product_attributes.json (依赖此文件读 attrs)
+    product_attrs_path = REPO_ROOT / "result" / "product_attributes.json"
+    if not product_attrs_path.exists():
+        log(f"ERROR: {product_attrs_path} 不存在")
+        log("请先跑: python attribute_extraction/extract_product_attrs.py")
+        raise SystemExit(1)
+    product_attrs = json.loads(product_attrs_path.read_text(encoding="utf-8"))
+    log(f"  loaded {len(product_attrs)} ASIN attrs from {product_attrs_path.name}")
 
     # Step 2
     asin_users, user_per_asin_count, user_total, first_asin_per_user = \
-        step2_scan_reviews(product_attrs)
+        step2_scan_reviews()
 
-    # Step 3 (用 Step 2 的 in-memory 数据, 不再依赖 stage1 中间文件)
+    # Step 3 (用 Step 2 的 in-memory 数据)
     step3_build_query_records(product_attrs, user_total, first_asin_per_user)
 
     # Step 4
     step4_build_stage8_5_asins(product_attrs, asin_users,
-                                user_per_asin_count, user_total)
+                               user_per_asin_count, user_total)
 
     log("=== ALL DONE ===")
 

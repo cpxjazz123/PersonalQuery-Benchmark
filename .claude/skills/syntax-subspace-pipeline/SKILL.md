@@ -30,17 +30,26 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
 
 ## 规范目录结构(2026-08-29 整理后)
 
-**每个功能目录 = 1 个主脚本**(共 6 个)。所有 ablation/legacy 脚本已归档删除,git history 保留可查:
+**每个功能目录按职责划分,无 ablation/legacy 残留**。所有冗余脚本已归档删除,git history 保留可查:
+
+- `attribute_extraction/` `gaussian/` `gen_query/` `select_query/` `syntactic_evaluation/`:主脚本 + (按需)数据准备脚本
+- `common/` / `syntactic_analysis/`:共享底座或预留目录
 
 ```
-attribute_extraction/   build_dataset.py                          (上游 dataset 构造)
+attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
 common/                 syntax_subspace_utils.py                  (318d features + paths)
 gaussian/               syntax_subspace_user_gaussians.py         (Stage 3: per-user Gaussian)
+                        build_user_cohort.py                      (Steps 2-4: review scan + query_records + stage8_5 cohort)
 gen_query/              syntax_subspace_pool_regen.py             (Stage 1+2: pool + features, --stage)
 select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 4: v6m main)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
+
+**目录职责(2026-08-29 拆分后)**:
+- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user_cohort.py` 的 Step 3/4 共用。
+- `gaussian/`: 用户相关操作。`build_user_cohort.py`(Steps 2-4: 评论扫描 + query_records + cohort)负责数据准备,`syntax_subspace_user_gaussians.py`(Stage 3)负责 per-user Gaussian 拟合,二者解耦但都在用户域。
+- **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user_cohort.py`(Steps 2-4)。`build_user_cohort.py` 会自动检测 `result/product_attributes.json`,缺失则报错。
 
 ## 前置检查
 
@@ -89,7 +98,16 @@ nvidia-smi --query-gpu=memory.free --format=csv,noheader
 ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 ```
 
-不存在则需先跑 `attribute_extraction/build_dataset.py` 生成上游数据。
+不存在则需先跑两段上游数据构造:
+```bash
+# Step 1 — 商品属性抽取
+/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
+  attribute_extraction/extract_product_attrs.py
+
+# Steps 2-4 — 用户 cohort 构造(扫描 reviews + query_records + stage8_5_asins)
+/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
+  gaussian/build_user_cohort.py
+```
 
 ## 路径约定(Rule 13/16)
 
