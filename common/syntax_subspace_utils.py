@@ -64,8 +64,11 @@ META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl.gz"
 POOL_OUT = RESULT / "gen_query/pool.json"
 POOL_IN = POOL_OUT
 
-# --- Stage 2 (intermediate cache) → SCRATCH (下游 Stage 3 读取) ---
-FEAT_CACHE = SCRATCH / "stage7b_query_features.jsonl.gz"
+# --- Stage 2 (intermediate cache) → select_query/ 目录下 (用户指令 2026-08-29)
+# 用户指令 2026-08-29: 把 stage7b_query_features.jsonl.gz 从 scratch2 搬到
+# select_query/ 下, 与 Stage 2 features + Stage 4 selection 同模块。
+# Stage 3 Gaussian 通过 select_query.FEAT_CACHE 路径同步读取。
+FEAT_CACHE = REPO_ROOT / "select_query" / "stage7b_query_features.jsonl.gz"
 
 # --- Stage 3 (gaussian/) → result ---
 GAUSSIANS_OUT = RESULT / "gaussian/user_gaussians.json"

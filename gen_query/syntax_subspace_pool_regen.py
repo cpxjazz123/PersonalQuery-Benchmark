@@ -1,18 +1,19 @@
-"""Syntax Subspace — Stage 1 (pool regen) + Stage 2 (features).
+"""Syntax Subspace — Stage 1 (pool regen only).
 
-归 gen_query/: 用 vLLM LLM 为 100 个 ASIN 各生成 K=50 共享候选查询池,
-并对生成的查询抽取 spaCy 182d 句法特征(JSONL.gz 缓存)。
+用户指令 2026-08-29: Stage 2 spaCy features 已合并到 select_query/ 下
+(select_query/syntax_subspace_select_v6m_strict_alignment.py stage_features()),
+本脚本只负责 Stage 1 vLLM pool generation。
+
+归 gen_query/: 用 vLLM LLM 为 100 个 ASIN 各生成 K=50 共享候选查询池。
 
 用法:
   python gen_query/syntax_subspace_pool_regen.py --stage pool_regen
-  python gen_query/syntax_subspace_pool_regen.py --stage features
 
 I/O 路径:
   输入: stage8_5_asins.json
   输出: stage8_5_pool.json          (Stage 1)
-        stage7b_query_features.jsonl.gz (Stage 2)
 
-共享工具 (log, feat_key, paths, hyperparams) 来自:
+共享工具 (log, paths, hyperparams) 来自:
   common/syntax_subspace_utils.py
 """
 
@@ -500,110 +501,27 @@ def stage_pool_regen():
 
 
 # ===========================================================================
-# STAGE 2 — FEATURES
-# ===========================================================================
-
-def stage_features():
-    log("=== STAGE 2 — FEATURES ===")
-
-    from syntax_subspace_utils import _syntax_subspace_prepare
-    P = _syntax_subspace_prepare()
-    fnames = P["feature_names_ordered"]
-    log(f"  fnames: {len(fnames)}")
-
-    log(f"loading {POOL_IN}")
-    pool_data = json.load(open(POOL_IN))
-    pools = pool_data["pools"]
-    all_queries = []
-    for asin, qs in pools.items():
-        for q in qs:
-            all_queries.append(q["query"])
-    log(f"  total pool queries: {len(all_queries)}")
-
-    feat_map = {}
-    if FEAT_CACHE.exists():
-        with gzip.open(FEAT_CACHE, "rt", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                rec = json.loads(line)
-                feat_map[rec["k"]] = rec["v"]
-    log(f"  cache keys: {len(feat_map)}")
-
-    missing_q = [q for q in all_queries if feat_key(q) not in feat_map]
-    log(f"  missing: {len(missing_q)}")
-
-    if not missing_q:
-        log("  no new features needed")
-        return
-
-    import spacy
-    from syntactic_features import per_sentence_features_v2
-    nlp = spacy.load("en_core_web_sm")
-    # 用户指令 2026-08-27: 关闭 features 用不到的 spaCy 组件, 提速 30-40%
-    for comp in ("ner", "lemmatizer", "attribute_ruler"):
-        if comp in nlp.pipe_names:
-            nlp.disable_pipe(comp)
-
-    log(f"  extracting features for {len(missing_q)} queries via spaCy pipe (n_process=8, batch=512)...")
-    new_unique = sorted(set(missing_q))
-    new_entries = []
-    n_skip = 0
-    docs = list(nlp.pipe(new_unique, batch_size=512, n_process=8))
-    for i, doc in enumerate(docs):
-        q = new_unique[i]
-        k = feat_key(q)
-        try:
-            feats = per_sentence_features_v2(doc)
-            feats = feats if feats is not None else {}
-        except Exception:
-            n_skip += 1
-            continue
-        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
-        filtered = {n: numeric.get(n, 0.0) for n in fnames}
-        feat_map[k] = filtered
-        new_entries.append({"k": k, "v": filtered})
-        if (i + 1) % 1000 == 0:
-            log(f"    {i + 1}/{len(new_unique)}")
-
-    log(f"  extracted: {len(new_entries)}, skipped: {n_skip}")
-
-    with gzip.open(FEAT_CACHE, "wt", encoding="utf-8") as f:
-        f.write("# spaCy 182d sentence features (key=sha1(text), v=filtered dict)\n")
-        for k, v in feat_map.items():
-            f.write(json.dumps({"k": k, "v": v}) + "\n")
-    log(f"  saved cache: {len(feat_map)} entries")
-
-
-# ===========================================================================
 # MAIN
 # ===========================================================================
 
 STAGE_FUNCTIONS = {
     "pool_regen": stage_pool_regen,
-    "features": stage_features,
 }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Syntax Subspace — gen_query (pool regen + features)")
+    parser = argparse.ArgumentParser(description="Syntax Subspace — gen_query (Stage 1 pool regen only)")
     parser.add_argument(
         "--stage",
         required=True,
-        choices=list(STAGE_FUNCTIONS.keys()) + ["all"],
-        help="Which stage to run",
+        choices=list(STAGE_FUNCTIONS.keys()),
+        help="Which stage to run (Stage 2 features 已迁到 select_query/)",
     )
     args = parser.parse_args()
 
     log(f"=== syntax_subspace_pool_regen.py — stage={args.stage} ===")
 
-    if args.stage == "all":
-        for stage_name in STAGE_FUNCTIONS:
-            log(f"\n>>> Running stage: {stage_name}")
-            STAGE_FUNCTIONS[stage_name]()
-    else:
-        STAGE_FUNCTIONS[args.stage]()
+    STAGE_FUNCTIONS[args.stage]()
 
 
 if __name__ == "__main__":

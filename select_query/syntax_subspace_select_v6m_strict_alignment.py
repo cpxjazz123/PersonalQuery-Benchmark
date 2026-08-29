@@ -1,30 +1,35 @@
-"""Stage 4 v6m — Strict Personalized Alignment Selection (用户指令 2026-08-28).
+"""Stage 2 + Stage 4 — spaCy features + Strict Personalized Alignment Selection.
 
-用户原话:
-> 选到"在 cohort 里最像目标用户",并且"绝对上也确实落在目标用户正常句法范围内"的 Query。
->
-> 严格候选集:
->   Q_strict = {q: M(q,u) > 0 AND d_self(q,u) ≤ R_95}
-> 选 M 最大的那条:
->   q*_u = argmax_q∈Q_strict M(q,u)
->
-> 如果没有任何 Query 同时满足两个条件,就标记为 no_strict_candidate,
-> 而不是硬选一个"相对最好但实际上并不像用户"的句子。
+合并 Stage 2 features 和 Stage 4 v6m strict alignment 到单一脚本(用户指令 2026-08-29):
 
-两步 gate + 一步排序:
-  1. M(q,u) > 0              (target user Rank@1 in cohort)
-  2. d_self(q,u) ≤ R_95       (query 落在真实用户历史 95% 距离内)
-  3. argmax M under Q_strict
+Stage 2 (spaCy features):
+  - 读 result/gen_query/pool.json → pool queries
+  - 缺失 query → spaCy nlp.pipe(batch) 抽 318d 句法特征
+  - 写 stage7b_query_features.jsonl.gz(本目录下,不是 scratch2)
+  - Stage 3 Gaussian 同步读取此 cache
 
-R_95 = 11.308 from Stage 5C percentile analysis on 298740 real history
-sentences (whitened L2 to user-mean).
-
-复用 K=200 pool + F3_CoreStruct + PCA48 + whitening 已有 infrastructure;
-不重新 generate, 只重 selection。
+Stage 4 v6m (strict alignment):
+  - 用户原话:
+    > 选到"在 cohort 里最像目标用户",并且"绝对上也确实落在目标用户正常句法范围内"的 Query。
+    >
+    > 严格候选集:
+    >   Q_strict = {q: M(q,u) > 0 AND d_self(q,u) ≤ R_95}
+    > 选 M 最大的那条:
+    >   q*_u = argmax_q∈Q_strict M(q,u)
+    >
+    > 如果没有任何 Query 同时满足两个条件,就标记为 no_strict_candidate。
+  - 两步 gate + 一步排序:
+    1. M(q,u) > 0              (target user Rank@1 in cohort)
+    2. d_self(q,u) ≤ R_95       (query 落在真实用户历史 95% 距离内)
+    3. argmax M under Q_strict
+  - R_95 = 11.308 from Stage 5C percentile analysis on 298740 real history
+    sentences (whitened L2 to user-mean).
+  - 复用 K=200 pool + F3_CoreStruct + PCA48 + whitening 已有 infrastructure。
 
 输出:
-  /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_v6m.json
-  /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_v6m_stats.json
+  select_query/stage7b_query_features.jsonl.gz (Stage 2 cache, in-place)
+  scratch2/stage8_5_selection.json (Stage 4 main)
+  scratch2/stage8_5_selection_stats.json (Stage 4 stats)
 """
 
 from __future__ import annotations
@@ -38,24 +43,59 @@ import zlib
 from pathlib import Path
 
 import numpy as np
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from syntax_subspace_utils import (  # noqa: E402
     ASINS_IN, FEAT_CACHE, GAUSSIANS_IN, POOL_IN,
-    PCA_DIM, PCA_SEED, log,
+    PCA_DIM, PCA_SEED, log, feat_key,
 )
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "select_query"))
-from syntax_subspace_repr_sweep import (  # noqa: E402
-    FEATURE_SUBSETS, select_feature_names, fit_pca,
-)
-from syntax_subspace_select import apply_feature_subset  # noqa: E402
+# User directive 2026-08-29: inlined FEATURE_SUBSETS / select_feature_names /
+# fit_pca here because syntax_subspace_repr_sweep was archived (用户指令
+# "1 script per directory"). 旧 import 已被删除.
+
+# --- inlined from archived syntax_subspace_repr_sweep.py ---
+NGRAM_PREFIXES = ("open_", "close_", "posbg_", "postg_", "depbg_")
+SEMANTIC_TAGS = ("opener", "stype", "has_passive", "is_interrog", "has_cond",
+                 "acl", "advcl", "ccomp", "xcomp", "relcl")
+
+FEATURE_SUBSETS = {
+    "F1_Base": dict(exclude_prefixes=(), exclude_exact=()),
+    "F2_DropSeq": dict(exclude_prefixes=NGRAM_PREFIXES, exclude_exact=()),
+    "F3_CoreStruct": dict(exclude_prefixes=NGRAM_PREFIXES,
+                          exclude_exact=SEMANTIC_TAGS + ("opener",)),
+    "F4_TagOnly": dict(exclude_prefixes=NGRAM_PREFIXES,
+                       exclude_exact=SEMANTIC_TAGS),
+}
+
+
+def select_feature_names(all_names: list[str], exclude_prefixes: tuple,
+                         exclude_exact: tuple) -> list[str]:
+    """Apply prefix/exact filter, return ordered feature names."""
+    keep = []
+    for n in all_names:
+        if any(n.startswith(p) for p in exclude_prefixes):
+            continue
+        if n in exclude_exact:
+            continue
+        keep.append(n)
+    return keep
+
+
+def fit_pca(X_train, n_dim, seed):
+    """Fit PCA(d) with given seed, return pca, sqrt_lambda."""
+    pca = PCA(n_components=n_dim, random_state=seed)
+    pca.fit(X_train)
+    return pca, np.sqrt(pca.explained_variance_)
+
 
 # User instruction 2026-08-28: strict alignment threshold
 R_95_PERCENTILE = 11.308  # from Stage 5C, real-history whitened L2 P95
 
 POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
-FEAT_CACHE_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz"
+# 用户指令 2026-08-29: FEAT_CACHE 改到 select_query/ 目录下(Stage 3 Gaussian 也同步)
+FEAT_CACHE_LOCAL = str(FEAT_CACHE)  # from syntax_subspace_utils
 # 主 pipeline 已切到 v6m (用户指令 2026-08-28): 直接覆盖 canonical paths,
 # 让 Stage 5 retrieval 默认读取 v6m 数据。备份在 *_v6k_main_backup.json。
 SEL_OUT = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json"
@@ -102,12 +142,96 @@ def sha1_of(text: str) -> str:
     return hashlib.sha1(text.lower().encode("utf-8")).hexdigest()
 
 
+def stage_features():
+    """Stage 2 — extract spaCy 318d features for pool queries.
+
+    用户指令 2026-08-29: 从 gen_query/syntax_subspace_pool_regen.py --stage features
+    迁移过来, cache 文件路径同步移到 select_query/ 目录下。
+    Stage 3 Gaussian (gaussian/build_user.py) 通过 FEAT_CACHE 常量同步读这个文件。
+    """
+    log("=== STAGE 2 — FEATURES ===")
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
+    from syntax_subspace_utils import _syntax_subspace_prepare
+    P = _syntax_subspace_prepare()
+    fnames = P["feature_names_ordered"]
+    log(f"  fnames: {len(fnames)}")
+
+    log(f"loading {POOL_IN}")
+    pool_data = json.load(open(POOL_IN))
+    pools = pool_data["pools"]
+    all_queries = []
+    for asin, qs in pools.items():
+        for q in qs:
+            all_queries.append(q["query"])
+    log(f"  total pool queries: {len(all_queries)}")
+
+    feat_map = {}
+    if Path(FEAT_CACHE_LOCAL).exists():
+        with gzip.open(FEAT_CACHE_LOCAL, "rt", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                rec = json.loads(line)
+                feat_map[rec["k"]] = rec["v"]
+    log(f"  cache keys: {len(feat_map)}")
+
+    missing_q = [q for q in all_queries if feat_key(q) not in feat_map]
+    log(f"  missing: {len(missing_q)}")
+
+    if not missing_q:
+        log("  no new features needed")
+        return
+
+    import spacy
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
+    from syntactic_features import per_sentence_features_v2
+    nlp = spacy.load("en_core_web_sm")
+    # 用户指令 2026-08-27: 关闭 features 用不到的 spaCy 组件, 提速 30-40%
+    for comp in ("ner", "lemmatizer", "attribute_ruler"):
+        if comp in nlp.pipe_names:
+            nlp.disable_pipe(comp)
+
+    log(f"  extracting features for {len(missing_q)} queries via spaCy pipe (n_process=8, batch=512)...")
+    new_unique = sorted(set(missing_q))
+    new_entries = []
+    n_skip = 0
+    docs = list(nlp.pipe(new_unique, batch_size=512, n_process=8))
+    for i, doc in enumerate(docs):
+        q = new_unique[i]
+        k = feat_key(q)
+        try:
+            feats = per_sentence_features_v2(doc)
+            feats = feats if feats is not None else {}
+        except Exception:
+            n_skip += 1
+            continue
+        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
+        filtered = {n: numeric.get(n, 0.0) for n in fnames}
+        feat_map[k] = filtered
+        new_entries.append({"k": k, "v": filtered})
+        if (i + 1) % 1000 == 0:
+            log(f"    {i + 1}/{len(new_unique)}")
+
+    log(f"  extracted: {len(new_entries)}, skipped: {n_skip}")
+
+    with gzip.open(FEAT_CACHE_LOCAL, "wt", encoding="utf-8") as f:
+        f.write("# spaCy 182d sentence features (key=sha1(text), v=filtered dict)\n")
+        for k, v in feat_map.items():
+            f.write(json.dumps({"k": k, "v": v}) + "\n")
+    log(f"  saved cache: {len(feat_map)} entries → {FEAT_CACHE_LOCAL}")
+
+
 def main():
     log_start = time.time()
-    log("=== Stage 4 v6m: Strict Personalized Alignment Selection ===")
+    log("=== Stage 2 + Stage 4 v6m: spaCy features + Strict Personalized Alignment ===")
     log(f"  R_95 (hard threshold) = {R_95_PERCENTILE:.3f}")
     log(f"  Gate: M(q,u) > 0 AND d_self(q,u) ≤ R_95")
     log(f"  Selection: argmax M under gate (strict personalized subset)")
+
+    # ---- Stage 2 — spaCy features (cache to select_query/) ----
+    stage_features()
 
     # ---- 1. Load pool K=200 ----
     log("\n=== 1. Loading K=200 pool ===")

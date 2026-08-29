@@ -37,6 +37,9 @@ nohup.out
 *_query.json
 *.cache/
 __query_cache__/
+# select_query/ 大型 intermediate cache (Stage 2 spaCy features, ~250MB)
+# 生成代码路径:`select_query/syntax_subspace_select_v6m_strict_alignment.py` 启动时自动跑 Stage 2
+select_query/*.jsonl.gz
 
 # Distribution artefacts
 *.pdf

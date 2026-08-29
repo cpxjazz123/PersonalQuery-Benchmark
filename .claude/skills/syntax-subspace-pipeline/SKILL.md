@@ -41,8 +41,8 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
 attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
 common/                 syntax_subspace_utils.py                  (318d features + paths)
 gaussian/               build_user.py                             (Phase 1: Steps 2+4 cohort + Phase 2: Stage 3 Gaussian)
-gen_query/              syntax_subspace_pool_regen.py             (Stage 1+2: pool + features, --stage)
-select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 4: v6m main)
+gen_query/              syntax_subspace_pool_regen.py             (Stage 1: pool generation only)
+select_query/           syntax_subspace_select_v6m_strict_alignment.py  (Stage 2 spaCy features + Stage 4 v6m)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
@@ -115,7 +115,10 @@ ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 ## 路径约定(Rule 13/16)
 
 - **Inputs**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json` + `data/`):只读
-- **Intermediate cache**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage7b_query_features.jsonl.gz` + `stage8_5_selection.json` + `stage8_5_retrieval_per_query.json` + `multiretrieval_embeds/<retr_name>/`):下游 stage 读取
+- **Intermediate cache**:
+  - `select_query/stage7b_query_features.jsonl.gz`(用户指令 2026-08-29: Stage 2 cache 与 Stage 4 同模块,搬到 `select_query/` 目录下)
+  - `scratch2/stage8_5_selection.json` + `stage8_5_selection_stats.json`(Stage 4)
+  - `scratch2/stage8_5_retrieval_per_query.json` + `multiretrieval_embeds/<retr_name>/`(Stage 5)
 - **Final results**(`/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/<name>.json`):
   - `result/gen_query/pool.json`
   - `result/gaussian/user_gaussians.json`
@@ -154,22 +157,24 @@ done
 
 ### Stage 2: spaCy features(Stage 2 of 5)
 
+用户指令 2026-08-29:Stage 2 已合并到 `select_query/syntax_subspace_select_v6m_strict_alignment.py`,与 Stage 4 同脚本,跑 select_query 时自动先跑 Stage 2。无需单独运行 Stage 2 命令。
+
+```bash
+# Stage 2 自动作为 select_query main() 的第一阶段执行
+# 读 result/gen_query/pool.json → spaCy nlp.pipe(batch) → 写 select_query/stage7b_query_features.jsonl.gz
+```
+
+**完成标志**:`stage2_features.log` 含 `saved cache: ...select_query/stage7b_query_features.jsonl.gz`(intermediate cache,在 `select_query/` 目录,与 Stage 4 同模块)。Stage 3 Gaussian 通过 `common.FEAT_CACHE` 常量同步读取此路径。
+
+**单独跑 Stage 2**(调试用):
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
-nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  gen_query/syntax_subspace_pool_regen.py --stage features \
-  > /home/wlia0047/hj82_scratch2/wenyu/logs/stage2_features.log 2>&1 &
+/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python -c "
+import sys; sys.path.insert(0, '.')
+from select_query.syntax_subspace_select_v6m_strict_alignment import stage_features
+stage_features()
+"
 ```
-
-**轮询**:
-```bash
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  sleep 60; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage2_features.log
-  if grep -q "saved cache:" /home/wlia0047/hj82_scratch2/wenyu/logs/stage2_features.log; then break; fi
-done
-```
-
-**完成标志**:`stage2_features.log` 含 `saved cache: ...stage7b_query_features.jsonl.gz`(intermediate cache,在 scratch2)
 
 ### Stage 3: per-user Gaussians(Stage 3 of 5)
 
@@ -195,6 +200,7 @@ done
 ### Stage 4: v6m Mahalanobis strict alignment(Stage 4 of 5)
 
 v6m 是当前 main pipeline:PCA48 whitening + R_99 from real historical + L2 margin。
+**Stage 2 spaCy features 自动作为 main() 第一阶段执行**(合并到 2026-08-29)。
 无参数(规则 3),直接跑:
 
 ```bash
@@ -208,11 +214,14 @@ nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
 ```bash
 for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 30; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage4_select.log
-  if grep -qE "wrote →|Stage 4" /home/wlia0047/hj82_scratch2/wenyu/logs/stage4_select.log; then break; fi
+  if grep -qE "wrote →|STAGE 2|Stage 4" /home/wlia0047/hj82_scratch2/wenyu/logs/stage4_select.log; then break; fi
 done
 ```
 
-**完成标志**:`stage4_select.log` 含 `wrote → ...scratch2/stage8_5_selection.json`(intermediate cache)+ `stage8_5_selection_stats.json`(~6KB 统计,6357 strict personalized + 15318 no_strict_candidate)
+**完成标志**:`stage4_select.log` 含:
+- `STAGE 2 — FEATURES` + `saved cache: ...select_query/stage7b_query_features.jsonl.gz`
+- `wrote → ...scratch2/stage8_5_selection.json`(intermediate cache)
+- `stage8_5_selection_stats.json`(~6KB 统计,6357 strict personalized + 15318 no_strict_candidate)
 
 ### Stage 5: 7-retriever 评估 + minilm-canonical sim09 volatility(Stage 5 of 5)
 
@@ -259,7 +268,7 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 
 期望产物:
 - `result/gen_query/pool.json`(Stage 1)
-- `scratch2/stage7b_query_features.jsonl.gz`(Stage 2 intermediate)
+- `select_query/stage7b_query_features.jsonl.gz`(Stage 2 intermediate,在 `select_query/` 下)
 - `result/gaussian/user_gaussians.json`(Stage 3)
 - `scratch2/stage8_5_selection.json` + `scratch2/stage8_5_selection_stats.json`(Stage 4 intermediate)
 - `result/syntactic_evaluation/retrieval_summary.json`(Stage 5 Part B,7 retriever volatility)
