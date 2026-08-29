@@ -32,7 +32,7 @@ import gzip
 import hashlib as _hl
 import json
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -134,26 +134,23 @@ def _syntax_subspace_prepare(
 ) -> dict[str, Any]:
     """Stage 1 / Stage 2 共用的数据准备 (加载 318d cache + 标准化 + 切分).
 
-    参数:
-      sents_path / feat_cache_path: 覆盖默认路径
-      feature_names_ordered: 传入则强制使用该特征顺序 (保证与冻结 PCA 一致)
+    User directive 2026-08-29: 精简返回字段, 只保留 Stage 4 strict alignment
+    chain 实际消费的 keys:
+      X / X_scaled / user_ids / asins / train_idx / scaler /
+      user_to_indices / user_id_list / feature_names_ordered
 
-    返回 dict, 含:
-      X (原始) / X_scaled / Y_probes / user_ids / asins / train_idx / scaler /
-      rewrites_by_user_text / user_to_indices / user_id_list / pair_idx / raw_dist /
-      top_asins / asin_to_label / label_y / leak_train / leak_test /
-      probe_train_idx / probe_test_idx / PROBE_TARGETS / feature_names_ordered / rng
+    已删除 (zero consumer):
+      Y_probes, rewrites_by_user_text, pair_idx, raw_dist, top_asins,
+      asin_to_label, label_y, leak_train, leak_test, probe_train_idx,
+      probe_test_idx, PROBE_TARGETS, rng
     """
     spacy_sents = Path(sents_path) if sents_path else RESIDUAL_SCRATCH / "sentences_for_rewrite_10k.jsonl"
     feat_cache = Path(feat_cache_path) if feat_cache_path else RESIDUAL_SCRATCH / "sentences_318d_cache.jsonl.gz"
-    rewrites_path = RESIDUAL_SCRATCH / "rewrites_10k.jsonl"
 
     if not spacy_sents.exists():
         raise FileNotFoundError(f"missing: {spacy_sents}")
     if not feat_cache.exists():
         raise FileNotFoundError(f"missing: {feat_cache}")
-    if not rewrites_path.exists():
-        raise FileNotFoundError(f"missing: {rewrites_path}")
 
     # --- 1. Load feature cache ---
     log("[subspace] loading sentence feature cache...")
@@ -170,8 +167,6 @@ def _syntax_subspace_prepare(
     sents_raw = load_jsonl(spacy_sents)
     log(f"[subspace] {len(sents_raw)} sentences")
 
-    PROBE_TARGETS = ["max_depth", "nest_max", "n_clause", "mean_dist", "depth_var", "n_tok"]
-
     # Build matrix + meta
     sents_meta: list = []
     feature_names_ordered_local: list = []
@@ -185,13 +180,11 @@ def _syntax_subspace_prepare(
         if not feature_names_ordered_local:
             feature_names_ordered_local = sorted(numeric.keys())
         vec = np.array([numeric[n] for n in feature_names_ordered_local], dtype=np.float64)
-        probes = [float(numeric.get(t, 0.0)) for t in PROBE_TARGETS]
         sents_meta.append({
             "user_id": row["user_id"],
             "asin": row.get("asin", ""),
             "text": text,
             "vec": vec,
-            "probes": np.array(probes, dtype=np.float64),
         })
     log(f"[subspace] {len(sents_meta)} valid sentences")
 
@@ -199,10 +192,9 @@ def _syntax_subspace_prepare(
         feature_names_ordered = feature_names_ordered_local
 
     X = np.stack([s["vec"] for s in sents_meta], axis=0)
-    Y_probes = np.stack([s["probes"] for s in sents_meta], axis=0)
     user_ids = np.array([s["user_id"] for s in sents_meta])
     asins = np.array([s["asin"] for s in sents_meta])
-    log(f"[subspace] X shape: {X.shape}, Y_probes shape: {Y_probes.shape}")
+    log(f"[subspace] X shape: {X.shape}")
 
     # --- 3. StandardScaler fit on 5000 sentences ---
     rng = np.random.default_rng(42)
@@ -212,67 +204,16 @@ def _syntax_subspace_prepare(
     X_scaled = scaler.transform(X)
     log(f"[subspace] StandardScaler fitted on {len(train_idx)} sentences")
 
-    # --- 4. Load rewrites → neutral sentence features ---
-    rewrites_raw = load_jsonl(rewrites_path)
-    log(f"[subspace] {len(rewrites_raw)} rewrites")
-
-    rewrites_by_user_text: dict = defaultdict(dict)
-    for r in rewrites_raw:
-        uid = r["user_id"]
-        orig = r["sentence_text"]
-        rewrite_text = r["rewrite"]
-        k = _hl.sha1(rewrite_text.strip().lower().encode("utf-8")).hexdigest()
-        feats = feat_map.get(k)
-        if feats is None:
-            continue
-        numeric = {n: float(v) for n, v in feats.items() if isinstance(v, (int, float))}
-        vec = np.array([numeric[n] for n in feature_names_ordered], dtype=np.float64)
-        rewrites_by_user_text[uid][orig] = {
-            "vec": vec,
-            "rewrite_text": rewrite_text,
-        }
-    log(f"[subspace] {sum(len(d) for d in rewrites_by_user_text.values())} rewrite features available")
-
-    # --- 5. Per-user aggregation ---
+    # --- 4. Per-user aggregation ---
     user_to_indices: dict = defaultdict(list)
     for i, uid in enumerate(user_ids):
         user_to_indices[uid].append(i)
     user_id_list = sorted(user_to_indices.keys())
     log(f"[subspace] {len(user_id_list)} unique users")
 
-    # --- 6. Pair sample for syntax ρ ---
-    N_PAIR_SAMPLE = 2000
-    pair_idx = rng.choice(len(X_scaled), size=(N_PAIR_SAMPLE, 2), replace=True)
-    pair_idx = pair_idx[pair_idx[:, 0] != pair_idx[:, 1]]
-    pair_idx = pair_idx[:N_PAIR_SAMPLE]
-    log(f"[subspace] pair sample: {pair_idx.shape}")
-    raw_dist = np.linalg.norm(X_scaled[pair_idx[:, 0]] - X_scaled[pair_idx[:, 1]], axis=1)
-
-    # --- 7. Top ASINs for content leakage probe ---
-    asin_counts = Counter(asins)
-    top_asins = [a for a, c in asin_counts.most_common(200) if c >= 50]
-    log(f"[subspace] {len(top_asins)} asins with >=50 sents")
-    asin_to_label = {a: i for i, a in enumerate(top_asins)}
-    label_mask = np.array([a in asin_to_label for a in asins])
-    label_y = np.array([asin_to_label[a] if a in asin_to_label else -1 for a in asins])
-    leak_idx = np.where(label_mask)[0]
-    rng.shuffle(leak_idx)
-    leak_split = int(len(leak_idx) * 0.8)
-    leak_train, leak_test = leak_idx[:leak_split], leak_idx[leak_split:]
-
-    probe_split = int(len(train_idx) * 0.8)
-    probe_train_idx = train_idx[:probe_split]
-    probe_test_idx = train_idx[probe_split:]
-
     return {
-        "X": X, "X_scaled": X_scaled, "Y_probes": Y_probes, "user_ids": user_ids, "asins": asins,
+        "X": X, "X_scaled": X_scaled, "user_ids": user_ids, "asins": asins,
         "train_idx": train_idx, "scaler": scaler,
-        "rewrites_by_user_text": rewrites_by_user_text,
         "user_to_indices": user_to_indices, "user_id_list": user_id_list,
-        "pair_idx": pair_idx, "raw_dist": raw_dist,
-        "top_asins": top_asins, "asin_to_label": asin_to_label, "label_y": label_y,
-        "leak_train": leak_train, "leak_test": leak_test,
-        "probe_train_idx": probe_train_idx, "probe_test_idx": probe_test_idx,
-        "PROBE_TARGETS": PROBE_TARGETS, "feature_names_ordered": feature_names_ordered,
-        "rng": rng,
+        "feature_names_ordered": feature_names_ordered,
     }

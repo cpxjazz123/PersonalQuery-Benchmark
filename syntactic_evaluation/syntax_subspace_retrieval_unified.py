@@ -698,22 +698,13 @@ def main():
     # ---- 1. Load selection (already done above) ----
     log("\n=== 1. Building query_records from selection ===")
     query_records: list[dict] = []
-    for i, e in enumerate(entries):
+    for e in entries:
         q = e["selected"]
         if q is None:
             continue
         query_records.append({
-            "entry_idx": i,
             "asin": e["asin"],
-            "user_id": e["user_id"],
-            "selection_method": e["selection_method"],
-            "selected_distance": e["selected_distance"],
-            "selected_margin": e["selected_margin"],
-            "user_source": e["user_source"],
             "query": q["query"],
-            "n_tok": q["n_tok"],
-            "attrs_covered": q["attrs_covered"],
-            "strict": q["strict"],
         })
     log(f"  strict queries: {len(query_records)}")
 

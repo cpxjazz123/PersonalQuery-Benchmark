@@ -288,7 +288,6 @@ def main():
 
     for entry in asin_data:
         asin = entry["asin"]
-        attrs = entry["attrs_used"]
         strict_pool = asin_pool[asin]  # already filtered by Stage 1 strict
         if not strict_pool:
             for uid in entry["users_sampled"]:
@@ -300,12 +299,11 @@ def main():
                     meta_n_reviews = users_gauss[uid]["n_reviews"]
                 n_no_pool_for_user += 1
                 selection_entries.append({
-                    "asin": asin, "user_id": uid, "attrs_used": attrs,
+                    "asin": asin, "user_id": uid,
                     "selection_method": "no_pool", "selected": None,
                     "selected_distance": None, "selected_margin": None,
                     "n_candidates": 0,
                     "user_source": meta_source,
-                    "n_reviews": meta_n_reviews,
                 })
             continue
         # Collect user cohort
@@ -354,12 +352,11 @@ def main():
             for uid, mu_white, gauss_info in asin_users:
                 n_no_pool_for_user += 1
                 selection_entries.append({
-                    "asin": asin, "user_id": uid, "attrs_used": attrs,
+                    "asin": asin, "user_id": uid,
                     "selection_method": "no_query_features", "selected": None,
                     "selected_distance": None, "selected_margin": None,
                     "n_candidates": 0,
                     "user_source": gauss_info["source"],
-                    "n_reviews": gauss_info["n_reviews"],
                 })
             continue
         Z_q_arr = np.stack(Z_q_list, axis=0)  # (n_valid_q, 48)
@@ -396,8 +393,7 @@ def main():
         # ---- 7d. Per-user selection ----
         for ui, (uid, mu_white, gauss_info) in enumerate(asin_users):
             source = gauss_info["source"]
-            n_reviews = gauss_info["n_reviews"]
-            # `gauss_info` is now a small dict with source/n_reviews from local lookup; safe.
+            # `gauss_info` is a small dict with source/n_reviews from local lookup; safe.
 
             cand_strict_mask = gate_strict[ui]
             if not cand_strict_mask.any():
@@ -423,15 +419,12 @@ def main():
             selection_entries.append({
                 "asin": asin,
                 "user_id": uid,
-                "attrs_used": attrs,
                 "selection_method": method,
                 "selected": selected_q,
                 "selected_distance": best_dist,
                 "selected_margin": best_margin,
                 "n_candidates": int(cand_strict_mask.sum()),
-                "n_pool_candidates": n_queries,
                 "user_source": source,
-                "n_reviews": n_reviews,
             })
 
     # ---- 8. Save ----
