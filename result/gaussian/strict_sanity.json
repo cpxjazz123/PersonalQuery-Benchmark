@@ -1,0 +1,53 @@
+{
+  "description": "Sanity check at strict CV-NLL thresholds: ΔNLL ↑, CI ↓, σ_mean sane",
+  "tiers": {
+    "T=39 current ROC": {
+      "n": 68465,
+      "delta_mean": 2753.48072705861,
+      "delta_median": 31.297794024149578,
+      "ci_lo_mean": 2403.304053249513,
+      "ci_lo_median": 19.168879089355475,
+      "ci_width_mean": 746.6400922943261,
+      "reliable_frac": 0.9281238589060103,
+      "sigma_mean_mean": 0.3060088990591892,
+      "sigma_mean_p95": 0.5203769224494721,
+      "sigma_mean_p99": 0.6303174193422333
+    },
+    "T=37 T95 High": {
+      "n": 61714,
+      "delta_mean": 3051.926728667293,
+      "delta_median": 34.56498394012451,
+      "ci_lo_mean": 2664.8190521082233,
+      "ci_lo_median": 22.047345736026763,
+      "ci_width_mean": 825.463231477458,
+      "reliable_frac": 0.9534789512914411,
+      "sigma_mean_mean": 0.2921671991781151,
+      "sigma_mean_p95": 0.4999575473345115,
+      "sigma_mean_p99": 0.6045614937436581
+    },
+    "T=34 T97.5 Very High (REC)": {
+      "n": 51352,
+      "delta_mean": 3662.405446008983,
+      "delta_median": 41.96259250640869,
+      "ci_lo_mean": 3199.954776926204,
+      "ci_lo_median": 28.338976605733237,
+      "ci_width_mean": 986.2334513667535,
+      "reliable_frac": 0.9820649633899361,
+      "sigma_mean_mean": 0.26754918106742637,
+      "sigma_mean_p95": 0.46989651850993547,
+      "sigma_mean_p99": 0.5653125295645408
+    },
+    "T=32 T99 Ultra": {
+      "n": 45079,
+      "delta_mean": 4167.416839180181,
+      "delta_median": 49.19189682006836,
+      "ci_lo_mean": 3642.9785751687773,
+      "ci_lo_median": 34.057655334472656,
+      "ci_width_mean": 1118.1291023412625,
+      "reliable_frac": 0.99214711950132,
+      "sigma_mean_mean": 0.24954620275852132,
+      "sigma_mean_p95": 0.44952440663952015,
+      "sigma_mean_p99": 0.5398966837650528
+    }
+  }
+}
