@@ -1,0 +1,104 @@
+{
+  "description": "Phase 3 PILOT on 50 ASINs — syntax-prototype guided pool K=16 vs K=200 baseline (re-run audit only after KeyError fix)",
+  "config": {
+    "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/prototype_pool_K16_pilot.json",
+    "R_95": 8.073,
+    "K_syntax": 16
+  },
+  "audit": {
+    "K_pool_kind": "prototype_K16_pilot_50ASIN",
+    "n_valid": 665,
+    "n_other_excluded": 0,
+    "buckets": {
+      "PASSED_strict": {
+        "n": 34,
+        "pct_valid": 0.05112781954887218
+      },
+      "F1_abs_distance_fail": {
+        "n": 27,
+        "pct_fails": 0.042789223454833596,
+        "stats_min_d_self": {
+          "n": 27,
+          "mean": 9.992022367717436,
+          "median": 9.57063012124198,
+          "q25": 8.629230125370261,
+          "q75": 10.325505949727606,
+          "min": 8.10921932064348,
+          "max": 17.765416599943723
+        },
+        "stats_max_M": {
+          "n": 27,
+          "mean": 0.5822178387003357,
+          "median": 0.2770184548731436,
+          "q25": 0.10420735152177762,
+          "q75": 0.5939367618841622,
+          "min": 0.004727308637539451,
+          "max": 3.573914889539333
+        }
+      },
+      "F2_rel_exclusivity_fail": {
+        "n": 42,
+        "pct_fails": 0.06656101426307448,
+        "stats_min_d_self": {
+          "n": 42,
+          "mean": 7.301788995547626,
+          "median": 7.699734872883491,
+          "q25": 6.638838618862522,
+          "q75": 7.9565027971636795,
+          "min": 5.413816428219194,
+          "max": 8.066257556237817
+        },
+        "stats_max_M": {
+          "n": 42,
+          "mean": -0.78195175683093,
+          "median": -0.6438683243300636,
+          "q25": -0.9555538615387915,
+          "q75": -0.29997246202236116,
+          "min": -2.897384973838749,
+          "max": 0.0
+        }
+      },
+      "F3_double_fail": {
+        "n": 562,
+        "pct_fails": 0.8906497622820919,
+        "stats_min_d_self": {
+          "n": 562,
+          "mean": 11.441976952973041,
+          "median": 10.786320470320002,
+          "q25": 9.560685949015797,
+          "q75": 12.693726817109255,
+          "min": 8.084777511169449,
+          "max": 22.91162635836943
+        },
+        "stats_max_M": {
+          "n": 562,
+          "mean": -2.1309818478302964,
+          "median": -1.8956203924175172,
+          "q25": -2.843003107620083,
+          "q75": -1.0792629283465418,
+          "min": -10.44864692137625,
+          "max": 0.0
+        }
+      }
+    }
+  },
+  "evaluation": {
+    "baseline": {
+      "F3_pct_fails": 0.869,
+      "F3_min_d_self_median": 11.15,
+      "F3_max_M_median": -1.99,
+      "PASSED_pct_valid": 0.0159
+    },
+    "pilot": {
+      "F3_pct_fails": 0.8906497622820919,
+      "F3_min_d_self_median": 10.786320470320002,
+      "F3_max_M_median": -1.8956203924175172,
+      "PASSED_pct_valid": 0.05112781954887218
+    },
+    "delta": {
+      "F3_drop_pp": -2.164976228209192,
+      "min_d_self_delta": -0.36367952967999884
+    },
+    "decision": "NO_GO_FULL_SCALE"
+  }
+}

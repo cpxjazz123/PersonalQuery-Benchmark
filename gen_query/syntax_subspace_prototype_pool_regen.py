@@ -202,10 +202,15 @@ GEN_SYSTEM_TMPL_NATURAL = (
 
 
 def build_user_content(attrs: dict) -> str:
-    """Render attribute list as a paragraph."""
+    """Render attribute list as a paragraph.
+
+    NOTE: callers pass the *filtered* top-N dict from get_top_n_attrs (which
+    preserves the original keys like 'Brand', 'Material Type', etc.). So we
+    iterate attrs.items() directly — DO NOT re-filter by ATTR_KEYS (those
+    would drop non-canonical keys).
+    """
     items = []
-    for k in ATTR_KEYS:
-        v = attrs.get(k)
+    for k, v in attrs.items():
         if v is None:
             continue
         v = str(v).strip()
@@ -240,8 +245,8 @@ def batch_generate_vllm(prompts: list[str], temp: float = TEMP,
     import requests
     headers = {"Content-Type": "application/json"}
     results: list[str] = []
-    BATCH = 16           # keep batch size == worker count
-    MAX_WORKERS = 16
+    BATCH = 32           # keep batch size == worker count
+    MAX_WORKERS = 32
     MAX_RETRIES = 3
     RETRY_BACKOFF = 2.0
     n_done = 0
@@ -457,6 +462,20 @@ def main():
     with open(summary_out, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
     log(f"\n  wrote → {summary_out}")
+
+    # ---- Auto-trigger Phase 3 audit in background ----
+    log("\n=== Triggering Phase 3 audit in background ===")
+    import subprocess as _sp
+    log_path = SCRATCH.parent / "logs" / "stage4_proto_audit_K16.log"
+    audit_proc = _sp.Popen(
+        ["/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python",
+         "gaussian/build_strict34_prototype_audit.py"],
+        cwd=str(REPO_ROOT),
+        stdout=open(log_path, "w", encoding="utf-8"),
+        stderr=_sp.STDOUT,
+        start_new_session=True,
+    )
+    log(f"  Phase 3 audit launched: PID={audit_proc.pid}, log → {log_path}")
 
 
 if __name__ == "__main__":

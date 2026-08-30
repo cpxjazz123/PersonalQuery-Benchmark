@@ -1,0 +1,13 @@
+{
+  "description": "Phase 2 PILOT 50 ASINs — sanity check before 2174 ASIN full run",
+  "filter_counts": {
+    "cov_full": 1543,
+    "invalid": 0,
+    "first_p": 3200,
+    "emoji": 0,
+    "self_talk": 3,
+    "too_long": 0
+  },
+  "n_total_strict": 1540,
+  "next_step": "Run gaussian/build_strict34_prototype_audit_pilot.py on this pool; if F3 drops ≥10pp or min_d_self ≤9 → go full-scale."
+}
