@@ -1,0 +1,263 @@
+{
+  "config": {
+    "n_smoke": 5,
+    "k_per_pair": 2,
+    "conditions": [
+      "A_free",
+      "B_exemplar",
+      "C_rewrite"
+    ],
+    "temperature": 0.7,
+    "max_new_tokens": 120,
+    "min_words": 8,
+    "max_words": 40,
+    "r_95_threshold": 9.0,
+    "cv_inlier_min": 0.9,
+    "cv_nll_max": 39.0
+  },
+  "eligible_users": [
+    "AERFSIGUZKWIES3W3FRBVUNX4RUA",
+    "AFOTTSAZYNXVVEZ5IV24QOP5QOWQ",
+    "AFYB7O3AY4KNFJ466V2KSOQB2ODQ",
+    "AHRQVI734AF32IXI37RUF7P56KMQ",
+    "AFRGJMSUHGKN6E36WF7NUXIQVXVQ"
+  ],
+  "n_pairs": 5,
+  "n_total_generations": 30,
+  "per_condition_stats": {
+    "A_free": {
+      "n_generated": 10,
+      "n_with_z48": 10,
+      "d_drift_median": 4.211,
+      "d_self_median": 5.388,
+      "M_local_median": -1.112,
+      "P_M_local_gt0": 0.0
+    },
+    "B_exemplar": {
+      "n_generated": 10,
+      "n_with_z48": 10,
+      "d_drift_median": 5.748,
+      "d_self_median": 6.136,
+      "M_local_median": -0.865,
+      "P_M_local_gt0": 0.0
+    },
+    "C_rewrite": {
+      "n_generated": 10,
+      "n_with_z48": 10,
+      "d_drift_median": 4.438,
+      "d_self_median": 5.75,
+      "M_local_median": -0.856,
+      "P_M_local_gt0": 0.0
+    }
+  },
+  "per_pair_compare": [
+    {
+      "user_id": "AERFSIGUZKWIES3W3FRBVUNX4RUA",
+      "target_asin": "B00QNZGE56",
+      "rep_d_self": 4.9894537925720215,
+      "rep_text": "It's a little on the low side in terms of height, so teens may need to move to something a bit larger/taller.<br /><br /",
+      "per_condition": {
+        "A_free": {
+          "M_local_median": -0.772,
+          "d_drift_median": 4.396,
+          "d_self_median": 4.813,
+          "outputs": [
+            "As a busy parent, I'm on Amazon searching for a durable, lightweight polyester baby carrier that's perfect for quick outings. I need something unisex,",
+            "I'm looking for a portable baby carrier made of durable polyester that can be used by both my wife and me. Since we lead an active lifestyle, it would"
+          ]
+        },
+        "B_exemplar": {
+          "M_local_median": -0.828,
+          "d_drift_median": 5.808,
+          "d_self_median": 5.765,
+          "outputs": [
+            "\"I'm searching for a durable, portable baby carrier made of high-quality polyester. It needs to be unisex, suitable for all genders, and able to suppo",
+            "\"Considering the portable and unisex nature, I'm intrigued by this polyester baby item. Its compact design makes it easy to carry around, perfect for "
+          ]
+        },
+        "C_rewrite": {
+          "M_local_median": -0.388,
+          "d_drift_median": 5.198,
+          "d_self_median": 5.485,
+          "outputs": [
+            "Given the task is to modify the sentence while keeping the same function words, clause order, sentence length, and substituting content words, here's ",
+            "Given the constraints, let's create a new sentence that adheres to the instructions:\n\n\"The material is made of durable polyester, making it suitable f"
+          ]
+        }
+      }
+    },
+    {
+      "user_id": "AFOTTSAZYNXVVEZ5IV24QOP5QOWQ",
+      "target_asin": "B00068O22S",
+      "rep_d_self": 5.242860317230225,
+      "rep_text": "Crazy mom myself, I bought like 4 packs of each, so I do not have to rush to wash them and there are plenty left in case",
+      "per_condition": {
+        "A_free": {
+          "M_local_median": -1.305,
+          "d_drift_median": 5.648,
+          "d_self_median": 5.657,
+          "outputs": [
+            "Hey there! I'm on Amazon searching for a Safety 1st clear baby bottle suitable for my kid. Looking for an unisex option that's perfect for our little ",
+            "Hey there! I'm a parent searching for a clear baby bath tub by Safety 1st that's perfect for my little one. I want to ensure it's safe and suitable fo"
+          ]
+        },
+        "B_exemplar": {
+          "M_local_median": -1.265,
+          "d_drift_median": 6.495,
+          "d_self_median": 6.221,
+          "outputs": [
+            "\"Busy dad here, just picked up a pack of those Safety 1st clear baby bottles. Perfect for my little one, and now I won't stress over washing or losing",
+            "\"New dad here, just got the Safety 1st clear baby bottles for our little one. They're perfect for tracking milk intake and saving time on washing - no"
+          ]
+        },
+        "C_rewrite": {
+          "M_local_median": -0.752,
+          "d_drift_median": 3.777,
+          "d_self_median": 5.207,
+          "outputs": [
+            "As a cautious parent, I purchased several sets of this item, ensuring I won't hastily need to clean them and having extras in case any get misplaced.",
+            "As a cautious parent, I purchased multiple sets, ensuring constant availability in case any are misplaced, without needing to hastily launder them."
+          ]
+        }
+      }
+    },
+    {
+      "user_id": "AFYB7O3AY4KNFJ466V2KSOQB2ODQ",
+      "target_asin": "B0042D69V0",
+      "rep_d_self": 5.072649955749512,
+      "rep_text": "We had the Evenflo AMP because it was so highly rated in crash tests by Consumer Reports, but my 7 yr old complained tha",
+      "per_condition": {
+        "A_free": {
+          "M_local_median": -1.168,
+          "d_drift_median": 4.647,
+          "d_self_median": 5.798,
+          "outputs": [
+            "I'm looking for a safe and engaging toy for my baby who just turned five months old. I found the Fisher-Price Luv U Zoo range on Amazon, but I'd like ",
+            "I'm looking for a safe and engaging toy for my 6-month-old baby. I found a Fisher-Price Luv U Zoo toy with materials like polyester, plastic, and meta"
+          ]
+        },
+        "B_exemplar": {
+          "M_local_median": -0.747,
+          "d_drift_median": 5.458,
+          "d_self_median": 6.942,
+          "outputs": [
+            "\"We're considering the Fisher-Price Luv U Zoo toy set for our 4-month-old, heard it's durable with a mix of polyester, plastic, and metal materials, b",
+            "\"Looking for a comfortable, durable car seat for my 4-month-old, I came across the Fisher-Price Luv U Zoo model. With its blend of polyester, plastic,"
+          ]
+        },
+        "C_rewrite": {
+          "M_local_median": -0.884,
+          "d_drift_median": 5.318,
+          "d_self_median": 6.838,
+          "outputs": [
+            "We sought the Fisher-Price Luv U Zoo due to its esteemed reviews by Parental Guides, yet our 5-month-old found it too firm and the seat's texture unco",
+            "We sought the Fisher-Price Luv U Zoo due to its high ratings in safety tests by Consumer Reports, yet my 4+ month infant found the polyester, plastic,"
+          ]
+        }
+      }
+    },
+    {
+      "user_id": "AHRQVI734AF32IXI37RUF7P56KMQ",
+      "target_asin": "B00E1CIGAE",
+      "rep_d_self": 5.229738235473633,
+      "rep_text": "Once the baby gets older and gets the hang of bouncing themselves it's not such a big deal, but by that point they may b",
+      "per_condition": {
+        "A_free": {
+          "M_local_median": -0.945,
+          "d_drift_median": 4.049,
+          "d_self_median": 5.338,
+          "outputs": [
+            "I'm looking for a reliable audio-only baby monitor from the Philips AVENT brand, ideally in white, suitable for my infant's nursery. It would be great",
+            "As a busy parent, I'm searching for a reliable audio baby monitor by Philips AVENT in white color, suitable for my infant. I need a high-quality devic"
+          ]
+        },
+        "B_exemplar": {
+          "M_local_median": -0.591,
+          "d_drift_median": 4.911,
+          "d_self_median": 6.578,
+          "outputs": [
+            "\"Looking for a reliable audio-only baby monitor from Philips AVENT suitable for infants, preferably in white color, to keep an eye on my little one's ",
+            "\"Looking for a safe and reliable audio-only infant seat option from Philips AVENT, ideally white in color, that can comfortably support my baby as the"
+          ]
+        },
+        "C_rewrite": {
+          "M_local_median": -0.915,
+          "d_drift_median": 3.635,
+          "d_self_median": 5.62,
+          "outputs": [
+            "Once the infant acquires the ability to self-bounce, the weight constraint becomes relevant, assuming they haven't surpassed it by then.",
+            "Once the infant becomes more adept at self-bouncing, it may no longer pose a significant issue, yet they might approach the weight capacity by then."
+          ]
+        }
+      }
+    },
+    {
+      "user_id": "AFRGJMSUHGKN6E36WF7NUXIQVXVQ",
+      "target_asin": "B01H5VJKHA",
+      "rep_d_self": 5.50601863861084,
+      "rep_text": "The colour and print is perfect.<br /><br />One star knocked as I would expect organic materials at this point and price",
+      "per_condition": {
+        "A_free": {
+          "M_local_median": -1.623,
+          "d_drift_median": 3.595,
+          "d_self_median": 5.578,
+          "outputs": [
+            "I'm looking for a safe and compact car seat booster for my little one. I found the Mifold Grab-and-Go Booster Seat in Denim Blue on Amazon, made of fo",
+            "I'm looking for a safe and compact car seat cushion for my toddler that fits perfectly in the backseat. The Mifold Grab-and-Go Booster Seat in Denim B"
+          ]
+        },
+        "B_exemplar": {
+          "M_local_median": -1.218,
+          "d_drift_median": 5.045,
+          "d_self_median": 6.369,
+          "outputs": [
+            "\"The denim blue color is spot on, but I deducted a star due to the foam material not being organic, which is my preference at this price point.\"",
+            "\"Absolutely love the Denim Blue color, adds a stylish touch! However, a slight\u6263 for not being made from organic materials, considering the price. Stil"
+          ]
+        },
+        "C_rewrite": {
+          "M_local_median": -1.438,
+          "d_drift_median": 5.507,
+          "d_self_median": 6.693,
+          "outputs": [
+            "The foam material in the Mifold, colored Denim Blue, feels satisfactory but loses one star due to my expectation for organic materials given its categ",
+            "\"The foam material, in Denim Blue, is perfect. However, one star deducted considering the expectation for organic materials given the price range.\""
+          ]
+        }
+      }
+    }
+  ],
+  "representative_sentences": {
+    "AERFSIGUZKWIES3W3FRBVUNX4RUA": {
+      "sentence_text": "It's a little on the low side in terms of height, so teens may need to move to something a bit larger/taller.<br /><br />It's built to last too, which helps me think of this as a longer-term item.",
+      "source_asin": "B071LHMZQ7",
+      "word_count": 38,
+      "d_self": 4.9894537925720215
+    },
+    "AFOTTSAZYNXVVEZ5IV24QOP5QOWQ": {
+      "sentence_text": "Crazy mom myself, I bought like 4 packs of each, so I do not have to rush to wash them and there are plenty left in case some are lost \ud83d\ude0a.",
+      "source_asin": "B074MDQQR2",
+      "word_count": 31,
+      "d_self": 5.242860317230225
+    },
+    "AFYB7O3AY4KNFJ466V2KSOQB2ODQ": {
+      "sentence_text": "We had the Evenflo AMP because it was so highly rated in crash tests by Consumer Reports, but my 7 yr old complained that it was too hard and the seat back was uncomfortable on his back.",
+      "source_asin": "B07BQ2DR1H",
+      "word_count": 37,
+      "d_self": 5.072649955749512
+    },
+    "AHRQVI734AF32IXI37RUF7P56KMQ": {
+      "sentence_text": "Once the baby gets older and gets the hang of bouncing themselves it's not such a big deal, but by that point they may be approaching the weight limit.<br /><br",
+      "source_asin": "B075N8JTHK",
+      "word_count": 30,
+      "d_self": 5.229738235473633
+    },
+    "AFRGJMSUHGKN6E36WF7NUXIQVXVQ": {
+      "sentence_text": "The colour and print is perfect.<br /><br />One star knocked as I would expect organic materials at this point and price range.",
+      "source_asin": "B074QX8X93",
+      "word_count": 22,
+      "d_self": 5.50601863861084
+    }
+  },
+  "key_finding": "Phase 7 smoke: 3 conditions \u00d7 5 pairs \u00d7 2 candidates. d_drift_med (rewrite)=4.438 vs (exemplar)=5.748 vs (free)=4.211. P(M_local>0): free=0.0%, exemplar=0.0%, rewrite=0.0%."
+}
