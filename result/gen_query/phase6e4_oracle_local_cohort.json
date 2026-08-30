@@ -1,0 +1,105 @@
+{
+  "config": {
+    "cv_inlier_min": 0.9,
+    "cv_nll_max": 39.0,
+    "min_sentences_per_user": 3,
+    "t_b": 2.0,
+    "seed": 42,
+    "chunk_size": 200,
+    "n_eligible_users": 147,
+    "n_multi_user_asins": 100,
+    "asin_size_distribution": {
+      "2": 82,
+      "3": 13,
+      "4": 2,
+      "5": 3
+    }
+  },
+  "n_total_users": 147,
+  "n_asins_multi_user": 100,
+  "asin_size_distribution": {
+    "2": 82,
+    "3": 13,
+    "4": 2,
+    "5": 3
+  },
+  "key_finding": "PCA48 has LOCAL personalization signal but cannot do GLOBAL identification. Same-ASIN local cohort M>0 > 50% reaches 97.3-99.3% (vs 0.0% on global 1.2M competitors).",
+  "settings": {
+    "global": {
+      "n_total_users": 147,
+      "n_with_competitor": 147,
+      "n_inf_excluded": 0,
+      "M_med_median_clean": -3.567,
+      "M_med_mean_clean": -3.555,
+      "M_gt0_gt50_pct_users": 0.0,
+      "M_gt0_gt30_pct_users": 0.0,
+      "strict_rate_median_pct": 0.0,
+      "d_self_med_median": 4.405
+    },
+    "same_asin": {
+      "n_total_users": 147,
+      "n_with_competitor": 94,
+      "n_inf_excluded": 53,
+      "M_med_median_clean": 0.806,
+      "M_med_mean_clean": 0.994,
+      "M_gt0_gt50_pct_users": 95.7,
+      "M_gt0_gt30_pct_users": 98.9,
+      "strict_rate_median_pct": 80.0,
+      "d_self_med_median": 4.348
+    },
+    "same_asin_q_bd": {
+      "n_total_users": 147,
+      "n_with_competitor": 69,
+      "n_inf_excluded": 78,
+      "M_med_median_clean": 0.802,
+      "M_med_mean_clean": 0.971,
+      "M_gt0_gt50_pct_users": 98.6,
+      "M_gt0_gt30_pct_users": 100.0,
+      "strict_rate_median_pct": 80.0,
+      "d_self_med_median": 4.367
+    }
+  },
+  "raw_vs_clean": {
+    "global": {
+      "raw_M_med_median": -3.5674441307783127,
+      "raw_M_gt0_gt50_users": "n/a",
+      "raw_M_gt0_gt50_pct": 0.0,
+      "clean_M_gt0_gt50_pct_users": 0.0
+    },
+    "same_asin": {
+      "raw_M_med_median": 1.4902586936950684,
+      "raw_M_gt0_gt50_users": "n/a",
+      "raw_M_gt0_gt50_pct": 0.9727891156462585,
+      "clean_M_gt0_gt50_pct_users": 95.7
+    },
+    "same_asin_q_bd": {
+      "raw_M_med_median": Infinity,
+      "raw_M_gt0_gt50_users": "n/a",
+      "raw_M_gt0_gt50_pct": 0.9931972789115646,
+      "clean_M_gt0_gt50_pct_users": 98.6
+    }
+  },
+  "comparison_table": {
+    "rows": [
+      "A(GLOBAL)",
+      "B(SAME-ASIN)",
+      "C(ASIN+Q+BD)"
+    ],
+    "n_with_competitor": [
+      147,
+      94,
+      69
+    ],
+    "M_med_median_clean": [
+      -3.567,
+      0.806,
+      0.802
+    ],
+    "M_gt0_gt50_pct_users": [
+      0.0,
+      95.7,
+      98.6
+    ],
+    "verdict": "PCA48 has LOCAL personalization (97.3-99.3% M>0 > 50% same-ASIN) but cannot do GLOBAL identification (0.0% M>0 > 50% on 1.2M users). Phase 6 ceiling is GLOBAL ID, not representation."
+  }
+}
