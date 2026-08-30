@@ -93,14 +93,24 @@ R_95_PERCENTILE = 8.073  # Mahalanobis P95, d=48
 from scipy.stats import chi2
 _R_95_SQ = chi2.ppf(0.95, PCA_DIM)  # = 65.17, Mahal² ≤ R²_95 = 65.17
 
-POOL_IN_LOCAL = "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json"
+# 用户指令 2026-08-30 (K-sweep): 让 K_POOL sweep 可注入不同 pool 文件,
+#   同时支持独立 features cache 文件以避免不同 K pool 互相污染.
+import os as _os
+POOL_IN_LOCAL = _os.environ.get(
+    "POOL_IN_LOCAL",
+    "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_K200_F3pca48_full.json",
+)
+POOL_FEAT_CACHE = _os.environ.get(
+    "POOL_FEAT_CACHE",
+    str(FEAT_CACHE),
+)
 # 用户指令 2026-08-29: FEAT_CACHE 改到 select_query/ 目录下(Stage 3 metadata 也同步)
-FEAT_CACHE_LOCAL = str(FEAT_CACHE)  # from syntax_subspace_utils
+FEAT_CACHE_LOCAL = POOL_FEAT_CACHE  # overridable via env (K-sweep isolation)
 # Main pipeline (用户指令 2026-08-28): 直接覆盖 canonical paths,
 # 让 Stage 5 retrieval 默认读取 strict alignment 数据。
 # 用户指令 2026-08-29 (sweep): 支持环境变量覆盖 SEL_OUT / STATS_OUT, 让 sweep 跑多阈值
 # 不互相覆盖 stage8_5_selection.json。每个 threshold 用 SEL_OUT_SUFFIX (e.g. "t0.7")。
-import os as _os
+import os as _os  # noqa: F811 (intentional re-import for downstream users of _os.environ)
 _SUFFIX = _os.environ.get("SEL_OUT_SUFFIX", "")
 SEL_OUT = (
     f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/"
@@ -166,8 +176,11 @@ def stage_features():
     """
     log("=== STAGE 2 — FEATURES ===")
 
-    log(f"loading {POOL_IN}")
-    pool_data = json.load(open(POOL_IN))
+    # 用户指令 2026-08-30 (K-sweep): Stage 2 features 必须用 POOL_IN_LOCAL (同一个 pool)
+    #   保证 features 与 selection query 集合一致; 否则默认 K=200 full features 会被误用.
+    pool_path = _os.environ.get("POOL_IN_LOCAL", POOL_IN)
+    log(f"loading {pool_path}")
+    pool_data = json.load(open(pool_path))
     pools = pool_data["pools"]
     all_queries = []
     for asin, qs in pools.items():
