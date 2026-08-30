@@ -38,13 +38,14 @@ GAUSS_PATH = SCRATCH / "gaussian_vades" / "stage8_5_user_gaussians.json"
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-# === Eval config (LITE, smoke PASSED: PIP_PARTIAL_TOP8 n=3) ===
+# === Eval config (LITE-加速版, smoke PASSED: PIP_PARTIAL_TOP8 n=3) ===
 # smoke (3 pair × 8 PC × 5 α × 4 cand) PASSED pipeline.
-# smoke verdict = PIP_PARTIAL_TOP8 (5/8 improve, median Δρ=+0.076, no sign reverse)
-# 升 lite (20 pair) 验证 verdict 稳健性:
-# lite: 20 pair × 8 PC × 5 α × 4 cand = 3200 gen × 2 ckpt = 6400 total, ~60 min
-N_PAIRS = 20                      # LITE (升自 smoke 3 pair, 用户确认 top-8 扩量)
-N_CANDIDATES = 4
+# 用户二次加速 (2026-08-30): N_PAIRS 20 → 10 (保留 8 PC × 5 α × 2 cand)
+# 节省 ~17 min (33 min → 16 min)
+# paired ρ n=10 仍可识别 Δρ 方向 (noise ~√2 vs n=20)
+# lite: 10 pair × 8 PC × 5 α × 2 cand = 800 gen × 2 ckpt = 1600 total, ~16 min
+N_PAIRS = 10                      # LITE-加速 (用户选择): 20 → 10
+N_CANDIDATES = 2                  # 加速: 4 → 2
 N_PCS = 8                         # PC0 ~ PC7 (top-8 by explained variance)
 ALPHAS = [-2.0, -1.0, 0.0, +1.0, +2.0]
 TEMPERATURE = 0.8
@@ -136,10 +137,10 @@ def main():
         except Exception:
             return None
 
-    # Load model
-    from syntax_subspace_pca48_projector import Qwen2WithPrefix
-    log("loading Qwen2-7B + LoRA + projector ...")
-    model = Qwen2WithPrefix()
+    # Connect to long-running model server (用户 2026-08-30 加速: 避免重复 model load)
+    from syntax_subspace_pca48_server_client import ModelClient
+    log("connecting to model server ...")
+    client = ModelClient(auto_start=True)
 
     total_gens_per_ckpt = len(pair_data) * N_PCS * len(ALPHAS) * N_CANDIDATES
     log(f"  per ckpt: {len(pair_data)} pairs × {N_PCS} PCs × {len(ALPHAS)} α × {N_CANDIDATES} cands = {total_gens_per_ckpt} generations")
@@ -152,8 +153,7 @@ def main():
             log(f"  skip {ckpt_name}: not found at {ckpt_path}")
             continue
         log(f"\n=== Eval ckpt: {ckpt_name} ({ckpt_path}) ===")
-        model.load_projector(str(ckpt_path))
-        model.eval()
+        client.load_ckpt(str(ckpt_path))
 
         t0 = time.time()
         results = {j: {a: [] for a in ALPHAS} for j in range(N_PCS)}
@@ -168,12 +168,13 @@ def main():
                     zs_expanded = z_tensor.expand(N_CANDIDATES, -1).contiguous()
                     attrs_list = [pd["attrs"]] * N_CANDIDATES
                     torch.manual_seed(SEED + pi * 100 + pc_j * 10 + int((alpha + 2) * 10))
-                    candidates = model.generate(
+                    candidates = client.generate(
                         zs_expanded, attrs_list,
                         max_new_tokens=MAX_NEW_TOKENS,
                         temperature=TEMPERATURE,
                         top_p=TOP_P,
                         do_sample=True,
+                        seed=SEED + pi * 100 + pc_j * 10 + int((alpha + 2) * 10),
                     )
 
                     z_query_list = []
