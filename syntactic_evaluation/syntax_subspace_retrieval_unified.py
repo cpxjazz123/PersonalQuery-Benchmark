@@ -28,6 +28,7 @@ import collections
 import gzip
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -40,13 +41,16 @@ from syntax_subspace_utils import (  # noqa: E402
     ASIN_TO_DOC_CACHE, META_FILE, log,
 )
 
+# 用户指令 2026-08-30: 支持 SEL_OUT_SUFFIX 让 strict34 cohort 跑独立 cache, 不覆盖 canonical
+_SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
+
 # ===========================================================================
 # PATHS
 # ===========================================================================
-SEL_IN = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection.json")
-PER_QUERY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_per_query.json")
-SUMMARY_OUT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/retrieval_summary.json")
-VOLATILITY_OUT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/volatility.json")
+SEL_IN = Path(f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection{_SEL_SUFFIX}.json")
+PER_QUERY_OUT = Path(f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_per_query{_SEL_SUFFIX}.json")
+SUMMARY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/retrieval_summary{_SEL_SUFFIX}.json")
+VOLATILITY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/volatility{_SEL_SUFFIX}.json")
 EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
 
 # ===========================================================================
@@ -510,7 +514,10 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
     t0 = time.time()
     corpus_gpu = torch.from_numpy(corpus_reps).cuda()
     results = []
-    Q = query_reps.shape[0]
+    Q_cache = query_reps.shape[0]
+    Q = min(Q_cache, len(target_indices))
+    if Q < Q_cache:
+        log(f"  ⚠ cache has {Q_cache} query reps but only {len(target_indices)} target indices; truncating to Q={Q}")
     N = corpus_reps.shape[0]
     CHUNK_N = 4096
     for qi in range(Q):

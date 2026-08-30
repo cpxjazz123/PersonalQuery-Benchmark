@@ -1,0 +1,176 @@
+{
+  "description": "Strict34 benchmark: T=34 cohort (cv_nll ≤ 34, val precision 98.21%). Stage 4 strict alignment + Stage 5 7-retriever + V_low/V_user/V_high volatility calibration.",
+  "cohort": {
+    "n_strict_users": 51352,
+    "cv_nll_threshold": 34,
+    "validation_precision": 0.9821,
+    "n_asins_input": 39784,
+    "n_asins_ge1": 20188,
+    "n_asins_ge2": 10302,
+    "n_asins_ge5": 3391,
+    "n_asins_ge10": 1412,
+    "n_users_total_post": 79461
+  },
+  "stage4_metrics": {
+    "n_pairs": 30723,
+    "by_selection_method": {
+      "no_strict_candidate": 30233,
+      "strict_personalized_mahal_margin_max": 490
+    },
+    "strict_personalized": {
+      "n": 490,
+      "selected_distance_mean": 7.339575662614625,
+      "selected_distance_median": 7.516727945534231,
+      "margin_mean": 0.437980193189774,
+      "margin_median": 0.29406231406922156,
+      "n_candidates_in_strict_subset_mean": 5.612244897959184
+    },
+    "no_strict_candidate": {
+      "n": 30233,
+      "fraction": 0.9840510366826156,
+      "selected_distance_mean_when_no_strict": 11.171851068885177
+    }
+  },
+  "stage5_retrieval": {
+    "config": {
+      "description": "Stage 5 unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
+      "retrievers": [
+        "bm25",
+        "splade",
+        "minilm",
+        "mpnet",
+        "bge_base_v15",
+        "gte_base",
+        "colbertv2"
+      ],
+      "n_retrievers": 7,
+      "sim09_reference": "minilm",
+      "selection_file": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_strict34.json",
+      "corpus_size": 217722
+    },
+    "volatility_sim09": {
+      "bm25": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.00966183574879227,
+        "Hit@5_FlipRate_mean": 0.05636070853462158,
+        "Hit@10_FlipRate_mean": 0.06763285024154589,
+        "Hit@20_FlipRate_mean": 0.036231884057971016,
+        "RR_Std_mean": 0.019474606591805502,
+        "RR_Std_median": 0.0006892230576441101,
+        "RR_Std_std": 0.04843800416696544
+      },
+      "splade": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.014492753623188406,
+        "Hit@5_FlipRate_mean": 0.02318840579710145,
+        "Hit@10_FlipRate_mean": 0.029951690821256035,
+        "Hit@20_FlipRate_mean": 0.06256038647342994,
+        "RR_Std_mean": 0.013270579064502441,
+        "RR_Std_median": 0.00029904306220095676,
+        "RR_Std_std": 0.041585881373851864
+      },
+      "minilm": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.0,
+        "Hit@5_FlipRate_mean": 0.05314009661835749,
+        "Hit@10_FlipRate_mean": 0.048309178743961345,
+        "Hit@20_FlipRate_mean": 0.024154589371980673,
+        "RR_Std_mean": 0.013148777998435104,
+        "RR_Std_median": 0.00013372042482293525,
+        "RR_Std_std": 0.056225420476202576
+      },
+      "mpnet": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.024154589371980673,
+        "Hit@5_FlipRate_mean": 0.024154589371980673,
+        "Hit@10_FlipRate_mean": 0.00966183574879227,
+        "Hit@20_FlipRate_mean": 0.07246376811594203,
+        "RR_Std_mean": 0.014526709496508989,
+        "RR_Std_median": 0.00022877377257897675,
+        "RR_Std_std": 0.04545696052896246
+      },
+      "bge_base_v15": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.007246376811594203,
+        "Hit@5_FlipRate_mean": 0.020289855072463767,
+        "Hit@10_FlipRate_mean": 0.06666666666666667,
+        "Hit@20_FlipRate_mean": 0.07632850241545894,
+        "RR_Std_mean": 0.008983516631880238,
+        "RR_Std_median": 0.00024224884248731329,
+        "RR_Std_std": 0.0279692709402056
+      },
+      "gte_base": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.020289855072463767,
+        "Hit@5_FlipRate_mean": 0.03768115942028986,
+        "Hit@10_FlipRate_mean": 0.06183574879227053,
+        "Hit@20_FlipRate_mean": 0.06280193236714976,
+        "RR_Std_mean": 0.01822407735068683,
+        "RR_Std_median": 0.00032612829334300296,
+        "RR_Std_std": 0.06206663077394928
+      },
+      "colbertv2": {
+        "n_asins": 79,
+        "Hit@1_FlipRate_mean": 0.0,
+        "Hit@5_FlipRate_mean": 0.0,
+        "Hit@10_FlipRate_mean": 0.0,
+        "Hit@20_FlipRate_mean": 0.0,
+        "RR_Std_mean": 1.2963765514318796e-05,
+        "RR_Std_median": 1.2920011105315823e-06,
+        "RR_Std_std": 5.42694917995093e-05
+      }
+    }
+  },
+  "stage5_volatility": {
+    "config": {
+      "description": "Canonical Stage 5 volatility (BM25 + MiniLM, selected_only_sim09 slice) — supersedes prior volatility.json. Full multi-retriever volatility see retrieval_summary.json.",
+      "slices": [
+        "selected_only_sim09"
+      ],
+      "retrievers": [
+        "bm25",
+        "minilm"
+      ]
+    },
+    "stability_flip": {
+      "selected_only_sim09": {
+        "bm25": {
+          "n_asins": 79,
+          "Hit@1_FlipRate_mean": 0.00966183574879227,
+          "Hit@1_FlipRate_median": null,
+          "Hit@5_FlipRate_mean": 0.05636070853462158,
+          "Hit@5_FlipRate_median": null,
+          "Hit@10_FlipRate_mean": 0.06763285024154589,
+          "Hit@10_FlipRate_median": null,
+          "Hit@20_FlipRate_mean": 0.036231884057971016,
+          "Hit@20_FlipRate_median": null,
+          "RR_Std_mean": 0.019474606591805502,
+          "RR_Std_median": 0.0006892230576441101,
+          "RR_Std_std": 0.04843800416696544
+        },
+        "minilm": {
+          "n_asins": 79,
+          "Hit@1_FlipRate_mean": 0.0,
+          "Hit@1_FlipRate_median": null,
+          "Hit@5_FlipRate_mean": 0.05314009661835749,
+          "Hit@5_FlipRate_median": null,
+          "Hit@10_FlipRate_mean": 0.048309178743961345,
+          "Hit@10_FlipRate_median": null,
+          "Hit@20_FlipRate_mean": 0.024154589371980673,
+          "Hit@20_FlipRate_median": null,
+          "RR_Std_mean": 0.013148777998435104,
+          "RR_Std_median": 0.00013372042482293525,
+          "RR_Std_std": 0.056225420476202576
+        }
+      }
+    }
+  },
+  "output_files": {
+    "cohort": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins_strict34.json",
+    "selection": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_strict34.json",
+    "selection_stats": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_selection_stats_strict34.json",
+    "retrieval_per_query": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_per_query_strict34.json",
+    "retrieval_summary": "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/retrieval_summary_strict34.json",
+    "volatility": "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/volatility_strict34.json"
+  }
+}
