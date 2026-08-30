@@ -38,3 +38,13 @@
     - 算法迭代版本号(`v6m` / `v6k` / `v6g` / `v6h` / `v6i` / `v6j` / `v6l` / `v6f` 等 Stage 4 ablation 编号)
     - 通用版本后缀(`v1` / `v2` / `v3` / `version_X` / `*_v2_backup` 等)
     - 命名含义应反映"做什么"而非"第几版"(如 `syntax_subspace_select_strict_alignment.py`,不是 `syntax_subspace_select_v6m_strict_alignment.py`)。历史迭代信息应在 commit message / PR description / CLAUDE.md / docs/ 中追溯,而非藏在文件名里。
+
+18. **所有方案必须先做 smoke 版本,确认无问题再全量运行**:
+    - ✅ **ALWAYS**: 任何新脚本 / 新训练 / 新 eval / 新 sweep / 新 ablation 第一次运行必须先用**最小 smoke 配置**验证 pipeline 端到端跑通(无报错、无 OOM、无 silent bug、输出结构正确)
+    - ❌ **NEVER**: 不做 smoke 直接跑全量(避免浪费几十分钟到几小时 GPU/IO 发现脚本有 bug)
+    - **Smoke 配置示例**(以 Phase 6.B.4b audit 为例,2026-08-30):
+      - 第一次跑: `N_PAIRS=3, N_PCS=1, ALPHAS=[-2.0, +2.0]` → 24 generations, <1 min
+      - smoke 通过后再: `N_PAIRS=20, N_PCS=2, ALPHAS=[-2.0, +2.0]` → 320 generations, ~5 min
+      - 全量(只在用户明确批准后): `N_PAIRS=30, N_PCS=4, ALPHAS=[-2.0, 0.0, +2.0]` → 2880 generations, ~80 min
+    - **Smoke 必须覆盖**: 数据加载 → 模型加载 → forward pass → 后处理 → 输出 JSON schema → 与 reference 数据形状对比
+    - **Smoke 失败的常见原因**(必须先排查再扩大): Shape 错位(PCA 维度转置)、silent try/except 吞错、checkpoint 路径错、seed 不固定、GPU OOM (需 batch 砍半)、spaCy/torch 版本不兼容
