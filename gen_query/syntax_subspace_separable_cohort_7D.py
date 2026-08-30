@@ -54,7 +54,7 @@ SEED = 42
 # We keep CV_INLIER_MIN at 0.85 (need ≥85% folds inlier to ensure σ is
 # well-conditioned) and N_REVIEWS_MIN at 15 (7.B cohort floor).
 CV_INLIER_MIN = 0.85
-CV_NLL_MAX = 200.0
+CV_NLL_MAX = 34.0
 N_REVIEWS_MIN = 15
 T_B_SWEEP = [0.1, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0]
 TARGET_P_M_GT0 = 0.80  # target for next-phase (7.E) gating
@@ -226,6 +226,11 @@ def stage_cohort(profile_check, profiles_doc, cv_users, asin_to_users, t_b_sweep
         bd_max = float(bd_vals.max())
     else:
         bd_min = bd_med = bd_max = 0.0
+    
+    log("  USER GOAL CONSTRAINTS (2026-08-31):")
+    log(f"    Q-gate: inlier_frac >= 0.85 + nll <= 34.0 + n_rev >= 15")
+    log(f"    Held-out Rank@1 target: P(M>0) >= 0.80 (current ceiling 34.5%)")
+    log(f"    Median M > 0 (avoid few-users trick)")
     log(f"  pairwise BD on {n_q} users: min={bd_min:.3f} med={bd_med:.3f} "
         f"max={bd_max:.3f}")
 
