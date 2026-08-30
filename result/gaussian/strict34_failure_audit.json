@@ -1,0 +1,217 @@
+{
+  "description": "Stage 4 strict34 failure decomposition: classify no_strict_candidate into F1 (max_M>0 & min_d_self>R_95: genre gap / absolute distance), F2 (max_M≤0 & min_d_self≤R_95: Gaussian overlap), F3 (max_M≤0 & min_d_self>R_95: pool coverage gap). min_d_self = argmin d_self over full candidate pool; max_M = argmax M over full candidate pool.",
+  "thresholds": {
+    "R_95": 8.073,
+    "PCA_DIM": 48
+  },
+  "n_total": 30723,
+  "n_valid": 30723,
+  "n_other_excluded": 0,
+  "buckets": {
+    "PASSED_strict": {
+      "n": 490,
+      "pct_of_valid": 0.01594896331738437
+    },
+    "F1_abs_distance_fail": {
+      "n": 1921,
+      "pct_of_valid": 0.0625264459850926,
+      "pct_of_fails": 0.06353984057156088,
+      "diagnostic": "Query closest to target user is still outside R_95 Mahalanobis. Dominant cause: query/review genre gap — generated query lexicon and structure differ fundamentally from user's historical review style.",
+      "stats": {
+        "min_d_self": {
+          "n": 1921,
+          "mean": 10.236807523343543,
+          "median": 9.921523086169891,
+          "q25": 9.077936595212211,
+          "q75": 11.076067434599404,
+          "min": 8.075163626506987,
+          "max": 18.485970496291472
+        },
+        "max_M": {
+          "n": 1921,
+          "mean": 0.6846252679837154,
+          "median": 0.4489163569086134,
+          "q25": 0.18906334023460047,
+          "q75": 0.9055569478143362,
+          "min": 0.00045242430561387437,
+          "max": 6.846957597896335
+        }
+      }
+    },
+    "F2_rel_exclusivity_fail": {
+      "n": 2050,
+      "pct_of_valid": 0.06672525469517951,
+      "pct_of_fails": 0.0678067012866735,
+      "diagnostic": "Closest query is within R_95 (similar style) BUT some other user in cohort is even closer (M<=0). Dominant cause: real Gaussian overlap between users — strict personalized query genuinely hard to find.",
+      "stats": {
+        "min_d_self": {
+          "n": 2050,
+          "mean": 7.265503419705727,
+          "median": 7.467358170397314,
+          "q25": 6.933324335375494,
+          "q75": 7.8197396040518585,
+          "min": 3.6595330197822644,
+          "max": 8.071999269555102
+        },
+        "max_M": {
+          "n": 2050,
+          "mean": -0.8763730499196972,
+          "median": -0.7862626256762839,
+          "q25": -1.2152269574696968,
+          "q75": -0.4614490578122412,
+          "min": -3.083803247364082,
+          "max": 0.0
+        }
+      }
+    },
+    "F3_double_fail": {
+      "n": 26262,
+      "pct_of_valid": 0.8547993360023435,
+      "pct_of_fails": 0.8686534581417656,
+      "diagnostic": "Closest query is both outside R_95 AND beaten by another user. Dominant cause: candidate generation pool does not cover this user's syntactic region — pool coverage gap (gen_query side issue, not selection).",
+      "stats": {
+        "min_d_self": {
+          "n": 26262,
+          "mean": 11.545174933472978,
+          "median": 11.15001281160124,
+          "q25": 9.891657869487963,
+          "q75": 12.732944918200703,
+          "min": 8.073397801267337,
+          "max": 35.283116211571965
+        },
+        "max_M": {
+          "n": 26262,
+          "mean": -2.234624520592219,
+          "median": -1.9867453842284455,
+          "q25": -3.01195619058136,
+          "q75": -1.177791374770372,
+          "min": -16.278833968822624,
+          "max": 0.0
+        }
+      }
+    },
+    "OTHER": {
+      "n": 0,
+      "diagnostic": "Missing Gaussian metadata or non-strict-method entries (excluded from classification)."
+    }
+  },
+  "dominant_failure_mode": {
+    "name": "F3_double_fail (pool coverage)",
+    "n": 26262,
+    "pct_of_fails": 0.8686534581417656
+  },
+  "decision": "T=34 Gaussian quality is FROZEN. If F1 dominates → relax R_95 (loosen absolute gate, e.g. R_99 = 9.34) or add review-style generation (style-anchor LLM exemplar). If F2 dominates → strict personalized is fundamentally infeasible at this T; consider widening cohort per user (k-NN multi-anchor) or accepting high-overlap as the ceiling. If F3 dominates → regen_query with stronger pool diversity / larger K_POOL or switch to hybrid (review-style + LLM-generated) candidate source.",
+  "samples": {
+    "F1": [
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AEAHMAECWCRSOM6OHZCUS36BXVKA",
+        "min_d_self": 8.751249331004137,
+        "max_M": 0.012651095629227171,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B000IDSLOG",
+        "user_id": "AHXOHFJ4UMG4VYHQC3UCWT6LP2SQ",
+        "min_d_self": 11.145360917769839,
+        "max_M": 0.4616156518904404,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B000IDSLOG",
+        "user_id": "AEOWHHP5MR5VZMU63KBTSFOM3LYQ",
+        "min_d_self": 11.51162152259378,
+        "max_M": 0.01447322419564756,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B001OC5UNK",
+        "user_id": "AGILWMVFZCVGKZQWAUEN6XYRFPJQ",
+        "min_d_self": 8.18591192593289,
+        "max_M": 0.21729435147488552,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B001OC5UNK",
+        "user_id": "AFIWKQFKBOJS4NMLFADPOSOINXDA",
+        "min_d_self": 8.178675317084059,
+        "max_M": 0.06138464393486487,
+        "n_candidates": 0
+      }
+    ],
+    "F2": [
+      {
+        "asin": "B075QQ8VZW",
+        "user_id": "AGXAVDHJOM2CZKJYOTOOP32KVUOQ",
+        "min_d_self": 6.835650429892527,
+        "max_M": -0.10131177772561184,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B075QQ8VZW",
+        "user_id": "AG3CNQ2STQS7PA2ECTF7YZSBUFTA",
+        "min_d_self": 7.447141597531571,
+        "max_M": -0.7128029453646558,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B075QQ8VZW",
+        "user_id": "AFIGVDHYZFZAYERO26QVDKU4TAWA",
+        "min_d_self": 6.830899254863871,
+        "max_M": -0.09656060269695566,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B075QQ8VZW",
+        "user_id": "AE5YGFYJDVZ6DLRI5XVSPUC3YF4A",
+        "min_d_self": 7.975684056192405,
+        "max_M": -1.2413454040254894,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B075QQ8VZW",
+        "user_id": "AEBZL4WRQ6XSZTLU6H4UVG3YWWGQ",
+        "min_d_self": 7.494149324481692,
+        "max_M": -0.7598106723147771,
+        "n_candidates": 0
+      }
+    ],
+    "F3": [
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AFFHYH24KHKUDMHMSB4MFEN7VV3Q",
+        "min_d_self": 15.179445647981892,
+        "max_M": -6.428196316977754,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AHPTB6JGZRRZP5HRJQBXJSL7KWTQ",
+        "min_d_self": 15.96187443329499,
+        "max_M": -7.210625102290852,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AHW57645FFDUYPLQIUVM2AELLWXA",
+        "min_d_self": 14.558064543708296,
+        "max_M": -5.806815212704159,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AGKKPGNN6UPYUYDJZWS7DNPWM3SA",
+        "min_d_self": 14.049178982049881,
+        "max_M": -5.297929651045743,
+        "n_candidates": 0
+      },
+      {
+        "asin": "B00ECHYTBI",
+        "user_id": "AGXS5KHMLDKHUSITMXS5Z2AWY2QQ",
+        "min_d_self": 14.725855055623578,
+        "max_M": -5.97460572461944,
+        "n_candidates": 0
+      }
+    ]
+  }
+}
