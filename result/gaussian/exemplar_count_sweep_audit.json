@@ -1,0 +1,129 @@
+{
+  "description": "Phase 4.B N_EXEMPLARS sweep {1,2,3,5,8}. Same 50 ASINs, same 169 pairs, same K_PER_PAIR=4. Only N_EXEMPLARS varies. Spread-sample (no consecutive). Each pool run through Stage 4 strict alignment (T=34, F3+PCA48, M>0 + d_self≤R_95=8.073). Δd = d_nearest_other - d_self = selected_margin.",
+  "config": {
+    "PILOT_N_ASIN": 50,
+    "N_SAMPLE_USERS": 20,
+    "K_PER_PAIR": 4,
+    "R_95": 8.073,
+    "TEMP": 0.7
+  },
+  "N_EXEMPLARS_values": [
+    1,
+    2,
+    3,
+    5,
+    8
+  ],
+  "audits": {
+    "1": {
+      "N_EXEMPLARS": 1,
+      "n_valid": 171,
+      "n_pass": 6,
+      "n_f1": 35,
+      "n_f2": 10,
+      "n_f3": 120,
+      "PASSED_pct_valid": 0.03508771929824561,
+      "F3_pct_fails": 0.7272727272727273,
+      "F3_min_d_self_median": 11.468563649774074,
+      "F3_max_M_median": -1.132644209375198,
+      "all_pairs_delta_d_median": -0.6604543882450464
+    },
+    "2": {
+      "N_EXEMPLARS": 2,
+      "n_valid": 171,
+      "n_pass": 4,
+      "n_f1": 35,
+      "n_f2": 7,
+      "n_f3": 125,
+      "PASSED_pct_valid": 0.023391812865497075,
+      "F3_pct_fails": 0.7485029940119761,
+      "F3_min_d_self_median": 11.297904851665994,
+      "F3_max_M_median": -0.9926382178896169,
+      "all_pairs_delta_d_median": -0.5430525235635493
+    },
+    "3": {
+      "N_EXEMPLARS": 3,
+      "n_valid": 171,
+      "n_pass": 3,
+      "n_f1": 36,
+      "n_f2": 1,
+      "n_f3": 131,
+      "PASSED_pct_valid": 0.017543859649122806,
+      "F3_pct_fails": 0.7797619047619048,
+      "F3_min_d_self_median": 11.578897623260259,
+      "F3_max_M_median": -0.8736074517502992,
+      "all_pairs_delta_d_median": -0.559143490924809
+    },
+    "5": {
+      "N_EXEMPLARS": 5,
+      "n_valid": 171,
+      "n_pass": 3,
+      "n_f1": 41,
+      "n_f2": 2,
+      "n_f3": 125,
+      "PASSED_pct_valid": 0.017543859649122806,
+      "F3_pct_fails": 0.7440476190476191,
+      "F3_min_d_self_median": 11.486378586853787,
+      "F3_max_M_median": -0.8149362256708912,
+      "all_pairs_delta_d_median": -0.4640804947484156
+    },
+    "8": {
+      "N_EXEMPLARS": 8,
+      "n_valid": 171,
+      "n_pass": 2,
+      "n_f1": 38,
+      "n_f2": 2,
+      "n_f3": 129,
+      "PASSED_pct_valid": 0.011695906432748537,
+      "F3_pct_fails": 0.7633136094674556,
+      "F3_min_d_self_median": 12.057518372192868,
+      "F3_max_M_median": -0.8900460022012755,
+      "all_pairs_delta_d_median": -0.43941079630045365
+    },
+    "0_corrected_baseline": {
+      "description": "reference: corrected baseline pilot (no exemplar)",
+      "F3_pct_fails": 0.857,
+      "F3_min_d_self_median": 11.12,
+      "F3_max_M_median": -2.09,
+      "PASSED_pct_valid": 0.0451
+    }
+  },
+  "trend": {
+    "F3_pct_fails": {
+      "1": 0.7272727272727273,
+      "2": 0.7485029940119761,
+      "3": 0.7797619047619048,
+      "5": 0.7440476190476191,
+      "8": 0.7633136094674556
+    },
+    "F3_min_d_self_median": {
+      "1": 11.468563649774074,
+      "2": 11.297904851665994,
+      "3": 11.578897623260259,
+      "5": 11.486378586853787,
+      "8": 12.057518372192868
+    },
+    "F3_max_M_median": {
+      "1": -1.132644209375198,
+      "2": -0.9926382178896169,
+      "3": -0.8736074517502992,
+      "5": -0.8149362256708912,
+      "8": -0.8900460022012755
+    },
+    "PASSED_pct_valid": {
+      "1": 0.03508771929824561,
+      "2": 0.023391812865497075,
+      "3": 0.017543859649122806,
+      "5": 0.017543859649122806,
+      "8": 0.011695906432748537
+    }
+  },
+  "decision": "STOP_SCALING_EXEMPLARS",
+  "rationale": "F3 在 N=2→8 几乎不变 (Δ=-1.5pp), 数量不是瓶颈. 下一步: exemplar selection (PCA48-nearest)",
+  "next_step_hint": {
+    "GO_EXEMPLAR_QUANTITY_BOTTLENECK": "Adopt best N (likely N=8) and run full-scale 2174 ASIN.",
+    "PARTIAL_EXCLUSIVITY_ONLY": "Move to PCA48-nearest exemplar selection: pick exemplars that lie in the user's PCA48 region (computed via user_gaussians.json).",
+    "STOP_SCALING_EXEMPLARS": "Quantity is not the bottleneck. Switch to exemplar SELECTION quality.",
+    "AMBIGUOUS": "Combine PCA48-nearest + larger N."
+  }
+}

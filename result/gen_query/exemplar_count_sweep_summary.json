@@ -1,0 +1,38 @@
+{
+  "description": "Phase 4.B N_EXEMPLARS sweep (signal quantity)",
+  "config": {
+    "PILOT_N_ASIN": 50,
+    "N_SAMPLE_USERS": 20,
+    "K_PER_PAIR": 4,
+    "TEMP": 0.7
+  },
+  "N_EXEMPLARS_values": [
+    1,
+    3,
+    5,
+    8
+  ],
+  "results": {
+    "1": {
+      "N_EXEMPLARS": 1,
+      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_exemplar_anchor_N1.json",
+      "n_pairs": 169
+    },
+    "3": {
+      "N_EXEMPLARS": 3,
+      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_exemplar_anchor_N3.json",
+      "n_pairs": 169
+    },
+    "5": {
+      "N_EXEMPLARS": 5,
+      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_exemplar_anchor_N5.json",
+      "n_pairs": 169
+    },
+    "8": {
+      "N_EXEMPLARS": 8,
+      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_exemplar_anchor_N8.json",
+      "n_pairs": 169
+    }
+  },
+  "next_step": "Phase 4.C: Run Stage 4 strict alignment on each N_EXEMPLARS pool, compute F3/min_d_self/max_M (=Delta_d)/PASSED%, then sweep-trend analysis."
+}
