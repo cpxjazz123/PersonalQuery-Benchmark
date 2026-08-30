@@ -18,7 +18,7 @@
 
 8. **后台任务必须使用 nohup,禁止 sbatch/srun**: 所有长时间运行的脚本(训练 / 生成 / 评估 / 扫描)一律 `nohup ... &` 后台运行,禁止通过 slurm 队列提交。
 
-9. **禁止用 sleep 等待后台进程**: 后台任务启动后用 `tail -n 20 <log>` / `ps aux | grep <proc>` 多次快速轮询,禁止 `sleep 300; tail xxx.log` 这类休眠等待。
+9. **禁止用 sleep 等待后台进程**: 后台任务启动后用 `tail -n 20 <log>` / `ps aux | grep <proc>` 多次快速轮询,禁止 `sleep 300; tail xxx.log` 这类休眠等待。**严禁在 Bash 工具调用中使用 sleep 命令(无论长短)监控后台日志**,必须只用 `tail` / `grep` / `ps` / `nvidia-smi` 等即时查询,让后台进程完成时由 harness 通知,或主动 grep 日志关键字判断进度。
 
 10. **临时文件 / 产物路径必须使用 `hj82_scratch2`**: 所有 log / debug output / cache / npz / jsonl / json 一律写 `/home/wlia0047/hj82_scratch2/wenyu/<sub_path>`,禁止写入 `/fs04`(89% 占用,IO 受限)或 `/tmp`(多用户共享冲突)。
 
