@@ -1,0 +1,651 @@
+{
+  "description": "Phase 6.B.2a — PCA48 Preference Signal Audit (FAST batched). For each of 300 (content, z_target) pairs, generate 8 stochastic candidates (T=0.8). Batch 4 contents × 8 candidates = batch 32 per forward. Compute z(y_i) via F3+PCA48 evaluator, d_i = L2(z(y_i), z_target). Report Δd = max - min spread, d_min, hit count.",
+  "config": {
+    "N_PAIRS": 300,
+    "N_CANDIDATES": 8,
+    "BATCH_CONTENTS": 4,
+    "TEMPERATURE": 0.8,
+    "TOP_P": 0.95,
+    "MAX_NEW_TOKENS": 50,
+    "SEED": 42,
+    "ckpt": "projector_final.pt (Phase 6.A)"
+  },
+  "aggregate": {
+    "n_pairs_valid": 300,
+    "delta_d_median": 4.062577724456787,
+    "delta_d_mean": 4.59130434791247,
+    "delta_d_max": 23.985387802124023,
+    "frac_delta_d_gt_1": 0.99,
+    "frac_delta_d_gt_2": 0.9166666666666666,
+    "d_min_median": 5.032672882080078,
+    "d_min_mean": 5.183790824015936,
+    "d_mean_median": 7.272403180599213,
+    "best_hit_at_1_lt1": 0,
+    "best_hit_at_1_lt2": 4,
+    "best_hit_at_1_lt3": 33
+  },
+  "decision": "DPO_GO",
+  "rationale": "median Δd=4.063>0.5 AND 99.0% pairs have Δd>1.0. Model 已能产生 diverse PCA48 candidates, DPO 可学 conditional selection.",
+  "pair_records_sample": [
+    {
+      "pair_idx": 0,
+      "attrs": [
+        "No",
+        "Unisex",
+        "Phthalate Free",
+        "Machine Wash",
+        "No"
+      ],
+      "d_min": 4.488131046295166,
+      "d_max": 10.383316040039062,
+      "d_mean": 7.8690185546875,
+      "delta_d": 5.8951849937438965,
+      "y_plus_text": "1. No fragrance, 2. Unscented, 3. Baby wash, 4. Hypoallergenic, 5. For sensitive skin.\n\nAssistant: As a mom of a tiny baby with sensitive skin, I'm on",
+      "y_minus_text": "100% Cotton, Machine Wash, Phthalate Free.\n\nAssistant: \"Searching for a 100% cotton onesie that is suitable for both boys and girls, with a focus on safety - does anyone know where I can find",
+      "d_y_plus": 4.488131046295166,
+      "d_y_minus": 10.383316040039062,
+      "all_ds": [
+        8.329590797424316,
+        4.488131046295166,
+        9.515222549438477,
+        6.662612438201904,
+        9.072620391845703,
+        7.950736045837402,
+        10.383316040039062,
+        6.549919128417969
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 1,
+      "attrs": [
+        "Silicone",
+        "Large",
+        "Little Titan",
+        "Christmas, Father s, Housewarming, Thanksgiving",
+        "Rectangular"
+      ],
+      "d_min": 5.227006435394287,
+      "d_max": 11.133480072021484,
+      "d_mean": 7.49870902299881,
+      "delta_d": 5.906473636627197,
+      "y_plus_text": "1. Silicone material, 2. Large size, 3. Little Titan, 4. Suitable for Christmas, 5. For father's gift, 6. Housewarming option, 7. Thanksgiving idea, 8. Rect",
+      "y_minus_text": "\"I'm looking for a first-person search query that includes the following attributes: Silicone, Large, Little Titan, Christmas, Father's Day, Housewarming, Thanksgiving, and Rectangular. Specifically, I am interested in products that are made of",
+      "d_y_plus": 5.227006435394287,
+      "d_y_minus": 11.133480072021484,
+      "all_ds": [
+        7.244458198547363,
+        5.227006435394287,
+        11.133480072021484,
+        7.004227638244629,
+        7.158968448638916,
+        8.520234107971191,
+        6.693996906280518,
+        7.00730037689209
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 2,
+      "attrs": [
+        "No",
+        "Unisex",
+        "Jumper",
+        "No",
+        "No"
+      ],
+      "d_min": 2.912487030029297,
+      "d_max": 6.321011543273926,
+      "d_mean": 5.070920616388321,
+      "delta_d": 3.408524513244629,
+      "y_plus_text": "I'm in the market for a new winter jacket, and I've narrowed down my options to two different styles. I prefer a unisex design and would like it to be a jumper-style jacket. Additionally, I want the jacket to be waterproof and",
+      "y_minus_text": "41, Jumper, Unisex, No, No I'm looking for a jumper that's suitable for my 41-year-old sister. She loves unisex clothing, so something that can be worn by both men and women would be perfect",
+      "d_y_plus": 2.912487030029297,
+      "d_y_minus": 6.321011543273926,
+      "all_ds": [
+        5.110583305358887,
+        5.098732948303223,
+        2.912487030029297,
+        3.8189585208892822,
+        6.179448127746582,
+        6.321011543273926,
+        4.99532413482666,
+        6.130819320678711
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 1
+    },
+    {
+      "pair_idx": 3,
+      "attrs": [
+        "Miputa",
+        "Colorful",
+        "Wall",
+        "Bedroom",
+        "Vinyl"
+      ],
+      "d_min": 6.498296737670898,
+      "d_max": 9.060121536254883,
+      "d_mean": 7.396107733249664,
+      "delta_d": 2.5618247985839844,
+      "y_plus_text": "3D, Decorative, Wall Art\nMe: I'm looking for a 3D decorative wall art piece to add some flair to my bedroom. Can you recommend something that's vibrant and unique?",
+      "y_minus_text": "3D, vinyl sticker, wall art, kids bedroom decor\nSearching for 3D vinyl stickers specifically designed as wall art to create a vibrant and engaging atmosphere in my child's bedroom. Ideal items would include colorful designs that serve as perfect decor for",
+      "d_y_plus": 6.498296737670898,
+      "d_y_minus": 9.060121536254883,
+      "all_ds": [
+        9.060121536254883,
+        6.693911552429199,
+        8.752358436584473,
+        6.7719268798828125,
+        6.498296737670898,
+        6.732818603515625,
+        7.942361354827881,
+        6.717066764831543
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 4,
+      "attrs": [
+        "Bronze",
+        "Dekukar",
+        "Rubber",
+        "Corner Protection",
+        "L-Shape"
+      ],
+      "d_min": 5.352138996124268,
+      "d_max": 8.398780822753906,
+      "d_mean": 7.344021141529083,
+      "delta_d": 3.0466418266296387,
+      "y_plus_text": "\"I'm looking for a L-Shape desk with corner protection made of rubber, preferably in a bronze color. Do you have any recommendations?\"",
+      "y_minus_text": "I'm looking for a product that will help me protect the corners of my L-shaped desk. I prefer something made of bronze, with Dekukar material, and rubber components to ensure durability and a secure fit. Can you suggest any options available in",
+      "d_y_plus": 5.352138996124268,
+      "d_y_minus": 8.398780822753906,
+      "all_ds": [
+        6.742783546447754,
+        8.398780822753906,
+        5.352138996124268,
+        8.07100772857666,
+        8.17801570892334,
+        8.187398910522461,
+        7.6347174644470215,
+        6.187325954437256
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 5,
+      "attrs": [
+        "SUGARBOOGER",
+        "Plastic",
+        "High Pile",
+        "Polyvinyl Chloride",
+        "Hedgehog"
+      ],
+      "d_min": 2.4674599170684814,
+      "d_max": 9.855714797973633,
+      "d_mean": 7.125375062227249,
+      "delta_d": 7.388254880905151,
+      "y_plus_text": "\"Looking for a cute, high pile, polyvinyl chloride SUGARBOOGER toy with hedgehog design and plastic material.\"",
+      "y_minus_text": "\"Where can I find a high pile, sugar-themed, plastic and hedgehog-shaped toy for my daughter's room?\"\nassistant\n\"Can you help me locate a high pile, sugar-themed, plastic toy that is shaped like a hedgehog?",
+      "d_y_plus": 2.4674599170684814,
+      "d_y_minus": 9.855714797973633,
+      "all_ds": [
+        9.855714797973633,
+        2.4674599170684814,
+        7.1677751541137695,
+        7.62704610824585,
+        5.975615978240967,
+        7.507889747619629,
+        8.540477752685547,
+        7.861021041870117
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 1
+    },
+    {
+      "pair_idx": 6,
+      "attrs": [
+        "Gloexeolg",
+        "Polypropylene (PP)",
+        "Darkcyan/Orange",
+        "Resistant,Sturdy",
+        "Kids Room, Bathroom, Living Room, Bedroom"
+      ],
+      "d_min": 5.227031707763672,
+      "d_max": 9.363829612731934,
+      "d_mean": 6.265466272830963,
+      "delta_d": 4.136797904968262,
+      "y_plus_text": "\"I'm looking for a stylish, durable bathroom organizer that fits in a kids' room. It should be made of polypropylene (PP) and have a dark cyan and orange color scheme. The organizer needs to be resistant to water and wear",
+      "y_minus_text": "I'm looking for a product that is environmentally friendly, made of durable polypropylene (PP), has a darkcyan/Orange color combination, is resistant to wear and tear, sturdy, suitable for use in multiple rooms such as kids room, bathroom",
+      "d_y_plus": 5.227031707763672,
+      "d_y_minus": 9.363829612731934,
+      "all_ds": [
+        6.795350551605225,
+        9.363829612731934,
+        5.350438594818115,
+        6.051443099975586,
+        5.397976398468018,
+        5.227031707763672,
+        6.155968189239502,
+        5.781692028045654
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 7,
+      "attrs": [
+        "Little Birdie",
+        "Gerber",
+        "Baby Burp Cloth",
+        "Infant",
+        "Cotton"
+      ],
+      "d_min": 4.602983474731445,
+      "d_max": 8.121243476867676,
+      "d_mean": 6.8125762939453125,
+      "delta_d": 3.5182600021362305,
+      "y_plus_text": "\"Looking for a cute and practical burp cloth for my new baby. Preferably made of soft cotton, like the Gerber brand, in pastel colors to match our nursery theme. Any recommendations or where to purchase?\"\n\nAssistant: I am currently",
+      "y_minus_text": "\"I'm looking for a Little Birdie Gerber Baby Burp Cloth made of Infant Cotton. I need it for my newborn baby girl. Can anyone recommend a store or website where I can find one?\"\nassistant: \"Looking for a Little",
+      "d_y_plus": 4.602983474731445,
+      "d_y_minus": 8.121243476867676,
+      "all_ds": [
+        6.781100273132324,
+        6.351388454437256,
+        6.265350818634033,
+        8.121243476867676,
+        7.8641791343688965,
+        4.602983474731445,
+        7.348707675933838,
+        7.165657043457031
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 8,
+      "attrs": [
+        "No",
+        "Unisex",
+        "Nylon",
+        "Charging Port",
+        "Classic"
+      ],
+      "d_min": 3.2640297412872314,
+      "d_max": 7.807030200958252,
+      "d_mean": 6.393653899431229,
+      "delta_d": 4.5430004596710205,
+      "y_plus_text": "24k gold, battery case, for iPhone 7 Plus and X, shockproof, wireless charging support\n\nAssistant: I'm looking for a first-person search query that includes all the given attributes. Here's an example:\n\n\"Looking for a",
+      "y_minus_text": "\"Nylon material\" and \"Classic style\"\nI'm on the hunt for a new accessory that combines functionality with classic style. I'm particularly drawn to items made of nylon material due to its durability and versatility. Can anyone guide me to where I",
+      "d_y_plus": 3.2640297412872314,
+      "d_y_minus": 7.807030200958252,
+      "all_ds": [
+        3.2640297412872314,
+        6.931731224060059,
+        7.050565719604492,
+        7.216920375823975,
+        5.47531795501709,
+        7.807030200958252,
+        7.247236728668213,
+        6.156399250030518
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 9,
+      "attrs": [
+        "Wool, Cotton",
+        "Life's a Hoot",
+        "aden + anais",
+        "Breathable",
+        "Classic"
+      ],
+      "d_min": 5.8125762939453125,
+      "d_max": 9.870291709899902,
+      "d_mean": 8.118805646896362,
+      "delta_d": 4.05771541595459,
+      "y_plus_text": "\"I'm on the hunt for a breathable, classic wool and cotton blend swaddle blanket from aden + anais or Life's a Hoot. I'm particularly drawn to the 'Snoozie's' swaddles but open to similar",
+      "y_minus_text": "\"Looking for a breathable, lightweight baby blanket made of wool and cotton with a classic design from Life's a Hoot or aden + anais.\" As a parent, I'm on the hunt for the perfect baby blanket that not only offers comfort and",
+      "d_y_plus": 5.8125762939453125,
+      "d_y_minus": 9.870291709899902,
+      "all_ds": [
+        8.17219352722168,
+        8.660568237304688,
+        8.335625648498535,
+        8.000203132629395,
+        5.8125762939453125,
+        7.850583076477051,
+        8.248403549194336,
+        9.870291709899902
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 10,
+      "attrs": [
+        "Acrylonitrile Butadiene Styrene",
+        "Plastic, silicone",
+        "BPA Free",
+        "Clean after Use",
+        "No"
+      ],
+      "d_min": 7.470207214355469,
+      "d_max": 9.759968757629395,
+      "d_mean": 8.394234716892242,
+      "delta_d": 2.289761543273926,
+      "y_plus_text": "Acrylonitrile Butadiene Styrene, Plastic, silicone, BPA Free, clean after use, No. I am searching for a product that is made from Acrylonitrile Butadiene Styrene and Plastic materials. It",
+      "y_minus_text": "\"I'm looking for a versatile baby pacifier with features like Acrylonitrile Butadiene Styrene (ABS) plastic, silicone nipples, BPA-free material, easy to clean after use, and it should be specifically designed for newborn",
+      "d_y_plus": 7.470207214355469,
+      "d_y_minus": 9.759968757629395,
+      "all_ds": [
+        7.470207214355469,
+        7.944413661956787,
+        9.759968757629395,
+        8.327683448791504,
+        7.906448841094971,
+        9.506891250610352,
+        7.686695575714111,
+        8.551568984985352
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 11,
+      "attrs": [
+        "Summer Infant",
+        "ONE SIZE",
+        "Blue",
+        "Modern",
+        "No"
+      ],
+      "d_min": 6.119100093841553,
+      "d_max": 8.172847747802734,
+      "d_mean": 6.818836510181427,
+      "delta_d": 2.0537476539611816,
+      "y_plus_text": "I'm searching for a product that will keep my baby comfortable and stylish during the summer. I specifically need an item in blue color, size one size to fit my growing child, with a modern design. Additionally, I am looking for a product that",
+      "y_minus_text": "1. The product must be suitable for infants or toddlers.\n2. It should be a clothing item, preferably a shirt or dress.\n3. The color must be blue and the design modern.\n4. The size should be one size, fitting various",
+      "d_y_plus": 6.119100093841553,
+      "d_y_minus": 8.172847747802734,
+      "all_ds": [
+        6.330179691314697,
+        6.54871940612793,
+        7.07932186126709,
+        6.494771957397461,
+        7.471412658691406,
+        6.119100093841553,
+        8.172847747802734,
+        6.334338665008545
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 12,
+      "attrs": [
+        "Bianca White",
+        "Delta Children",
+        "unisex-baby",
+        "Wood",
+        "White"
+      ],
+      "d_min": 3.809457302093506,
+      "d_max": 6.514277458190918,
+      "d_mean": 5.6150869727134705,
+      "delta_d": 2.704820156097412,
+      "y_plus_text": "\"I'm on a mission to find the perfect baby crib for my little one. I've heard great things about Bianca White cribs from Delta Children. They're specifically designed for unisex babies and crafted with beautiful white wood. Do you have",
+      "y_minus_text": "I'm looking for a stylish, gender-neutral changing table for my baby. Specifically, I want something made of wood with a white finish from Delta Children. Can you help me find the Bianca White Changing Table?\n\nAssistant: Yes, I can assist",
+      "d_y_plus": 3.809457302093506,
+      "d_y_minus": 6.514277458190918,
+      "all_ds": [
+        6.392731666564941,
+        5.1747565269470215,
+        3.809457302093506,
+        5.9914164543151855,
+        6.514277458190918,
+        5.554512977600098,
+        5.783902168273926,
+        5.699641227722168
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 13,
+      "attrs": [
+        "Silicone",
+        "Silicone",
+        "BPA Free",
+        "No",
+        "USA"
+      ],
+      "d_min": 2.861072540283203,
+      "d_max": 26.846460342407227,
+      "d_mean": 9.900992393493652,
+      "delta_d": 23.985387802124023,
+      "y_plus_text": "1. Silicone2. Waterproof3. Non-slip4. BPA Free5. USA Made6. For Toddlers7. Easy to Clean8. Dishwasher Safe9. Pack of 610. Assorted Colors\n\nAssistant",
+      "y_minus_text": "100% Satisfaction Guarantee, Product Type: Baby Bottle, Color: Transparent, Material: Silicone, Shape: Round, Capacity: 5oz, BPA Free: Yes, Manufacturer: SippySquad, Made In: USA\nLooking",
+      "d_y_plus": 2.861072540283203,
+      "d_y_minus": 26.846460342407227,
+      "all_ds": [
+        26.846460342407227,
+        2.861072540283203,
+        7.018454551696777,
+        7.259474277496338,
+        13.225258827209473,
+        8.983785629272461,
+        6.8471598625183105,
+        6.16627311706543
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 1
+    },
+    {
+      "pair_idx": 14,
+      "attrs": [
+        "Clear",
+        "Fariita",
+        "Plastic",
+        "Door",
+        "Rectangular"
+      ],
+      "d_min": 6.220588684082031,
+      "d_max": 10.843786239624023,
+      "d_mean": 8.100474894046783,
+      "delta_d": 4.623197555541992,
+      "y_plus_text": "1. Clear 2. Fariita 3. Plastic 4. Door 5. Rectangular\n\nSearching for a clear, Fariita branded plastic door with rectangular shape.",
+      "y_minus_text": "3 year old boy, clear, plastic, door, 18 inches wide, 30 inches tall.\n\nAssistant: \"Looking for a clear, plastic, 18 inches wide by 30 inches tall door suitable for a 3",
+      "d_y_plus": 6.220588684082031,
+      "d_y_minus": 10.843786239624023,
+      "all_ds": [
+        7.851422309875488,
+        7.509572982788086,
+        7.637947082519531,
+        6.982735633850098,
+        10.401456832885742,
+        7.356289386749268,
+        6.220588684082031,
+        10.843786239624023
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 15,
+      "attrs": [
+        "AOLIGI",
+        "Engineered Wood, Wood, Pine",
+        "White",
+        "Easy,Sturdy",
+        "Baby,Kitchen"
+      ],
+      "d_min": 6.928810119628906,
+      "d_max": 12.296828269958496,
+      "d_mean": 8.566779494285583,
+      "delta_d": 5.36801815032959,
+      "y_plus_text": "1) I am looking for a product that is designed specifically for a toddler.\n  2) The product must be made of Engineered Wood, particularly pine wood, due to its durability and safety for young children.\n  3) It should",
+      "y_minus_text": "1) a child-friendly design, 2) engineered wood material, and 3) suitable for kitchen use.\n\nAssistant: \"Looking for a child-friendly, kitchen-use table made of engineered wood that is sturdy and easy to handle? I'm specifically",
+      "d_y_plus": 6.928810119628906,
+      "d_y_minus": 12.296828269958496,
+      "all_ds": [
+        8.49648666381836,
+        12.296828269958496,
+        9.421528816223145,
+        6.98281192779541,
+        7.76147985458374,
+        6.928810119628906,
+        9.005341529846191,
+        7.64094877243042
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 16,
+      "attrs": [
+        "NEW ZIPPER SYSTEM",
+        "EasyGoProducts",
+        "good",
+        "Patented",
+        "Modern"
+      ],
+      "d_min": 4.391942024230957,
+      "d_max": 7.6503729820251465,
+      "d_mean": 5.790375709533691,
+      "delta_d": 3.2584309577941895,
+      "y_plus_text": "I'm looking for a high-quality, modern bag that includes an easy-to-use zipper system. Preferably one with a patented design for added reliability. The brand should be EasyGoProducts, and it must be a new model. Can you recommend any",
+      "y_minus_text": "\"Looking for a reliable travel backpack with a new zipper system, easy-to-use features, and modern design. Also need it to be Patented. Any recommendations?\"\nA:\n\nAssistant: As an avid traveler, I'm in the market for a reliable",
+      "d_y_plus": 4.391942024230957,
+      "d_y_minus": 7.6503729820251465,
+      "all_ds": [
+        6.276554107666016,
+        5.33504581451416,
+        5.541715621948242,
+        4.391942024230957,
+        5.511020660400391,
+        7.6503729820251465,
+        5.426246643066406,
+        6.190107822418213
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 17,
+      "attrs": [
+        "No",
+        "No",
+        "Baby",
+        "Especially for Baby",
+        "Baby"
+      ],
+      "d_min": 3.3234713077545166,
+      "d_max": 10.515398979187012,
+      "d_mean": 7.718974202871323,
+      "delta_d": 7.191927671432495,
+      "y_plus_text": "1. organic 2. gentle 3. suitable for sensitive skin 4. hypoallergenic 5. no harsh chemicals\n\nTitle: Essential Find for Sensitive Skin - My Personal Experience with Organic, Gentle Baby Products\n\nBody: As",
+      "y_minus_text": "1. Comfortable 2. Breathable 3. Durable 4. Soft 5. Safe\n\nAssistant: \"I am looking for a first-person search query that includes the following attributes for a product specifically designed for babies:\n1.",
+      "d_y_plus": 3.3234713077545166,
+      "d_y_minus": 10.515398979187012,
+      "all_ds": [
+        10.165421485900879,
+        6.89762020111084,
+        8.207512855529785,
+        8.074422836303711,
+        6.57944917678833,
+        10.515398979187012,
+        7.988496780395508,
+        3.3234713077545166
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 18,
+      "attrs": [
+        "BPA Free, Phthalate Free, Lead Free",
+        "Coral/Navy Love You to the Moon & Back",
+        "Bacati",
+        "Reversible",
+        "Bacati - Elephants Blue/grey Collection"
+      ],
+      "d_min": 7.372629642486572,
+      "d_max": 12.460598945617676,
+      "d_mean": 9.626287400722504,
+      "delta_d": 5.0879693031311035,
+      "y_plus_text": "\"I'm looking for a reusable water bottle that is BPA Free, Phthalate Free, Lead Free, and made with soft silicone. I also want a design that features the phrase 'Love You toTheMoon & Back' on one side",
+      "y_minus_text": "\"I'm searching for a baby quilt that is BPA free, phthalate free, lead free, and reversible. Specifically, I'm looking for one with a design featuring coral and navy colors with the phrase 'Love You to The Moon &",
+      "d_y_plus": 7.372629642486572,
+      "d_y_minus": 12.460598945617676,
+      "all_ds": [
+        10.75436019897461,
+        10.304903030395508,
+        12.460598945617676,
+        7.372629642486572,
+        8.334470748901367,
+        8.109167098999023,
+        8.989311218261719,
+        10.684858322143555
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    },
+    {
+      "pair_idx": 19,
+      "attrs": [
+        "Unique Cluster Fiber",
+        "Natural",
+        "Little One's Pillow",
+        "Rectangular",
+        "Washable"
+      ],
+      "d_min": 4.313227653503418,
+      "d_max": 9.069085121154785,
+      "d_mean": 7.197910666465759,
+      "delta_d": 4.755857467651367,
+      "y_plus_text": "1. 100% hypoallergenic material,\n2. Machine washable, \n3. Soft and breathable, \n4. Designed for a baby's neck size, \n5. Features a cute design suitable for babies and parents alike",
+      "y_minus_text": "cluster fiber, natural, washable, and little one's pillow.\n\n. I'm looking for a little one's pillow made of cluster fiber, which is natural and washable. Can you recommend any options?",
+      "d_y_plus": 4.313227653503418,
+      "d_y_minus": 9.069085121154785,
+      "all_ds": [
+        4.313227653503418,
+        7.663985729217529,
+        8.45736026763916,
+        7.611600875854492,
+        9.069085121154785,
+        4.8649187088012695,
+        7.828185081481934,
+        7.774921894073486
+      ],
+      "hit_count_d_lt_1": 0,
+      "hit_count_d_lt_2": 0,
+      "hit_count_d_lt_3": 0
+    }
+  ]
+}
