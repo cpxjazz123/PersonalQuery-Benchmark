@@ -1,0 +1,90 @@
+{
+  "config": {
+    "cv_inlier_min": 0.9,
+    "cv_nll_max": 39.0
+  },
+  "n_total_candidates": 180,
+  "n_paired_candidates": 126,
+  "n_z48_extraction_failures": 0,
+  "paired_aggregate": {
+    "M_global_median": -4.378,
+    "M_global_mean": -4.505,
+    "M_local_fixed_median": -0.767,
+    "M_local_fixed_mean": -0.838,
+    "deltaM_median": 3.514,
+    "deltaM_mean": 3.667,
+    "P_deltaM_ge0": 100.0,
+    "invariant_violations": 0,
+    "P_M_global_gt0": 0.0,
+    "P_M_local_fixed_gt0": 0.0,
+    "d_nearest_other_global_median": 1.45,
+    "d_nearest_other_local_fixed_median": 4.725
+  },
+  "per_user": [
+    {
+      "user_id": "AERFSIGUZKWIES3W3FRBVUNX4RUA",
+      "n_local": 30,
+      "n_paired": 18,
+      "M_global_median": -4.007,
+      "M_local_median": -0.554,
+      "deltaM_median": 3.428,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AFOTTSAZYNXVVEZ5IV24QOP5QOWQ",
+      "n_local": 345,
+      "n_paired": 18,
+      "M_global_median": -4.163,
+      "M_local_median": -0.766,
+      "deltaM_median": 2.781,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AFYB7O3AY4KNFJ466V2KSOQB2ODQ",
+      "n_local": 214,
+      "n_paired": 18,
+      "M_global_median": -4.143,
+      "M_local_median": -0.807,
+      "deltaM_median": 3.115,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AHRQVI734AF32IXI37RUF7P56KMQ",
+      "n_local": 64,
+      "n_paired": 18,
+      "M_global_median": -4.325,
+      "M_local_median": -0.582,
+      "deltaM_median": 3.386,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AFRGJMSUHGKN6E36WF7NUXIQVXVQ",
+      "n_local": 21,
+      "n_paired": 18,
+      "M_global_median": -4.546,
+      "M_local_median": -0.939,
+      "deltaM_median": 3.586,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AHUSKFUP5FOS2PY32N2OT624O6NA",
+      "n_local": 427,
+      "n_paired": 18,
+      "M_global_median": -4.581,
+      "M_local_median": -0.681,
+      "deltaM_median": 3.557,
+      "P_M_local_gt0": 0.0
+    },
+    {
+      "user_id": "AHMMBO7EE3UMGYHT5K5P54ND6DWA",
+      "n_local": 493,
+      "n_paired": 18,
+      "M_global_median": -4.796,
+      "M_local_median": -0.867,
+      "deltaM_median": 4.005,
+      "P_M_local_gt0": 0.0
+    }
+  ],
+  "key_finding_placeholder": "to be filled",
+  "key_finding": "Phase 6.F.FIX: After correcting the user-to-user \u2192 candidate-to-competitor distance bug, M_local_fixed median = -0.767, P(M_local > 0) = 0.0% (vs M_global median = -4.378, P(M_global > 0) = 0.0%). Invariant violations: 0. VERDICT: even with correct local competitor distance, generated queries achieve 0% M>0 \u2014 this is a TRUE generation-to-representation gap (PCA48 captures real user-local signal, but LLM-generated queries cannot reach user-specific location)."
+}
