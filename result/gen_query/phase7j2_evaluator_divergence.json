@@ -1,0 +1,3622 @@
+{
+  "summary": {
+    "config": {
+      "description": "Phase 7.J.2: same z, three evaluators (7.I / 7.J.0 / 7.J.1). Identifies whether sign-flip comes from mu_set (z_all vs z_disc) or cohort composition (per-ASIN vs merged)."
+    },
+    "n_disc_sents_total": 192,
+    "n_evaluated": 96,
+    "P_M_pos_7I_reported": 1.0,
+    "P_M_pos_A_re_evaluated": 0.6770833333333334,
+    "P_M_pos_B_re_evaluated": 0.3958333333333333,
+    "P_M_pos_C_re_evaluated": 0.8020833333333334,
+    "n_AB_both_evaluated": 71,
+    "n_BC_both_evaluated": 78,
+    "sign_flip_A_to_B": 47,
+    "sign_flip_A_to_C": 1,
+    "n_skipped_no_peers": 96
+  },
+  "per_sentence_rows": [
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "My baby loves playing with it every since the first day I introduced to her.",
+      "source_M_7I": 0.7865726103029358,
+      "A_7I": {
+        "M": 0.7865726103029358,
+        "d_self": 2.88870484018495,
+        "d_other": 3.675277450487886,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.0086691743271059,
+        "d_self": 2.8887048401849507,
+        "d_other": 2.8973740145120566,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.7865726103029358,
+        "d_self": 2.88870484018495,
+        "d_other": 3.675277450487886,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "I subscribed for toy boxes, those ones where they send you a toy box every 2 months, so she has a lot of toys already.",
+      "source_M_7I": 1.3658641232547613,
+      "A_7I": {
+        "M": 2.078409961464315,
+        "d_self": 3.1047272752284316,
+        "d_other": 5.183137236692747,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.35278626828070525,
+        "d_self": 3.1047272752284316,
+        "d_other": 2.7519410069477264,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.078409961464315,
+        "d_self": 3.1047272752284316,
+        "d_other": 5.183137236692747,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "Although she like playing with those toys too, but she absolutely loves this manhattan ball!",
+      "source_M_7I": 0.6474550958797187,
+      "A_7I": {
+        "M": 1.94863858432795,
+        "d_self": 2.5082439529458624,
+        "d_other": 4.456882537273812,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.061701610158001,
+        "d_self": 2.5082439529458624,
+        "d_other": 1.4465423427878614,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.94863858432795,
+        "d_self": 2.5082439529458624,
+        "d_other": 4.456882537273812,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "She will coordinate her hands to hold it and put it in her mouth, I hold it in distance and it encourage her to reach for it.",
+      "source_M_7I": 0.5771436702529384,
+      "A_7I": {
+        "M": 1.252814802418059,
+        "d_self": 3.3350650108782407,
+        "d_other": 4.5878798132963,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.3998452264754224,
+        "d_self": 3.3350650108782407,
+        "d_other": 2.9352197844028183,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.252814802418059,
+        "d_self": 3.3350650108782407,
+        "d_other": 4.5878798132963,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+      "asin": "B000BNCA4K",
+      "text": "I\u2019m hoping it continues to work, but so far it\u2019s great!",
+      "source_M_7I": 1.1910172062965518,
+      "A_7I": {
+        "M": 1.8111148971834465,
+        "d_self": 3.1553603330263167,
+        "d_other": 4.966475230209763,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.8284427012215354,
+        "d_self": 3.1553603330263167,
+        "d_other": 2.3269176318047813,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.8111148971834465,
+        "d_self": 3.1553603330263167,
+        "d_other": 4.966475230209763,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+      "asin": "B000BNCA4K",
+      "text": "I have such a hard time getting thermometers that are easy to work and are accurate.",
+      "source_M_7I": 0.550616673615492,
+      "A_7I": {
+        "M": 0.550616673615492,
+        "d_self": 4.714043535294096,
+        "d_other": 5.264660208909588,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.05213834199351375,
+        "d_self": 4.714043535294096,
+        "d_other": 4.76618187728761,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.550616673615492,
+        "d_self": 4.714043535294096,
+        "d_other": 5.264660208909588,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+      "asin": "B000BNCA4K",
+      "text": "I worry about water getting into the compartments have the beads.",
+      "source_M_7I": 1.2854881721140456,
+      "A_7I": {
+        "M": 2.1065936450964844,
+        "d_self": 2.319761433567392,
+        "d_other": 4.426355078663876,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7342409146283131,
+        "d_self": 2.319761433567392,
+        "d_other": 1.5855205189390789,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.1065936450964844,
+        "d_self": 2.319761433567392,
+        "d_other": 4.426355078663876,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "I bought Sophie from Amazon before my daughter was even born.",
+      "source_M_7I": 1.0793826108075186,
+      "A_7I": {
+        "M": 3.022989564745457,
+        "d_self": 2.4868306844383112,
+        "d_other": 5.509820249183768,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.4271795186601235,
+        "d_self": 2.4868306844383112,
+        "d_other": 2.0596511657781877,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.03627701245139,
+        "d_self": 2.4868306844383112,
+        "d_other": 5.523107696889701,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "It was highly rated and figured it was good.",
+      "source_M_7I": 0.16507798981817956,
+      "A_7I": {
+        "M": 2.4512571390569446,
+        "d_self": 4.496798360563041,
+        "d_other": 6.9480554996199855,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -2.6038717053620526,
+        "d_self": 4.496798360563041,
+        "d_other": 1.8929266552009882,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.5172137923680973,
+        "d_self": 4.496798360563041,
+        "d_other": 7.014012152931138,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "My daughters now 6 months and has been playing and biting Sophie since she was 3 months.",
+      "source_M_7I": 1.087064379828265,
+      "A_7I": {
+        "M": 2.5892222436884493,
+        "d_self": 2.480108447690286,
+        "d_other": 5.0693306913787355,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.3658933178476382,
+        "d_self": 2.480108447690286,
+        "d_other": 1.114215129842648,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.6068949895613507,
+        "d_self": 2.480108447690286,
+        "d_other": 5.087003437251637,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "Nothing worked with our daughter who at 4 months was cutting cream.",
+      "source_M_7I": 1.4456657309652523,
+      "A_7I": {
+        "M": 2.6955037701763365,
+        "d_self": 2.156730385460791,
+        "d_other": 4.852234155637127,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.06693318905972268,
+        "d_self": 2.1348337820362753,
+        "d_other": 2.0679005929765526,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.717400373600852,
+        "d_self": 2.1348337820362753,
+        "d_other": 4.852234155637127,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "I remembered seeing this giraffe thinking people were crazy to pay $20 for a small toy.",
+      "source_M_7I": 1.0263902997939893,
+      "A_7I": {
+        "M": 3.1373788672528176,
+        "d_self": 3.0163257354747004,
+        "d_other": 6.153704602727518,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.06666206237203465,
+        "d_self": 2.9436890246318237,
+        "d_other": 2.877026962259789,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.2100155780956943,
+        "d_self": 2.9436890246318237,
+        "d_other": 6.153704602727518,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "Well I will buy a million cause it was the only thing that relieved her pain.",
+      "source_M_7I": 1.6681076162255088,
+      "A_7I": {
+        "M": 3.120415970624884,
+        "d_self": 2.8911133321332994,
+        "d_other": 6.011529302758183,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.7070915544018637,
+        "d_self": 2.8310317381160104,
+        "d_other": 3.538123292517874,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.180497564642173,
+        "d_self": 2.8310317381160104,
+        "d_other": 6.011529302758183,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "Its easy for her to grab with her little hands around his legs and bites on his ears or face.",
+      "source_M_7I": 0.38742999555926083,
+      "A_7I": {
+        "M": 1.9580660416231201,
+        "d_self": 2.7782581176532317,
+        "d_other": 4.736324159276352,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.08201556081056571,
+        "d_self": 2.499289012488724,
+        "d_other": 2.417273451678158,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.237035146787628,
+        "d_self": 2.499289012488724,
+        "d_other": 4.736324159276352,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "With the subscription program you pay as much as the cheap generic diaper but you gey a great diaper that doesn't leak.",
+      "source_M_7I": 1.6479955437267453,
+      "A_7I": {
+        "M": 3.675872294557786,
+        "d_self": 2.134892685905929,
+        "d_other": 5.810764980463715,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5565146651308686,
+        "d_self": 2.1355973570573643,
+        "d_other": 2.692112022188233,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.675167623406351,
+        "d_self": 2.1355973570573643,
+        "d_other": 5.810764980463715,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEOL5AERHHZHHZFZTRHA3VVXQTTA",
+      "asin": "B00278WA4W",
+      "text": "These cups leak every time they are dropped (or thrown, if your kid is like mine).<br />2.",
+      "source_M_7I": 0.21985876137554516,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.18271625544909,
+        "d_self": 3.9859982288688416,
+        "d_other": 2.8032819734197516,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEOL5AERHHZHHZFZTRHA3VVXQTTA",
+      "asin": "B00278WA4W",
+      "text": "They are made of heavier plastic than other sippy cups we have tried.",
+      "source_M_7I": 1.1922291217066108,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.195309920991496,
+        "d_self": 3.5895037331876227,
+        "d_other": 2.394193812196127,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEOL5AERHHZHHZFZTRHA3VVXQTTA",
+      "asin": "B00278WA4W",
+      "text": "When they are dropped they can dent hardwood floor.<br /><br />I don't see what all the fuss is about!",
+      "source_M_7I": 0.7244257026998242,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.1430178555585735,
+        "d_self": 2.544347288171407,
+        "d_other": 1.4013294326128334,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B0045I6IAO",
+      "text": "Good for travel - just average in terms of quality",
+      "source_M_7I": 2.1308217747368126,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.24720882711154957,
+        "d_self": 0.6784201281102161,
+        "d_other": 0.9256289552217657,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B0045I6IAO",
+      "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+      "source_M_7I": 2.110771681690373,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.59461389948023,
+        "d_self": 0.8054265994968307,
+        "d_other": 1.4000404989770607,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B0045I6IAO",
+      "text": "Happy with the product for newborn baby\u2019s nails",
+      "source_M_7I": 2.065340635619024,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5644422929362637,
+        "d_self": 0.8035590107297795,
+        "d_other": 1.3680013036660432,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B0045I6IAO",
+      "text": "Saved us from a world of pain with a reflux baby.",
+      "source_M_7I": 1.6949674610318881,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5629298607901115,
+        "d_self": 1.2762925042312945,
+        "d_other": 0.7133626434411829,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B000V88HJM",
+      "text": "Good for travel - just average in terms of quality",
+      "source_M_7I": 1.3522146265351271,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.24720882711154957,
+        "d_self": 0.6784201281102161,
+        "d_other": 0.9256289552217657,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B000V88HJM",
+      "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+      "source_M_7I": 1.5215752899483899,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.59461389948023,
+        "d_self": 0.8054265994968307,
+        "d_other": 1.4000404989770607,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B000V88HJM",
+      "text": "Happy with the product for newborn baby\u2019s nails",
+      "source_M_7I": 1.6129888878834595,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5644422929362637,
+        "d_self": 0.8035590107297795,
+        "d_other": 1.3680013036660432,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B000V88HJM",
+      "text": "Saved us from a world of pain with a reflux baby.",
+      "source_M_7I": 1.1798049125978622,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5629298607901115,
+        "d_self": 1.2762925042312945,
+        "d_other": 0.7133626434411829,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+      "asin": "B0048SOBGO",
+      "text": "Baby loves this addition to the crib and can now turn it on herself in the middle of the night.",
+      "source_M_7I": 0.19054468248646206,
+      "A_7I": {
+        "M": 2.3456650937744734,
+        "d_self": 2.4250743915264894,
+        "d_other": 4.770739485300963,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.06286262984228452,
+        "d_self": 1.617446806254997,
+        "d_other": 1.5545841764127124,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.145692403608876,
+        "d_self": 1.617446806254997,
+        "d_other": 5.763139209863873,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+      "asin": "B0048SOBGO",
+      "text": "Works great and we use it every night.",
+      "source_M_7I": 1.4954931697957086,
+      "A_7I": {
+        "M": 3.89238693085575,
+        "d_self": 1.504981247352686,
+        "d_other": 5.397368178208436,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.24730658198151267,
+        "d_self": 1.1877689539130556,
+        "d_other": 0.9404623719315429,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.221929682853275,
+        "d_self": 1.1877689539130556,
+        "d_other": 6.40969863676633,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+      "asin": "B0048SOBGO",
+      "text": "Great product and was needed for all my baby bottles for daycare.",
+      "source_M_7I": 1.627202433003455,
+      "A_7I": {
+        "M": 5.223953795728398,
+        "d_self": 0.0,
+        "d_other": 5.223953795728398,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.3925369758656394,
+        "d_self": 1.014769074762408,
+        "d_other": 1.4073060506280475,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.19738018340659,
+        "d_self": 1.014769074762408,
+        "d_other": 6.212149258168998,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "For primary doors the ones with finger holes where painful and hard to use in a hurry.",
+      "source_M_7I": 0.8126072595438947,
+      "A_7I": {
+        "M": 3.9603801096427684,
+        "d_self": 3.331208816176125,
+        "d_other": 7.2915889258188935,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.10071266416807267,
+        "d_self": 2.908162226021169,
+        "d_other": 2.807449561853096,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.133721765385086,
+        "d_self": 2.908162226021169,
+        "d_other": 7.041883991406255,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Can be cut into smaller sections like I did for bottle lids.",
+      "source_M_7I": 0.5924951014919482,
+      "A_7I": {
+        "M": 2.990073887030773,
+        "d_self": 2.9282313175326253,
+        "d_other": 5.918305204563398,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.8083453046994775,
+        "d_self": 3.1403255721976735,
+        "d_other": 1.331980267498196,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.7251282483189274,
+        "d_self": 3.1403255721976735,
+        "d_other": 5.865453820516601,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Has a sticker film that covers what you write so it stays sealed.",
+      "source_M_7I": 0.8804174821693072,
+      "A_7I": {
+        "M": 3.0036023750212437,
+        "d_self": 3.9514732846868106,
+        "d_other": 6.955075659708054,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5934271507486382,
+        "d_self": 4.0153427948640195,
+        "d_other": 3.4219156441153813,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.8046726639122515,
+        "d_self": 4.0153427948640195,
+        "d_other": 6.820015458776271,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Can be peeled off easy but don't plan to adjust it too much without compromising the stick.",
+      "source_M_7I": 0.9978517758052576,
+      "A_7I": {
+        "M": 4.103750952867302,
+        "d_self": 2.5137099360155055,
+        "d_other": 6.617460888882808,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.37416951356805694,
+        "d_self": 2.292668767325507,
+        "d_other": 1.9184992537574501,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.159022976339348,
+        "d_self": 2.292668767325507,
+        "d_other": 6.451691743664855,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "I used a sharpie and was able to write name and a second line for other information.",
+      "source_M_7I": 1.0663510677480454,
+      "A_7I": {
+        "M": 3.992014987022821,
+        "d_self": 4.0448585650002284,
+        "d_other": 8.03687355202305,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.08302611807446114,
+        "d_self": 3.50663029115019,
+        "d_other": 3.423604173075729,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.212592807669797,
+        "d_self": 3.50663029115019,
+        "d_other": 7.719223098819987,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B00A4B34IA",
+      "text": "I bought two different ones at the same time.",
+      "source_M_7I": 2.4200500030158043,
+      "A_7I": {
+        "M": 5.308348079097028,
+        "d_self": 0.5582508686038135,
+        "d_other": 5.866598947700841,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.1396368667364397,
+        "d_self": 0.5582508686038135,
+        "d_other": 0.6978877353402532,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.87104888054826,
+        "d_self": 0.5582508686038135,
+        "d_other": 5.429299749152073,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B00A4B34IA",
+      "text": "I literally too this out the box, laughed, and put it right back and returned it.",
+      "source_M_7I": 2.3592906633338657,
+      "A_7I": {
+        "M": 5.154287573496026,
+        "d_self": 0.7843688485245495,
+        "d_other": 5.938656422020576,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.3697496676155221,
+        "d_self": 0.7843688485245495,
+        "d_other": 1.1541185161400715,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.76054422782447,
+        "d_self": 0.7843688485245495,
+        "d_other": 5.544913076349019,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B00A4B34IA",
+      "text": "The other one was cheaper, cuter, and about 5 pieces.",
+      "source_M_7I": 2.1135094851979597,
+      "A_7I": {
+        "M": 4.964858995241954,
+        "d_self": 0.7477732755475747,
+        "d_other": 5.712632270789529,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.19379732608301703,
+        "d_self": 0.7477732755475748,
+        "d_other": 0.5539759494645577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.575475715535003,
+        "d_self": 0.7477732755475747,
+        "d_other": 5.323248991082577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "They are easy to install and easy to use.",
+      "source_M_7I": 1.068393834200568,
+      "A_7I": {
+        "M": 1.8890361284512611,
+        "d_self": 2.1317426429626707,
+        "d_other": 4.020778771413932,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.44490289761402435,
+        "d_self": 2.3453444383937536,
+        "d_other": 1.9004415407797293,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.1988436316111453,
+        "d_self": 2.345344438393753,
+        "d_other": 3.5441880700048984,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "I wish I would have gotten this one when my little was a newborn.",
+      "source_M_7I": 0.676176050938238,
+      "A_7I": {
+        "M": 1.4605246203495326,
+        "d_self": 2.6982584200662614,
+        "d_other": 4.158783040415794,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.16561238678307122,
+        "d_self": 2.2631721695488474,
+        "d_other": 2.097559782765776,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.9854676982999484,
+        "d_self": 2.263172169548848,
+        "d_other": 3.248639867848796,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "He likes to rock himself in it and I like that it will fit him for the next few years.",
+      "source_M_7I": 0.6698381354316449,
+      "A_7I": {
+        "M": 1.3961990696359665,
+        "d_self": 2.7461517016392394,
+        "d_other": 4.142350771275206,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.374832730886526,
+        "d_self": 2.7246010433987418,
+        "d_other": 2.3497683125122157,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.8549611471225367,
+        "d_self": 2.7246010433987418,
+        "d_other": 3.5795621905212784,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "I also think it will hold up for baby #2 so that's a double bonus.",
+      "source_M_7I": 0.7201820003945123,
+      "A_7I": {
+        "M": 0.7694915152509334,
+        "d_self": 3.379980781740166,
+        "d_other": 4.1494722969910995,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.6785374344935158,
+        "d_self": 3.0440228025856433,
+        "d_other": 2.3654853680921275,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.4562972560372933,
+        "d_self": 3.0440228025856437,
+        "d_other": 4.500320058622937,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "We bought 2 of these to wrangle our new human and 3 chihuahuas.",
+      "source_M_7I": 0.27281569382360926,
+      "A_7I": {
+        "M": 0.8411761536671407,
+        "d_self": 2.6619804509325955,
+        "d_other": 3.503156604599736,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.9332277139418106,
+        "d_self": 2.251565766433351,
+        "d_other": 1.3183380524915402,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.6044676559600646,
+        "d_self": 2.251565766433351,
+        "d_other": 2.8560334223934154,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "These are cheap enough that if they break we are not out a ton of money.",
+      "source_M_7I": 1.056118826136609,
+      "A_7I": {
+        "M": 1.2908742682933227,
+        "d_self": 3.361966405748349,
+        "d_other": 4.652840674041672,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7711331611772954,
+        "d_self": 3.4209163472607833,
+        "d_other": 2.649783186083488,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.617803556121451,
+        "d_self": 3.4209163472607833,
+        "d_other": 5.038719903382234,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "They fit the doorways well and easy to put up.",
+      "source_M_7I": 0.09550229784263298,
+      "A_7I": {
+        "M": -0.3063602932342455,
+        "d_self": 6.211205288235162,
+        "d_other": 5.904844995000916,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -4.578945989033155,
+        "d_self": 5.308058419730137,
+        "d_other": 0.7291124306969823,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.5967865752707802,
+        "d_self": 5.308058419730136,
+        "d_other": 5.904844995000916,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+      "asin": "B00A4B34IA",
+      "text": "It was difficult to put in place at first till I saw the video.",
+      "source_M_7I": 0.4604392199384,
+      "A_7I": {
+        "M": 1.4355638531686377,
+        "d_self": 3.107679469119273,
+        "d_other": 4.5432433222879105,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.22913484672538553,
+        "d_self": 2.469746233559016,
+        "d_other": 2.2406113868336304,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.383414668396413,
+        "d_self": 2.4697462335590163,
+        "d_other": 4.853160901955429,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+      "asin": "B00A4B34IA",
+      "text": "The product is firm and steady, not flimsy if you know how to put it the right way.",
+      "source_M_7I": 0.22957995119489194,
+      "A_7I": {
+        "M": -0.8292144574436948,
+        "d_self": 4.183824193051449,
+        "d_other": 3.354609735607754,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7389013071303792,
+        "d_self": 2.5057048913795836,
+        "d_other": 1.7668035842492045,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.4886306240750251,
+        "d_self": 2.5057048913795836,
+        "d_other": 2.9943355154546087,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+      "asin": "B00A4B34IA",
+      "text": "Gave it 4 out of 5 because the climbing over it gets annoying after a while but I guess you can take it down when necessary.",
+      "source_M_7I": 0.9338249574607131,
+      "A_7I": {
+        "M": 0.22522286767267197,
+        "d_self": 2.3657008766043117,
+        "d_other": 2.5909237442769837,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.08844077693059771,
+        "d_self": 1.6174773906835902,
+        "d_other": 1.705918167614188,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.9020746583694008,
+        "d_self": 1.6174773906835902,
+        "d_other": 2.519552049052991,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B00HB0WGAY",
+      "text": "Good for travel - just average in terms of quality",
+      "source_M_7I": 2.424414250413288,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.24720882711154957,
+        "d_self": 0.6784201281102161,
+        "d_other": 0.9256289552217657,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B00HB0WGAY",
+      "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+      "source_M_7I": 2.507791513431452,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.59461389948023,
+        "d_self": 0.8054265994968307,
+        "d_other": 1.4000404989770607,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B00HB0WGAY",
+      "text": "Happy with the product for newborn baby\u2019s nails",
+      "source_M_7I": 2.540324427033611,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5644422929362637,
+        "d_self": 0.8035590107297795,
+        "d_other": 1.3680013036660432,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B00HB0WGAY",
+      "text": "Saved us from a world of pain with a reflux baby.",
+      "source_M_7I": 2.126497360729296,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5629298607901115,
+        "d_self": 1.2762925042312945,
+        "d_other": 0.7133626434411829,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+      "asin": "B005XTCMSQ",
+      "text": "The best price and got rid of my baby\u2019s cradle cap FAST!",
+      "source_M_7I": 0.7095307834246558,
+      "A_7I": {
+        "M": 0.042211771048421554,
+        "d_self": 6.530882547795278,
+        "d_other": 6.573094318843699,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.9107468208145852,
+        "d_self": 4.3997976270601535,
+        "d_other": 2.4890508062455683,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.9255247635161794,
+        "d_self": 4.3997976270601535,
+        "d_other": 6.325322390576333,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+      "asin": "B005XTCMSQ",
+      "text": "Great for traveling but wish the volume on the white noise setting was louder!!",
+      "source_M_7I": 1.489208278810065,
+      "A_7I": {
+        "M": 2.2180854383816917,
+        "d_self": 3.7996182441472555,
+        "d_other": 6.017703682528947,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.28759804481458895,
+        "d_self": 3.1548549583888534,
+        "d_other": 3.4424530032034424,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.9982505427349815,
+        "d_self": 3.1548549583888534,
+        "d_other": 5.153105501123835,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+      "asin": "B005XTCMSQ",
+      "text": "Love that they are black to match my stainless steel appliances.",
+      "source_M_7I": 0.8358567338313212,
+      "A_7I": {
+        "M": 4.741051357193416,
+        "d_self": 0.0,
+        "d_other": 4.741051357193416,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.11522999046310689,
+        "d_self": 2.635251253998313,
+        "d_other": 2.520021263535206,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.471348959499203,
+        "d_self": 2.635251253998313,
+        "d_other": 4.106600213497516,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "Put a little bit of coconut oil in my babies hair and used this tool after it set for a bit.",
+      "source_M_7I": 0.2247689859435309,
+      "A_7I": {
+        "M": 1.7187013551002877,
+        "d_self": 3.042204254038442,
+        "d_other": 4.76090560913873,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.4150636547099258,
+        "d_self": 2.526929649287503,
+        "d_other": 2.111865994577577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.7074003013146068,
+        "d_self": 2.526929649287503,
+        "d_other": 4.23432995060211,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "These make our knobs pop off when opening our oven.",
+      "source_M_7I": 0.303144639159882,
+      "A_7I": {
+        "M": 3.427622934654985,
+        "d_self": 1.5283716628797557,
+        "d_other": 4.95599459753474,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.02498564461686792,
+        "d_self": 2.2400689135179026,
+        "d_other": 2.2650545581347705,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.647355389414308,
+        "d_self": 2.240068913517902,
+        "d_other": 4.88742430293221,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "So I have to take two of them off when baking anything.",
+      "source_M_7I": 1.0211757091319766,
+      "A_7I": {
+        "M": 3.478133442688917,
+        "d_self": 1.5283716628797555,
+        "d_other": 5.006505105568673,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.031172816435472095,
+        "d_self": 1.7880242773440211,
+        "d_other": 1.8191970937794932,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.1662601790143747,
+        "d_self": 1.7880242773440211,
+        "d_other": 4.954284456358396,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "We seem to go thru them a lot because the dogs love using them as a chew toy",
+      "source_M_7I": 0.26691323579034343,
+      "A_7I": {
+        "M": 0.22392873903941535,
+        "d_self": 4.362920086740487,
+        "d_other": 4.586848825779902,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7287652462562613,
+        "d_self": 3.3578871232436143,
+        "d_other": 2.629121876987353,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.376135174568041,
+        "d_self": 3.357887123243614,
+        "d_other": 4.734022297811655,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ",
+      "asin": "B0038JDAJ8",
+      "text": "I have quite a few teething toys for my daughter and this is by far her favorite.",
+      "source_M_7I": 1.155868020162481,
+      "A_7I": {
+        "M": 2.194206230369722,
+        "d_self": 2.81258208627752,
+        "d_other": 5.006788316647242,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7168984181932387,
+        "d_self": 2.81258208627752,
+        "d_other": 2.0956836680842814,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.098739023264007,
+        "d_self": 2.81258208627752,
+        "d_other": 5.911321109541527,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ",
+      "asin": "B0038JDAJ8",
+      "text": "I recently bought her Lifefactory Multi Sensory Silicone Teether which is a circular teether and she thoroughly enjoyed chewing on it, but since receiving Sophie the Giraffe I don't even think to reach for her other teethers.",
+      "source_M_7I": 1.1927059259356634,
+      "A_7I": {
+        "M": 2.9186328360910783,
+        "d_self": 2.731421052225922,
+        "d_other": 5.650053888317,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.17508229414750964,
+        "d_self": 2.731421052225922,
+        "d_other": 2.9065033463734316,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.413379736331177,
+        "d_self": 2.731421052225922,
+        "d_other": 6.144800788557099,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ",
+      "asin": "B0038JDAJ8",
+      "text": "The two sided grip makes it easy for her little fumbling fingers to grip and maneuver.",
+      "source_M_7I": 0.7786688446954857,
+      "A_7I": {
+        "M": 2.4127078050804327,
+        "d_self": 2.6005237990455985,
+        "d_other": 5.013231604126031,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5087379845149362,
+        "d_self": 2.6005237990455985,
+        "d_other": 2.0917858145306623,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.1407466701233666,
+        "d_self": 2.6005237990455985,
+        "d_other": 5.741270469168965,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ",
+      "asin": "B0038JDAJ8",
+      "text": "In comparison with the Sensory Silicone teether, it falls out of her hand less often, she chews on it more vigorously and she seems to enjoy the sensations a bit more.",
+      "source_M_7I": 1.2461415347448703,
+      "A_7I": {
+        "M": 2.4182816571103785,
+        "d_self": 2.62392642009102,
+        "d_other": 5.042208077201399,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.08298316595139665,
+        "d_self": 2.62392642009102,
+        "d_other": 2.5409432541396235,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.3611543910591597,
+        "d_self": 2.62392642009102,
+        "d_other": 5.98508081115018,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AECVZVINWATH26RZLF6GHX5RLD2A",
+      "asin": "B0038JDAJ8",
+      "text": "I don't understand the complaints that it is flat.",
+      "source_M_7I": 0.20307354712575965,
+      "A_7I": {
+        "M": 0.8253696755826319,
+        "d_self": 5.6064642426215405,
+        "d_other": 6.431833918204172,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -2.7622395226030254,
+        "d_self": 4.516141212561492,
+        "d_other": 1.7539016899584667,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.9156927056426802,
+        "d_self": 4.516141212561492,
+        "d_other": 6.431833918204172,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AECVZVINWATH26RZLF6GHX5RLD2A",
+      "asin": "B0038JDAJ8",
+      "text": "You definitely don't want an overstuffed or overly large pillow for a young child..",
+      "source_M_7I": 0.19381342950577496,
+      "A_7I": {
+        "M": 2.206339177944403,
+        "d_self": 3.5120796471263303,
+        "d_other": 5.718418825070733,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.7164532351127435,
+        "d_self": 1.787728551831987,
+        "d_other": 1.0712753167192435,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.9306902732387465,
+        "d_self": 1.787728551831987,
+        "d_other": 5.718418825070733,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AECVZVINWATH26RZLF6GHX5RLD2A",
+      "asin": "B0038JDAJ8",
+      "text": "It is small, but not too small, super soft and the perfect amount of fluff.",
+      "source_M_7I": 0.16097336230199355,
+      "A_7I": {
+        "M": 2.3265229070497337,
+        "d_self": 3.4035040938820957,
+        "d_other": 5.7300270009318295,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.9577097769918875,
+        "d_self": 1.6912163999058445,
+        "d_other": 0.733506622913957,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.038810601025985,
+        "d_self": 1.6912163999058445,
+        "d_other": 5.7300270009318295,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AECVZVINWATH26RZLF6GHX5RLD2A",
+      "asin": "B0038JDAJ8",
+      "text": "My daughter wasn't super into chewing then however.",
+      "source_M_7I": 0.042002027247403095,
+      "A_7I": {
+        "M": 2.951460043696739,
+        "d_self": 3.028816550867146,
+        "d_other": 5.980276594563885,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.092717223372426,
+        "d_self": 1.9357998831936993,
+        "d_other": 0.8430826598212733,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.044476711370185,
+        "d_self": 1.9357998831936993,
+        "d_other": 5.980276594563885,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AENGDAR225OV2H5O7RZJ3REAYGPA",
+      "asin": "B0067GKHQS",
+      "text": "My son seems to love it so far.",
+      "source_M_7I": 2.0994330935057186,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 1.6210096972984314,
+        "d_self": 0.6342259733630007,
+        "d_other": 2.255235670661432,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 6.086152094620906,
+        "d_self": 0.6342259733630007,
+        "d_other": 6.720378067983907,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AENGDAR225OV2H5O7RZJ3REAYGPA",
+      "asin": "B0067GKHQS",
+      "text": "This is so easy to use and set up.",
+      "source_M_7I": 1.3594063951108306,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 1.1075851377978143,
+        "d_self": 0.8120290734810173,
+        "d_other": 1.9196142112788317,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.8036236545166675,
+        "d_self": 0.8120290734810173,
+        "d_other": 6.615652727997685,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AENGDAR225OV2H5O7RZJ3REAYGPA",
+      "asin": "B0067GKHQS",
+      "text": "i can't wait til our new baby is here and we use it.",
+      "source_M_7I": 1.4772537136383421,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.907224644019663,
+        "d_self": 1.0516874158160372,
+        "d_other": 1.9589120598357002,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.651286676451182,
+        "d_self": 1.0516874158160372,
+        "d_other": 6.702974092267219,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHSSDNEMHCJBRRMCLPGASYU2JQLQ",
+      "asin": "B01F8W7CF0",
+      "text": "I was looking for something that could catch breastmilk from the opposite side I was nursing and this works great.",
+      "source_M_7I": 0.6124983341095676,
+      "A_7I": {
+        "M": 0.18084876830193375,
+        "d_self": 2.5092163296258665,
+        "d_other": 2.6900650979278002,
+        "R_95": 5.374609798872036,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.7567234845851536,
+        "d_self": 1.9273098373704671,
+        "d_other": 2.6840333219556207,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.8986005821003136,
+        "d_self": 1.9273098373704671,
+        "d_other": 2.8259104194707807,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHSSDNEMHCJBRRMCLPGASYU2JQLQ",
+      "asin": "B01F8W7CF0",
+      "text": "While it will not empty the breast like an electric pump, it works for relief while engorged.",
+      "source_M_7I": 0.44187995411594816,
+      "A_7I": {
+        "M": 0.23880018388420599,
+        "d_self": 2.355144143397041,
+        "d_other": 2.593944327281247,
+        "R_95": 5.374609798872036,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5476013554593082,
+        "d_self": 1.3910866481634105,
+        "d_other": 1.9386880036227188,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.332709786233425,
+        "d_self": 1.3910866481634105,
+        "d_other": 2.7237964343968355,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AHSSDNEMHCJBRRMCLPGASYU2JQLQ",
+      "asin": "B01F8W7CF0",
+      "text": "I will say though that the measurement is a little off.",
+      "source_M_7I": 0.11455029490456603,
+      "A_7I": {
+        "M": -0.0031500695986554916,
+        "d_self": 2.4568031377206556,
+        "d_other": 2.453653068122,
+        "R_95": 5.374609798872036,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5916554377976393,
+        "d_self": 1.1571943478729896,
+        "d_other": 1.7488497856706289,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.3218615785177183,
+        "d_self": 1.1571943478729896,
+        "d_other": 2.479055926390708,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG5656FKBU7IJJ6CPJWKOXIC2X6Q",
+      "asin": "B01F8W7CF0",
+      "text": "Its hands free until it pops off of u!",
+      "source_M_7I": 0.2844987327555617,
+      "A_7I": {
+        "M": 0.3231037784852693,
+        "d_self": 2.652798027363243,
+        "d_other": 2.9759018058485123,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.9510748738199017,
+        "d_self": 2.638567318406757,
+        "d_other": 1.6874924445868553,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": -0.9510748738199017,
+        "d_self": 2.638567318406757,
+        "d_other": 1.6874924445868553,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG5656FKBU7IJJ6CPJWKOXIC2X6Q",
+      "asin": "B01F8W7CF0",
+      "text": "But it works great whicle u feeding on one side u can put this kn other to catch the led down.",
+      "source_M_7I": 0.15760637975149727,
+      "A_7I": {
+        "M": 0.9685131029097356,
+        "d_self": 3.334044221377213,
+        "d_other": 4.302557324286949,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.529817091835854,
+        "d_self": 3.797254253250509,
+        "d_other": 4.327071345086363,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 0.5767130388477701,
+        "d_self": 3.797254253250509,
+        "d_other": 4.373967292098279,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG5656FKBU7IJJ6CPJWKOXIC2X6Q",
+      "asin": "B01F8W7CF0",
+      "text": "Only thing is u gotta feed ur child in position where haakaa wont be touching anything.",
+      "source_M_7I": 0.38643792440408253,
+      "A_7I": {
+        "M": 0.5830238631302938,
+        "d_self": 3.7939628533453633,
+        "d_other": 4.376986716475657,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.3743048179767583,
+        "d_self": 3.6940129238710058,
+        "d_other": 3.3197081058942475,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.1603447582449307,
+        "d_self": 3.6940129238710058,
+        "d_other": 4.854357682115936,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AG5656FKBU7IJJ6CPJWKOXIC2X6Q",
+      "asin": "B01F8W7CF0",
+      "text": "He plays with it but not good item if ur child can't figure out to move them off of their fase",
+      "source_M_7I": 0.2502523519442059,
+      "A_7I": {
+        "M": 0.12170916826050693,
+        "d_self": 3.636530553644951,
+        "d_other": 3.7582397219054577,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.4758849308607731,
+        "d_self": 2.727397915233713,
+        "d_other": 2.25151298437294,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 1.3145505083711018,
+        "d_self": 2.727397915233713,
+        "d_other": 4.041948423604815,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZMAND4IHF6XJMUYX5DPQNDWROA",
+      "asin": "B0081C9UOQ",
+      "text": "I really like the idea of no spilling.",
+      "source_M_7I": 0.6397510267564912,
+      "A_7I": {
+        "M": 2.916723124790198,
+        "d_self": 3.0182378851720637,
+        "d_other": 5.934961009962262,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -2.4925103264724435,
+        "d_self": 3.0182378851720637,
+        "d_other": 0.5257275586996201,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.916723124790198,
+        "d_self": 3.0182378851720637,
+        "d_other": 5.934961009962262,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZMAND4IHF6XJMUYX5DPQNDWROA",
+      "asin": "B0081C9UOQ",
+      "text": "I've seen other products and they seem to work well.",
+      "source_M_7I": 1.4590772888296826,
+      "A_7I": {
+        "M": 3.4222768152624683,
+        "d_self": 2.965893874233627,
+        "d_other": 6.3881706894960955,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.4474121320163489,
+        "d_self": 2.965893874233627,
+        "d_other": 1.5184817422172783,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.4222768152624683,
+        "d_self": 2.965893874233627,
+        "d_other": 6.3881706894960955,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZMAND4IHF6XJMUYX5DPQNDWROA",
+      "asin": "B0081C9UOQ",
+      "text": "This little monster was perfect for my little pumpkins Halloween bucket.",
+      "source_M_7I": 0.5728190116382521,
+      "A_7I": {
+        "M": 2.8153728845668247,
+        "d_self": 3.0136329175865604,
+        "d_other": 5.829005802153385,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -2.0392899801341953,
+        "d_self": 3.0136329175865604,
+        "d_other": 0.9743429374523649,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.8153728845668247,
+        "d_self": 3.0136329175865604,
+        "d_other": 5.829005802153385,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFZMAND4IHF6XJMUYX5DPQNDWROA",
+      "asin": "B0081C9UOQ",
+      "text": "After I washed it I put Goldfish crackers in.",
+      "source_M_7I": 1.6891487753831025,
+      "A_7I": {
+        "M": 3.4077378366945266,
+        "d_self": 3.068846828166451,
+        "d_other": 6.476584664860978,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.0361298796993275,
+        "d_self": 3.0688468281664507,
+        "d_other": 2.0327169484671233,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.4077378366945266,
+        "d_self": 3.068846828166451,
+        "d_other": 6.476584664860978,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE7QH6G6O25KY6NIK2FKAW4TX2Q",
+      "asin": "B0081C9UOQ",
+      "text": "My son can open up any other snack keeper and them snacks are everywhere, he can't open this one!",
+      "source_M_7I": 0.41932775850764736,
+      "A_7I": {
+        "M": 3.18171086286283,
+        "d_self": 2.481717890058894,
+        "d_other": 5.663428752921724,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.6625233933636261,
+        "d_self": 2.481717890058894,
+        "d_other": 1.8191944966952678,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.18171086286283,
+        "d_self": 2.481717890058894,
+        "d_other": 5.663428752921724,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE7QH6G6O25KY6NIK2FKAW4TX2Q",
+      "asin": "B0081C9UOQ",
+      "text": "I love this guy, my only complaint is that it is extra hard to open up to add snacks to.",
+      "source_M_7I": 1.732228429572496,
+      "A_7I": {
+        "M": 3.6266292032459333,
+        "d_self": 2.719150834281164,
+        "d_other": 6.345780037527097,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.3550468990835318,
+        "d_self": 2.719150834281164,
+        "d_other": 3.074197733364696,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 3.6266292032459333,
+        "d_self": 2.719150834281164,
+        "d_other": 6.345780037527097,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE7QH6G6O25KY6NIK2FKAW4TX2Q",
+      "asin": "B0081C9UOQ",
+      "text": "Which I don't mind because then my son never will get it open.",
+      "source_M_7I": 0.6815613731504664,
+      "A_7I": {
+        "M": 2.8707828530176656,
+        "d_self": 3.418989288645993,
+        "d_other": 6.289772141663659,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5764224965949625,
+        "d_self": 3.418989288645993,
+        "d_other": 2.8425667920510307,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 2.8707828530176656,
+        "d_self": 3.418989288645993,
+        "d_other": 6.289772141663659,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGPQDJUEDP3SQAK2RVHPT2QGZ3MQ",
+      "asin": "B01EKZO93O",
+      "text": "Bought to use at the top of my stairs and it\u2019s perfect.",
+      "source_M_7I": 0.00902214287065517,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.3272718041440736,
+        "d_self": 3.5068721196277166,
+        "d_other": 2.179600315483643,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGPQDJUEDP3SQAK2RVHPT2QGZ3MQ",
+      "asin": "B01EKZO93O",
+      "text": "Even comes with plastic holders so the walls don\u2019t get damaged.",
+      "source_M_7I": 1.94626210902987,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.13201132614029243,
+        "d_self": 2.3067264180335543,
+        "d_other": 2.4387377441738467,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGPQDJUEDP3SQAK2RVHPT2QGZ3MQ",
+      "asin": "B01EKZO93O",
+      "text": "Super easy to put together and set up.",
+      "source_M_7I": 1.7080863110318032,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -1.630672277314066,
+        "d_self": 2.0200099856292355,
+        "d_other": 0.3893377083151695,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B001LENCUE",
+      "text": "I bought two different ones at the same time.",
+      "source_M_7I": 1.8270492457556777,
+      "A_7I": {
+        "M": 5.297876449665898,
+        "d_self": 0.5582508686038135,
+        "d_other": 5.856127318269711,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.1396368667364397,
+        "d_self": 0.5582508686038135,
+        "d_other": 0.6978877353402532,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 6.613107728316399,
+        "d_self": 0.5582508686038135,
+        "d_other": 7.1713585969202125,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B001LENCUE",
+      "text": "I literally too this out the box, laughed, and put it right back and returned it.",
+      "source_M_7I": 1.8375390939489709,
+      "A_7I": {
+        "M": 5.131040993575237,
+        "d_self": 0.7843688485245495,
+        "d_other": 5.915409842099786,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.3697496676155221,
+        "d_self": 0.7843688485245495,
+        "d_other": 1.1541185161400715,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 6.4947541726388085,
+        "d_self": 0.7843688485245495,
+        "d_other": 7.279123021163358,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B001LENCUE",
+      "text": "The other one was cheaper, cuter, and about 5 pieces.",
+      "source_M_7I": 1.5307552846293397,
+      "A_7I": {
+        "M": 5.178566669431989,
+        "d_self": 0.7477732755475747,
+        "d_other": 5.9263399449795635,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.19379732608301703,
+        "d_self": 0.7477732755475748,
+        "d_other": 0.5539759494645577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 6.221069360312246,
+        "d_self": 0.7477732755475747,
+        "d_other": 6.96884263585982,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE4S4MR4EUYAWDYTZKZUXZLIOJA",
+      "asin": "B001LENCUE",
+      "text": "My daughter started using these at about 14 months as recommended by her dentist since they're better for her teeth.",
+      "source_M_7I": 0.6616484612747091,
+      "A_7I": {
+        "M": -0.0954023799080943,
+        "d_self": 7.610594812973424,
+        "d_other": 7.51519243306533,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 1.0224336317464275,
+        "d_self": 2.041505007523751,
+        "d_other": 3.0639386392701784,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.473687425541579,
+        "d_self": 2.0415050075237513,
+        "d_other": 7.51519243306533,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE4S4MR4EUYAWDYTZKZUXZLIOJA",
+      "asin": "B001LENCUE",
+      "text": "The bonus was they helped her transition to regular cups faster than using a sippy cup would have.",
+      "source_M_7I": 0.24689706392062627,
+      "A_7I": {
+        "M": -0.08173781109490985,
+        "d_self": 7.578990392753054,
+        "d_other": 7.497252581658144,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.00433099092423328,
+        "d_self": 2.512420347118323,
+        "d_other": 2.5167513380425564,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.984832234539821,
+        "d_self": 2.512420347118323,
+        "d_other": 7.497252581658144,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AFE4S4MR4EUYAWDYTZKZUXZLIOJA",
+      "asin": "B001LENCUE",
+      "text": "They're easy to clean and easy for her to use; took a bit for her to get used to but once she figured it out she was good to go.",
+      "source_M_7I": 0.45357577852107767,
+      "A_7I": {
+        "M": -0.36916006284241476,
+        "d_self": 8.339734423755951,
+        "d_other": 7.970574360913536,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.7149023417327305,
+        "d_self": 3.774152905474545,
+        "d_other": 4.489055247207276,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.1964214554389905,
+        "d_self": 3.7741529054745455,
+        "d_other": 7.970574360913536,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B01K3SOW98",
+      "text": "Good for travel - just average in terms of quality",
+      "source_M_7I": 2.617025596128687,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.24720882711154957,
+        "d_self": 0.6784201281102161,
+        "d_other": 0.9256289552217657,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.475732064885765,
+        "d_self": 0.6784201281102161,
+        "d_other": 6.154152192995981,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B01K3SOW98",
+      "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+      "source_M_7I": 2.5245065581036243,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.59461389948023,
+        "d_self": 0.8054265994968307,
+        "d_other": 1.4000404989770607,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.1617058486829555,
+        "d_self": 0.8054265994968306,
+        "d_other": 5.967132448179786,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B01K3SOW98",
+      "text": "Happy with the product for newborn baby\u2019s nails",
+      "source_M_7I": 2.4931942404510474,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": 0.5644422929362637,
+        "d_self": 0.8035590107297795,
+        "d_other": 1.3680013036660432,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 5.012699887097898,
+        "d_self": 0.8035590107297796,
+        "d_other": 5.8162588978276775,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    },
+    {
+      "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+      "asin": "B01K3SOW98",
+      "text": "Saved us from a world of pain with a reflux baby.",
+      "source_M_7I": 2.3108798280246354,
+      "A_7I": {
+        "M": null,
+        "d_self": null,
+        "d_other": null,
+        "R_95": null,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B_7J0": {
+        "M": -0.5629298607901115,
+        "d_self": 1.2762925042312945,
+        "d_other": 0.7133626434411829,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "C_7J1": {
+        "M": 4.823383809566814,
+        "d_self": 1.2762925042312945,
+        "d_other": 6.099676313798109,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "per-ASIN"
+      }
+    }
+  ],
+  "flip_decomposition_A_to_B": [
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "I subscribed for toy boxes, those ones where they send you a toy box every 2 mon",
+      "A": {
+        "M": 2.078409961464315,
+        "d_self": 3.1047272752284316,
+        "d_other": 5.183137236692747,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.35278626828070525,
+        "d_self": 3.1047272752284316,
+        "d_other": 2.7519410069477264,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -2.4311962297450203,
+      "\u0394M": -2.4311962297450203
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "Although she like playing with those toys too, but she absolutely loves this man",
+      "A": {
+        "M": 1.94863858432795,
+        "d_self": 2.5082439529458624,
+        "d_other": 4.456882537273812,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -1.061701610158001,
+        "d_self": 2.5082439529458624,
+        "d_other": 1.4465423427878614,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -3.010340194485951,
+      "\u0394M": -3.010340194485951
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "text": "She will coordinate her hands to hold it and put it in her mouth, I hold it in d",
+      "A": {
+        "M": 1.252814802418059,
+        "d_self": 3.3350650108782407,
+        "d_other": 4.5878798132963,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.3998452264754224,
+        "d_self": 3.3350650108782407,
+        "d_other": 2.9352197844028183,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -1.6526600288934814,
+      "\u0394M": -1.6526600288934814
+    },
+    {
+      "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+      "asin": "B000BNCA4K",
+      "text": "I\u2019m hoping it continues to work, but so far it\u2019s great!",
+      "A": {
+        "M": 1.8111148971834465,
+        "d_self": 3.1553603330263167,
+        "d_other": 4.966475230209763,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.8284427012215354,
+        "d_self": 3.1553603330263167,
+        "d_other": 2.3269176318047813,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -2.639557598404982,
+      "\u0394M": -2.639557598404982
+    },
+    {
+      "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+      "asin": "B000BNCA4K",
+      "text": "I worry about water getting into the compartments have the beads.",
+      "A": {
+        "M": 2.1065936450964844,
+        "d_self": 2.319761433567392,
+        "d_other": 4.426355078663876,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.7342409146283131,
+        "d_self": 2.319761433567392,
+        "d_other": 1.5855205189390789,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -2.8408345597247973,
+      "\u0394M": -2.8408345597247973
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "I bought Sophie from Amazon before my daughter was even born.",
+      "A": {
+        "M": 3.022989564745457,
+        "d_self": 2.4868306844383112,
+        "d_other": 5.509820249183768,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.4271795186601235,
+        "d_self": 2.4868306844383112,
+        "d_other": 2.0596511657781877,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -3.4501690834055805,
+      "\u0394M": -3.4501690834055805
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "It was highly rated and figured it was good.",
+      "A": {
+        "M": 2.4512571390569446,
+        "d_self": 4.496798360563041,
+        "d_other": 6.9480554996199855,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -2.6038717053620526,
+        "d_self": 4.496798360563041,
+        "d_other": 1.8929266552009882,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -5.055128844418997,
+      "\u0394M": -5.055128844418997
+    },
+    {
+      "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+      "asin": "B000IDSLOG",
+      "text": "My daughters now 6 months and has been playing and biting Sophie since she was 3",
+      "A": {
+        "M": 2.5892222436884493,
+        "d_self": 2.480108447690286,
+        "d_other": 5.0693306913787355,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -1.3658933178476382,
+        "d_self": 2.480108447690286,
+        "d_other": 1.114215129842648,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.0,
+      "\u0394d_other": -3.9551155615360876,
+      "\u0394M": -3.9551155615360876
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "Nothing worked with our daughter who at 4 months was cutting cream.",
+      "A": {
+        "M": 2.6955037701763365,
+        "d_self": 2.156730385460791,
+        "d_other": 4.852234155637127,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.06693318905972268,
+        "d_self": 2.1348337820362753,
+        "d_other": 2.0679005929765526,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.021896603424515604,
+      "\u0394d_other": -2.7843335626605747,
+      "\u0394M": -2.762436959236059
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "I remembered seeing this giraffe thinking people were crazy to pay $20 for a sma",
+      "A": {
+        "M": 3.1373788672528176,
+        "d_self": 3.0163257354747004,
+        "d_other": 6.153704602727518,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.06666206237203465,
+        "d_self": 2.9436890246318237,
+        "d_other": 2.877026962259789,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.0726367108428767,
+      "\u0394d_other": -3.276677640467729,
+      "\u0394M": -3.204040929624852
+    },
+    {
+      "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+      "asin": "B000IDSLOG",
+      "text": "Its easy for her to grab with her little hands around his legs and bites on his ",
+      "A": {
+        "M": 1.9580660416231201,
+        "d_self": 2.7782581176532317,
+        "d_other": 4.736324159276352,
+        "R_95": 3.319446239964786,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.08201556081056571,
+        "d_self": 2.499289012488724,
+        "d_other": 2.417273451678158,
+        "R_95": 2.921157567328661,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.2789691051645078,
+      "\u0394d_other": -2.3190507075981937,
+      "\u0394M": -2.040081602433686
+    },
+    {
+      "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+      "asin": "B0048SOBGO",
+      "text": "Baby loves this addition to the crib and can now turn it on herself in the middl",
+      "A": {
+        "M": 2.3456650937744734,
+        "d_self": 2.4250743915264894,
+        "d_other": 4.770739485300963,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.06286262984228452,
+        "d_self": 1.617446806254997,
+        "d_other": 1.5545841764127124,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.8076275852714925,
+      "\u0394d_other": -3.2161553088882506,
+      "\u0394M": -2.408527723616758
+    },
+    {
+      "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+      "asin": "B0048SOBGO",
+      "text": "Works great and we use it every night.",
+      "A": {
+        "M": 3.89238693085575,
+        "d_self": 1.504981247352686,
+        "d_other": 5.397368178208436,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.24730658198151267,
+        "d_self": 1.1877689539130556,
+        "d_other": 0.9404623719315429,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.3172122934396304,
+      "\u0394d_other": -4.456905806276893,
+      "\u0394M": -4.139693512837263
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "For primary doors the ones with finger holes where painful and hard to use in a ",
+      "A": {
+        "M": 3.9603801096427684,
+        "d_self": 3.331208816176125,
+        "d_other": 7.2915889258188935,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.10071266416807267,
+        "d_self": 2.908162226021169,
+        "d_other": 2.807449561853096,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.42304659015495627,
+      "\u0394d_other": -4.484139363965797,
+      "\u0394M": -4.0610927738108415
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Can be cut into smaller sections like I did for bottle lids.",
+      "A": {
+        "M": 2.990073887030773,
+        "d_self": 2.9282313175326253,
+        "d_other": 5.918305204563398,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -1.8083453046994775,
+        "d_self": 3.1403255721976735,
+        "d_other": 1.331980267498196,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.21209425466504817,
+      "\u0394d_other": -4.586324937065203,
+      "\u0394M": -4.79841919173025
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Has a sticker film that covers what you write so it stays sealed.",
+      "A": {
+        "M": 3.0036023750212437,
+        "d_self": 3.9514732846868106,
+        "d_other": 6.955075659708054,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.5934271507486382,
+        "d_self": 4.0153427948640195,
+        "d_other": 3.4219156441153813,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.06386951017720888,
+      "\u0394d_other": -3.533160015592673,
+      "\u0394M": -3.597029525769882
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "Can be peeled off easy but don't plan to adjust it too much without compromising",
+      "A": {
+        "M": 4.103750952867302,
+        "d_self": 2.5137099360155055,
+        "d_other": 6.617460888882808,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.37416951356805694,
+        "d_self": 2.292668767325507,
+        "d_other": 1.9184992537574501,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.22104116868999846,
+      "\u0394d_other": -4.698961635125357,
+      "\u0394M": -4.477920466435359
+    },
+    {
+      "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+      "asin": "B0048SOBGO",
+      "text": "I used a sharpie and was able to write name and a second line for other informat",
+      "A": {
+        "M": 3.992014987022821,
+        "d_self": 4.0448585650002284,
+        "d_other": 8.03687355202305,
+        "R_95": 5.109000208531963,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.08302611807446114,
+        "d_self": 3.50663029115019,
+        "d_other": 3.423604173075729,
+        "R_95": 3.9136002941212533,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.5382282738500384,
+      "\u0394d_other": -4.6132693789473205,
+      "\u0394M": -4.075041105097283
+    },
+    {
+      "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+      "asin": "B00A4B34IA",
+      "text": "The other one was cheaper, cuter, and about 5 pieces.",
+      "A": {
+        "M": 4.964858995241954,
+        "d_self": 0.7477732755475747,
+        "d_other": 5.712632270789529,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.19379732608301703,
+        "d_self": 0.7477732755475748,
+        "d_other": 0.5539759494645577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 1.1102230246251565e-16,
+      "\u0394d_other": -5.158656321324971,
+      "\u0394M": -5.158656321324971
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "They are easy to install and easy to use.",
+      "A": {
+        "M": 1.8890361284512611,
+        "d_self": 2.1317426429626707,
+        "d_other": 4.020778771413932,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.44490289761402435,
+        "d_self": 2.3453444383937536,
+        "d_other": 1.9004415407797293,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.21360179543108293,
+      "\u0394d_other": -2.1203372306342025,
+      "\u0394M": -2.3339390260652855
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "I wish I would have gotten this one when my little was a newborn.",
+      "A": {
+        "M": 1.4605246203495326,
+        "d_self": 2.6982584200662614,
+        "d_other": 4.158783040415794,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.16561238678307122,
+        "d_self": 2.2631721695488474,
+        "d_other": 2.097559782765776,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.435086250517414,
+      "\u0394d_other": -2.061223257650018,
+      "\u0394M": -1.6261370071326038
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "He likes to rock himself in it and I like that it will fit him for the next few ",
+      "A": {
+        "M": 1.3961990696359665,
+        "d_self": 2.7461517016392394,
+        "d_other": 4.142350771275206,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.374832730886526,
+        "d_self": 2.7246010433987418,
+        "d_other": 2.3497683125122157,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.021550658240497622,
+      "\u0394d_other": -1.7925824587629902,
+      "\u0394M": -1.7710318005224925
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "I also think it will hold up for baby #2 so that's a double bonus.",
+      "A": {
+        "M": 0.7694915152509334,
+        "d_self": 3.379980781740166,
+        "d_other": 4.1494722969910995,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.6785374344935158,
+        "d_self": 3.0440228025856433,
+        "d_other": 2.3654853680921275,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.33595797915452286,
+      "\u0394d_other": -1.783986928898972,
+      "\u0394M": -1.4480289497444492
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "We bought 2 of these to wrangle our new human and 3 chihuahuas.",
+      "A": {
+        "M": 0.8411761536671407,
+        "d_self": 2.6619804509325955,
+        "d_other": 3.503156604599736,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.9332277139418106,
+        "d_self": 2.251565766433351,
+        "d_other": 1.3183380524915402,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.4104146844992447,
+      "\u0394d_other": -2.184818552108196,
+      "\u0394M": -1.7744038676089513
+    },
+    {
+      "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+      "asin": "B00A4B34IA",
+      "text": "These are cheap enough that if they break we are not out a ton of money.",
+      "A": {
+        "M": 1.2908742682933227,
+        "d_self": 3.361966405748349,
+        "d_other": 4.652840674041672,
+        "R_95": 5.059813892852562,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.7711331611772954,
+        "d_self": 3.4209163472607833,
+        "d_other": 2.649783186083488,
+        "R_95": 4.7419157979893285,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 0.05894994151243438,
+      "\u0394d_other": -2.0030574879581837,
+      "\u0394M": -2.062007429470618
+    },
+    {
+      "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+      "asin": "B00A4B34IA",
+      "text": "It was difficult to put in place at first till I saw the video.",
+      "A": {
+        "M": 1.4355638531686377,
+        "d_self": 3.107679469119273,
+        "d_other": 4.5432433222879105,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.22913484672538553,
+        "d_self": 2.469746233559016,
+        "d_other": 2.2406113868336304,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.6379332355602569,
+      "\u0394d_other": -2.30263193545428,
+      "\u0394M": -1.6646986998940232
+    },
+    {
+      "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+      "asin": "B005XTCMSQ",
+      "text": "The best price and got rid of my baby\u2019s cradle cap FAST!",
+      "A": {
+        "M": 0.042211771048421554,
+        "d_self": 6.530882547795278,
+        "d_other": 6.573094318843699,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -1.9107468208145852,
+        "d_self": 4.3997976270601535,
+        "d_other": 2.4890508062455683,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -2.131084920735124,
+      "\u0394d_other": -4.0840435125981305,
+      "\u0394M": -1.9529585918630068
+    },
+    {
+      "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+      "asin": "B005XTCMSQ",
+      "text": "Love that they are black to match my stainless steel appliances.",
+      "A": {
+        "M": 4.741051357193416,
+        "d_self": 0.0,
+        "d_other": 4.741051357193416,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.11522999046310689,
+        "d_self": 2.635251253998313,
+        "d_other": 2.520021263535206,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": 2.635251253998313,
+      "\u0394d_other": -2.22103009365821,
+      "\u0394M": -4.856281347656523
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "Put a little bit of coconut oil in my babies hair and used this tool after it se",
+      "A": {
+        "M": 1.7187013551002877,
+        "d_self": 3.042204254038442,
+        "d_other": 4.76090560913873,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.4150636547099258,
+        "d_self": 2.526929649287503,
+        "d_other": 2.111865994577577,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -0.5152746047509393,
+      "\u0394d_other": -2.6490396145611528,
+      "\u0394M": -2.1337650098102134
+    },
+    {
+      "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+      "asin": "B005XTCMSQ",
+      "text": "We seem to go thru them a lot because the dogs love using them as a chew toy",
+      "A": {
+        "M": 0.22392873903941535,
+        "d_self": 4.362920086740487,
+        "d_other": 4.586848825779902,
+        "R_95": 8.073,
+        "mu_set": "z_all",
+        "cohort": "per-ASIN"
+      },
+      "B": {
+        "M": -0.7287652462562613,
+        "d_self": 3.3578871232436143,
+        "d_other": 2.629121876987353,
+        "R_95": 8.073,
+        "mu_set": "z_disc",
+        "cohort": "merged-39u"
+      },
+      "\u0394d_self": -1.0050329634968724,
+      "\u0394d_other": -1.957726948792549,
+      "\u0394M": -0.9526939852956766
+    }
+  ]
+}
