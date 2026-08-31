@@ -62,7 +62,7 @@ VLLM_URL = "http://localhost:8800/v1/completions"
 # 用户指令 2026-08-27: 切换到 Qwen2-1.5B-Instruct 加速 Stage 1 LLM 生成
 # (~3-4× throughput vs 7B; query 质量略下降但 attrs 信息足够)
 # 用户指令 2026-08-29: vLLM 当前 server 已加载 Qwen2-7B-Instruct (用户重启用 7B)
-# (上次是 Qwen2.5-14B-Instruct, 2026-08-29 用户决策切回 7B)
+# 用户指令 2026-08-31: Qwen2.5-14B-Instruct 已下线(从未在 pipeline 中使用),scratch2 空间清理
 MODEL_NAME = "/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct"
 
 # ---------------------------------------------------------------------------
