@@ -56,7 +56,9 @@ LOG_PATH = Path("/home/wlia0047/hj82_scratch2/wenyu/logs/phase7e_strict_personal
 # Locked
 SEED = 42
 N_TOP_ATTRS = 5
-N_TRIALS = 2  # SMOKE; full = 10
+# v4: scale C_rewrite trials (statistical confirmation of 2/3 signal);
+# A_free / B_exemplar kept at 1 trial each as reference (they produced M<0 in v3)
+N_TRIALS_BY_COND = {"A_free": 1, "B_exemplar": 1, "C_rewrite": 5}
 TEMPERATURE = 0.7
 MAX_NEW_TOKENS = 80
 VLLM_PORT = 8800
@@ -542,7 +544,8 @@ def main():
         rep = cohort_profiles[uid]["representative"]
         for cond in ("A_free", "B_exemplar", "C_rewrite"):
             builder = PROMPT_BUILDERS[cond]
-            for trial in range(N_TRIALS):
+            n_trials = N_TRIALS_BY_COND[cond]
+            for trial in range(n_trials):
                 if cond == "A_free":
                     p = builder(attrs)
                 else:
@@ -551,7 +554,7 @@ def main():
                 meta.append({"user_id": uid, "cond": cond, "trial": trial,
                               "target_asin": chosen_asin})
     log(f"  prepared {len(prompts)} prompts "
-        f"({len(selected_uids)} users × 3 conds × {N_TRIALS} trials)")
+        f"({len(selected_uids)} users × {{A_free:1, B_exemplar:1, C_rewrite:5}} trials)")
 
     # Generate
     log("  calling vLLM...")
@@ -641,7 +644,7 @@ def main():
             "description": ("Phase 7.E: strict personalized query benchmark. "
                             "Cohort = NLL<=34 + attrs-available users from stage8_5_asins."),
             "chosen_asin": chosen_asin, "n_top_attrs": N_TOP_ATTRS,
-            "n_trials_per_cond": N_TRIALS, "temperature": TEMPERATURE,
+            "n_trials_per_cond": N_TRIALS_BY_COND, "temperature": TEMPERATURE,
             "target_pass_rate": TARGET_PASS_RATE,
             "attr_coverage_min": ATTR_COVERAGE_MIN,
             "R_95_method": "data-driven 95th percentile of source_set d_self per user (>=5 samples), else theoretical fallback sqrt(chi2(0.95, 48)) ≈ 8.073",
