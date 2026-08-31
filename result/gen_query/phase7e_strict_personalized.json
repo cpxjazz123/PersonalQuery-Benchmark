@@ -1,0 +1,420 @@
+{
+ "config": {
+  "description": "Phase 7.E: strict personalized query benchmark. Cohort = NLL<=34 + attrs-available users from stage8_5_asins.",
+  "chosen_asin": "B000BNCA4K",
+  "n_top_attrs": 5,
+  "n_trials_per_cond": 2,
+  "temperature": 0.7,
+  "target_pass_rate": 0.8,
+  "attr_coverage_min": 0.6,
+  "R_95_method": "data-driven 95th percentile of source_set d_self per user (>=5 samples), else theoretical fallback sqrt(chi2(0.95, 48)) \u2248 8.073",
+  "R_95_theoretical": 8.073
+ },
+ "summary": {
+  "config": {
+   "description": "Phase 7.E: strict personalized query benchmark. Cohort = NLL<=34 + attrs-available users from stage8_5_asins.",
+   "chosen_asin": "B000BNCA4K",
+   "n_top_attrs": 5,
+   "n_trials_per_cond": 2,
+   "temperature": 0.7,
+   "target_pass_rate": 0.8,
+   "attr_coverage_min": 0.6,
+   "R_95_method": "data-driven 95th percentile of source_set d_self per user (>=5 samples), else theoretical fallback sqrt(chi2(0.95, 48)) \u2248 8.073",
+   "R_95_theoretical": 8.073
+  },
+  "cohort_uids": [
+   "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA"
+  ],
+  "R_95_per_user": {
+   "AGVNY26Z7JAJOGHBU72XQP2BEIBA": 8.073,
+   "AEF4WA67RLJ577TUKLO6RX77JO6A": 8.073,
+   "AGC75KXFQTQTZ2RODT3RT4GNYIJA": 5.12757617156062,
+   "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA": 4.284776860697126,
+   "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA": 5.6461039673773925
+  },
+  "R_95_method_per_user": {
+   "AGVNY26Z7JAJOGHBU72XQP2BEIBA": "theoretical-fallback",
+   "AEF4WA67RLJ577TUKLO6RX77JO6A": "theoretical-fallback",
+   "AGC75KXFQTQTZ2RODT3RT4GNYIJA": "data-driven",
+   "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA": "data-driven",
+   "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA": "data-driven"
+  },
+  "summary_per_cond": {
+   "A_free": {
+    "n_total": 10,
+    "n_ok": 4,
+    "n_strict_pass": 0,
+    "pass_rate_of_ok": 0.0,
+    "pass_rate_of_total": 0.0,
+    "M_local_med": -0.2721560230134843,
+    "d_self_med": 4.222364231061383,
+    "d_other_med": 3.1886474475283695,
+    "attr_coverage_med": 0.6
+   },
+   "B_exemplar": {
+    "n_total": 10,
+    "n_ok": 4,
+    "n_strict_pass": 0,
+    "pass_rate_of_ok": 0.0,
+    "pass_rate_of_total": 0.0,
+    "M_local_med": -0.3658639613260033,
+    "d_self_med": 4.717405821785261,
+    "d_other_med": 4.351541860459257,
+    "attr_coverage_med": 0.6
+   },
+   "C_rewrite": {
+    "n_total": 10,
+    "n_ok": 3,
+    "n_strict_pass": 2,
+    "pass_rate_of_ok": 0.6666666666666666,
+    "pass_rate_of_total": 0.2,
+    "M_local_med": 0.14669270955405533,
+    "d_self_med": 3.0486860784083243,
+    "d_other_med": 3.1953787879623796,
+    "attr_coverage_med": 0.6
+   }
+  },
+  "overall_n_pass": 2,
+  "overall_n_total": 30,
+  "overall_pass_rate": 0.06666666666666667,
+  "user_goal_passed": false,
+  "verdict": "FAIL \u2014 strict pass rate 6.7% < 80% target."
+ },
+ "R_95_per_user": {
+  "AGVNY26Z7JAJOGHBU72XQP2BEIBA": 8.073,
+  "AEF4WA67RLJ577TUKLO6RX77JO6A": 8.073,
+  "AGC75KXFQTQTZ2RODT3RT4GNYIJA": 5.12757617156062,
+  "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA": 4.284776860697126,
+  "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA": 5.6461039673773925
+ },
+ "per_gen": [
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "A_free",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a BPA-free plastic toy in blue, green, or orange color from the Manhattan Toy brand for my toddler. Can you recommend a fun and safe option under the Toys & Games category?",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 4.8072712772798525,
+   "d_other": 4.62854169512375,
+   "M_local": -0.17872958215610257,
+   "R_95_user": 8.073,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "A_free",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a safe, non-toxic toy for my toddler's birthday. I found a Manhattan Toy with blue, green, and orange plastic pieces that seem perfect, but want to ensure it's BPA-free. Any recommendations?",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "B_exemplar",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"We loved the Manhattan Toy's BPA-free plastic blue-green-orange puzzle block set for our child's playtime, ensuring safety and fun.\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "B_exemplar",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Recently, our toddler enjoyed the Manhattan Toy's plastic blue/green/orange toy with BPA-free material during playtime. It's perfect for their age and adds endless fun.\"",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 4.552584846834877,
+   "d_other": 4.0836125624137924,
+   "M_local": -0.46897228442108485,
+   "R_95_user": 8.073,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "C_rewrite",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"We used the toy during a parade where it produced sounds.\"",
+   "attr_coverage": 0.0,
+   "status": "attr_filter(0%)"
+  },
+  {
+   "user_id": "AGVNY26Z7JAJOGHBU72XQP2BEIBA",
+   "cond": "C_rewrite",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "We used the toy during a parade where it had siren sounds playing.",
+   "attr_coverage": 0.0,
+   "status": "attr_filter(0%)"
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "A_free",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "As a busy parent, I'm looking for a safe, BPA-free toy for my toddler that matches their lively personality. I found a Manhattan Toy with blue, green, and orange plastic pieces that seem perfect. Can you help me find it?",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "A_free",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a safe, BPA-free toy for my little one. Specifically, I'm interested in a plastic toy from Manhattan Toy in blue, green, or orange colors under the Toys & Games category.",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 5.190578105962166,
+   "d_other": 3.05742268345158,
+   "M_local": -2.1331554225105855,
+   "R_95_user": 8.073,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "B_exemplar",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Looking for a safe, plastic toy with vibrant blue, green, and orange colors from Manhattan Toy that's BPA-free, perfect for my toddler's playtime. Any tips on cleaning the squeaky part?\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "B_exemplar",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Looking for a safe and fun toy for my little one, I found the Manhattan Toy product with blue, green, and orange colors, made of BPA-free plastic. It's perfect for their age group in the toys category. Can't wait to see their face when they open it!\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "C_rewrite",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "To ensure no water enters the speaker, always carefully clean this toy.",
+   "attr_coverage": 0.0,
+   "status": "attr_filter(0%)"
+  },
+  {
+   "user_id": "AEF4WA67RLJ577TUKLO6RX77JO6A",
+   "cond": "C_rewrite",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "To ensure hygiene, always clean the toy thoroughly to prevent water from reaching the speaker.",
+   "attr_coverage": 0.0,
+   "status": "attr_filter(0%)"
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "A_free",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a fun, safe toy for my toddler. Found a Manhattan Toy with blue, green, and orange plastic pieces that's BPA-free. Can you recommend the best one for a 2-year-old?",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "A_free",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a safe, plastic toy for my toddler that's BPA-free. The color doesn't matter much, but I prefer blue, green, or orange. I trust the Manhattan Toy brand, so any option from them would be great. Can you recommend a fun toy in this category?",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "B_exemplar",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Looking for a durable, BPA-free plastic toy in vibrant blue, green, and orange from Manhattan Toy for my toddler. Concerned about safety and durability, especially after reading reviews of products with poor-quality materials. Seeking a high-quality toy that can withstand active play.\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "B_exemplar",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Disappointed with the Manhattan Toy's plastic blue/green/orange BPA-free toy, as my toddler managed to break it within a week, despite being advertised as sturdy. Seeking a more durable option from another brand within the Toys & Games category.\"",
+   "attr_coverage": 0.8,
+   "status": "ok",
+   "d_self": 7.258597469488372,
+   "d_other": 6.407302501583275,
+   "M_local": -0.8512949679050967,
+   "R_95_user": 5.12757617156062,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "C_rewrite",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "Given the strict rules, it seems impossible to directly rewrite the sentence about a product's double-sided tape disappointment into a description of another product while maintaining the same structure and function words. However, I'll try to creatively rephrase it within a different context while adhering as closely as possible to the guidelines:\n\nOriginal sentence: \"but the quality of its double-sided tape is very disappointing.\"\n\nRephr",
+   "status": "len_filter(65)"
+  },
+  {
+   "user_id": "AGC75KXFQTQTZ2RODT3RT4GNYIJA",
+   "cond": "C_rewrite",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "The plastic toy from Manhattan Toy, colored in a blend of blue, green, and orange hues, promises durability but disappoints with its flimsy design, causing my one-year-old to easily dismantle it within a week, illustrating the poor construction quality.",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "A_free",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm searching for a safe, non-toxic toy for my toddler's play area. Specifically, I'm interested in a BPA-free plastic toy from the Manhattan Toy brand in blue, green, or orange colors. Something that will engage her while being durable enough to withstand her energetic play.",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "A_free",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a safe, BPA-free plastic toy for my toddler in blue, green, or orange colors from the Manhattan Toy brand on Amazon. Something that's not just fun but also non-toxic would be perfect for their age group in the toys and games category.",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "B_exemplar",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"This blue/green/orange BPA-free plastic toy from Manhattan Toy fits perfectly on my child's play table, adding endless imaginative play options!\"",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 4.882226796735644,
+   "d_other": 4.619471158504722,
+   "M_local": -0.26275563823092174,
+   "R_95_user": 4.284776860697126,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "B_exemplar",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "\"This bright and BPA-free plastic toy from Manhattan Toy adds just the right amount of fun and color to our playtime, making it a hit with both my little one and me!\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "C_rewrite",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "This blue/green/orange plastic toy from Manhattan Toy is the perfect solution for our banister!",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 3.0486860784083243,
+   "d_other": 3.1953787879623796,
+   "M_local": 0.14669270955405533,
+   "R_95_user": 4.284776860697126,
+   "strict_pass": true
+  },
+  {
+   "user_id": "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA",
+   "cond": "C_rewrite",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "This blue/green/orange plastic toy from Manhattan Toy is the perfect solution for our banister!",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 3.0486860784083243,
+   "d_other": 3.1953787879623796,
+   "M_local": 0.14669270955405533,
+   "R_95_user": 4.284776860697126,
+   "strict_pass": true
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "A_free",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "I'm looking for a BPA-free plastic toy for my toddler, preferably in blue, green, or orange colors. The Manhattan Toy brand is what I trust, so I'd like to find a product from that brand that matches all these requirements under the Toys & Games category.",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 3.6374571848429142,
+   "d_other": 3.319872211605159,
+   "M_local": -0.31758497323775536,
+   "R_95_user": 5.6461039673773925,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "A_free",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "Hey, I'm looking for a fun and safe toy for my toddler. Found a Manhattan Toy with blue, green, and orange colors that's also BPA-free plastic. Can you suggest the right one under Toys & Games category? My kid loves interactive and colorful stuff.",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 3.152911224339585,
+   "d_other": 2.926184151550372,
+   "M_local": -0.22672707278921322,
+   "R_95_user": 5.6461039673773925,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "B_exemplar",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "\"Found the perfect blue and green plastic toy from Manhattan Toy, but I could use one that's a bit bigger. Can't wait to play with this fun addition, even if it's not as long as I'd hoped!\"",
+   "attr_coverage": 0.4,
+   "status": "attr_filter(40%)"
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "B_exemplar",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "\"This blue/green/orange Manhattan Toy is perfect for my kid's playtime! Just hoping it came in a bigger size, but it's still great. BPA-free plastic makes me feel safer about their safety. Would recommend for parents seeking fun, safe toys.\"",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 3.704356928816237,
+   "d_other": 3.4648430908413004,
+   "M_local": -0.23951383797493664,
+   "R_95_user": 5.6461039673773925,
+   "strict_pass": false
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "C_rewrite",
+   "trial": 0,
+   "target_asin": "B000BNCA4K",
+   "output": "I've found what I've been seeking; alas, it could be a tad longer, yet it suits my needs admirably.",
+   "attr_coverage": 0.0,
+   "status": "attr_filter(0%)"
+  },
+  {
+   "user_id": "AFWHZ6NKHI4XJTP7QMGNV6U6Q3SA",
+   "cond": "C_rewrite",
+   "trial": 1,
+   "target_asin": "B000BNCA4K",
+   "output": "The blue/green/orange plastic toy from Manhattan Toy is BPA-free, fitting my search, although it might be slightly longer for more extended play sessions.",
+   "attr_coverage": 0.6,
+   "status": "ok",
+   "d_self": 4.384412372011908,
+   "d_other": 3.4591089209816284,
+   "M_local": -0.9253034510302793,
+   "R_95_user": 5.6461039673773925,
+   "strict_pass": false
+  }
+ ]
+}
