@@ -1,0 +1,6837 @@
+{
+ "summary": {
+  "config": {
+   "description": "Phase 7.I: in-sample syntax-identifiable user & discriminative source sentence pool. NOT held-out.",
+   "caveat": "In-sample only. Cannot claim held-out generalization. Use as benchmark cohort construction.",
+   "n_target_asins_target": 80,
+   "users_per_asin": 12,
+   "user_gate": {
+    "P_M_gt0_min": 0.8,
+    "M_med_min": 0.0
+   },
+   "sent_gate": {
+    "M_min": 0.0,
+    "d_self_max": "R_95_per_user"
+   },
+   "R_95_method": "per-user 95th percentile of in-sample d_self (>=5 samples), else 8.073"
+  },
+  "n_asins_evaluated": 80,
+  "n_users_in_cohort_total": 542,
+  "n_users_pass_gate_total": 52,
+  "frac_users_pass_gate_total": 0.0959409594095941,
+  "n_discriminative_sentences_total": 1255,
+  "n_unique_users_with_disc_sents": 52,
+  "P_M_gt0_per_user_distribution": {
+   "mean": 0.9173687423687422,
+   "median": 1.0,
+   "q25": 0.8,
+   "q75": 1.0
+  },
+  "M_med_per_user_distribution": {
+   "mean": 1.1095266563359278,
+   "median": 0.8998605417485543
+  },
+  "n_discriminative_per_user_distribution": {
+   "mean": 3.730769230769231,
+   "median": 4.0,
+   "max": 7
+  },
+  "verdict": "GO \u2014 benchmark cohort has 52 syntax-identifiable users with 1255 total discriminative source sentences ready for rewrite."
+ },
+ "per_asin_results": [
+  {
+   "asin": "B000BNCA4K",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.2857142857142857,
+   "n_discriminative_total": 11,
+   "per_user_summary": {
+    "AGC7SPWZ2EBOL6U27X32KBPOLG3Q": {
+     "n_total": 4,
+     "P_M_gt0": 1.0,
+     "M_med": 0.7170138530913273,
+     "R_95": 8.073,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AETKZ4HQ6CMY3WSGTILR5BANUKHA": {
+     "n_total": 7,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6550165498007234,
+     "R_95": 3.9474299560918378,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFQC3HYMBA6CEY7ADW42UR36SJ2A": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.4889541875775332,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEVKJA4ALXUCWM347DPEJSPVRXVA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.03140071201941752,
+     "R_95": 4.4266221194190365,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEK5UBCDZNK4DXWY3S6R3FXFC6WA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -1.1168008427850102,
+     "R_95": 9.500281781110925,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHNGAFH7HW6MUNDLSX3KUTENT3OQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.3583253760769811,
+     "R_95": 5.636302712894743,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG4J2UBJUHA5P6WVBYR3TY4433WQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.1910172062965518,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00ECHYTBI",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.14285714285714285,
+   "n_discriminative_total": 18,
+   "per_user_summary": {
+    "AFVEVIN5UWFFKK6U22GBUN2IXIOA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.5321226147488707,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AEAHMAECWCRSOM6OHZCUS36BXVKA": {
+     "n_total": 19,
+     "P_M_gt0": 0.21052631578947367,
+     "M_med": -0.27825130776296136,
+     "R_95": 5.650700498400013,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEPBQS33M3GZUIHFX4CT2WT3HCEQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.4726415153338228,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFJWUVWFXYAQO7CVLQEKANKGE7WQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.0918639979951319,
+     "R_95": 4.6199451895033,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHSHJTKMCNC5PPIRLFORE7GQFB2A": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.28732112355503703,
+     "R_95": 4.187120183983382,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEYTRXATCXZBS6LTLZ7SF36GRMVA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.9087548863173947,
+     "R_95": 4.365455886609177,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHBIVF25KC6KSCFZ5TXC7IUKWYCQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.46272238790236386,
+     "R_95": 7.275860034929398,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B000IDSLOG",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.25,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AHJPIM2U3672V5RS33T3RTWF2YFA": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.7553312268308332,
+     "R_95": 4.43701671076453,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFAYCGRNSW5V44WZWEFIREEBXTLA": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8725131892761384,
+     "R_95": 4.212779285114058,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFA5WPUDUJPCSVFS424JKOUJ4KZA": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.9838756728676601,
+     "R_95": 5.90460025568779,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHBSMPRSL27YKSGBM5AOQPAEMALA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.0793826108075186,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AE64SNKQJDJWIKB6SXCRR6PNMUCA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.6137090511141161,
+     "R_95": 3.690418406863785,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AG5XM7RKRNHXZU7NZAVS72AWEKQA": {
+     "n_total": 11,
+     "P_M_gt0": 0.18181818181818182,
+     "M_med": -0.40225868728623615,
+     "R_95": 6.597328949761735,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHCABFYOH6OUQFGYHRQFP3GBCXTA": {
+     "n_total": 6,
+     "P_M_gt0": 1.0,
+     "M_med": 1.3252723530706931,
+     "R_95": 3.319446239964786,
+     "n_discriminative": 5,
+     "pass_user": true
+    },
+    "AGD5DVK3BKHOAMOU67WZEB6HRPPQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.0671035139354057,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B004JU0H6O",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 21,
+   "per_user_summary": {
+    "AFB7KI5UJY6VW7X6YB3OYEUQAVUA": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.3085600840731715,
+     "R_95": 5.176997997075107,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHNGAFH7HW6MUNDLSX3KUTENT3OQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.372815341200855,
+     "R_95": 5.636302712894743,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEQSLGNJP7SVKNHRVP2XRQBLWGSA": {
+     "n_total": 17,
+     "P_M_gt0": 0.17647058823529413,
+     "M_med": -0.3745444323431326,
+     "R_95": 5.482692738899173,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGX7UDVELPPGWUPGRBV54J2RNG4Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.038631153789441486,
+     "R_95": 4.116590724291834,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFKYO43G5H3CT7ZVLIBWQW5DUDNA": {
+     "n_total": 18,
+     "P_M_gt0": 0.2777777777777778,
+     "M_med": -0.29303342434080437,
+     "R_95": 6.140839104196869,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFU4HCKFKSG3FLIZTPQZETZA7LMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2003812747930187,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHGDK2EN4U6IYBGJ2QFFJMXAQMFQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.6153846153846154,
+     "M_med": 0.0371273809892938,
+     "R_95": 5.6176997230835255,
+     "n_discriminative": 7,
+     "pass_user": false
+    },
+    "AED5NBHRTX4PSKL5DKJUXGTJZPVA": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -1.2909043349523233,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B011EVXIIE",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 10,
+   "per_user_summary": {
+    "AESZOLU5JLPLURML7WWV6N6HZGVA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.6313115871963251,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEBAODVVFUCUBPBNJNKO6TTMIJ7Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.0879112355937912,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGPDCTKCFIDLXCK7RVMEJDVLKIFA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.23156125018785811,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHCUWSZJ7OE2SWMIM6EID2NM7XCA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.5841236096259719,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFKYO43G5H3CT7ZVLIBWQW5DUDNA": {
+     "n_total": 18,
+     "P_M_gt0": 0.1111111111111111,
+     "M_med": -0.9719261905717476,
+     "R_95": 6.140839104196869,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHDLM7R2LUNV4NASNZDDK3WZ4FEQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.14285714285714285,
+     "M_med": -2.255718759385853,
+     "R_95": 16.77522654662589,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGALMMBTM2GGMBDFARRB5I3KVQGA": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.9307743804291153,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHRH5YDN3CXINXNF6XM4MXDJULQQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5458656809034896,
+     "R_95": 5.7902519110165525,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B006Z2BZBU",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 7,
+   "per_user_summary": {
+    "AETKZ4HQ6CMY3WSGTILR5BANUKHA": {
+     "n_total": 7,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6719342441800502,
+     "R_95": 3.9474299560918378,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHJPIM2U3672V5RS33T3RTWF2YFA": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.01097943289329617,
+     "R_95": 4.43701671076453,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGPDCTKCFIDLXCK7RVMEJDVLKIFA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.716772377587223,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGWXTGZMAEOOEAHO2XQCXDFADBHA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.8887310893598417,
+     "R_95": 5.795722842244122,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AG25K5CQOTTB3W6IVDFCTQVWM5QQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6587585658886383,
+     "R_95": 4.378715497787312,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B004I110D8",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 7,
+   "per_user_summary": {
+    "AEONB2GM4LMYW3YOJWMNDWSHMXJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.5382451336656642,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHM56WA4FAB2KZITXPRW2WUPZIMQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.4951300349658676,
+     "R_95": 3.867523105571945,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AG4DR3M7IIZN3Y3YCCSSW3BJZL7Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.905013609796347,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8447719844035535,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AESKUFGC7GA27D4GI4DLJ4KBEDYA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.5902599229849412,
+     "R_95": 4.606854005664758,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGXYDKF4ZBK46H4SBPHL2KFRHZ2A": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.2496657591998874,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B007RAGALO",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AFVEVIN5UWFFKK6U22GBUN2IXIOA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.5735341724244583,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AEK5UBCDZNK4DXWY3S6R3FXFC6WA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.9812788213940451,
+     "R_95": 9.500281781110925,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG64RXY4WLSXEEZ6ACIMY7KWULKA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.3897758823173021,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHOQG6M4ODTYNQZ3PIYRSCQQVJZQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5215395651945198,
+     "R_95": 4.9901806771680635,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AFLVMIF6SHC75RCXP5W5E4UDS4ZQ": {
+     "n_total": 16,
+     "P_M_gt0": 0.1875,
+     "M_med": -0.5066731183202668,
+     "R_95": 5.80834412459518,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEUCYGITEN5ORPRVBFF6HU546GBA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.5212859974171119,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B010S7VZI0",
+   "n_users_in_cohort": 4,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 11,
+   "per_user_summary": {
+    "AFI73SB7LHZPA3OKP4J42YMEHVFA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.06349642101220043,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFU4HCKFKSG3FLIZTPQZETZA7LMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.8662735983844938,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFPGAHQQVOZ63LXJNPATHYBKNKRA": {
+     "n_total": 16,
+     "P_M_gt0": 0.25,
+     "M_med": -0.27578377567473433,
+     "R_95": 4.8386466481091315,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AH5DFCQHCPC3QBPK3KR6CNP4YLOA": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": 0.031305026417556725,
+     "R_95": 7.009574050571024,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00068O22S",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.125,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AEMYUGKFRP2UUSRF467XWHUSJQKA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.46552435940611137,
+     "R_95": 5.201456472927854,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFO4JFVHP2IUNIAM3R2HWEHDEUJA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.539371266477013,
+     "R_95": 4.2388482987255305,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGVJUUCFMBP6SABPIAXREELESFIA": {
+     "n_total": 9,
+     "P_M_gt0": 0.2222222222222222,
+     "M_med": -0.34264526547774965,
+     "R_95": 4.82412488669184,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG2RSDSR2D3Y26RV2VO2Z76KH5ZA": {
+     "n_total": 10,
+     "P_M_gt0": 0.3,
+     "M_med": -0.516295123668045,
+     "R_95": 5.2628546762977715,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AG64RXY4WLSXEEZ6ACIMY7KWULKA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.11038315663668374,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEML6DKTNAJMSRFGYAEZDMF3I42Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.1923627102943857,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGYGVQJ2XCLP4FBBMGVQZGBWMCGA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.06617128819159612,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEDX4B7MWPS7MKVCXT7TSHTZPGVQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 2.0493449921412914,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00278WA4W",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 9,
+   "per_user_summary": {
+    "AEOL5AERHHZHHZFZTRHA3VVXQTTA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.7244257026998242,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AGXUNJDZMLSCFPJ5VTWMHOSKDRFA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.2545828444494789,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEOMTF2KGPGBSLSLN4YCFUVTAQ6A": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.06225900933141881,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AELRGAHYW4A2D3SBGP3FAWJENQJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.35824685029214454,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.19707110249382254,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGYGVQJ2XCLP4FBBMGVQZGBWMCGA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.034303231173760995,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0081ZOV06",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 24,
+   "per_user_summary": {
+    "AHNGAFH7HW6MUNDLSX3KUTENT3OQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.5861508502184454,
+     "R_95": 5.636302712894743,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.08333333333333333,
+     "M_med": -0.3307054464483934,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHN3JBM5ZFQZEZCWCQSKOWW3FNTQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.944751158364983,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFNVAIDAWNHV3NARML3ZQ7SSQSNA": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -0.25903789243360054,
+     "R_95": 5.46706273178377,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFX3XLGVM6D32U6LXS7S4PIORTCA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.42719838969400836,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFCKWMHLHAECR74LXBPBS43HG6AQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.305870963028394,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHI7A36FSQATGRO2CDS6VNSVC4DA": {
+     "n_total": 28,
+     "P_M_gt0": 0.4642857142857143,
+     "M_med": -0.026402676778535028,
+     "R_95": 5.022871500645889,
+     "n_discriminative": 12,
+     "pass_user": false
+    },
+    "AGBMWG5RST3LJWQ2YSOEISPVKSBQ": {
+     "n_total": 20,
+     "P_M_gt0": 0.25,
+     "M_med": -0.3505679958665009,
+     "R_95": 5.018154411996948,
+     "n_discriminative": 5,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B000066665",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AGXYHNDN6NT3SZPZKIRDM2P5ASKA": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -0.535022613496482,
+     "R_95": 5.928369646470137,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG5XM7RKRNHXZU7NZAVS72AWEKQA": {
+     "n_total": 11,
+     "P_M_gt0": 0.2727272727272727,
+     "M_med": -0.20780885675314575,
+     "R_95": 6.597328949761735,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFNQN225N7GZMCR7O4C76AQEMFBQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2482174236731436,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHKL2IAC36ECZBY6GALHYGJKSJCA": {
+     "n_total": 7,
+     "P_M_gt0": 0.7142857142857143,
+     "M_med": 0.9721505105438855,
+     "R_95": 5.27008576321252,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AGHXHB2PSDHBRHUZFEMUVUG6YUAQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.1858480957715427,
+     "R_95": 5.244882191064356,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEK3M2CQJESP252UXZAN7NRTNMSA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.005598486056257235,
+     "R_95": 4.2797732361118115,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE7RW6KNRJNAED62HDWEEGJFOW5Q": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.031218459382966524,
+     "R_95": 4.529725029831376,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B006YBHE6M",
+   "n_users_in_cohort": 10,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AE54WXCIS4DOY2COEFPIBGJCDPZQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.17069625462289828,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGRXNNHQQ5DXQ4TB7M6NJXLAVHTA": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -1.034564947064015,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AENEAO247JXXEQ3TIC5M2545XGKQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6601569848695972,
+     "R_95": 4.372117549899153,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHS3ZPW2A46I4PFIDOFS5E6ZV34Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5302242396379762,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHOKHZYQNVJCIBZUAGC7LPPM4Y4A": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6828210288901067,
+     "R_95": 4.236082258633314,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGHXHB2PSDHBRHUZFEMUVUG6YUAQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.11657866127230876,
+     "R_95": 5.244882191064356,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHN3JBM5ZFQZEZCWCQSKOWW3FNTQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.7102464328195723,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHP7GSQAEKRLZUGEFA4FNZRKQM6A": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8197191465978095,
+     "R_95": 5.10653107376663,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEC62IITCUJZSSB3IWCG64VWRK6A": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.033908877341711996,
+     "R_95": 4.987395332031047,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AG7BGQYFYKH76GJHC2OL52QDKY5Q": {
+     "n_total": 10,
+     "P_M_gt0": 0.4,
+     "M_med": -0.16491297630045798,
+     "R_95": 4.704774189424678,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0045I6IAO",
+   "n_users_in_cohort": 3,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.3333333333333333,
+   "n_discriminative_total": 14,
+   "per_user_summary": {
+    "AGQ67XQKECSEMHSZLUOIR3YAAVFQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.7,
+     "M_med": 0.6785828494510353,
+     "R_95": 7.885395205414653,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AG2RSDSR2D3Y26RV2VO2Z76KH5ZA": {
+     "n_total": 10,
+     "P_M_gt0": 0.4,
+     "M_med": -0.5519935995666851,
+     "R_95": 5.2628546762977715,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGX7UDVELPPGWUPGRBV54J2RNG4Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 2.065340635619024,
+     "R_95": 4.116590724291834,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B000V88HJM",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 14,
+   "per_user_summary": {
+    "AHJQFJMQCODBXS6VO4Q6YN5OAHYQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.7977049972611217,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHIGCT5CPNYQXVOKB67MSNHWVIPQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -1.1102454243863127,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AF5KQSXIWFV6UMBYPDMEEV4SKKYA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.186461299265805,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGX7UDVELPPGWUPGRBV54J2RNG4Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 1.3522146265351271,
+     "R_95": 4.116590724291834,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AGEUD4MYHJUQZPM4CTCG72E5ZG3Q": {
+     "n_total": 7,
+     "P_M_gt0": 0.5714285714285714,
+     "M_med": 1.0652716804659415,
+     "R_95": 4.3117692292997924,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AEAOYGHBRJQUXHSRXY7NOQY3FBOA": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.6349869620645066,
+     "R_95": 4.966323919495857,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00BNQEZXS",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 10,
+   "per_user_summary": {
+    "AHCUWSZJ7OE2SWMIM6EID2NM7XCA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.014513476468343445,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFQW3CD5IJTQWEWFXXRWLQNNGKNA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.988747431684887,
+     "R_95": 4.520827893722778,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFSUI7EPMF6XFG2T4LYXZD2XS75A": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.6659458956956086,
+     "R_95": 3.424284674779249,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AESPVVUVKDQ7CA5NKV42WTEBYGAA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.19735303870479814,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE3SJSLWES2M3YUSNQNDHOY3ZLRQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.37543287949304993,
+     "R_95": 4.417084154412873,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00MRZIGWA",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AHI6N6PHEQVK52YUF2OGCP5FXRXQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": 0.5290365882776704,
+     "R_95": 5.105975723614113,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AF75BITRBJV7DVQXVBFVKK755YTQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.34104161961054924,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHW52ZWVOI2DNHXYNJDXT4D3VEGA": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.3363446296406236,
+     "R_95": 4.660219860433159,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHOQG6M4ODTYNQZ3PIYRSCQQVJZQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.4444444444444444,
+     "M_med": -0.5006924761655878,
+     "R_95": 4.9901806771680635,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFMX4UQ7EASHX5N7HS5HXVWJQYMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -1.1822962036014757,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AH5FJA7MI3PFXIP3GW3QPM2BHSHA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.6078595263652364,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGN3JJBUSYZHBFC5RALHJO67TSRA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.15663771063890586,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00YBADM1O",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AENIR3X2ASRYMOV6Z54RPJRXRFRA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.006225706690183408,
+     "R_95": 3.8768636267910193,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AH5OGXBCZRD246RY2EO6XVWBM7RA": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.3190304022261803,
+     "R_95": 4.5888084441254104,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AECSNCOIZWGHJCONYOWQE5IIARCQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.0766978545620065,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEMACRCBRYMRQ7KETZSP6NPRL6JA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.12463406753204787,
+     "R_95": 4.99048151470862,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEBZL4WRQ6XSZTLU6H4UVG3YWWGQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.5555555555555556,
+     "M_med": 0.16476156311478363,
+     "R_95": 9.554951745989612,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGGYNA3253WHNNQ56VWU7QMHXJWA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7041695867935136,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFXAJKGARVVWJ4WPAGRVILXLHBPQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7174029818246508,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B001579YRM",
+   "n_users_in_cohort": 11,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 21,
+   "per_user_summary": {
+    "AE3ZB3WJRTYUN4HYCFTKPQ7EPYYA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.7435714621796294,
+     "R_95": 5.060300098092438,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEAHMAECWCRSOM6OHZCUS36BXVKA": {
+     "n_total": 19,
+     "P_M_gt0": 0.10526315789473684,
+     "M_med": -0.8722608071014557,
+     "R_95": 5.650700498400013,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH2BHJHWJYKOED75R3MHMRZ33JDQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.7946283978626545,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEXE6DSTVGL4MNBOFEPICPJLNPKA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.008734643779279683,
+     "R_95": 5.264926588384961,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE3SSVWFJWCXXQTHJSBM36FROWBA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.9088243838906633,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFWJUBX6YIUKUSEJTD4NUDYDCI7A": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.38341207796282695,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHDNXJD5RFZQT56NQV7OYU3KRRIA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.12644723544538938,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGLODJOCC2HJURGPFKFOPSYS53NQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8594714573450954,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AENOBIS5HECEKKVZLEKYHAQQC62A": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.4365868113843292,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEAD7ZP6VV4IJL2Z2HVIRVEBHZJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8751821084457894,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AERI5WENSM52X65RQJTAZXQXXD7Q": {
+     "n_total": 11,
+     "P_M_gt0": 0.45454545454545453,
+     "M_med": -0.7160566576935561,
+     "R_95": 4.353101670670085,
+     "n_discriminative": 5,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B003CK3LDI",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AFO4JFVHP2IUNIAM3R2HWEHDEUJA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.3477749079214285,
+     "R_95": 4.2388482987255305,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.4166666666666667,
+     "M_med": -0.48191372219926754,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AE36LMB52IHCDGDNB44UJL36W5AA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.11445177111398563,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFUMI2KASNPDWI722UR23KVSYDBA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.9232134880462586,
+     "R_95": 4.201883856530388,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFG7Z7LIDX2X64IKA6UCDDSW4ZMQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.1036255285536685,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHP5LGV6CCY7DAKSW4MCBWYSS66Q": {
+     "n_total": 9,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.3604233824467089,
+     "R_95": 4.2965611056314,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AEF4WA67RLJ577TUKLO6RX77JO6A": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.3856374343592688,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGOQPRITTENONAECVNPR27OOHFKQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5251724592637218,
+     "R_95": 4.889978711111042,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B000MVQBG4",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 20,
+   "per_user_summary": {
+    "AG2VE2QJ4GFFV3PWFQVYA3MSSLTA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.11487945934737498,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AERQKUC42AIM3JX6Y23MGP3AW2KQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.10762654641900671,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AG4LN2JG55HTJMD5G6K5LPUPSSHQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.2816931624069874,
+     "R_95": 4.0297913590177785,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEXE6DSTVGL4MNBOFEPICPJLNPKA": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.6223371173224717,
+     "R_95": 5.264926588384961,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGLBXR56LP6QJK3LZ6PTYPYY53EQ": {
+     "n_total": 17,
+     "P_M_gt0": 0.6470588235294118,
+     "M_med": 0.17436667472814227,
+     "R_95": 5.565591391883261,
+     "n_discriminative": 11,
+     "pass_user": false
+    },
+    "AGLODJOCC2HJURGPFKFOPSYS53NQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.13474363961814895,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B002FKE4UU",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AH5OGXBCZRD246RY2EO6XVWBM7RA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.24840698944305295,
+     "R_95": 4.5888084441254104,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGRQW6TZTGP5UYHUATWUQKIMR3AQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.46521081957437005,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFMIENWX5F6V2Y2O3VPMWHPP3CRQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5278010912106321,
+     "R_95": 4.701096551206371,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHTIHA4JQEANT2PJ2L764YT5JBEQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.45454545454545453,
+     "M_med": -0.31754481972917636,
+     "R_95": 5.523240327497614,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFXBO2HFF4GHXVHD2X3B3IGXY6ZA": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -1.6259425734485686,
+     "R_95": 16.175886830748635,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGRWMJQ6M666CF3VNV6A3QIZEXOA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7918990865062483,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFGVKI2EYV7UM5YJB2DORTNGP67A": {
+     "n_total": 7,
+     "P_M_gt0": 0.7142857142857143,
+     "M_med": 0.16088931132436368,
+     "R_95": 5.127825645768471,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AHNDDX2ZXQFWERTK3LHS3STIRYTA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2001608751541788,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B008HCXIU2",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AENOKNODKORVEAKQPFHYOJIS2VZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.19398534477755147,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGLBXR56LP6QJK3LZ6PTYPYY53EQ": {
+     "n_total": 17,
+     "P_M_gt0": 0.47058823529411764,
+     "M_med": -0.04152182294706108,
+     "R_95": 5.565591391883261,
+     "n_discriminative": 8,
+     "pass_user": false
+    },
+    "AFQ42XJL3YSIVT74EMETR5PNJR2Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.09031411326963079,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AF7F4UPVTD64E32UZOU7HUJS2ANQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.015201834618643106,
+     "R_95": 4.740122738943978,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEELNPQG53TVUO2VBGJNSPQAOZJQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.27357871280471757,
+     "R_95": 4.639119372689177,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B001OC5UNK",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AFB7KI5UJY6VW7X6YB3OYEUQAVUA": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -1.08390902639134,
+     "R_95": 5.176997997075107,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGBK5OLCYDWUGR5VJYY2BM35UYIQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.3069102365130929,
+     "R_95": 5.4776172081163255,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG43S3VNMM5SARZFWRTKGDVALSUA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.08761547517215584,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGNXSDDFEQCHKR66HD3N7WEDPAMQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.5132418292017091,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE7FVAHWCCCOXBWNTNLJMSEPKJZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.1776426746562625,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGILWMVFZCVGKZQWAUEN6XYRFPJQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.43438152684679143,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEL5BNCEFLAOTCISFRNLXUC2ZHWQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.9983525951707444,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEHNY4NQG6HLUVLVOS3HWUYXQLOA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.33856201403510156,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGEUD4MYHJUQZPM4CTCG72E5ZG3Q": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.0764763904201371,
+     "R_95": 4.3117692292997924,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B004ECJWK4",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 23,
+   "per_user_summary": {
+    "AG5FR2BANQIL6TPU6J4Q5COXQ7GA": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.23190207085276104,
+     "R_95": 4.54241475738692,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGVJUUCFMBP6SABPIAXREELESFIA": {
+     "n_total": 9,
+     "P_M_gt0": 0.1111111111111111,
+     "M_med": -0.5458736581554895,
+     "R_95": 4.82412488669184,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEVKJA4ALXUCWM347DPEJSPVRXVA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.2143122509954991,
+     "R_95": 4.4266221194190365,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFXVLNFY2C757T5MCLT6Z7D3HAQQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.37189825685263456,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFYVAHNAJ4IRNF7L7PRUZGXKMHQQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.6408819225693325,
+     "R_95": 4.240907903786172,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.3,
+     "M_med": -0.07188328377691011,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGLBXR56LP6QJK3LZ6PTYPYY53EQ": {
+     "n_total": 17,
+     "P_M_gt0": 0.47058823529411764,
+     "M_med": -0.07271987150910375,
+     "R_95": 5.565591391883261,
+     "n_discriminative": 8,
+     "pass_user": false
+    },
+    "AHDNXJD5RFZQT56NQV7OYU3KRRIA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.7532296264275542,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00PV6H3Z8",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.14285714285714285,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AFF5CN5NOMUQSS7KFQSZ3MO2IQJA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.6850383923236059,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AENIR3X2ASRYMOV6Z54RPJRXRFRA": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.6368051549384499,
+     "R_95": 3.8768636267910193,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEDX4B7MWPS7MKVCXT7TSHTZPGVQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.9385193869034465,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AGJBNDZDG7FY7ZSIT6DYW6FOJ2RA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.658366656649628,
+     "R_95": 2.317324789507214,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFV2GK6TYLQFU3ZRIHVA6GBSPZ6A": {
+     "n_total": 8,
+     "P_M_gt0": 0.375,
+     "M_med": -0.16914587146148818,
+     "R_95": 5.091659378917961,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHUUNEQCYKGZGKP7V4BREAOGWTFQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.1111111111111111,
+     "M_med": -0.21716987011193378,
+     "R_95": 5.028620534344019,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFEOGCJOFIPCVENKECNXZ4NQHKEQ": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -1.1815658403245763,
+     "R_95": 5.4062989988199135,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00DGN23UI",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AE54WXCIS4DOY2COEFPIBGJCDPZQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.5924797777905739,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHKORHEA7MQBRE3JM24D4JMOCMYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.32426701171360595,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": 0.02440045290668036,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFPGAHQQVOZ63LXJNPATHYBKNKRA": {
+     "n_total": 16,
+     "P_M_gt0": 0.0,
+     "M_med": -0.4337427675997878,
+     "R_95": 4.8386466481091315,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHN3JBM5ZFQZEZCWCQSKOWW3FNTQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.9341304592266728,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEUFNNKAMNOBQ337VN5NHJV2ALWQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.5579866061382432,
+     "R_95": 4.613463019552562,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHI7A36FSQATGRO2CDS6VNSVC4DA": {
+     "n_total": 28,
+     "P_M_gt0": 0.17857142857142858,
+     "M_med": -0.21395707377344575,
+     "R_95": 5.022871500645889,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFZWJV6QRADWP3K26FWG27PZIADA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.2318882214817517,
+     "R_95": 4.214582479602351,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B001V9EVCM",
+   "n_users_in_cohort": 4,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.25,
+   "n_discriminative_total": 12,
+   "per_user_summary": {
+    "AFO4JFVHP2IUNIAM3R2HWEHDEUJA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.34495282298785734,
+     "R_95": 4.2388482987255305,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGBP7GRAOHVA7TTU3EFR5L35VD5A": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.3586006025224817,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AEK7PHXXS5S3QHTIHJXTU377LL2A": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.74480379784045,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AE7XQXZUL6F36SW3RA2A65KUAASA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.2672344989418276,
+     "R_95": 4.885200420516784,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00PTL7CSS",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 18,
+   "per_user_summary": {
+    "AHOKHZYQNVJCIBZUAGC7LPPM4Y4A": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.11186159235284343,
+     "R_95": 4.236082258633314,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFU4HCKFKSG3FLIZTPQZETZA7LMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 2.1815161613041765,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFMX4UQ7EASHX5N7HS5HXVWJQYMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.007633866685635482,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHI7A36FSQATGRO2CDS6VNSVC4DA": {
+     "n_total": 28,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.15743130988967113,
+     "R_95": 5.022871500645889,
+     "n_discriminative": 11,
+     "pass_user": false
+    },
+    "AEO7F6U3A6RPYUQX2RFPAVDIMNVQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.21587215797299542,
+     "R_95": 4.542767021244401,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00GUN3Z1W",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.1111111111111111,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AEFYY4OQWFEI5GGGONXYESM5S5BQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.7142857142857143,
+     "M_med": 0.15851232739648058,
+     "R_95": 4.802253162442472,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AERQKUC42AIM3JX6Y23MGP3AW2KQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.15094632564479626,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFA5WPUDUJPCSVFS424JKOUJ4KZA": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.5757401226889076,
+     "R_95": 5.90460025568779,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AENEAO247JXXEQ3TIC5M2545XGKQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.3825233009200857,
+     "R_95": 4.372117549899153,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFVWDXD52B23PS5V37PAZ5CNGX6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6152093477991345,
+     "R_95": 4.203969081395676,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFIROMS23ORMKGET6XC6ZEDCTEXQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.4532358073487708,
+     "R_95": 5.659926895746563,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AFNVAIDAWNHV3NARML3ZQ7SSQSNA": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -0.48477802045657303,
+     "R_95": 5.46706273178377,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFRHXT7JQYG6KQYNQ52DAVG2J4CQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6322765617442907,
+     "R_95": 5.324869038194125,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ": {
+     "n_total": 5,
+     "P_M_gt0": 1.0,
+     "M_med": 0.9338249574607131,
+     "R_95": 3.085841135432446,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B01DGIKD68",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 12,
+   "per_user_summary": {
+    "AGDFIAIQO6OJMBUZYXX25RCIRTOQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.1895623237127415,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEYTRXATCXZBS6LTLZ7SF36GRMVA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.19986124251890924,
+     "R_95": 4.365455886609177,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFNVAIDAWNHV3NARML3ZQ7SSQSNA": {
+     "n_total": 8,
+     "P_M_gt0": 0.375,
+     "M_med": -0.3238002820352568,
+     "R_95": 5.46706273178377,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFQW3CD5IJTQWEWFXXRWLQNNGKNA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.4930739203714003,
+     "R_95": 4.520827893722778,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AFMX4UQ7EASHX5N7HS5HXVWJQYMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.039053309318147544,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0045VA3SO",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AFWMG7UFWQJPALHSIATX2G6YNOXA": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.38196371753981095,
+     "R_95": 4.087079449211965,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFO4JFVHP2IUNIAM3R2HWEHDEUJA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.4294264603793261,
+     "R_95": 4.2388482987255305,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE7FVAHWCCCOXBWNTNLJMSEPKJZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.1954524234512527,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGILWMVFZCVGKZQWAUEN6XYRFPJQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.240366122872679,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFG7Z7LIDX2X64IKA6UCDDSW4ZMQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.3648065706500176,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHMQW6SC2WDX76IL2T76K56SYWBA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.04238380233516814,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGBMWG5RST3LJWQ2YSOEISPVKSBQ": {
+     "n_total": 20,
+     "P_M_gt0": 0.4,
+     "M_med": -0.09659418720611979,
+     "R_95": 5.018154411996948,
+     "n_discriminative": 8,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00HB0WGF4",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 24,
+   "per_user_summary": {
+    "AGTG4YE4QEIDY4K3XPXSGFVQZN5Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.13870067621718318,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHI6N6PHEQVK52YUF2OGCP5FXRXQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": -0.1318119552740109,
+     "R_95": 5.105975723614113,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AFYAYOTSZKWPFTWQBNC2FPQI7VRQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.1111111111111111,
+     "M_med": -0.4533894350131966,
+     "R_95": 4.318118599800474,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGHLPXBY6KVNZOXV2KXDZAI4GDJQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5621739587759422,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AF2B2EWI4N5H3KRSBJFWCZI4CWLQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.5454545454545454,
+     "M_med": 0.003835283070703799,
+     "R_95": 4.642653382558747,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.3138111742957532,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 8,
+     "pass_user": false
+    },
+    "AHOTRV7O3LMRFLM3D3AFTMUZQZUA": {
+     "n_total": 9,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.2539843489214486,
+     "R_95": 4.727833589807289,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0052QYLUM",
+   "n_users_in_cohort": 10,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.1,
+   "n_discriminative_total": 20,
+   "per_user_summary": {
+    "AEDUYFW3Q7NJHTQDTN4NWNV6K5HQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5637224778564556,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFWMG7UFWQJPALHSIATX2G6YNOXA": {
+     "n_total": 7,
+     "P_M_gt0": 0.14285714285714285,
+     "M_med": -0.32608278329161866,
+     "R_95": 4.087079449211965,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEAHMAECWCRSOM6OHZCUS36BXVKA": {
+     "n_total": 19,
+     "P_M_gt0": 0.5263157894736842,
+     "M_med": 0.16183529997639345,
+     "R_95": 5.650700498400013,
+     "n_discriminative": 9,
+     "pass_user": false
+    },
+    "AFAYCGRNSW5V44WZWEFIREEBXTLA": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.9964342009636531,
+     "R_95": 4.212779285114058,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEQSLGNJP7SVKNHRVP2XRQBLWGSA": {
+     "n_total": 17,
+     "P_M_gt0": 0.11764705882352941,
+     "M_med": -0.506610765322348,
+     "R_95": 5.482692738899173,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH2JMZ5U7PN3A7K7ICLR6UV64SNQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.9005486740500137,
+     "R_95": 4.408273690217451,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AG6NWOEVPXUU4BK466IGSPO3PVVA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.3073284870190336,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AG25K5CQOTTB3W6IVDFCTQVWM5QQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8273902957640975,
+     "R_95": 4.378715497787312,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE3QE2P3JZOQMS5BG6NSHPTODWFA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.4163246386197115,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AGM5ZNZ3YX57NYKRAYAN2LFZRDBQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.47721721791292615,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B072KPZMMV",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AELRGAHYW4A2D3SBGP3FAWJENQJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.5884110276107646,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFKYO43G5H3CT7ZVLIBWQW5DUDNA": {
+     "n_total": 18,
+     "P_M_gt0": 0.2777777777777778,
+     "M_med": -0.5239927580146146,
+     "R_95": 6.140839104196869,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFZQU4HCVJ6BCCSVI5COQ6HAYYHQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.010672841843994973,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ": {
+     "n_total": 5,
+     "P_M_gt0": 1.0,
+     "M_med": 0.7897891890154529,
+     "R_95": 3.085841135432446,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AHGGZHNL3AGAKYIBU6CBUQORYUSQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.25344300825921606,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHX7SGMXGPFJX4JFFOAM5K2VUFMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.1331672298167108,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B004QZBEFK",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 14,
+   "per_user_summary": {
+    "AFJDQMWFYL24TSNAF5B5XETC4HBA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.38881481029989695,
+     "R_95": 4.26750816761328,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG56DMLNHD7TJTUK3XAKMHPCPAZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.5890096396171858,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.503440519957173,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGHXHB2PSDHBRHUZFEMUVUG6YUAQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.12242995480136587,
+     "R_95": 5.244882191064356,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFVSHIJPMVG5UZ4KRW2QW5EM5TSA": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.0738344358513487,
+     "R_95": 4.631071779240758,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFDQ6QXJ6MJPE5XGACD4TPW7J34Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.47687722276231237,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00PWKC32G",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AECVZVINWATH26RZLF6GHX5RLD2A": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.13674874688983207,
+     "R_95": 4.504945160069304,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGJ3BDW36ITBBY4AB56CYZLU5DSQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.9806875120841978,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE64SNKQJDJWIKB6SXCRR6PNMUCA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.22123034749836323,
+     "R_95": 3.690418406863785,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEYTJ2OIEGZVMX6YJ6R6H5GTHAYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.21203664549315682,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHWZGDK5UOSOG6XKN4FBTYV2NKAA": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.30419705272135056,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGJBNDZDG7FY7ZSIT6DYW6FOJ2RA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.2753706961328799,
+     "R_95": 2.317324789507214,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHUUNEQCYKGZGKP7V4BREAOGWTFQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.5555555555555556,
+     "M_med": 0.046559956972226146,
+     "R_95": 5.028620534344019,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AG7BSMP547QPG72PXCKZVXOKLDSQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.7142857142857143,
+     "M_med": 0.4683881327724535,
+     "R_95": 4.198954485563006,
+     "n_discriminative": 5,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0009RNXNA",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.1111111111111111,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AE7QZCZNPK2O4OMY73ZO2LOEF5PQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 1.5371095318176273,
+     "R_95": 4.548848873269382,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AHKSPARQT2OP6I44ULI23ZGQXNHA": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.27485384681897607,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFWY4VNXU3XCGNVCK4DPS3GLH52A": {
+     "n_total": 11,
+     "P_M_gt0": 0.18181818181818182,
+     "M_med": -0.4005879944409916,
+     "R_95": 5.359602774031005,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGQ67XQKECSEMHSZLUOIR3YAAVFQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.1,
+     "M_med": -0.7098422346483007,
+     "R_95": 7.885395205414653,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGLBXR56LP6QJK3LZ6PTYPYY53EQ": {
+     "n_total": 17,
+     "P_M_gt0": 0.29411764705882354,
+     "M_med": -0.1272898847594912,
+     "R_95": 5.565591391883261,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AF7F4UPVTD64E32UZOU7HUJS2ANQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.09833487485658376,
+     "R_95": 4.740122738943978,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGOOWPYOCFEAZV7NPJ7MQO5EZHEQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.7650182424643353,
+     "R_95": 4.620304853590996,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AETDO5VUWGBGPATCV5MIGK2Y5E4A": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.23450810284456725,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGN6PA75NMJDQ7DBXU7DM3WRVTIA": {
+     "n_total": 9,
+     "P_M_gt0": 0.1111111111111111,
+     "M_med": -0.6459209192380984,
+     "R_95": 5.988879412094535,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00483GAJU",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AEK7PHXXS5S3QHTIHJXTU377LL2A": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.6014452594105448,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGXRI6NQ653UIVBEOZLZY72DB2LQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.40456235695245457,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFLVMIF6SHC75RCXP5W5E4UDS4ZQ": {
+     "n_total": 16,
+     "P_M_gt0": 0.6875,
+     "M_med": 0.10658828285270983,
+     "R_95": 5.80834412459518,
+     "n_discriminative": 10,
+     "pass_user": false
+    },
+    "AFQ42XJL3YSIVT74EMETR5PNJR2Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.08495549363698474,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHQBZUEAUUPWR3ULUNAMLB2JDKRA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.032022755548387405,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B000WJLKQM",
+   "n_users_in_cohort": 10,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.1,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AFO4JFVHP2IUNIAM3R2HWEHDEUJA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5014507452664281,
+     "R_95": 4.2388482987255305,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AENEAO247JXXEQ3TIC5M2545XGKQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.9379632300619714,
+     "R_95": 4.372117549899153,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AH74XULXXOLRKYD36TECP747NDIQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6740746578448498,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGLBXR56LP6QJK3LZ6PTYPYY53EQ": {
+     "n_total": 17,
+     "P_M_gt0": 0.4117647058823529,
+     "M_med": -0.14377277889545192,
+     "R_95": 5.565591391883261,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AGHBDWNY7RNMFPOE45CFCHBDTOJA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.447118558528818,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGPFWZWSC74IUCHSR5SLS67RPFQA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.866763612044259,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AFQPFJ723A64WFPWD5QVLEUK33RA": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.659861210982613,
+     "R_95": 4.551266493943607,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AE5DHE7DCXO6ZAYJQQQ44WDBELVA": {
+     "n_total": 10,
+     "P_M_gt0": 0.0,
+     "M_med": -1.021606863936254,
+     "R_95": 4.770494124703766,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGBMWG5RST3LJWQ2YSOEISPVKSBQ": {
+     "n_total": 20,
+     "P_M_gt0": 0.05,
+     "M_med": -0.541236029989185,
+     "R_95": 5.018154411996948,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHDNY6XBFF27HHVRCGAPERVKKHJQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.7822326449696066,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00MRZIGXY",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AEOL5AERHHZHHZFZTRHA3VVXQTTA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7498000314301598,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEYBI3JT2E6M5WVV457G27YXXQUQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.18900777502891075,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGJ3BDW36ITBBY4AB56CYZLU5DSQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.1270691007222815,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG32KMGDFFYTPOWNCZDX6RE7VZ5Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.10091937063080669,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHRH5YDN3CXINXNF6XM4MXDJULQQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.5454545454545454,
+     "M_med": 0.1019229302323641,
+     "R_95": 5.7902519110165525,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AEJXBJYPFP364FAUXLRVEJ4EWBBQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.5823464394005107,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0048SOBGO",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.25,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AHM56WA4FAB2KZITXPRW2WUPZIMQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.8180205050161304,
+     "R_95": 3.867523105571945,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFLVMIF6SHC75RCXP5W5E4UDS4ZQ": {
+     "n_total": 16,
+     "P_M_gt0": 0.0625,
+     "M_med": -1.254017899666512,
+     "R_95": 5.80834412459518,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFRHXT7JQYG6KQYNQ52DAVG2J4CQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.0,
+     "M_med": -1.1183381389366835,
+     "R_95": 5.324869038194125,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFAKWR6WBPMEM5HKZGXWZOHCNZCA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.6430844714585137,
+     "R_95": 4.419414157183791,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE5SWPLKVGGOVM67DDOIG6PIC22Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.9881524035213105,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE3ND5L5PXOAWEWO4RVBKBHU7WYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.14766476085481406,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE3QE2P3JZOQMS5BG6NSHPTODWFA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.4954931697957086,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AHRWCWVONLSHDBGBD4FVNJBSVJYA": {
+     "n_total": 6,
+     "P_M_gt0": 0.8333333333333334,
+     "M_med": 0.8465123708566009,
+     "R_95": 5.109000208531963,
+     "n_discriminative": 5,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00DDMJ454",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.14285714285714285,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AGJ3BDW36ITBBY4AB56CYZLU5DSQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.0715891098324608,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFPKYRGZIGIXBYPTJ7J22TFYV5BQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.0599479125146591,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGNG4NHSBORIRTXIYJTSXQ4WE75A": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.8093644854100788,
+     "R_95": 4.624456021232247,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHCABFYOH6OUQFGYHRQFP3GBCXTA": {
+     "n_total": 6,
+     "P_M_gt0": 1.0,
+     "M_med": 1.4747900454144842,
+     "R_95": 3.319446239964786,
+     "n_discriminative": 5,
+     "pass_user": true
+    },
+    "AFMIENWX5F6V2Y2O3VPMWHPP3CRQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.14285714285714285,
+     "M_med": -0.24305164378933553,
+     "R_95": 4.701096551206371,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE5BFCDYUEZFMSLIKPOS7Z22V7BA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.04453650179014623,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHUUNEQCYKGZGKP7V4BREAOGWTFQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.14218543037125464,
+     "R_95": 5.028620534344019,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0006BAJN6",
+   "n_users_in_cohort": 2,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 4,
+   "per_user_summary": {
+    "AGNG4NHSBORIRTXIYJTSXQ4WE75A": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.39386649426161746,
+     "R_95": 4.624456021232247,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEJXBJYPFP364FAUXLRVEJ4EWBBQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.0659413697990456,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0019QCGVK",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 8,
+   "per_user_summary": {
+    "AFNNDWDCDX6GZG7NMFSAHO526WNQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.8715098653411206,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFAYCGRNSW5V44WZWEFIREEBXTLA": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.5024396873272079,
+     "R_95": 4.212779285114058,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFNCIWUQACSC3VYSCBRAPHNR24HA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.38856154795464626,
+     "R_95": 4.515556346743797,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGLODJOCC2HJURGPFKFOPSYS53NQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.04083331865470896,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEXBHEGM4BEIHYXHWKZSV3CMMZWA": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.15131963478119714,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG5656FKBU7IJJ6CPJWKOXIC2X6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.2694465219972635,
+     "R_95": 4.853896545507535,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGWC56MKSIFXXHOKGMVNLA4GGV3Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.8019671364929257,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00A4B34IA",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 3,
+   "frac_pass_user": 0.5,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AHM56WA4FAB2KZITXPRW2WUPZIMQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -1.1966397362607464,
+     "R_95": 3.867523105571945,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHLG5OEROOZJVHMD6TNKUKOL6GFA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.21822986897689622,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEVYSHLGGB64TL6SSODHFRP67VGQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 2.3592906633338657,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AFIROMS23ORMKGET6XC6ZEDCTEXQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.8888888888888888,
+     "M_med": 0.6698381354316449,
+     "R_95": 5.659926895746563,
+     "n_discriminative": 7,
+     "pass_user": true
+    },
+    "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.22957995119489194,
+     "R_95": 3.085841135432446,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AECSNCOIZWGHJCONYOWQE5IIARCQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -1.439537270687668,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00HB0WGAY",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 12,
+   "per_user_summary": {
+    "AF75BITRBJV7DVQXVBFVKK755YTQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.08809284638802217,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHW52ZWVOI2DNHXYNJDXT4D3VEGA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.05026931765263454,
+     "R_95": 4.660219860433159,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGQ67XQKECSEMHSZLUOIR3YAAVFQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.4,
+     "M_med": -0.6373527493111004,
+     "R_95": 7.885395205414653,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AG64RXY4WLSXEEZ6ACIMY7KWULKA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.41173431095821744,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGX7UDVELPPGWUPGRBV54J2RNG4Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 2.424414250413288,
+     "R_95": 4.116590724291834,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00HB0WGL8",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 24,
+   "per_user_summary": {
+    "AGQ67XQKECSEMHSZLUOIR3YAAVFQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.3,
+     "M_med": -0.2830651128492283,
+     "R_95": 7.885395205414653,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEUFNNKAMNOBQ337VN5NHJV2ALWQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.12216684960991042,
+     "R_95": 4.613463019552562,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE7XQXZUL6F36SW3RA2A65KUAASA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.0008527264277660151,
+     "R_95": 4.885200420516784,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AE5BFCDYUEZFMSLIKPOS7Z22V7BA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.1492950312705399,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.37037037037037035,
+     "M_med": -0.19021047346905906,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 9,
+     "pass_user": false
+    },
+    "AHNGC3UCLKWRS3TAYQJ7E6MB5VAA": {
+     "n_total": 9,
+     "P_M_gt0": 0.2222222222222222,
+     "M_med": -0.4267667283512724,
+     "R_95": 4.551434610205801,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEAUD2E4XHJI6XJDY4TNECNQ4EEA": {
+     "n_total": 19,
+     "P_M_gt0": 0.21052631578947367,
+     "M_med": -0.3762860446042673,
+     "R_95": 5.0168842674683845,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B005XTCMSQ",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.2857142857142857,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AGBP7GRAOHVA7TTU3EFR5L35VD5A": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.20381090206593644,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AFPKYRGZIGIXBYPTJ7J22TFYV5BQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.6610289028208184,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFRAZGJF3DKABJLCWNMOEGSWY2LA": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.562108938257779,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFIROMS23ORMKGET6XC6ZEDCTEXQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.2222222222222222,
+     "M_med": -0.32718236943712586,
+     "R_95": 5.659926895746563,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFWJUBX6YIUKUSEJTD4NUDYDCI7A": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.08897361320301855,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFZVD3BBCACUJROL4S535FMDYK6Q": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.8358567338313212,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AH43EDRPHF6QYPXFEAAALHY7EECA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.26691323579034343,
+     "R_95": 3.9953272333645953,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B0038JDAJ8",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.25,
+   "n_discriminative_total": 14,
+   "per_user_summary": {
+    "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ": {
+     "n_total": 4,
+     "P_M_gt0": 1.0,
+     "M_med": 1.1742869730490721,
+     "R_95": 8.073,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AECVZVINWATH26RZLF6GHX5RLD2A": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.16097336230199355,
+     "R_95": 4.504945160069304,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AFA5WPUDUJPCSVFS424JKOUJ4KZA": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.9608452063033659,
+     "R_95": 5.90460025568779,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AG4LN2JG55HTJMD5G6K5LPUPSSHQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5576045154219325,
+     "R_95": 4.0297913590177785,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AES6T3JEM4MMMIQDXHRCKS6VSNVQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.2727272727272727,
+     "M_med": -0.836294705063104,
+     "R_95": 4.967976924242711,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFX3XLGVM6D32U6LXS7S4PIORTCA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.12672172719199803,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHJB355GP6VPOQURCVMY44USSAEA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.44430157650283464,
+     "R_95": 3.7313175219040056,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHMGXQ4SWFPAMMIL7HMV2B5JXRRA": {
+     "n_total": 11,
+     "P_M_gt0": 0.18181818181818182,
+     "M_med": -0.7309622837547192,
+     "R_95": 5.812443019919208,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00B9ZHQ5W",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AELCUACQEADPK3TFS6HYIEYYJEBQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7710653262380647,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH23GH3WLAPIOKR2TUTH45JIIOIA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 2.428183672125297,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGMGTBYHXBZCTT6CF2UKEGOT2B5Q": {
+     "n_total": 10,
+     "P_M_gt0": 0.6,
+     "M_med": 0.5069425622192223,
+     "R_95": 4.8365497597953455,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AHOCYX7BNR3NKUVKEWFGXRUM4TCQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.6010814261609836,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGWUBBNT2IBSJGZFTNWWZZPVEPYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.4521939606568257,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B07317NQKW",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AGBP7GRAOHVA7TTU3EFR5L35VD5A": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.1646352563594169,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.4,
+     "M_med": -0.09480117081160744,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGNWFBNXATPJXGLZ24PZ42I47Q6A": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.2552536896090367,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFZVD3BBCACUJROL4S535FMDYK6Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5547552059206917,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFM4ASGE5G2MXSCU7JALYHXX6DXA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.11931561743395314,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH2E47VUWXJGWTHKNEYQCM5JVODA": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.7752308153507479,
+     "R_95": 5.531812530003406,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGU2YYEO5XGRNNMJNC3LBCQP6K5A": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.2447449910877486,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGOJFLBADU7CZEM5EIKOHQHT7LVA": {
+     "n_total": 10,
+     "P_M_gt0": 0.0,
+     "M_med": -0.8102671607325025,
+     "R_95": 4.669354237547174,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEUOFJ7IEGXHNGNVGLC4BQQ7XOIA": {
+     "n_total": 16,
+     "P_M_gt0": 0.375,
+     "M_med": -0.16594517712765722,
+     "R_95": 5.766418363488159,
+     "n_discriminative": 6,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0089ME1K6",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 24,
+   "per_user_summary": {
+    "AGIZUT5AFPWFJZ3WZJX6A3PRL7AA": {
+     "n_total": 7,
+     "P_M_gt0": 0.5714285714285714,
+     "M_med": 0.15174977900288367,
+     "R_95": 5.8761990369406885,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHI6N6PHEQVK52YUF2OGCP5FXRXQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.3,
+     "M_med": -0.19785622944364412,
+     "R_95": 5.105975723614113,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHKSPARQT2OP6I44ULI23ZGQXNHA": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.3730174441879066,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEUITNFQ5YAJ5BGEKIEQK4REHFDQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.4423502021597303,
+     "R_95": 3.9262209526402883,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH5DFCQHCPC3QBPK3KR6CNP4YLOA": {
+     "n_total": 10,
+     "P_M_gt0": 0.2,
+     "M_med": -0.3998889775847623,
+     "R_95": 7.009574050571024,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHGDK2EN4U6IYBGJ2QFFJMXAQMFQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.3076923076923077,
+     "M_med": -0.34361815669407303,
+     "R_95": 5.6176997230835255,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AERI5WENSM52X65RQJTAZXQXXD7Q": {
+     "n_total": 11,
+     "P_M_gt0": 0.36363636363636365,
+     "M_med": -0.3273212838709938,
+     "R_95": 4.353101670670085,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AE4DF74P3X7XG5LDJSVDJJYFSUUA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.11359134690859118,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGSTDL3I5TMKBYCEXDKCEC43ETCQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.09875528025302094,
+     "R_95": 4.755508401923773,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00KL3ALGO",
+   "n_users_in_cohort": 11,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.09090909090909091,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AEFLXPJNI6KE4H7FSER3QVORYN3Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.5333082728922576,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE7QZCZNPK2O4OMY73ZO2LOEF5PQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 1.6014005841130667,
+     "R_95": 4.548848873269382,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AEMH7TBMERUXIBCKJJHAIDY5EDJQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -1.5549458213689418,
+     "R_95": 3.892128303185423,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGNXSDDFEQCHKR66HD3N7WEDPAMQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.20013590196820963,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AF5KQSXIWFV6UMBYPDMEEV4SKKYA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.6512172547303439,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AENOKNODKORVEAKQPFHYOJIS2VZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.09985042360020868,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFIQRDAYJLNVCGJWSOHI2QKPOQ3Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.2253190732668644,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG2BDJERYSIN2W2GMJ72IKLYNNLQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -1.2435751698924702,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEL5BNCEFLAOTCISFRNLXUC2ZHWQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.9983525951707444,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": -0.04576678164855097,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFLVMIF6SHC75RCXP5W5E4UDS4ZQ": {
+     "n_total": 16,
+     "P_M_gt0": 0.0,
+     "M_med": -1.366916440030094,
+     "R_95": 5.80834412459518,
+     "n_discriminative": 0,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B009UPUC36",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 17,
+   "per_user_summary": {
+    "AFPKYRGZIGIXBYPTJ7J22TFYV5BQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.4918546205358076,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHRH5YDN3CXINXNF6XM4MXDJULQQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.5454545454545454,
+     "M_med": 0.06544162459050895,
+     "R_95": 5.7902519110165525,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AHMQW6SC2WDX76IL2T76K56SYWBA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -1.2952048818506068,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE5DHE7DCXO6ZAYJQQQ44WDBELVA": {
+     "n_total": 10,
+     "P_M_gt0": 0.2,
+     "M_med": -0.7345137957398544,
+     "R_95": 4.770494124703766,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEOQZQMNMJQVNSGV2KDSWH6CFCEA": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.4808104670455817,
+     "R_95": 5.3753505939023425,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH73OH6JS6VAUYSUF4UXJ3D5OQ7A": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.16273394874789804,
+     "R_95": 4.970334255634806,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGWUBBNT2IBSJGZFTNWWZZPVEPYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.3997803284837951,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFSHEW32OWEVFL5M75DNWHJR2QIA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.0184880741108433,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00DFFT5HG",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 10,
+   "per_user_summary": {
+    "AGL5GGNTPFF5DY625IBRBY4MSUOA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.6841140013972133,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.536815152601803,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEBAODVVFUCUBPBNJNKO6TTMIJ7Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.297122024177383,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH2JMZ5U7PN3A7K7ICLR6UV64SNQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.7465566486529949,
+     "R_95": 4.408273690217451,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE5DKZK5BFIDI2YYJHXBN5TGUOZA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 1.003335985057856,
+     "R_95": 4.7430668039373085,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B000056OUO",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 11,
+   "per_user_summary": {
+    "AEPSDA6NPR3U4BFCVLVEUZ65CBMA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.7526176068868571,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHKORHEA7MQBRE3JM24D4JMOCMYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.20177145064983382,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGDKZL4MBOWZEMXKH76MNHHPBZFQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.6606379655758383,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGHBDWNY7RNMFPOE45CFCHBDTOJA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.2270971143118672,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHZQSW3GUXEAVMMLYBYWWWXASFSA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.5383780703554462,
+     "R_95": 4.7969429416078775,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B075QQ8VZW",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.1111111111111111,
+   "n_discriminative_total": 19,
+   "per_user_summary": {
+    "AE2DAIXX7JOBRPJH5PPNSHRYMI5Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 3.2187834142314102,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGXAVDHJOM2CZKJYOTOOP32KVUOQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.1631487518084609,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG4J2UBJUHA5P6WVBYR3TY4433WQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.45105635870845573,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AHAS5MOYWUIT2NR7YMMAQ37PTVFQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -1.7306425440319648,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEC62IITCUJZSSB3IWCG64VWRK6A": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.013546322086829932,
+     "R_95": 4.987395332031047,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEUCYGITEN5ORPRVBFF6HU546GBA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.34133863457687474,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFIGVDHYZFZAYERO26QVDKU4TAWA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.762176358231125,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEBZL4WRQ6XSZTLU6H4UVG3YWWGQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.4444444444444444,
+     "M_med": -0.029662268272382608,
+     "R_95": 9.554951745989612,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGWPZWDD254YRD4SVHB3EMNDSADQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.2948949190783945,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0001EM8I2",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 12,
+   "per_user_summary": {
+    "AGWXTGZMAEOOEAHO2XQCXDFADBHA": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.3345215393584313,
+     "R_95": 5.795722842244122,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEAOYGHBRJQUXHSRXY7NOQY3FBOA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": 0.06485913793730025,
+     "R_95": 4.966323919495857,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGVVT5PEUXMGSZR4A66AMZNKI6MQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7484074505698568,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH6ENGMXWV6HMTUTQWADUWXYCPCQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.188908365422491,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEPLQ2L4COPNQQKC3RSV7PJSTVXA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5298848647313559,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFYPE6YXHA4RAKBRMTHAISXSGRCA": {
+     "n_total": 8,
+     "P_M_gt0": 0.25,
+     "M_med": -0.5835554915833854,
+     "R_95": 4.009287020027353,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0067GKHQS",
+   "n_users_in_cohort": 10,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 20,
+   "per_user_summary": {
+    "AH5PJWQ5P4EVXQIXR6D5HOLON5WA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.13656211538853213,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.6,
+     "M_med": 0.07087623391836306,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AHDLM7R2LUNV4NASNZDDK3WZ4FEQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.14285714285714285,
+     "M_med": -2.0694172781125477,
+     "R_95": 16.77522654662589,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHRH5YDN3CXINXNF6XM4MXDJULQQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.0,
+     "M_med": -0.7636225571196666,
+     "R_95": 5.7902519110165525,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGYCMPMESGFOPZUOPYQIQGOAKLEA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.4957203660124938,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGUKCEVCB4RJNUDI33AQGXUYCXOQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -1.292452635894278,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AHOTRV7O3LMRFLM3D3AFTMUZQZUA": {
+     "n_total": 9,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.8543272678989879,
+     "R_95": 4.727833589807289,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AENGDAR225OV2H5O7RZJ3REAYGPA": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.4772537136383421,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AEWKISKPEGWPORR4EURIKZLOHU6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.674230577063756,
+     "R_95": 4.2111729235400865,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGD6GIEKZRTCTQY24HPZODVRHTHQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 4.253944760909234,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B005UND06I",
+   "n_users_in_cohort": 3,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.3333333333333333,
+   "n_discriminative_total": 12,
+   "per_user_summary": {
+    "AFGVKI2EYV7UM5YJB2DORTNGP67A": {
+     "n_total": 7,
+     "P_M_gt0": 0.8571428571428571,
+     "M_med": 0.9003981724186279,
+     "R_95": 5.127825645768471,
+     "n_discriminative": 6,
+     "pass_user": true
+    },
+    "AEF737AJZTOQGA4ZOWS37KM36YRA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.05806176833914156,
+     "R_95": 4.247871925696405,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGTHR5U7KDHAG5SEIKWAQCCSUWOQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.5555555555555556,
+     "M_med": 0.04749213082629655,
+     "R_95": 5.807094735577211,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B00LK5J73U",
+   "n_users_in_cohort": 9,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 18,
+   "per_user_summary": {
+    "AEFLXPJNI6KE4H7FSER3QVORYN3Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.18390833301914067,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGJAAIVCKU5TQ5CELVGFAR5D2GXA": {
+     "n_total": 10,
+     "P_M_gt0": 0.5,
+     "M_med": 0.10757550289273032,
+     "R_95": 6.1065180197068285,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGMGTBYHXBZCTT6CF2UKEGOT2B5Q": {
+     "n_total": 10,
+     "P_M_gt0": 0.1,
+     "M_med": -0.26423293044059526,
+     "R_95": 4.8365497597953455,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEK3M2CQJESP252UXZAN7NRTNMSA": {
+     "n_total": 6,
+     "P_M_gt0": 0.5,
+     "M_med": -0.08331333220207071,
+     "R_95": 4.2797732361118115,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEFCFLOPIKX4DLMVGUPQSJOBZ3GQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5508576020934997,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AETDO5VUWGBGPATCV5MIGK2Y5E4A": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.08595519605775359,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AHNDQTIDT42KUEXE7PRP45ODX5IQ": {
+     "n_total": 14,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.19300974024427964,
+     "R_95": 4.3079512496397925,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFML6WH7DFS53SCJC2T7ZKPQGC4A": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.5046345348045573,
+     "R_95": 4.9144824019090745,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE3L5CFTH4GRLEOHS3K75RC3DW2A": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5039838365265794,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B01M9IZB0N",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AFCGRA3TM5GEE2BHAMP4OJDZQDOA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.04678016611060176,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AE7XQXZUL6F36SW3RA2A65KUAASA": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.40660917493494386,
+     "R_95": 4.885200420516784,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHX53A3EZKQKF2IB2SRLIXN4LX7Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.10754768491288513,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AF2B2EWI4N5H3KRSBJFWCZI4CWLQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.6363636363636364,
+     "M_med": 0.1025793574835352,
+     "R_95": 4.642653382558747,
+     "n_discriminative": 7,
+     "pass_user": false
+    },
+    "AEFE5XFAOEWPEBXAR3UF5TLBCB2A": {
+     "n_total": 8,
+     "P_M_gt0": 0.125,
+     "M_med": -1.0853547651126536,
+     "R_95": 16.29510661387949,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEKJYOIX4FMCCFGQ7SKXDVIPPJDQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.15628321182140859,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B01F8W7CF0",
+   "n_users_in_cohort": 4,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.5,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AHWZGDK5UOSOG6XKN4FBTYV2NKAA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 2.3392607760776207,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHSSDNEMHCJBRRMCLPGASYU2JQLQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.44187995411594816,
+     "R_95": 5.374609798872036,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AG5656FKBU7IJJ6CPJWKOXIC2X6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.2502523519442059,
+     "R_95": 4.853896545507535,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AGWZOJ5RGP5ZHQX7ERNN5IQLWAQQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.29561383420481935,
+     "R_95": 5.230515659554717,
+     "n_discriminative": 3,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0081C9UOQ",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.3333333333333333,
+   "n_discriminative_total": 14,
+   "per_user_summary": {
+    "AGIZUT5AFPWFJZ3WZJX6A3PRL7AA": {
+     "n_total": 7,
+     "P_M_gt0": 0.5714285714285714,
+     "M_med": 0.09435505473745343,
+     "R_95": 5.8761990369406885,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHM56WA4FAB2KZITXPRW2WUPZIMQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.10321837179101978,
+     "R_95": 3.867523105571945,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEQCIQAY2GRNFVAH4EC3FUI5OJJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.8983618394170931,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGEFMBPDNP7KNNUO4ZFAYAVGQJ3A": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.25184885877242946,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFZMAND4IHF6XJMUYX5DPQNDWROA": {
+     "n_total": 4,
+     "P_M_gt0": 1.0,
+     "M_med": 1.0494141577930869,
+     "R_95": 8.073,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AFE7QH6G6O25KY6NIK2FKAW4TX2Q": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 0.6815613731504664,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B01N4BBTFQ",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.16666666666666666,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AEBAODVVFUCUBPBNJNKO6TTMIJ7Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.31423317910350335,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGNWFBNXATPJXGLZ24PZ42I47Q6A": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.18093971594900538,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFZQU4HCVJ6BCCSVI5COQ6HAYYHQ": {
+     "n_total": 4,
+     "P_M_gt0": 1.0,
+     "M_med": 0.6419723179780963,
+     "R_95": 8.073,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AHJSYXPX457WWF53V7KHSLQYAUPQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.8166619614163793,
+     "R_95": 4.426472040106209,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AF4U2EVGU45J5Z5EM2WHDZGYYWQA": {
+     "n_total": 7,
+     "P_M_gt0": 0.5714285714285714,
+     "M_med": 0.07631097500473016,
+     "R_95": 4.1019883684646405,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AHYB3NY6LCM7NFZYRB35J3JOQEAQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2338265291404631,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B009R27JJC",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 29,
+   "per_user_summary": {
+    "AGVJUUCFMBP6SABPIAXREELESFIA": {
+     "n_total": 9,
+     "P_M_gt0": 0.2222222222222222,
+     "M_med": -0.18200640249698807,
+     "R_95": 4.82412488669184,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AG2BDJERYSIN2W2GMJ72IKLYNNLQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.008190208485860495,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFDUSOE3MJOCWYB6LB3G2L5APTGQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.1414342889429967,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.2962962962962963,
+     "M_med": -0.2477228175891275,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 8,
+     "pass_user": false
+    },
+    "AGOQPRITTENONAECVNPR27OOHFKQ": {
+     "n_total": 10,
+     "P_M_gt0": 0.7,
+     "M_med": 0.3869382342367691,
+     "R_95": 4.889978711111042,
+     "n_discriminative": 7,
+     "pass_user": false
+    },
+    "AHABPW3HV3YAHNG2MUOFAHSIHPXA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.17954432393027941,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEAUD2E4XHJI6XJDY4TNECNQ4EEA": {
+     "n_total": 19,
+     "P_M_gt0": 0.3684210526315789,
+     "M_med": -0.32594754576100726,
+     "R_95": 5.0168842674683845,
+     "n_discriminative": 7,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0028IDXDS",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.125,
+   "n_discriminative_total": 23,
+   "per_user_summary": {
+    "AEXE6DSTVGL4MNBOFEPICPJLNPKA": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.23123534375166233,
+     "R_95": 5.264926588384961,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AHAS5MOYWUIT2NR7YMMAQ37PTVFQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.770826900348224,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AETNF65L6ATVOCAJDRRCZ6G6JGYQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5839436637907531,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AGSTDL3I5TMKBYCEXDKCEC43ETCQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.7777777777777778,
+     "M_med": 0.8252385211049948,
+     "R_95": 4.755508401923773,
+     "n_discriminative": 7,
+     "pass_user": false
+    },
+    "AENDNZ3JWHIDSH2TTNBE74INS74Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.05684994548993583,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGUBKTFNRXO23ISA5YE2MQHEMHWA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.6061786177543194,
+     "R_95": 4.734707470063066,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AERNBLBY7SPOZZNU3SEWXBIGIX7A": {
+     "n_total": 7,
+     "P_M_gt0": 0.8571428571428571,
+     "M_med": 0.8993229110784808,
+     "R_95": 3.870563397427826,
+     "n_discriminative": 5,
+     "pass_user": true
+    },
+    "AHIBPWWDWSLYAJHNE4DCSRZAO34Q": {
+     "n_total": 13,
+     "P_M_gt0": 0.3076923076923077,
+     "M_med": -0.21454704163601646,
+     "R_95": 4.49114328961485,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B01EKZO93O",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 9,
+   "per_user_summary": {
+    "AEML6DKTNAJMSRFGYAEZDMF3I42Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.48833598888361496,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGGTAHSIUM4WO5U6F2A5QRYNHTJQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.3088971207051925,
+     "R_95": 3.862502632293001,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGPQDJUEDP3SQAK2RVHPT2QGZ3MQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.7080863110318032,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AHZQSW3GUXEAVMMLYBYWWWXASFSA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5165871415207712,
+     "R_95": 4.7969429416078775,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AESBXXC2MW6GVHFEXU4JBERWCQVA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.9556879075842395,
+     "R_95": 4.444947538137865,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B001LENCUE",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.4,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AEVYSHLGGB64TL6SSODHFRP67VGQ": {
+     "n_total": 3,
+     "P_M_gt0": 1.0,
+     "M_med": 1.8270492457556777,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AHGDK2EN4U6IYBGJ2QFFJMXAQMFQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.38461538461538464,
+     "M_med": -0.2447762201310799,
+     "R_95": 5.6176997230835255,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AFCKWMHLHAECR74LXBPBS43HG6AQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.4248797842365839,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFYFMJM54UNEP4BOTWKBYLODVUQA": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.05274502923325963,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AFE4S4MR4EUYAWDYTZKZUXZLIOJA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.24689706392062627,
+     "R_95": 5.252158714204146,
+     "n_discriminative": 3,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B008ZB5E2K",
+   "n_users_in_cohort": 8,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.125,
+   "n_discriminative_total": 13,
+   "per_user_summary": {
+    "AFVWDXD52B23PS5V37PAZ5CNGX6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.2,
+     "M_med": -0.6249500760817464,
+     "R_95": 4.203969081395676,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGDAVGYGQXTFZ63XNILMNFLS4EMA": {
+     "n_total": 4,
+     "P_M_gt0": 0.25,
+     "M_med": -0.16752072047040878,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AGWC56MKSIFXXHOKGMVNLA4GGV3Q": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.13952464999373548,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEMGER4JO2LNGMXQ7AG3SKPKMRYQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 1.149324816844127,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHGFE65TS742WVLX5LVITKOZM2CA": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.01485891651158644,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AEI6LQ7VMPMKPDG62GBLZJ35VRSA": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.4502665296565622,
+     "R_95": 4.951621465091133,
+     "n_discriminative": 3,
+     "pass_user": true
+    },
+    "AFBFVAR2NGCZFMGHUGN75CRYRIXA": {
+     "n_total": 6,
+     "P_M_gt0": 0.16666666666666666,
+     "M_med": -0.38970481308816596,
+     "R_95": 4.003871013118964,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AH3FHG5CJYKKUCVZSEO5WYGLHZHA": {
+     "n_total": 8,
+     "P_M_gt0": 0.25,
+     "M_med": -0.233182133782472,
+     "R_95": 4.696105233130321,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B002WDEIVA",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.2,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AFKYO43G5H3CT7ZVLIBWQW5DUDNA": {
+     "n_total": 18,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.2270412892981133,
+     "R_95": 6.140839104196869,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AEAOYGHBRJQUXHSRXY7NOQY3FBOA": {
+     "n_total": 6,
+     "P_M_gt0": 0.8333333333333334,
+     "M_med": 0.6254518489218888,
+     "R_95": 4.966323919495857,
+     "n_discriminative": 5,
+     "pass_user": true
+    },
+    "AEAD7ZP6VV4IJL2Z2HVIRVEBHZJA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.11590221528384648,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFSUI7EPMF6XFG2T4LYXZD2XS75A": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.18950508689544,
+     "R_95": 3.424284674779249,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AEARVLHIC74E5ZJBFWNP76GZAHEA": {
+     "n_total": 5,
+     "P_M_gt0": 0.4,
+     "M_med": -0.6377760065191942,
+     "R_95": 9.297189566787031,
+     "n_discriminative": 1,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B006VB29D8",
+   "n_users_in_cohort": 4,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AG56DMLNHD7TJTUK3XAKMHPCPAZA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2597294495824136,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHAS5MOYWUIT2NR7YMMAQ37PTVFQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.4157905851921928,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHNGC3UCLKWRS3TAYQJ7E6MB5VAA": {
+     "n_total": 9,
+     "P_M_gt0": 0.5555555555555556,
+     "M_med": 0.2773278478976904,
+     "R_95": 4.551434610205801,
+     "n_discriminative": 5,
+     "pass_user": false
+    },
+    "AETFWHTO6X2T3ADRTRUXJJDEXWBQ": {
+     "n_total": 13,
+     "P_M_gt0": 0.5384615384615384,
+     "M_med": 0.22648825230070546,
+     "R_95": 4.419807233874364,
+     "n_discriminative": 7,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B003I867US",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.14285714285714285,
+   "n_discriminative_total": 22,
+   "per_user_summary": {
+    "AFPKYRGZIGIXBYPTJ7J22TFYV5BQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.7348218772959442,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.6,
+     "M_med": 0.19368775523864867,
+     "R_95": 3.085841135432446,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AE7RW6KNRJNAED62HDWEEGJFOW5Q": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.5917198834796923,
+     "R_95": 4.529725029831376,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AE5DHE7DCXO6ZAYJQQQ44WDBELVA": {
+     "n_total": 10,
+     "P_M_gt0": 0.2,
+     "M_med": -0.9330482624080041,
+     "R_95": 4.770494124703766,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHI7A36FSQATGRO2CDS6VNSVC4DA": {
+     "n_total": 28,
+     "P_M_gt0": 0.0,
+     "M_med": -0.7389752400257668,
+     "R_95": 5.022871500645889,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.2222222222222222,
+     "M_med": -0.307147300471029,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 6,
+     "pass_user": false
+    },
+    "AEP3IOWKDRLXJ66COSHMNNKUDU6Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 0.17880379709892535,
+     "R_95": 4.438613079528872,
+     "n_discriminative": 4,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00WH7Y7TY",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 1,
+   "frac_pass_user": 0.14285714285714285,
+   "n_discriminative_total": 18,
+   "per_user_summary": {
+    "AGXAVDHJOM2CZKJYOTOOP32KVUOQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.06057976973664325,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AES6T3JEM4MMMIQDXHRCKS6VSNVQ": {
+     "n_total": 11,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5834925257265247,
+     "R_95": 4.967976924242711,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AFRAZGJF3DKABJLCWNMOEGSWY2LA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.29848984287454616,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGXHBI7HQPZPNFSFYZUIJMGO5VQQ": {
+     "n_total": 4,
+     "P_M_gt0": 1.0,
+     "M_med": 0.7228244339854597,
+     "R_95": 8.073,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.25925925925925924,
+     "M_med": -0.47181672972275734,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 7,
+     "pass_user": false
+    },
+    "AF2CES3SKKKCKDEY4XMNLSDIXVPQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.5487412705267052,
+     "R_95": 8.073,
+     "n_discriminative": 1,
+     "pass_user": false
+    },
+    "AER4F7D6GOPB6657EWVZZPI2BNRA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.011586048421171613,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B0047PAHUW",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 20,
+   "per_user_summary": {
+    "AGTG4YE4QEIDY4K3XPXSGFVQZN5Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 0.6463467800660414,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AENIR3X2ASRYMOV6Z54RPJRXRFRA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.31957053632501187,
+     "R_95": 3.8768636267910193,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AH5OGXBCZRD246RY2EO6XVWBM7RA": {
+     "n_total": 6,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.28036738518909377,
+     "R_95": 4.5888084441254104,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHAS5MOYWUIT2NR7YMMAQ37PTVFQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.2931523278842789,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFZETB3OKFCLOYTZ5NFYPCIH2VEA": {
+     "n_total": 3,
+     "P_M_gt0": 0.0,
+     "M_med": -0.27184332748627194,
+     "R_95": 8.073,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AE7ONXWBLUX652N6OQUSJSL653GQ": {
+     "n_total": 27,
+     "P_M_gt0": 0.4074074074074074,
+     "M_med": -0.2684878084481692,
+     "R_95": 6.13291494036884,
+     "n_discriminative": 9,
+     "pass_user": false
+    },
+    "AEOWHHP5MR5VZMU63KBTSFOM3LYQ": {
+     "n_total": 6,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.18121920428318772,
+     "R_95": 4.337314469407776,
+     "n_discriminative": 4,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B001D7KNYW",
+   "n_users_in_cohort": 5,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AG43S3VNMM5SARZFWRTKGDVALSUA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.9402903263677609,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AH4OIKU2GPQPLNH7F36HQCDKR3IA": {
+     "n_total": 12,
+     "P_M_gt0": 0.3333333333333333,
+     "M_med": -0.19545830175056667,
+     "R_95": 4.942460471743049,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHX7SGMXGPFJX4JFFOAM5K2VUFMQ": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.7474872306946327,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AEOQZQMNMJQVNSGV2KDSWH6CFCEA": {
+     "n_total": 7,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.4740671528536251,
+     "R_95": 5.3753505939023425,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHNDQTIDT42KUEXE7PRP45ODX5IQ": {
+     "n_total": 14,
+     "P_M_gt0": 0.42857142857142855,
+     "M_med": -0.1731716409175179,
+     "R_95": 4.3079512496397925,
+     "n_discriminative": 6,
+     "pass_user": false
+    }
+   }
+  },
+  {
+   "asin": "B01K3SOW98",
+   "n_users_in_cohort": 6,
+   "n_pass_user": 2,
+   "frac_pass_user": 0.3333333333333333,
+   "n_discriminative_total": 15,
+   "per_user_summary": {
+    "AE5CZR2Q77ZIBF3ZVMOSYNRQ4GSA": {
+     "n_total": 3,
+     "P_M_gt0": 0.6666666666666666,
+     "M_med": 0.37106704382541356,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGVJKRKBAQ7FYSGF2Y5XA3WPCZNA": {
+     "n_total": 6,
+     "P_M_gt0": 0.0,
+     "M_med": -0.891258602165178,
+     "R_95": 4.80238814509495,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AEBRHRPGW3XTHRIST5JBCSBRV2YQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.1806225441528082,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AGX7UDVELPPGWUPGRBV54J2RNG4Q": {
+     "n_total": 5,
+     "P_M_gt0": 0.8,
+     "M_med": 2.4931942404510474,
+     "R_95": 4.116590724291834,
+     "n_discriminative": 4,
+     "pass_user": true
+    },
+    "AE3ND5L5PXOAWEWO4RVBKBHU7WYQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.46809235013243344,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AHRWCWVONLSHDBGBD4FVNJBSVJYA": {
+     "n_total": 6,
+     "P_M_gt0": 0.8333333333333334,
+     "M_med": 0.7709996715776779,
+     "R_95": 5.109000208531963,
+     "n_discriminative": 5,
+     "pass_user": true
+    }
+   }
+  },
+  {
+   "asin": "B00EP1ZLO0",
+   "n_users_in_cohort": 7,
+   "n_pass_user": 0,
+   "frac_pass_user": 0.0,
+   "n_discriminative_total": 16,
+   "per_user_summary": {
+    "AG32KMGDFFYTPOWNCZDX6RE7VZ5Q": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": 0.015409178659126832,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFPKYRGZIGIXBYPTJ7J22TFYV5BQ": {
+     "n_total": 4,
+     "P_M_gt0": 0.75,
+     "M_med": 1.4504039454926692,
+     "R_95": 8.073,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHXU7CQS3BYOVB7D4FOWGPOB2ULA": {
+     "n_total": 7,
+     "P_M_gt0": 0.2857142857142857,
+     "M_med": -0.4442547456298409,
+     "R_95": 5.356834734854046,
+     "n_discriminative": 2,
+     "pass_user": false
+    },
+    "AFJU5N5CBE62OF43TCJXKJTZZAXQ": {
+     "n_total": 7,
+     "P_M_gt0": 0.7142857142857143,
+     "M_med": 1.3541939039622033,
+     "R_95": 4.065410935111474,
+     "n_discriminative": 4,
+     "pass_user": false
+    },
+    "AGP7AQZNIUVZWM6MQGJWQRRER6OQ": {
+     "n_total": 5,
+     "P_M_gt0": 0.0,
+     "M_med": -0.5131217611378798,
+     "R_95": 3.876307101379104,
+     "n_discriminative": 0,
+     "pass_user": false
+    },
+    "AH53UV57HKNKIX5SQH4KW3DB5TFQ": {
+     "n_total": 9,
+     "P_M_gt0": 0.4444444444444444,
+     "M_med": -0.4629786202211723,
+     "R_95": 4.3749862172579395,
+     "n_discriminative": 3,
+     "pass_user": false
+    },
+    "AHYOKO45UVEYLCCFP62BUX6RVVBA": {
+     "n_total": 4,
+     "P_M_gt0": 0.5,
+     "M_med": -0.5539360026874931,
+     "R_95": 8.073,
+     "n_discriminative": 2,
+     "pass_user": false
+    }
+   }
+  }
+ ],
+ "selected_users": [
+  {
+   "asin": "B000BNCA4K",
+   "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+   "n_total": 4,
+   "P_M_gt0": 1.0,
+   "M_med": 0.7170138530913273,
+   "R_95": 8.073,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "My baby loves playing with it every since the first day I introduced to her.",
+     "M": 0.7865726103029358,
+     "d_self": 2.88870484018495,
+     "d_other": 3.675277450487886
+    },
+    {
+     "text": "I subscribed for toy boxes, those ones where they send you a toy box every 2 months, so she has a lot of toys already.",
+     "M": 1.3658641232547613,
+     "d_self": 3.1047272752284316,
+     "d_other": 4.470591398483193
+    },
+    {
+     "text": "Although she like playing with those toys too, but she absolutely loves this manhattan ball!",
+     "M": 0.6474550958797187,
+     "d_self": 2.5082439529458624,
+     "d_other": 3.155699048825581
+    },
+    {
+     "text": "She will coordinate her hands to hold it and put it in her mouth, I hold it in distance and it encourage her to reach for it.",
+     "M": 0.5771436702529384,
+     "d_self": 3.3350650108782407,
+     "d_other": 3.912208681131179
+    }
+   ]
+  },
+  {
+   "asin": "B000BNCA4K",
+   "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.1910172062965518,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I\u2019m hoping it continues to work, but so far it\u2019s great!",
+     "M": 1.1910172062965518,
+     "d_self": 3.1553603330263167,
+     "d_other": 4.3463775393228685
+    },
+    {
+     "text": "I have such a hard time getting thermometers that are easy to work and are accurate.",
+     "M": 0.550616673615492,
+     "d_self": 4.714043535294096,
+     "d_other": 5.264660208909588
+    },
+    {
+     "text": "I worry about water getting into the compartments have the beads.",
+     "M": 1.2854881721140456,
+     "d_self": 2.319761433567392,
+     "d_other": 3.6052496056814376
+    }
+   ]
+  },
+  {
+   "asin": "B00ECHYTBI",
+   "uid": "AFVEVIN5UWFFKK6U22GBUN2IXIOA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.5321226147488707,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "Only thing that would make it perfect is if it had the time displayed",
+     "M": 0.5321226147488707,
+     "d_self": 4.26413682680615,
+     "d_other": 4.796259441555021
+    },
+    {
+     "text": "Works well but we read that newborns need to learn to use their muscles on their own to pass gas, this product robs them of the opportunity to learn on their own.",
+     "M": 0.6515705987345228,
+     "d_self": 4.34692568576803,
+     "d_other": 4.9984962845025525
+    },
+    {
+     "text": "We are keeping them to use in &#34;emergency&#34; situations when he is super uncomfortable.",
+     "M": 0.11967378211570745,
+     "d_self": 3.9304553128809725,
+     "d_other": 4.05012909499668
+    }
+   ]
+  },
+  {
+   "asin": "B000IDSLOG",
+   "uid": "AHBSMPRSL27YKSGBM5AOQPAEMALA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.0793826108075186,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I bought Sophie from Amazon before my daughter was even born.",
+     "M": 1.0793826108075186,
+     "d_self": 2.4868306844383112,
+     "d_other": 3.56621329524583
+    },
+    {
+     "text": "It was highly rated and figured it was good.",
+     "M": 0.16507798981817956,
+     "d_self": 4.496798360563041,
+     "d_other": 4.66187635038122
+    },
+    {
+     "text": "My daughters now 6 months and has been playing and biting Sophie since she was 3 months.",
+     "M": 1.087064379828265,
+     "d_self": 2.480108447690286,
+     "d_other": 3.5671728275185512
+    }
+   ]
+  },
+  {
+   "asin": "B000IDSLOG",
+   "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+   "n_total": 6,
+   "P_M_gt0": 1.0,
+   "M_med": 1.3252723530706931,
+   "R_95": 3.319446239964786,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "Nothing worked with our daughter who at 4 months was cutting cream.",
+     "M": 1.4456657309652523,
+     "d_self": 2.156730385460791,
+     "d_other": 3.602396116426043
+    },
+    {
+     "text": "I remembered seeing this giraffe thinking people were crazy to pay $20 for a small toy.",
+     "M": 1.0263902997939893,
+     "d_self": 3.0163257354747004,
+     "d_other": 4.04271603526869
+    },
+    {
+     "text": "Well I will buy a million cause it was the only thing that relieved her pain.",
+     "M": 1.6681076162255088,
+     "d_self": 2.8911133321332994,
+     "d_other": 4.559220948358808
+    },
+    {
+     "text": "Its easy for her to grab with her little hands around his legs and bites on his ears or face.",
+     "M": 0.38742999555926083,
+     "d_self": 2.7782581176532317,
+     "d_other": 3.1656881132124925
+    },
+    {
+     "text": "With the subscription program you pay as much as the cheap generic diaper but you gey a great diaper that doesn't leak.",
+     "M": 1.6479955437267453,
+     "d_self": 2.134892685905929,
+     "d_other": 3.7828882296326745
+    }
+   ]
+  },
+  {
+   "asin": "B006Z2BZBU",
+   "uid": "AGWXTGZMAEOOEAHO2XQCXDFADBHA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.8887310893598417,
+   "R_95": 5.795722842244122,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "It's great to add comfort to the pack and play while traveling.",
+     "M": 0.8887310893598417,
+     "d_self": 2.6453128291580934,
+     "d_other": 3.534043918517935
+    },
+    {
+     "text": "The only complaint would be is pretty large without folding..",
+     "M": 0.010839934826512465,
+     "d_self": 3.90621689465003,
+     "d_other": 3.9170568294765427
+    },
+    {
+     "text": "Seem to work good, they don't slide much when you fasten the seats/bases down.",
+     "M": 0.8899456250090441,
+     "d_self": 2.651732011369299,
+     "d_other": 3.541677636378343
+    }
+   ]
+  },
+  {
+   "asin": "B004I110D8",
+   "uid": "AGXYDKF4ZBK46H4SBPHL2KFRHZ2A",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.2496657591998874,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I use this bottle warmer every time I go out with my daughter.",
+     "M": 1.2496657591998874,
+     "d_self": 1.7980827492897522,
+     "d_other": 3.0477485084896396
+    },
+    {
+     "text": "However, instead of filling it with boiling water, I fill it warm water that I just add to her bottle when she is hungry.",
+     "M": 1.6544072746645941,
+     "d_self": 2.207608831386469,
+     "d_other": 3.862016106051063
+    },
+    {
+     "text": "My daughter goes from 0-10 very quickly and does not tolerate having to wait for her bottle.",
+     "M": 0.8534980723284318,
+     "d_self": 2.8834488590296945,
+     "d_other": 3.7369469313581263
+    }
+   ]
+  },
+  {
+   "asin": "B007RAGALO",
+   "uid": "AFVEVIN5UWFFKK6U22GBUN2IXIOA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.5735341724244583,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "Only thing that would make it perfect is if it had the time displayed",
+     "M": 0.5735341724244583,
+     "d_self": 4.26413682680615,
+     "d_other": 4.837670999230609
+    },
+    {
+     "text": "Works well but we read that newborns need to learn to use their muscles on their own to pass gas, this product robs them of the opportunity to learn on their own.",
+     "M": 1.2931695126709464,
+     "d_self": 4.34692568576803,
+     "d_other": 5.640095198438976
+    },
+    {
+     "text": "We are keeping them to use in &#34;emergency&#34; situations when he is super uncomfortable.",
+     "M": 0.5660056775264732,
+     "d_self": 3.9304553128809725,
+     "d_other": 4.496460990407446
+    }
+   ]
+  },
+  {
+   "asin": "B00068O22S",
+   "uid": "AEDX4B7MWPS7MKVCXT7TSHTZPGVQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 2.0493449921412914,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I so recommend these great stove covers no way your little one can turn the stove on",
+     "M": 2.0493449921412914,
+     "d_self": 1.2903814620717609,
+     "d_other": 3.3397264542130523
+    },
+    {
+     "text": "Works wonders my baby had cradle cap bought this brush with mustela shampoo and all is gone",
+     "M": 0.7781433238497353,
+     "d_self": 1.6685025985175284,
+     "d_other": 2.4466459223672636
+    },
+    {
+     "text": "Bought many locks before but these right here are #1 have 3 little ones my 1 year old cannot open anything no more thank you who invented these locks",
+     "M": 2.053324337595355,
+     "d_self": 1.3412304968955264,
+     "d_other": 3.3945548344908816
+    }
+   ]
+  },
+  {
+   "asin": "B00278WA4W",
+   "uid": "AEOL5AERHHZHHZFZTRHA3VVXQTTA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.7244257026998242,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "These cups leak every time they are dropped (or thrown, if your kid is like mine).<br />2.",
+     "M": 0.21985876137554516,
+     "d_self": 3.9859982288688416,
+     "d_other": 4.205856990244387
+    },
+    {
+     "text": "They are made of heavier plastic than other sippy cups we have tried.",
+     "M": 1.1922291217066108,
+     "d_self": 3.5895037331876227,
+     "d_other": 4.7817328548942335
+    },
+    {
+     "text": "When they are dropped they can dent hardwood floor.<br /><br />I don't see what all the fuss is about!",
+     "M": 0.7244257026998242,
+     "d_self": 2.544347288171407,
+     "d_other": 3.268772990871231
+    }
+   ]
+  },
+  {
+   "asin": "B0045I6IAO",
+   "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 2.065340635619024,
+   "R_95": 4.116590724291834,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Good for travel - just average in terms of quality",
+     "M": 2.1308217747368126,
+     "d_self": 1.333908112763855,
+     "d_other": 3.4647298875006673
+    },
+    {
+     "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+     "M": 2.110771681690373,
+     "d_self": 1.5619680505157156,
+     "d_other": 3.672739732206089
+    },
+    {
+     "text": "Happy with the product for newborn baby\u2019s nails",
+     "M": 2.065340635619024,
+     "d_self": 1.5474483973496638,
+     "d_other": 3.6127890329686876
+    },
+    {
+     "text": "Saved us from a world of pain with a reflux baby.",
+     "M": 1.6949674610318881,
+     "d_self": 1.556610418441893,
+     "d_other": 3.251577879473781
+    }
+   ]
+  },
+  {
+   "asin": "B000V88HJM",
+   "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 1.3522146265351271,
+   "R_95": 4.116590724291834,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Good for travel - just average in terms of quality",
+     "M": 1.3522146265351271,
+     "d_self": 1.333908112763855,
+     "d_other": 2.686122739298982
+    },
+    {
+     "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+     "M": 1.5215752899483899,
+     "d_self": 1.5619680505157156,
+     "d_other": 3.0835433404641055
+    },
+    {
+     "text": "Happy with the product for newborn baby\u2019s nails",
+     "M": 1.6129888878834595,
+     "d_self": 1.5474483973496638,
+     "d_other": 3.1604372852331233
+    },
+    {
+     "text": "Saved us from a world of pain with a reflux baby.",
+     "M": 1.1798049125978622,
+     "d_self": 1.556610418441893,
+     "d_other": 2.736415331039755
+    }
+   ]
+  },
+  {
+   "asin": "B00PV6H3Z8",
+   "uid": "AEDX4B7MWPS7MKVCXT7TSHTZPGVQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.9385193869034465,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I so recommend these great stove covers no way your little one can turn the stove on",
+     "M": 2.1125592323494358,
+     "d_self": 1.2903814620717609,
+     "d_other": 3.4029406944211966
+    },
+    {
+     "text": "Works wonders my baby had cradle cap bought this brush with mustela shampoo and all is gone",
+     "M": 0.6837795276793102,
+     "d_self": 1.6685025985175284,
+     "d_other": 2.3522821261968385
+    },
+    {
+     "text": "Bought many locks before but these right here are #1 have 3 little ones my 1 year old cannot open anything no more thank you who invented these locks",
+     "M": 1.9385193869034465,
+     "d_self": 1.3412304968955264,
+     "d_other": 3.279749883798973
+    }
+   ]
+  },
+  {
+   "asin": "B001V9EVCM",
+   "uid": "AGBP7GRAOHVA7TTU3EFR5L35VD5A",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.3586006025224817,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I have the plug in version in the baby\u2019s room and this one is great to keep around the rest of the house and for travel!",
+     "M": 0.3586006025224817,
+     "d_self": 3.728938348838992,
+     "d_other": 4.0875389513614735
+    },
+    {
+     "text": "Get set to add a few more bottles to the collection.",
+     "M": 0.20207418867773486,
+     "d_self": 2.9629531435819216,
+     "d_other": 3.1650273322596565
+    },
+    {
+     "text": "My toddler spins them around the knob, but hasn't figured out how to open it.",
+     "M": 0.3724233956775427,
+     "d_self": 4.352121895194482,
+     "d_other": 4.724545290872024
+    }
+   ]
+  },
+  {
+   "asin": "B00GUN3Z1W",
+   "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+   "n_total": 5,
+   "P_M_gt0": 1.0,
+   "M_med": 0.9338249574607131,
+   "R_95": 3.085841135432446,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "It was difficult to put in place at first till I saw the video.",
+     "M": 1.3220091455873613,
+     "d_self": 2.4701667348062153,
+     "d_other": 3.7921758803935766
+    },
+    {
+     "text": "The product is firm and steady, not flimsy if you know how to put it the right way.",
+     "M": 0.22957995119489194,
+     "d_self": 3.0574099009908435,
+     "d_other": 3.2869898521857355
+    },
+    {
+     "text": "Gave it 4 out of 5 because the climbing over it gets annoying after a while but I guess you can take it down when necessary.",
+     "M": 0.9338249574607131,
+     "d_self": 1.5450641638364966,
+     "d_other": 2.4788891212972097
+    },
+    {
+     "text": "Comfty material, easy to put on and put baby in.",
+     "M": 1.0599658593771846,
+     "d_self": 2.3849709570502813,
+     "d_other": 3.444936816427466
+    }
+   ]
+  },
+  {
+   "asin": "B01DGIKD68",
+   "uid": "AFQW3CD5IJTQWEWFXXRWLQNNGKNA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.4930739203714003,
+   "R_95": 4.520827893722778,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "The hooks can only go on a 1/4\" thick chain, but other than that, it is a swing.",
+     "M": 0.891968721948043,
+     "d_self": 2.6634023645014495,
+     "d_other": 3.5553710864494925
+    },
+    {
+     "text": "It's difficult to unclip the buckles, and I can't figure out how to put him in it without it swinging backwards, but I will figure it out some day.",
+     "M": 0.8805338181936473,
+     "d_self": 2.5867433308728844,
+     "d_other": 3.4672771490665317
+    },
+    {
+     "text": "This has extra red clip in the base that the one which came with the car seat does not have.",
+     "M": 0.4930739203714003,
+     "d_self": 4.105098765328607,
+     "d_other": 4.598172685700007
+    },
+    {
+     "text": "It helped tighten the base a little bit more, which I liked.",
+     "M": 0.12313468985859455,
+     "d_self": 4.48439845826058,
+     "d_other": 4.607533148119175
+    }
+   ]
+  },
+  {
+   "asin": "B0052QYLUM",
+   "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.4163246386197115,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "Baby loves this addition to the crib and can now turn it on herself in the middle of the night.",
+     "M": 1.193897505645195,
+     "d_self": 1.617446806254997,
+     "d_other": 2.811344311900192
+    },
+    {
+     "text": "Works great and we use it every night.",
+     "M": 1.4163246386197115,
+     "d_self": 1.1877689539130556,
+     "d_other": 2.604093592532767
+    },
+    {
+     "text": "Great product and was needed for all my baby bottles for daycare.",
+     "M": 1.839351858698309,
+     "d_self": 1.014769074762408,
+     "d_other": 2.854120933460717
+    }
+   ]
+  },
+  {
+   "asin": "B072KPZMMV",
+   "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+   "n_total": 5,
+   "P_M_gt0": 1.0,
+   "M_med": 0.7897891890154529,
+   "R_95": 3.085841135432446,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "It was difficult to put in place at first till I saw the video.",
+     "M": 0.9432248053118557,
+     "d_self": 2.4701667348062153,
+     "d_other": 3.413391540118071
+    },
+    {
+     "text": "The product is firm and steady, not flimsy if you know how to put it the right way.",
+     "M": 0.7897891890154529,
+     "d_self": 3.0574099009908435,
+     "d_other": 3.8471990900062965
+    },
+    {
+     "text": "Gave it 4 out of 5 because the climbing over it gets annoying after a while but I guess you can take it down when necessary.",
+     "M": 0.9071209623720049,
+     "d_self": 1.5450641638364966,
+     "d_other": 2.4521851262085015
+    },
+    {
+     "text": "Comfty material, easy to put on and put baby in.",
+     "M": 0.7295213792553215,
+     "d_self": 2.3849709570502813,
+     "d_other": 3.1144923363056027
+    }
+   ]
+  },
+  {
+   "asin": "B0009RNXNA",
+   "uid": "AE7QZCZNPK2O4OMY73ZO2LOEF5PQ",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 1.5371095318176273,
+   "R_95": 4.548848873269382,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "They work well on the back windows of my Mazda 3.",
+     "M": 1.4027796087980398,
+     "d_self": 1.6143966430691528,
+     "d_other": 3.0171762518671925
+    },
+    {
+     "text": "We only used these once, but they were just what we needed.",
+     "M": 1.5371095318176273,
+     "d_self": 1.913157439850751,
+     "d_other": 3.4502669716683783
+    },
+    {
+     "text": "Carrying the car seats on our backs enabled my au pair and I to travel across the U.S.",
+     "M": 1.61661172061542,
+     "d_self": 1.4408684055517633,
+     "d_other": 3.0574801261671833
+    },
+    {
+     "text": "with 10-month-old twins, strollers, and all required luggage.",
+     "M": 1.7751169114738663,
+     "d_self": 1.5439597698552832,
+     "d_other": 3.3190766813291495
+    }
+   ]
+  },
+  {
+   "asin": "B000WJLKQM",
+   "uid": "AGPFWZWSC74IUCHSR5SLS67RPFQA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.866763612044259,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "This seat looks a lot more comfortable than other cheaper models.",
+     "M": 1.866763612044259,
+     "d_self": 0.7870085338479801,
+     "d_other": 2.653772145892239
+    },
+    {
+     "text": "My baby loves this and has so much fun in it!",
+     "M": 2.021277750303989,
+     "d_self": 0.639677878834811,
+     "d_other": 2.6609556291388
+    },
+    {
+     "text": "I love Graco products and have never been disappointed!",
+     "M": 1.671499854379221,
+     "d_self": 1.2577507536014125,
+     "d_other": 2.9292506079806335
+    }
+   ]
+  },
+  {
+   "asin": "B0048SOBGO",
+   "uid": "AE3QE2P3JZOQMS5BG6NSHPTODWFA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.4954931697957086,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "Baby loves this addition to the crib and can now turn it on herself in the middle of the night.",
+     "M": 0.19054468248646206,
+     "d_self": 1.617446806254997,
+     "d_other": 1.807991488741459
+    },
+    {
+     "text": "Works great and we use it every night.",
+     "M": 1.4954931697957086,
+     "d_self": 1.1877689539130556,
+     "d_other": 2.683262123708764
+    },
+    {
+     "text": "Great product and was needed for all my baby bottles for daycare.",
+     "M": 1.627202433003455,
+     "d_self": 1.014769074762408,
+     "d_other": 2.641971507765863
+    }
+   ]
+  },
+  {
+   "asin": "B0048SOBGO",
+   "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+   "n_total": 6,
+   "P_M_gt0": 0.8333333333333334,
+   "M_med": 0.8465123708566009,
+   "R_95": 5.109000208531963,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "For primary doors the ones with finger holes where painful and hard to use in a hurry.",
+     "M": 0.8126072595438947,
+     "d_self": 3.331208816176125,
+     "d_other": 4.14381607572002
+    },
+    {
+     "text": "Can be cut into smaller sections like I did for bottle lids.",
+     "M": 0.5924951014919482,
+     "d_self": 2.9282313175326253,
+     "d_other": 3.5207264190245735
+    },
+    {
+     "text": "Has a sticker film that covers what you write so it stays sealed.",
+     "M": 0.8804174821693072,
+     "d_self": 3.9514732846868106,
+     "d_other": 4.831890766856118
+    },
+    {
+     "text": "Can be peeled off easy but don't plan to adjust it too much without compromising the stick.",
+     "M": 0.9978517758052576,
+     "d_self": 2.5137099360155055,
+     "d_other": 3.511561711820763
+    },
+    {
+     "text": "I used a sharpie and was able to write name and a second line for other information.",
+     "M": 1.0663510677480454,
+     "d_self": 4.0448585650002284,
+     "d_other": 5.111209632748274
+    }
+   ]
+  },
+  {
+   "asin": "B00DDMJ454",
+   "uid": "AHCABFYOH6OUQFGYHRQFP3GBCXTA",
+   "n_total": 6,
+   "P_M_gt0": 1.0,
+   "M_med": 1.4747900454144842,
+   "R_95": 3.319446239964786,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "Nothing worked with our daughter who at 4 months was cutting cream.",
+     "M": 1.5055924362164874,
+     "d_self": 2.156730385460791,
+     "d_other": 3.6623228216772783
+    },
+    {
+     "text": "I remembered seeing this giraffe thinking people were crazy to pay $20 for a small toy.",
+     "M": 1.4202393757968488,
+     "d_self": 3.0163257354747004,
+     "d_other": 4.436565111271549
+    },
+    {
+     "text": "Well I will buy a million cause it was the only thing that relieved her pain.",
+     "M": 1.8446874527463208,
+     "d_self": 2.8911133321332994,
+     "d_other": 4.73580078487962
+    },
+    {
+     "text": "Its easy for her to grab with her little hands around his legs and bites on his ears or face.",
+     "M": 0.4359456458306652,
+     "d_self": 2.7782581176532317,
+     "d_other": 3.214203763483897
+    },
+    {
+     "text": "With the subscription program you pay as much as the cheap generic diaper but you gey a great diaper that doesn't leak.",
+     "M": 1.9207800327349291,
+     "d_self": 2.134892685905929,
+     "d_other": 4.055672718640858
+    }
+   ]
+  },
+  {
+   "asin": "B00A4B34IA",
+   "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 2.3592906633338657,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I bought two different ones at the same time.",
+     "M": 2.4200500030158043,
+     "d_self": 0.5582508686038135,
+     "d_other": 2.9783008716196178
+    },
+    {
+     "text": "I literally too this out the box, laughed, and put it right back and returned it.",
+     "M": 2.3592906633338657,
+     "d_self": 0.7843688485245495,
+     "d_other": 3.143659511858415
+    },
+    {
+     "text": "The other one was cheaper, cuter, and about 5 pieces.",
+     "M": 2.1135094851979597,
+     "d_self": 0.7477732755475747,
+     "d_other": 2.8612827607455342
+    }
+   ]
+  },
+  {
+   "asin": "B00A4B34IA",
+   "uid": "AFIROMS23ORMKGET6XC6ZEDCTEXQ",
+   "n_total": 9,
+   "P_M_gt0": 0.8888888888888888,
+   "M_med": 0.6698381354316449,
+   "R_95": 5.659926895746563,
+   "n_discriminative": 7,
+   "discriminative_sentences": [
+    {
+     "text": "They are easy to install and easy to use.",
+     "M": 1.068393834200568,
+     "d_self": 2.4787590193598548,
+     "d_other": 3.547152853560423
+    },
+    {
+     "text": "I wish I would have gotten this one when my little was a newborn.",
+     "M": 0.676176050938238,
+     "d_self": 2.7631922479224196,
+     "d_other": 3.4393682988606575
+    },
+    {
+     "text": "He likes to rock himself in it and I like that it will fit him for the next few years.",
+     "M": 0.6698381354316449,
+     "d_self": 2.9537587516573516,
+     "d_other": 3.6235968870889965
+    },
+    {
+     "text": "I also think it will hold up for baby #2 so that's a double bonus.",
+     "M": 0.7201820003945123,
+     "d_self": 3.248514613827612,
+     "d_other": 3.9686966142221243
+    },
+    {
+     "text": "We bought 2 of these to wrangle our new human and 3 chihuahuas.",
+     "M": 0.27281569382360926,
+     "d_self": 2.622329513961123,
+     "d_other": 2.8951452077847324
+    },
+    {
+     "text": "These are cheap enough that if they break we are not out a ton of money.",
+     "M": 1.056118826136609,
+     "d_self": 3.4322075586889462,
+     "d_other": 4.488326384825555
+    },
+    {
+     "text": "They fit the doorways well and easy to put up.",
+     "M": 0.09550229784263298,
+     "d_self": 5.2018977057922635,
+     "d_other": 5.2974000036348965
+    }
+   ]
+  },
+  {
+   "asin": "B00A4B34IA",
+   "uid": "AGKSBZKWZHGJKCNMBMM6AYTX3WHQ",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.22957995119489194,
+   "R_95": 3.085841135432446,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "It was difficult to put in place at first till I saw the video.",
+     "M": 0.4604392199384,
+     "d_self": 2.4701667348062153,
+     "d_other": 2.9306059547446153
+    },
+    {
+     "text": "The product is firm and steady, not flimsy if you know how to put it the right way.",
+     "M": 0.22957995119489194,
+     "d_self": 3.0574099009908435,
+     "d_other": 3.2869898521857355
+    },
+    {
+     "text": "Gave it 4 out of 5 because the climbing over it gets annoying after a while but I guess you can take it down when necessary.",
+     "M": 0.9338249574607131,
+     "d_self": 1.5450641638364966,
+     "d_other": 2.4788891212972097
+    }
+   ]
+  },
+  {
+   "asin": "B00HB0WGAY",
+   "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 2.424414250413288,
+   "R_95": 4.116590724291834,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Good for travel - just average in terms of quality",
+     "M": 2.424414250413288,
+     "d_self": 1.333908112763855,
+     "d_other": 3.7583223631771427
+    },
+    {
+     "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+     "M": 2.507791513431452,
+     "d_self": 1.5619680505157156,
+     "d_other": 4.0697595639471675
+    },
+    {
+     "text": "Happy with the product for newborn baby\u2019s nails",
+     "M": 2.540324427033611,
+     "d_self": 1.5474483973496638,
+     "d_other": 4.087772824383275
+    },
+    {
+     "text": "Saved us from a world of pain with a reflux baby.",
+     "M": 2.126497360729296,
+     "d_self": 1.556610418441893,
+     "d_other": 3.683107779171189
+    }
+   ]
+  },
+  {
+   "asin": "B005XTCMSQ",
+   "uid": "AFZVD3BBCACUJROL4S535FMDYK6Q",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.8358567338313212,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "The best price and got rid of my baby\u2019s cradle cap FAST!",
+     "M": 0.7095307834246558,
+     "d_self": 4.3997976270601535,
+     "d_other": 5.109328410484809
+    },
+    {
+     "text": "Great for traveling but wish the volume on the white noise setting was louder!!",
+     "M": 1.489208278810065,
+     "d_self": 3.1548549583888534,
+     "d_other": 4.644063237198918
+    },
+    {
+     "text": "Love that they are black to match my stainless steel appliances.",
+     "M": 0.8358567338313212,
+     "d_self": 2.635251253998313,
+     "d_other": 3.471107987829634
+    }
+   ]
+  },
+  {
+   "asin": "B005XTCMSQ",
+   "uid": "AH43EDRPHF6QYPXFEAAALHY7EECA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.26691323579034343,
+   "R_95": 3.9953272333645953,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Put a little bit of coconut oil in my babies hair and used this tool after it set for a bit.",
+     "M": 0.2247689859435309,
+     "d_self": 2.82440891336491,
+     "d_other": 3.049177899308441
+    },
+    {
+     "text": "These make our knobs pop off when opening our oven.",
+     "M": 0.303144639159882,
+     "d_self": 2.4556717833761073,
+     "d_other": 2.7588164225359892
+    },
+    {
+     "text": "So I have to take two of them off when baking anything.",
+     "M": 1.0211757091319766,
+     "d_self": 2.1429288770446573,
+     "d_other": 3.164104586176634
+    },
+    {
+     "text": "We seem to go thru them a lot because the dogs love using them as a chew toy",
+     "M": 0.26691323579034343,
+     "d_self": 3.4012950277450145,
+     "d_other": 3.668208263535358
+    }
+   ]
+  },
+  {
+   "asin": "B0038JDAJ8",
+   "uid": "AHMEWSYXEUHS2P3EEHMYAXRGZXXQ",
+   "n_total": 4,
+   "P_M_gt0": 1.0,
+   "M_med": 1.1742869730490721,
+   "R_95": 8.073,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "I have quite a few teething toys for my daughter and this is by far her favorite.",
+     "M": 1.155868020162481,
+     "d_self": 2.81258208627752,
+     "d_other": 3.968450106440001
+    },
+    {
+     "text": "I recently bought her Lifefactory Multi Sensory Silicone Teether which is a circular teether and she thoroughly enjoyed chewing on it, but since receiving Sophie the Giraffe I don't even think to reach for her other teethers.",
+     "M": 1.1927059259356634,
+     "d_self": 2.731421052225922,
+     "d_other": 3.9241269781615853
+    },
+    {
+     "text": "The two sided grip makes it easy for her little fumbling fingers to grip and maneuver.",
+     "M": 0.7786688446954857,
+     "d_self": 2.6005237990455985,
+     "d_other": 3.379192643741084
+    },
+    {
+     "text": "In comparison with the Sensory Silicone teether, it falls out of her hand less often, she chews on it more vigorously and she seems to enjoy the sensations a bit more.",
+     "M": 1.2461415347448703,
+     "d_self": 2.62392642009102,
+     "d_other": 3.8700679548358905
+    }
+   ]
+  },
+  {
+   "asin": "B0038JDAJ8",
+   "uid": "AECVZVINWATH26RZLF6GHX5RLD2A",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.16097336230199355,
+   "R_95": 4.504945160069304,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "I don't understand the complaints that it is flat.",
+     "M": 0.20307354712575965,
+     "d_self": 4.489957308532262,
+     "d_other": 4.693030855658022
+    },
+    {
+     "text": "You definitely don't want an overstuffed or overly large pillow for a young child..",
+     "M": 0.19381342950577496,
+     "d_self": 2.2674384169309314,
+     "d_other": 2.4612518464367064
+    },
+    {
+     "text": "It is small, but not too small, super soft and the perfect amount of fluff.",
+     "M": 0.16097336230199355,
+     "d_self": 2.173788614246229,
+     "d_other": 2.3347619765482226
+    },
+    {
+     "text": "My daughter wasn't super into chewing then however.",
+     "M": 0.042002027247403095,
+     "d_self": 2.292327320512434,
+     "d_other": 2.3343293477598372
+    }
+   ]
+  },
+  {
+   "asin": "B00KL3ALGO",
+   "uid": "AE7QZCZNPK2O4OMY73ZO2LOEF5PQ",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 1.6014005841130667,
+   "R_95": 4.548848873269382,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "They work well on the back windows of my Mazda 3.",
+     "M": 1.6014005841130667,
+     "d_self": 1.6143966430691528,
+     "d_other": 3.2157972271822195
+    },
+    {
+     "text": "We only used these once, but they were just what we needed.",
+     "M": 1.59804385497567,
+     "d_self": 1.913157439850751,
+     "d_other": 3.511201294826421
+    },
+    {
+     "text": "Carrying the car seats on our backs enabled my au pair and I to travel across the U.S.",
+     "M": 1.8390896116202695,
+     "d_self": 1.4408684055517633,
+     "d_other": 3.279958017172033
+    },
+    {
+     "text": "with 10-month-old twins, strollers, and all required luggage.",
+     "M": 1.8618371182275877,
+     "d_self": 1.5439597698552832,
+     "d_other": 3.405796888082871
+    }
+   ]
+  },
+  {
+   "asin": "B00DFFT5HG",
+   "uid": "AE5DKZK5BFIDI2YYJHXBN5TGUOZA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 1.003335985057856,
+   "R_95": 4.7430668039373085,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Didn't use it for a while due to cost and moved to other brands.",
+     "M": 1.0197792279501,
+     "d_self": 2.1350227412689815,
+     "d_other": 3.1548019692190814
+    },
+    {
+     "text": "Then got this at a deal and decided to try it again.",
+     "M": 0.12847577001392807,
+     "d_self": 4.302378663737731,
+     "d_other": 4.430854433751659
+    },
+    {
+     "text": "Unfortunately, I don't love it as much now.",
+     "M": 1.003335985057856,
+     "d_self": 2.3203558012260066,
+     "d_other": 3.3236917862838626
+    },
+    {
+     "text": "Size is a little smaller compare to Huggies and not as absorbent.",
+     "M": 1.0352025181487923,
+     "d_self": 2.1234135756158077,
+     "d_other": 3.1586160937646
+    }
+   ]
+  },
+  {
+   "asin": "B075QQ8VZW",
+   "uid": "AG4J2UBJUHA5P6WVBYR3TY4433WQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.45105635870845573,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I\u2019m hoping it continues to work, but so far it\u2019s great!",
+     "M": 0.45105635870845573,
+     "d_self": 3.1553603330263167,
+     "d_other": 3.6064166917347724
+    },
+    {
+     "text": "I have such a hard time getting thermometers that are easy to work and are accurate.",
+     "M": 0.35690643482163065,
+     "d_self": 4.714043535294096,
+     "d_other": 5.070949970115727
+    },
+    {
+     "text": "I worry about water getting into the compartments have the beads.",
+     "M": 0.9984838751313037,
+     "d_self": 2.319761433567392,
+     "d_other": 3.3182453086986956
+    }
+   ]
+  },
+  {
+   "asin": "B0067GKHQS",
+   "uid": "AENGDAR225OV2H5O7RZJ3REAYGPA",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.4772537136383421,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "My son seems to love it so far.",
+     "M": 2.0994330935057186,
+     "d_self": 0.6342259733630007,
+     "d_other": 2.7336590668687193
+    },
+    {
+     "text": "This is so easy to use and set up.",
+     "M": 1.3594063951108306,
+     "d_self": 0.8120290734810173,
+     "d_other": 2.1714354685918478
+    },
+    {
+     "text": "i can't wait til our new baby is here and we use it.",
+     "M": 1.4772537136383421,
+     "d_self": 1.0516874158160372,
+     "d_other": 2.5289411294543793
+    }
+   ]
+  },
+  {
+   "asin": "B0067GKHQS",
+   "uid": "AGD6GIEKZRTCTQY24HPZODVRHTHQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 4.253944760909234,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I had one of these for my son that I loved.",
+     "M": 3.8329971000384346,
+     "d_self": 1.3408840529167203,
+     "d_other": 5.173881152955155
+    },
+    {
+     "text": "He ended up breaking it and I'm buying a new one for the new baby.",
+     "M": 4.571896376512289,
+     "d_self": 0.595808645064338,
+     "d_other": 5.1677050215766265
+    },
+    {
+     "text": "Works so much better than the boxes they come in.",
+     "M": 4.253944760909234,
+     "d_self": 1.0103179824376418,
+     "d_other": 5.264262743346876
+    }
+   ]
+  },
+  {
+   "asin": "B005UND06I",
+   "uid": "AFGVKI2EYV7UM5YJB2DORTNGP67A",
+   "n_total": 7,
+   "P_M_gt0": 0.8571428571428571,
+   "M_med": 0.9003981724186279,
+   "R_95": 5.127825645768471,
+   "n_discriminative": 6,
+   "discriminative_sentences": [
+    {
+     "text": "In just two days these have made such a difference!<br /><br />After every meal I was scrubbing the high chair tray.",
+     "M": 0.7530572429376277,
+     "d_self": 1.9379506413680556,
+     "d_other": 2.6910078843056833
+    },
+    {
+     "text": "And I was always worried it wasn't fully clean.<br /><br />Enter these amazing disposable placemats.",
+     "M": 2.0221358580153503,
+     "d_self": 2.0416382905672648,
+     "d_other": 4.063774148582615
+    },
+    {
+     "text": "They stick, they have adorable pictures and numbers.",
+     "M": 0.9003981724186279,
+     "d_self": 4.312773798395071,
+     "d_other": 5.213171970813699
+    },
+    {
+     "text": "And, most importantly, they keep your tray very clean.<br /><br />Small cons:<br /><br />They're pretty thin.",
+     "M": 2.116167063055976,
+     "d_self": 2.6899423411641155,
+     "d_other": 4.806109404220091
+    },
+    {
+     "text": "So it's probably possible for a determined toddler to yank them off.<br /><br />They stick well, but not 100%.",
+     "M": 0.8335271346062885,
+     "d_self": 2.110731967979942,
+     "d_other": 2.9442591025862304
+    },
+    {
+     "text": "This is a must-have for every new mom and dad.",
+     "M": 1.5177078411086837,
+     "d_self": 2.588932466203839,
+     "d_other": 4.106640307312523
+    }
+   ]
+  },
+  {
+   "asin": "B01F8W7CF0",
+   "uid": "AHSSDNEMHCJBRRMCLPGASYU2JQLQ",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.44187995411594816,
+   "R_95": 5.374609798872036,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I was looking for something that could catch breastmilk from the opposite side I was nursing and this works great.",
+     "M": 0.6124983341095676,
+     "d_self": 2.5092163296258665,
+     "d_other": 3.121714663735434
+    },
+    {
+     "text": "While it will not empty the breast like an electric pump, it works for relief while engorged.",
+     "M": 0.44187995411594816,
+     "d_self": 2.355144143397041,
+     "d_other": 2.797024097512989
+    },
+    {
+     "text": "I will say though that the measurement is a little off.",
+     "M": 0.11455029490456603,
+     "d_self": 2.4568031377206556,
+     "d_other": 2.5713534326252216
+    }
+   ]
+  },
+  {
+   "asin": "B01F8W7CF0",
+   "uid": "AG5656FKBU7IJJ6CPJWKOXIC2X6Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.2502523519442059,
+   "R_95": 4.853896545507535,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Its hands free until it pops off of u!",
+     "M": 0.2844987327555617,
+     "d_self": 2.6914030730929506,
+     "d_other": 2.9759018058485123
+    },
+    {
+     "text": "But it works great whicle u feeding on one side u can put this kn other to catch the led down.",
+     "M": 0.15760637975149727,
+     "d_self": 4.144950944535451,
+     "d_other": 4.302557324286949
+    },
+    {
+     "text": "Only thing is u gotta feed ur child in position where haakaa wont be touching anything.",
+     "M": 0.38643792440408253,
+     "d_self": 3.9905487920715745,
+     "d_other": 4.376986716475657
+    },
+    {
+     "text": "He plays with it but not good item if ur child can't figure out to move them off of their fase",
+     "M": 0.2502523519442059,
+     "d_self": 2.9060169322341007,
+     "d_other": 3.1562692841783067
+    }
+   ]
+  },
+  {
+   "asin": "B0081C9UOQ",
+   "uid": "AFZMAND4IHF6XJMUYX5DPQNDWROA",
+   "n_total": 4,
+   "P_M_gt0": 1.0,
+   "M_med": 1.0494141577930869,
+   "R_95": 8.073,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "I really like the idea of no spilling.",
+     "M": 0.6397510267564912,
+     "d_self": 3.0182378851720637,
+     "d_other": 3.657988911928555
+    },
+    {
+     "text": "I've seen other products and they seem to work well.",
+     "M": 1.4590772888296826,
+     "d_self": 2.965893874233627,
+     "d_other": 4.42497116306331
+    },
+    {
+     "text": "This little monster was perfect for my little pumpkins Halloween bucket.",
+     "M": 0.5728190116382521,
+     "d_self": 3.0136329175865604,
+     "d_other": 3.5864519292248125
+    },
+    {
+     "text": "After I washed it I put Goldfish crackers in.",
+     "M": 1.6891487753831025,
+     "d_self": 3.068846828166451,
+     "d_other": 4.757995603549554
+    }
+   ]
+  },
+  {
+   "asin": "B0081C9UOQ",
+   "uid": "AFE7QH6G6O25KY6NIK2FKAW4TX2Q",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 0.6815613731504664,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "My son can open up any other snack keeper and them snacks are everywhere, he can't open this one!",
+     "M": 0.41932775850764736,
+     "d_self": 2.481717890058894,
+     "d_other": 2.9010456485665412
+    },
+    {
+     "text": "I love this guy, my only complaint is that it is extra hard to open up to add snacks to.",
+     "M": 1.732228429572496,
+     "d_self": 2.719150834281164,
+     "d_other": 4.45137926385366
+    },
+    {
+     "text": "Which I don't mind because then my son never will get it open.",
+     "M": 0.6815613731504664,
+     "d_self": 3.418989288645993,
+     "d_other": 4.1005506617964596
+    }
+   ]
+  },
+  {
+   "asin": "B01N4BBTFQ",
+   "uid": "AFZQU4HCVJ6BCCSVI5COQ6HAYYHQ",
+   "n_total": 4,
+   "P_M_gt0": 1.0,
+   "M_med": 0.6419723179780963,
+   "R_95": 8.073,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "This works amazing when my baby was congested or had a booger stuck.",
+     "M": 0.28444436191936173,
+     "d_self": 4.10600491537482,
+     "d_other": 4.390449277294182
+    },
+    {
+     "text": "Our child kept trying to open our bar fridge!",
+     "M": 0.16644798325954246,
+     "d_self": 3.4708228848850142,
+     "d_other": 3.6372708681445567
+    },
+    {
+     "text": "Couldn't find anything like this at the store!",
+     "M": 0.9995002740368308,
+     "d_self": 3.0508094770384906,
+     "d_other": 4.050309751075321
+    },
+    {
+     "text": "Keeps him out of our beer fridge :) !",
+     "M": 1.1613876707479251,
+     "d_self": 3.1059088820827494,
+     "d_other": 4.2672965528306745
+    }
+   ]
+  },
+  {
+   "asin": "B0028IDXDS",
+   "uid": "AERNBLBY7SPOZZNU3SEWXBIGIX7A",
+   "n_total": 7,
+   "P_M_gt0": 0.8571428571428571,
+   "M_med": 0.8993229110784808,
+   "R_95": 3.870563397427826,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "best ever tho my son now will only take his connected to stuffed animal on his wub a nub they are very worth it and should try , we use the singles as back up in diaper bags and in the bathtub",
+     "M": 1.1514179235754414,
+     "d_self": 2.7175935099755417,
+     "d_other": 3.869011433550983
+    },
+    {
+     "text": "and i use the diaper storage as back up when my dh uses last diaper and i and elbow deep in poop, this is a life saver",
+     "M": 1.2854487868868856,
+     "d_self": 2.5582508618323914,
+     "d_other": 3.843699648719277
+    },
+    {
+     "text": "the glass doesnt help but good clippers , better to just do it in a well lighted room i actually cut my son more when i tried to use the glass",
+     "M": 0.5236874295557055,
+     "d_self": 3.0180027126167572,
+     "d_other": 3.5416901421724627
+    },
+    {
+     "text": "this really comes in handy when its not possible to use a stroller, or for some extra excersise or warmth for your baby",
+     "M": 0.34052606709181044,
+     "d_self": 2.6295852677089635,
+     "d_other": 2.970111334800774
+    },
+    {
+     "text": "the single most used item we have ever gotten for our son we now own 6 of them makes it easier for him to manipulate and gets tons of compliments cuz its just so cute",
+     "M": 1.0027189772393732,
+     "d_self": 3.1910792533474743,
+     "d_other": 4.1937982305868475
+    }
+   ]
+  },
+  {
+   "asin": "B01EKZO93O",
+   "uid": "AGPQDJUEDP3SQAK2RVHPT2QGZ3MQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.7080863110318032,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "Bought to use at the top of my stairs and it\u2019s perfect.",
+     "M": 0.00902214287065517,
+     "d_self": 3.5068721196277166,
+     "d_other": 3.515894262498372
+    },
+    {
+     "text": "Even comes with plastic holders so the walls don\u2019t get damaged.",
+     "M": 1.94626210902987,
+     "d_self": 2.3067264180335543,
+     "d_other": 4.252988527063424
+    },
+    {
+     "text": "Super easy to put together and set up.",
+     "M": 1.7080863110318032,
+     "d_self": 2.0200099856292355,
+     "d_other": 3.7280962966610387
+    }
+   ]
+  },
+  {
+   "asin": "B001LENCUE",
+   "uid": "AEVYSHLGGB64TL6SSODHFRP67VGQ",
+   "n_total": 3,
+   "P_M_gt0": 1.0,
+   "M_med": 1.8270492457556777,
+   "R_95": 8.073,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I bought two different ones at the same time.",
+     "M": 1.8270492457556777,
+     "d_self": 0.5582508686038135,
+     "d_other": 2.385300114359491
+    },
+    {
+     "text": "I literally too this out the box, laughed, and put it right back and returned it.",
+     "M": 1.8375390939489709,
+     "d_self": 0.7843688485245495,
+     "d_other": 2.6219079424735203
+    },
+    {
+     "text": "The other one was cheaper, cuter, and about 5 pieces.",
+     "M": 1.5307552846293397,
+     "d_self": 0.7477732755475747,
+     "d_other": 2.2785285601769143
+    }
+   ]
+  },
+  {
+   "asin": "B001LENCUE",
+   "uid": "AFE4S4MR4EUYAWDYTZKZUXZLIOJA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.24689706392062627,
+   "R_95": 5.252158714204146,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "My daughter started using these at about 14 months as recommended by her dentist since they're better for her teeth.",
+     "M": 0.6616484612747091,
+     "d_self": 2.8634278622594223,
+     "d_other": 3.5250763235341314
+    },
+    {
+     "text": "The bonus was they helped her transition to regular cups faster than using a sippy cup would have.",
+     "M": 0.24689706392062627,
+     "d_self": 3.0328826784434053,
+     "d_other": 3.2797797423640316
+    },
+    {
+     "text": "They're easy to clean and easy for her to use; took a bit for her to get used to but once she figured it out she was good to go.",
+     "M": 0.45357577852107767,
+     "d_self": 4.56074706091721,
+     "d_other": 5.014322839438288
+    }
+   ]
+  },
+  {
+   "asin": "B008ZB5E2K",
+   "uid": "AEI6LQ7VMPMKPDG62GBLZJ35VRSA",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.4502665296565622,
+   "R_95": 4.951621465091133,
+   "n_discriminative": 3,
+   "discriminative_sentences": [
+    {
+     "text": "I bought this because of the reviews saying it fits perfectly in a pack n play.",
+     "M": 0.558513332990751,
+     "d_self": 4.73941413066846,
+     "d_other": 5.297927463659211
+    },
+    {
+     "text": "It does fit but does not seem as snug as I expected.",
+     "M": 0.06986754936497963,
+     "d_self": 3.73865079534249,
+     "d_other": 3.8085183447074695
+    },
+    {
+     "text": "They make the stressful job of cutting baby's nails that much easier.",
+     "M": 0.8195601740917269,
+     "d_self": 3.878232466215037,
+     "d_other": 4.697792640306764
+    }
+   ]
+  },
+  {
+   "asin": "B002WDEIVA",
+   "uid": "AEAOYGHBRJQUXHSRXY7NOQY3FBOA",
+   "n_total": 6,
+   "P_M_gt0": 0.8333333333333334,
+   "M_med": 0.6254518489218888,
+   "R_95": 4.966323919495857,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "My LO can not grab things yet but she loves this.",
+     "M": 0.5747234978177951,
+     "d_self": 3.111638076423349,
+     "d_other": 3.686361574241144
+    },
+    {
+     "text": "She moves it around and has started her grabbing.",
+     "M": 1.451845276603028,
+     "d_self": 3.6214229838928906,
+     "d_other": 5.073268260495919
+    },
+    {
+     "text": "The rattle is in the middle and all the colorful arms are soft and bendy.",
+     "M": 0.5991888331302868,
+     "d_self": 2.680072252892607,
+     "d_other": 3.2792610860228937
+    },
+    {
+     "text": "The clippers work well but the magnifying glass is worthless.",
+     "M": 0.6517148647134907,
+     "d_self": 2.7555490361028285,
+     "d_other": 3.4072639008163192
+    },
+    {
+     "text": "Just cut there nails with good baby ones while they sleep.",
+     "M": 1.2722279564541674,
+     "d_self": 3.6745698279436203,
+     "d_other": 4.946797784397788
+    }
+   ]
+  },
+  {
+   "asin": "B003I867US",
+   "uid": "AEP3IOWKDRLXJ66COSHMNNKUDU6Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 0.17880379709892535,
+   "R_95": 4.438613079528872,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "I needed something to carry him around the house when I needed hands.",
+     "M": 0.0690177981572524,
+     "d_self": 3.465402347308946,
+     "d_other": 3.5344201454661985
+    },
+    {
+     "text": "Well, for the most part its just to confusing and takes to much time to try and adjust and situate the contraption.",
+     "M": 1.2409936145876053,
+     "d_self": 3.3020490849168898,
+     "d_other": 4.543042699504495
+    },
+    {
+     "text": "That's not to say someone else might have use out of such an item, but to me it was just a little to much.",
+     "M": 0.17880379709892535,
+     "d_self": 3.0017612193189223,
+     "d_other": 3.1805650164178476
+    },
+    {
+     "text": "When your a mother with kids you want something easy, comfortable and simple to use.",
+     "M": 0.7275980968401661,
+     "d_self": 2.442412388994338,
+     "d_other": 3.170010485834504
+    }
+   ]
+  },
+  {
+   "asin": "B00WH7Y7TY",
+   "uid": "AGXHBI7HQPZPNFSFYZUIJMGO5VQQ",
+   "n_total": 4,
+   "P_M_gt0": 1.0,
+   "M_med": 0.7228244339854597,
+   "R_95": 8.073,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "i would not ever recommend that anyone waste their money on this product!",
+     "M": 0.7077335965734997,
+     "d_self": 2.422270238036913,
+     "d_other": 3.1300038346104126
+    },
+    {
+     "text": "there is not shade from the sun, you can install it only at a weird angle, the suction cups do not stick on the windows properly and anytime the car goes over the pot hole, it falls.",
+     "M": 0.6059233261908177,
+     "d_self": 2.687959130867807,
+     "d_other": 3.2938824570586247
+    },
+    {
+     "text": "I have been using this for a month now for my son\u2019s pack n play and so far no complaints.",
+     "M": 0.7379152713974197,
+     "d_self": 3.6390729506146386,
+     "d_other": 4.376988222012058
+    },
+    {
+     "text": "I thought it would fit a little smaller but once I had the mattress topper/protector on it plus a crib sheet it fit perfectly and my son sleeps well on it.",
+     "M": 0.9562728874055519,
+     "d_self": 2.697723441122932,
+     "d_other": 3.6539963285284838
+    }
+   ]
+  },
+  {
+   "asin": "B01K3SOW98",
+   "uid": "AGX7UDVELPPGWUPGRBV54J2RNG4Q",
+   "n_total": 5,
+   "P_M_gt0": 0.8,
+   "M_med": 2.4931942404510474,
+   "R_95": 4.116590724291834,
+   "n_discriminative": 4,
+   "discriminative_sentences": [
+    {
+     "text": "Good for travel - just average in terms of quality",
+     "M": 2.617025596128687,
+     "d_self": 1.333908112763855,
+     "d_other": 3.950933708892542
+    },
+    {
+     "text": "Don\u2019t see many leaks, like these diapers for our newborn",
+     "M": 2.5245065581036243,
+     "d_self": 1.5619680505157156,
+     "d_other": 4.08647460861934
+    },
+    {
+     "text": "Happy with the product for newborn baby\u2019s nails",
+     "M": 2.4931942404510474,
+     "d_self": 1.5474483973496638,
+     "d_other": 4.040642637800711
+    },
+    {
+     "text": "Saved us from a world of pain with a reflux baby.",
+     "M": 2.3108798280246354,
+     "d_self": 1.556610418441893,
+     "d_other": 3.8674902464665286
+    }
+   ]
+  },
+  {
+   "asin": "B01K3SOW98",
+   "uid": "AHRWCWVONLSHDBGBD4FVNJBSVJYA",
+   "n_total": 6,
+   "P_M_gt0": 0.8333333333333334,
+   "M_med": 0.7709996715776779,
+   "R_95": 5.109000208531963,
+   "n_discriminative": 5,
+   "discriminative_sentences": [
+    {
+     "text": "For primary doors the ones with finger holes where painful and hard to use in a hurry.",
+     "M": 0.9190001448607594,
+     "d_self": 3.331208816176125,
+     "d_other": 4.2502089610368845
+    },
+    {
+     "text": "Can be cut into smaller sections like I did for bottle lids.",
+     "M": 0.005516773995503765,
+     "d_self": 2.9282313175326253,
+     "d_other": 2.933748091528129
+    },
+    {
+     "text": "Has a sticker film that covers what you write so it stays sealed.",
+     "M": 0.6229991982945964,
+     "d_self": 3.9514732846868106,
+     "d_other": 4.574472482981407
+    },
+    {
+     "text": "Can be peeled off easy but don't plan to adjust it too much without compromising the stick.",
+     "M": 1.0930779214148645,
+     "d_self": 2.5137099360155055,
+     "d_other": 3.60678785743037
+    },
+    {
+     "text": "I used a sharpie and was able to write name and a second line for other information.",
+     "M": 0.9572065991733743,
+     "d_self": 4.0448585650002284,
+     "d_other": 5.002065164173603
+    }
+   ]
+  }
+ ]
+}
