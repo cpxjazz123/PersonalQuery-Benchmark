@@ -131,28 +131,16 @@ def featurize_103(text):
 
 
 # ────────── Load data ──────────
-print(f"[1] scanning reviews for {N_USERS}-user cohort...")
+from _user_sentence_cache import load_user_sents
+print(f"[1] loading cohort sentences (cached)...", flush=True)
 t0 = time.time()
-user_sents = collections.defaultdict(list)
-n_scanned = 0
-with gzip.open(f"{REPO}/data/Baby_Products_2023.jsonl.gz", "rt", encoding="utf-8") as f:
-    for line in f:
-        r = json.loads(line)
-        uid = r.get("reviewerID") or r.get("user_id")
-        if uid in set(COHORT) and r.get("text"):
-            user_sents[uid].extend(split_sents(r["text"]))
-        n_scanned += 1
-        if n_scanned % 5_000_000 == 0:
-            print(f"  {n_scanned/1e6:.1f}M scanned, t={time.time()-t0:.0f}s")
-print(f"  done: scanned {n_scanned}, t={time.time()-t0:.0f}s")
+# Cache key: cohort hash. If cache exists, loads in <0.1s; else scans 6M lines (~34s).
+user_sents_cached = load_user_sents(COHORT, REPO)
+print(f"  loaded in {time.time()-t0:.1f}s ({sum(len(v) for v in user_sents_cached.values())} sents)")
 
-for uid in user_sents:
-    seen = set(); uniq = []
-    for s in user_sents[uid]:
-        k = s.strip().lower()
-        if k not in seen:
-            seen.add(k); uniq.append(s)
-    user_sents[uid] = uniq
+# cache stores 8<=len<=60 sents, lowercase; original script used lowercased version
+# for is_train_sentence hash bucketing. We re-use them as-is.
+user_sents = {uid: list(s) for uid, s in user_sents_cached.items()}
 
 print(f"\n[2] featurize train/test to 103d...")
 train_data = []

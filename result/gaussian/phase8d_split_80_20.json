@@ -1,0 +1,512 @@
+{
+  "config": {
+    "SPLIT_SEED": "phase8d_split_v1|",
+    "TRAIN_FRAC": 0.8,
+    "n_train_users": 74,
+    "n_test_users": 26
+  },
+  "train_users": [
+    {
+      "uid": "AE2DAIXX7JOBRPJH5PPNSHRYMI5Q",
+      "asin": "B075QQ8VZW",
+      "n_sents": 13
+    },
+    {
+      "uid": "AE4TUN56UPPAI3W46JQPRFE2DLYA",
+      "asin": "B00PV6H3Z8",
+      "n_sents": 8
+    },
+    {
+      "uid": "AERPQTYQJN42DMIPT36TPBU2HBCA",
+      "asin": "B00PV6H3Z8",
+      "n_sents": 70
+    },
+    {
+      "uid": "AGFIISUREDMKE7SMM3V6SO53AVPA",
+      "asin": "B00PV6H3Z8",
+      "n_sents": 8
+    },
+    {
+      "uid": "AGIVP4TD73ITO5XPPI2RW434RQYQ",
+      "asin": "B0052QYLUM",
+      "n_sents": 14
+    },
+    {
+      "uid": "AG2UXNKKPEZKIOLTV7YK64YIDICA",
+      "asin": "B0052QYLUM",
+      "n_sents": 22
+    },
+    {
+      "uid": "AHHRTHXCPJNYMQ6T4FXUSBVTCRKQ",
+      "asin": "B0052QYLUM",
+      "n_sents": 13
+    },
+    {
+      "uid": "AHVHKEG7CHCWLAKTD4JT4U5ZACSA",
+      "asin": "B000BNCA4K",
+      "n_sents": 17
+    },
+    {
+      "uid": "AEDLFMBXVSN2ZPQIARVVTTBF4SUQ",
+      "asin": "B000BNCA4K",
+      "n_sents": 22
+    },
+    {
+      "uid": "AGC7SPWZ2EBOL6U27X32KBPOLG3Q",
+      "asin": "B000BNCA4K",
+      "n_sents": 42
+    },
+    {
+      "uid": "AHYTQFWGBBCX3LHFER3ZQAXIQWDA",
+      "asin": "B000IDSLOG",
+      "n_sents": 30
+    },
+    {
+      "uid": "AHGV7WBGKJNZSWNEVFISPW72DH4A",
+      "asin": "B00GUN3Z1W",
+      "n_sents": 16
+    },
+    {
+      "uid": "AGRDLB7G5IN6NHAP6IOSAENC7WDA",
+      "asin": "B00GUN3Z1W",
+      "n_sents": 11
+    },
+    {
+      "uid": "AH6DPGS5XNFFW3VHPHRKVK3WI43Q",
+      "asin": "B001OC5UNK",
+      "n_sents": 16
+    },
+    {
+      "uid": "AGQGVFZRXWMT6DMD4UHSUXKKB4XA",
+      "asin": "B010S7VZI0",
+      "n_sents": 34
+    },
+    {
+      "uid": "AEOARH6Q345TPN757EIH3WBIG55Q",
+      "asin": "B010S7VZI0",
+      "n_sents": 9
+    },
+    {
+      "uid": "AGODUHGAAGQ73M5B234Z2DIXX2MQ",
+      "asin": "B010S7VZI0",
+      "n_sents": 34
+    },
+    {
+      "uid": "AHLB3WFUJ2OSJ7JHRHMMDKTUOAFA",
+      "asin": "B00068O22S",
+      "n_sents": 33
+    },
+    {
+      "uid": "AFNEXUTLDRCCFVDWA6SYF4HCYD5A",
+      "asin": "B004JU0H6O",
+      "n_sents": 69
+    },
+    {
+      "uid": "AGKIHO2V4XRP2HP4O3ZIKYENERBA",
+      "asin": "B072KPZMMV",
+      "n_sents": 14
+    },
+    {
+      "uid": "AECQ3BXIHPMUX7YHBMP3GZDRPNAQ",
+      "asin": "B004ECJWK4",
+      "n_sents": 12
+    },
+    {
+      "uid": "AFE3G732NDAQ5HAGTCE2DROF4E6A",
+      "asin": "B004ECJWK4",
+      "n_sents": 42
+    },
+    {
+      "uid": "AEMBIV4YIGEVCUIBVOB32YW7EP6A",
+      "asin": "B0011URFRE",
+      "n_sents": 165
+    },
+    {
+      "uid": "AFPB2OA7FCGVGSVQ6UFK44ARZYOA",
+      "asin": "B0011URFRE",
+      "n_sents": 67
+    },
+    {
+      "uid": "AGZQ2BRYJLWJB6SWUBTQGQ4HPSTA",
+      "asin": "B006Z2BZBU",
+      "n_sents": 8
+    },
+    {
+      "uid": "AHGBGNAEGRJUOM2LWAYK7332WK5A",
+      "asin": "B006Z2BZBU",
+      "n_sents": 8
+    },
+    {
+      "uid": "AH3VKOQYTPSJJ5PYWO4CAQ2XYW3Q",
+      "asin": "B086TQTKVN",
+      "n_sents": 9
+    },
+    {
+      "uid": "AHMJ5MCLPKVUWXA3E4QOO7I5YNLQ",
+      "asin": "B086TQTKVN",
+      "n_sents": 19
+    },
+    {
+      "uid": "AFPCFZFJDBRAWPVKYNXESGJOKA4A",
+      "asin": "B01DGIKD68",
+      "n_sents": 12
+    },
+    {
+      "uid": "AGDFIAIQO6OJMBUZYXX25RCIRTOQ",
+      "asin": "B01DGIKD68",
+      "n_sents": 27
+    },
+    {
+      "uid": "AEONB2GM4LMYW3YOJWMNDWSHMXJA",
+      "asin": "B004I110D8",
+      "n_sents": 20
+    },
+    {
+      "uid": "AFIBQZR5IZ27M4GML7ICEWQEU4EQ",
+      "asin": "B004I110D8",
+      "n_sents": 26
+    },
+    {
+      "uid": "AE3GOLU5565IGELCLCMXSDAJBHYA",
+      "asin": "B007RAGALO",
+      "n_sents": 46
+    },
+    {
+      "uid": "AGVSLI2E3OHF4WH3XREXLY4GQRUA",
+      "asin": "B006PB2B6O",
+      "n_sents": 20
+    },
+    {
+      "uid": "AE6HJDBKIEBYKNR6VPQ4D2JJFR2A",
+      "asin": "B006PB2B6O",
+      "n_sents": 21
+    },
+    {
+      "uid": "AE5JC4HAWB4QZAQRAZAUCYLYOZPQ",
+      "asin": "B07317NQKW",
+      "n_sents": 8
+    },
+    {
+      "uid": "AGY7MNAFPWUTAP5RQ4ZY6Q3D7A7Q",
+      "asin": "B007UYBOJU",
+      "n_sents": 9
+    },
+    {
+      "uid": "AE5CZR2Q77ZIBF3ZVMOSYNRQ4GSA",
+      "asin": "B01K3SOW98",
+      "n_sents": 33
+    },
+    {
+      "uid": "AHG5REV6WXIEQDVAYM7S65OHEPPQ",
+      "asin": "B01K3SOW98",
+      "n_sents": 19
+    },
+    {
+      "uid": "AGJFMCSTNIZARENPGD7S3WUFGBOQ",
+      "asin": "B000066665",
+      "n_sents": 10
+    },
+    {
+      "uid": "AG33GHS3ZYFBJMPFUX26B5QTC3FQ",
+      "asin": "B00008ODBG",
+      "n_sents": 9
+    },
+    {
+      "uid": "AEZWK34XHEOFGE3GPI4KQJMQWM2Q",
+      "asin": "B00EP1ZLO0",
+      "n_sents": 32
+    },
+    {
+      "uid": "AEISWGGQTNUWYJ6PDSK23H7FY23Q",
+      "asin": "B0089ME1K6",
+      "n_sents": 33
+    },
+    {
+      "uid": "AFYFNNMUZBL7XFDPFVWDX6SR4IKQ",
+      "asin": "B0089ME1K6",
+      "n_sents": 9
+    },
+    {
+      "uid": "AETSCOOI47Y3XJNZCHY7RMFWFV3A",
+      "asin": "B00PWKC32G",
+      "n_sents": 22
+    },
+    {
+      "uid": "AF3YCUIIEWLKFZUPK75OBCSMB3QQ",
+      "asin": "B0009RNXNA",
+      "n_sents": 87
+    },
+    {
+      "uid": "AESEQLEGLQADAUXLD2XAWXYDK3AQ",
+      "asin": "B0009RNXNA",
+      "n_sents": 32
+    },
+    {
+      "uid": "AHXAU7KKR25BKCECLCMGXGGLSDDA",
+      "asin": "B01962MDHA",
+      "n_sents": 13
+    },
+    {
+      "uid": "AHRGEFFP2HH5KTFQXSKID7FB4GDA",
+      "asin": "B00A4B34IA",
+      "n_sents": 19
+    },
+    {
+      "uid": "AEKS36RZT37OZ3KIIDJHE7PC6CWQ",
+      "asin": "B011EVXIIE",
+      "n_sents": 17
+    },
+    {
+      "uid": "AEH2LZRDNGBHLXTEJ77SFTGR62HA",
+      "asin": "B011EVXIIE",
+      "n_sents": 12
+    },
+    {
+      "uid": "AEU72ECCC2SJIRUY67PWVXXHKLUQ",
+      "asin": "B006YBHE6M",
+      "n_sents": 12
+    },
+    {
+      "uid": "AGUUQ32JUT64P5UGWGJLQWQNCE5Q",
+      "asin": "B006YBHE6M",
+      "n_sents": 10
+    },
+    {
+      "uid": "AG2VE2QJ4GFFV3PWFQVYA3MSSLTA",
+      "asin": "B000MVQBG4",
+      "n_sents": 16
+    },
+    {
+      "uid": "AEGWDSXRSINVXA4HOPYDBEEQPDFA",
+      "asin": "B000MVQBG4",
+      "n_sents": 11
+    },
+    {
+      "uid": "AED4OQQGZBHHRB2HL2A7I734MIGA",
+      "asin": "B001CFACMI",
+      "n_sents": 27
+    },
+    {
+      "uid": "AFUSWNVA72MMWHGYWJ652SYX2JJQ",
+      "asin": "B001CFACMI",
+      "n_sents": 36
+    },
+    {
+      "uid": "AEH66QD7CSPM7ZVH7D7LRSA5HSNQ",
+      "asin": "B003CK3LDI",
+      "n_sents": 24
+    },
+    {
+      "uid": "AFO4JFVHP2IUNIAM3R2HWEHDEUJA",
+      "asin": "B003CK3LDI",
+      "n_sents": 302
+    },
+    {
+      "uid": "AHJAAJ3XX3UY6EMO7A4BMITODT7Q",
+      "asin": "B003CK3LDI",
+      "n_sents": 21
+    },
+    {
+      "uid": "AHTCNFRA5SB5IVFQ2SICSGEBUILA",
+      "asin": "B00MRZIGXY",
+      "n_sents": 187
+    },
+    {
+      "uid": "AH2OQHMEJWGY5WWJNOX7UMQCFKNQ",
+      "asin": "B000V88HJM",
+      "n_sents": 9
+    },
+    {
+      "uid": "AE3ZB3WJRTYUN4HYCFTKPQ7EPYYA",
+      "asin": "B001579YRM",
+      "n_sents": 10
+    },
+    {
+      "uid": "AEFLXPJNI6KE4H7FSER3QVORYN3Q",
+      "asin": "B00KL3ALGO",
+      "n_sents": 49
+    },
+    {
+      "uid": "AHSHIQOSNYNCFZSJPL3EOFVD36ZA",
+      "asin": "B00KL3ALGO",
+      "n_sents": 10
+    },
+    {
+      "uid": "AEICZD35OTDYVWA2KPYWN4PDZ2SA",
+      "asin": "B00AJSIVWW",
+      "n_sents": 1560
+    },
+    {
+      "uid": "AHNO7ASAEHSHEYER6RL4JM3M7LCQ",
+      "asin": "B00ZPW4RMA",
+      "n_sents": 23
+    },
+    {
+      "uid": "AEIOG4562OFVLZ4AAUF6LQJKKG7Q",
+      "asin": "B00BNQEZXS",
+      "n_sents": 9
+    },
+    {
+      "uid": "AG7QF34G3D5XEPRSBXORLWWKK55A",
+      "asin": "B00BNQEZXS",
+      "n_sents": 33
+    },
+    {
+      "uid": "AFGTDCKECFJGIBPXLYZKMKLX7TMQ",
+      "asin": "B07GBP3GH9",
+      "n_sents": 16
+    },
+    {
+      "uid": "AHVLCBP4EV2JV3K4H6DC2UG2N5QQ",
+      "asin": "B07GBP3GH9",
+      "n_sents": 11
+    },
+    {
+      "uid": "AFTQN4MTJHHVFM4FEXY5KT76OY4A",
+      "asin": "B0042D69V0",
+      "n_sents": 242
+    },
+    {
+      "uid": "AGXPWFZM4GQY74JSD3O2YEAMAP4A",
+      "asin": "B089LRZC73",
+      "n_sents": 11
+    },
+    {
+      "uid": "AFQRJNI4BPKEGI5M64VF4JYGVU4A",
+      "asin": "B01MQM7W6M",
+      "n_sents": 46
+    }
+  ],
+  "test_users": [
+    {
+      "uid": "AGQS26NBGEOECS7UIC7DHNXE7DUA",
+      "asin": "B000IDSLOG",
+      "n_sents": 15
+    },
+    {
+      "uid": "AFB7KI5UJY6VW7X6YB3OYEUQAVUA",
+      "asin": "B001OC5UNK",
+      "n_sents": 38
+    },
+    {
+      "uid": "AEMYUGKFRP2UUSRF467XWHUSJQKA",
+      "asin": "B00068O22S",
+      "n_sents": 52
+    },
+    {
+      "uid": "AFKI6D3ILCVMZVQOFSYLN7UBWBRA",
+      "asin": "B004ECJWK4",
+      "n_sents": 24
+    },
+    {
+      "uid": "AERPWKCHPT2FKXZ3ELJXOMK6CGXQ",
+      "asin": "B0011URFRE",
+      "n_sents": 32
+    },
+    {
+      "uid": "AF3XVCGZDJUCRSONFVJUBUE57THQ",
+      "asin": "B006Z2BZBU",
+      "n_sents": 13
+    },
+    {
+      "uid": "AFZ4YWI6I56E3UKPQ5WY2WFRKRAA",
+      "asin": "B004I110D8",
+      "n_sents": 10
+    },
+    {
+      "uid": "AHY2JL4CAAJKVQK5NXSFKTXILOBA",
+      "asin": "B075XQ2XYV",
+      "n_sents": 13
+    },
+    {
+      "uid": "AFVEVIN5UWFFKK6U22GBUN2IXIOA",
+      "asin": "B007RAGALO",
+      "n_sents": 19
+    },
+    {
+      "uid": "AGIS3QL3LUEQWKF3YKHLLWDD5BJA",
+      "asin": "B007UYBOJU",
+      "n_sents": 126
+    },
+    {
+      "uid": "AE3J2DV6OXYLELYT3LBDMQN2626Q",
+      "asin": "B01K3SOW98",
+      "n_sents": 9
+    },
+    {
+      "uid": "AHT4JN7NC2FNQRGNJQZLNH4SCP3Q",
+      "asin": "B01CJABFL6",
+      "n_sents": 8
+    },
+    {
+      "uid": "AESSFAYZ25SWIDMIAKHM3266U4VQ",
+      "asin": "B01CJABFL6",
+      "n_sents": 28
+    },
+    {
+      "uid": "AFKKNZ23TDLTOKKSP43L6UPZIEDQ",
+      "asin": "B00008ODBG",
+      "n_sents": 79
+    },
+    {
+      "uid": "AGJNUMD3ZCOGO6FFB6NAVV3CYP5A",
+      "asin": "B00008ODBG",
+      "n_sents": 85
+    },
+    {
+      "uid": "AHKA5OJCQYHJGUONAVRAGRFGCOMQ",
+      "asin": "B00278WA4W",
+      "n_sents": 9
+    },
+    {
+      "uid": "AEM4BR4UT5YMQ3JG5FL7UGOPOTPQ",
+      "asin": "B00A4B34IA",
+      "n_sents": 18
+    },
+    {
+      "uid": "AGX3IMPDUP5DKBBVKPYJDN3WNEBA",
+      "asin": "B011EVXIIE",
+      "n_sents": 20
+    },
+    {
+      "uid": "AFBKHQXIL7OX5JZW7PN7QYFZSW6A",
+      "asin": "B000WJLKQM",
+      "n_sents": 10
+    },
+    {
+      "uid": "AEAHMAECWCRSOM6OHZCUS36BXVKA",
+      "asin": "B001579YRM",
+      "n_sents": 39
+    },
+    {
+      "uid": "AG73LHFDVR6BQRW2J4TNCZPZ7ZGA",
+      "asin": "B00KL3ALGO",
+      "n_sents": 66
+    },
+    {
+      "uid": "AGV3MSL2DD62ZQNEQDAMXTJMWZJQ",
+      "asin": "B07GBP3GH9",
+      "n_sents": 12
+    },
+    {
+      "uid": "AERRTPUS7W32EIIO43SW3PIGY5DQ",
+      "asin": "B0042D69V0",
+      "n_sents": 8
+    },
+    {
+      "uid": "AGXA6O6UXUCKEWE54LC5I3Q6WUWA",
+      "asin": "B0042D69V0",
+      "n_sents": 11
+    },
+    {
+      "uid": "AFYUQSM6M476CL75LBXTC5GZVFFA",
+      "asin": "B01MQM7W6M",
+      "n_sents": 41
+    },
+    {
+      "uid": "AF7BQYXUAHCQOXIR6VGIMX2OWFZQ",
+      "asin": "B00YBADM1O",
+      "n_sents": 32
+    }
+  ]
+}
