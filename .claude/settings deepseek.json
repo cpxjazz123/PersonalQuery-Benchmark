@@ -1,0 +1,71 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk-ad65c510b5a54de7867f54c289122979",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_SMALL_FAST_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "384000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "MultiEdit(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "NotebookRead(*)",
+      "NotebookEdit(*)",
+      "Edit(*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "bypassPermissions",
+    "additionalDirectories": [
+      "/home/wlia0047/ar57/wenyu/.claude/skills/PersoanlQuery/06_query",
+      "/fs04/ar57/wenyu/.claude/skills/PersoanlQuery/06_query",
+      "/home/wlia0047/.claude/backups"
+    ],
+    "bypassPermissions": true,
+    "dangerouslySkipPermissions": true,
+    "bypassPermissionsModeAccepted": true,
+    "skipDangerousModePermissionPrompt": true,
+    "allowedTools": [
+      "Task",
+      "Bash",
+      "Bash(git log:*)",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "hasCompletedOnboarding": true
+  },
+  "model": "sonnet",
+  "extraKnownMarketplaces": {
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
+      }
+    },
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    }
+  },
+  "language": "chinese",
+  "skipDangerousModePermissionPrompt": true
+}
