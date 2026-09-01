@@ -28,29 +28,30 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
   5. `!has_self_talk`(`can someone help`、`thanks!`、`let's try again`、`just those exact attributes` 等自言自语)
   6. `len(query) ≤ MAX_QUERY_TOKENS=60`(避免 80+ token 长尾失控污染 strict 池)
 
-## 规范目录结构(2026-08-29 整理后)
+## 规范目录结构(2026-09-01 更新)
 
-**每个功能目录 = 1 个主脚本**(共 6 个)。所有 ablation/legacy 脚本已归档删除,git history 保留可查:
+**每个功能目录 = 1 个主脚本**(共 6 个)。gaussian/ 目录包含两类独立研究脚本:
 
 - `attribute_extraction/`:商品属性抽取
-- `gaussian/`:用户 cohort 构建 + per-user Gaussian 拟合
+- `gaussian/`:用户 cohort 构建 + per-user Gaussian 拟合(Stage 3 用) + VADES σ_u 研究脚本
 - `gen_query/` `select_query/` `syntactic_evaluation/`:各 stage 主脚本
 - `common/` / `syntactic_analysis/`:共享底座或预留目录
 
 ```
 attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
 common/                 syntax_subspace_utils.py                  (318d features + paths)
-gaussian/               build_user.py                             (Phase 1: Steps 2+4 cohort + Phase 2: Stage 3 Gaussian)
+gaussian/               build_user.py                             (Stage 3: cohort + per-user Gaussian for pipeline)
+gaussian/               vades_main.py                             (Phase 8.G: VADES σ_u 研究 — Vector baseline 30.4% + Calibrated sigma)
 gen_query/              syntax_subspace_pool_regen.py             (Stage 1: pool generation only)
 select_query/           syntax_subspace_select_strict_alignment.py  (Stage 2 spaCy features + Stage 4 strict alignment)
 syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
 
-**目录职责(2026-08-29 合并后)**:
+**目录职责**:
 - `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user.py` 的 Phase 1 Step 4 共用。
-- `gaussian/build_user.py`: 用户相关操作的单一入口。Phase 1 = Steps 2+4(评论扫描 + ASIN cohort,每 ASIN top-5 非数值 attrs 对齐 Stage 1 N_INPUT=5),Phase 2 = Stage 3(per-user Gaussian)。两 phase 自动检测 signature,命中 cache 跳过。
-  - Step 3(build_query_records + query_records_10k.json)已删除(2026-08-29):无 consumer,Rule 7 禁止保留 dead code。
+- `gaussian/build_user.py`: Stage 3 pipeline 入口。Phase 1 = 评论扫描 + ASIN cohort; Phase 2 = per-user Gaussian。两 phase 自动检测 signature,命中 cache 跳过。
+- `gaussian/vades_main.py`: **Phase 8.G 独立研究脚本**。结论: σ_u 可被校准为"用户写作风格变化范围"(Corr≈0.99, MAE≈0.024, Bias≈0, Sharpness≈0.90),但不服务用户识别(Vector 30.4% > 所有 Gaussian 变体)。此脚本是 sigma 校准研究,不影响 Stage 3 pipeline。
 - **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user.py`(Phase 1 + Phase 2)。`build_user.py` Phase 1 会自动检测 `result/product_attributes.json`,缺失则报错。
 
 ## 前置检查
@@ -179,6 +180,11 @@ stage_features()
 ### Stage 3: per-user Gaussians(Stage 3 of 5)
 
 `gaussian/build_user.py` 同时跑 Phase 1(cohort)+ Phase 2(Gaussian)。若 Phase 1 缓存命中(只跑 Phase 2)同样合法:
+
+**附:σ_u 研究结论**(Phase 8.G,`gaussian/vades_main.py`):
+- σ_u 可被校准为"用户写作风格变化范围":Corr≈0.99, MAE≈0.024, Bias≈0, Sharpness≈0.90
+- σ_u 不服务用户识别:Vector baseline(μ-only) 30.4% > 所有 Gaussian 变体(≤29.1%)
+- 解释:G_u = N(μ_u, σ_u²),μ_u = "这是谁",σ_u = "这个用户风格变化多大"
 
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
