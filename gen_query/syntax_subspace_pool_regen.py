@@ -2,7 +2,9 @@
 
 两步生成：
   Step 1: vLLM 生成含 N=5 属性的基础 query
-  Step 2: TinyStyler 用 per-user 风格向量改写基础 query
+  Step 2: TinyStyler 用纯 μ（无噪声）风格向量改写基础 query
+
+多候选 rerank（N_CAND 采样）建议在下游评估阶段做，避免 do_sample=True 破坏 strict 率。
 
 用法:
   python gen_query/syntax_subspace_pool_regen.py --stage pool_regen
@@ -23,6 +25,7 @@ import numpy as np
 import torch
 import os
 import requests
+from sentence_transformers import SentenceTransformer
 
 # 常量
 HF_HOME = '/fs04/ar57/wenyu/.cache/huggingface'
@@ -229,48 +232,52 @@ def _load_tinystyler():
 
 
 def tinystyler_rewrite(base_queries: List[str], style_vectors: np.ndarray,
-                       ts_model, t5_tokenizer, batch_size: int = 32) -> List[str]:
-    """TinyStyler 用风格向量改写基础 query。
+                       ts_model, t5_tokenizer, mu_768: np.ndarray,
+                       wegmann, batch_size: int = 32) -> List[str]:
+    """TinyStyler 用纯 μ 风格向量改写基础 query。
 
-    TinyStyler.generate() 内部: proj(style * alpha) -> prepend 1 token -> concat with input_embeds -> decode
-    输入是 base query text, T5 encoder 将其编码后再注入风格信号。
+    使用贪心解码（do_sample=False）保 strict 率；
+    rerank 在 strict 通过的候选中选 d_self 最近的那条。
     """
     n = len(base_queries)
     outputs = []
     pad_id = t5_tokenizer.pad_token_id or 0
-    H = ts_model.proj.weight.shape[0]   # 1024
 
     t_start = time.time()
+
+    all_toks = [t5_tokenizer(t, padding=False, truncation=True, max_length=256)['input_ids']
+                for t in base_queries]
+    max_len = max(len(t) for t in all_toks)
+
+    def _make_ids_mask(tok_list):
+        ids = torch.full((len(tok_list), max_len), pad_id, dtype=torch.long, device='cuda:0')
+        mask = torch.zeros((len(tok_list), max_len), dtype=torch.long, device='cuda:0')
+        for i, t in enumerate(tok_list):
+            ids[i, :len(t)] = torch.tensor(t, dtype=torch.long, device='cuda:0')
+            mask[i, :len(t)] = 1
+        return ids, mask
+
+    input_ids, attn_mask = _make_ids_mask(all_toks)
+    style_scaled = torch.from_numpy(style_vectors).to('cuda:0') * STYLE_ALPHA
+
     for start in range(0, n, batch_size):
         end = min(start + batch_size, n)
         bsz = end - start
-        texts = base_queries[start:end]
-        z_batch = style_vectors[start:end]
 
-        # tokenize base queries
-        toks = [t5_tokenizer(t, padding=False, truncation=True, max_length=256)['input_ids'] for t in texts]
-        max_len = max(len(t) for t in toks)
-        input_ids = torch.full((bsz, max_len), pad_id, dtype=torch.long, device='cuda:0')
-        attn_mask = torch.zeros((bsz, max_len), dtype=torch.long, device='cuda:0')
-        for i, t in enumerate(toks):
-            input_ids[i, :len(t)] = torch.tensor(t, dtype=torch.long, device='cuda:0')
-            attn_mask[i, :len(t)] = 1
-
-        # style embedding
-        style_in = torch.from_numpy(z_batch).to('cuda:0')
-        style_scaled = style_in * STYLE_ALPHA
+        ids_b = input_ids[start:end]
+        mask_b = attn_mask[start:end]
+        style_b = style_scaled[start:end]
 
         with torch.no_grad():
-            out_ids = ts_model.generate(
-                input_ids, attn_mask,
-                style=style_scaled,
+            out = ts_model.generate(
+                ids_b, mask_b, style=style_b,
                 max_new_tokens=MAX_NEW_TOKENS,
                 do_sample=False,
-                repetition_penalty=1.2,  # 防止 T5 贪婪解码时重复生成同一短语
+                repetition_penalty=1.2,
             )
 
         for i in range(bsz):
-            text = t5_tokenizer.decode(out_ids[i], skip_special_tokens=True).strip()
+            text = t5_tokenizer.decode(out[i], skip_special_tokens=True).strip()
             outputs.append(text)
 
         done = end
@@ -313,6 +320,12 @@ def stage_pool_regen():
     # -- 加载模型 -----------------------------------------------------------
     ts_model, t5_tokenizer = _load_tinystyler()
 
+    # -- 加载 Wegmann（用于 rerank selection） -------------------------------
+    log("  Loading Wegmann for rerank selection ...")
+    wegmann = SentenceTransformer("AnnaWegmann/Style-Embedding", device="cuda:0")
+    wegmann.eval()
+    for p in wegmann.parameters(): p.requires_grad_(False)
+
     # -- 构建任务 -----------------------------------------------------------
     asin_attrs = {a: _get_top_n(pattrs[a], N_INPUT) for a in asin_list}
     jobs = [(a, asin_attrs[a]) for a in asin_list for _ in range(K_POOL)]
@@ -328,13 +341,13 @@ def stage_pool_regen():
     base_queries = vllm_generate(vllm_prompts)
     log(f"  vLLM done: {len(base_queries)} base queries")
 
-    # -- Step 2: 采样风格向量 + TinyStyler 改写 ------------------------------
-    log("[Step 2] TinyStyler rewriting with style vectors ...")
+    # -- Step 2: 纯 μ 风格向量 + TinyStyler 多候选 rerank -----------------
+    log("[Step 2] TinyStyler reranking with style vectors ...")
     uidxs = rng.integers(0, n_users, size=len(jobs))
     mu_batch = mu_768[uidxs].astype(np.float32)
     z_style = mu_batch  # 纯 μ（无噪声），alpha=1.0 已在诊断中确认 d_self↓ + P=100%
 
-    styled_queries = tinystyler_rewrite(base_queries, z_style, ts_model, t5_tokenizer)
+    styled_queries = tinystyler_rewrite(base_queries, z_style, ts_model, t5_tokenizer, mu_batch, wegmann)
     log(f"  TinyStyler done: {len(styled_queries)} styled queries")
 
     # -- 5 层 strict filter ------------------------------------------------
