@@ -283,6 +283,244 @@ def per_sentence_features_v2(sent):
     feats["n_punct_total"] = sum(1 for c in text if c in ",.;:!?\"'-()")
     for p in PUNCT_TAGS:
         feats[f"punct_{p}"] = text.count(p)
+
+    # ── New structural features ────────────────────────────────────────────────────────
+
+    # Subtree / tree-shape statistics
+    def subtree_size(t):
+        return 1 + sum(subtree_size(c) for c in t.children)
+    subtree_sizes = [subtree_size(t) for t in sent]
+    feats["subtree_mean"] = float(np.mean(subtree_sizes)) if subtree_sizes else 0.0
+    feats["subtree_max"] = max(subtree_sizes) if subtree_sizes else 0
+    feats["subtree_std"] = float(np.std(subtree_sizes)) if len(subtree_sizes) > 1 else 0.0
+    n_leaf = sum(1 for t in sent if len(list(t.children)) == 0)
+    feats["leaf_ratio"] = n_leaf / max(len(sent), 1)
+
+    # Branching factor
+    n_internal = len(sent) - n_leaf
+    feats["branch_factor"] = (len(sent) - 1) / max(n_internal, 1)
+
+    # Coordination structure
+    n_conj = sum(1 for t in sent if t.dep_ == "conj")
+    feats["n_conj"] = n_conj
+    feats["has_conj_and"] = int(any(t.text.lower() == "and" for t in sent if t.dep_ == "cc"))
+    feats["has_conj_or"] = int(any(t.text.lower() in ("or", "nor") for t in sent if t.dep_ == "cc"))
+
+    # Prepositional phrase / pobj
+    n_pobj = sum(1 for t in sent if t.dep_ == "pobj")
+    n_pp = sum(1 for t in sent if t.dep_ in ("prep",))
+    feats["n_pobj"] = n_pobj
+    feats["n_pp"] = n_pp
+    feats["pp_depth"] = sum(1 for t in sent if t.dep_ == "prep")
+
+    # Noun phrase chunks (spaCy noun_chunks API)
+    np_chunks = list(sent.doc.noun_chunks)
+    feats["n_np_chunks"] = len(np_chunks)
+    feats["np_chunk_width_mean"] = float(np.mean([len(list(nc.root.subtree)) for nc in np_chunks])) if np_chunks else 0.0
+    n_noun = sum(1 for t in sent if t.pos_ == "NOUN")
+    feats["n_noun"] = n_noun
+    feats["mod_per_noun"] = feats["n_mod"] / max(n_noun, 1)
+
+    # Verb phrase / auxiliary complexity
+    verbs = [t for t in sent if t.pos_ == "VERB"]
+    feats["n_verb"] = len(verbs)
+    n_aux = sum(1 for t in sent if t.pos_ == "AUX")
+    feats["n_aux"] = n_aux
+    feats["vp_complexity"] = n_aux / max(len(verbs), 1)
+
+    # Wh-movement
+    wh_words = ("who", "what", "where", "when", "why", "how", "which", "whom", "whose")
+    feats["is_wh_question"] = int(any(t.text.lower().rstrip("?") in wh_words for t in sent))
+
+    # Morphological richness
+    lemmas = set(t.lemma_.lower() for t in sent if not t.is_punct and not t.is_space)
+    feats["type_token_ratio"] = len(lemmas) / max(len([t for t in sent if not t.is_punct and not t.is_space]), 1)
+
+    # Stop-word / content-word ratio
+    stop_words = {"the", "a", "an", "of", "in", "on", "at", "to", "for", "and", "or", "but", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "shall", "can", "i", "you", "he", "she", "it", "we", "they", "my", "your", "his", "her", "its", "our", "their", "this", "that", "these", "those"}
+    tokens_non_punct = [t for t in sent if not t.is_punct and not t.is_space]
+    feats["stop_word_ratio"] = sum(1 for t in tokens_non_punct if t.text.lower() in stop_words) / max(len(tokens_non_punct), 1)
+    feats["content_word_ratio"] = 1 - feats["stop_word_ratio"]
+
+    # Word-length statistics
+    word_lens = [len(t.text) for t in sent if not t.is_space]
+    feats["mean_word_len"] = float(np.mean(word_lens)) if word_lens else 0.0
+    feats["max_word_len"] = max(word_lens) if word_lens else 0
+    feats["word_len_std"] = float(np.std(word_lens)) if len(word_lens) > 1 else 0.0
+
+    # Punctuation patterns
+    feats["comma_per_clause"] = text.count(",") / max(feats["n_clause"], 1)
+    feats["has_dash"] = int("-" in text or "—" in text)
+    feats["has_quote"] = int("'" in text or '"' in text)
+    feats["has_ellipsis"] = int("..." in text)
+
+    # Readability proxies (no semantic knowledge needed)
+    feats["flesch_approx"] = (206.835 - 1.015 * feats["n_tok"] / max(feats["n_clause"], 1) - 84.6 * sum(1 for t in sent if t.pos_ == "VERB") / max(feats["n_clause"], 1)) if feats["n_clause"] > 0 else 0.0
+
+    # ARIndex approximation
+    feats["ari_approx"] = (4.71 * sum(word_lens) / max(len(word_lens), 1) + 0.5 * feats["n_tok"] / max(feats["n_clause"], 1) - 21.43) if feats["n_clause"] > 0 else 0.0
+
+    # Expanded dependency counts
+    feats["dep_nsubj_count"] = sum(1 for t in sent if t.dep_ == "nsubj")
+    feats["dep_nsubjpass_count"] = sum(1 for t in sent if t.dep_ == "nsubjpass")
+    feats["dep_nummod_count"] = sum(1 for t in sent if t.dep_ == "nummod")
+
+    # Left/right branching
+    feats["is_left_branching"] = int(feats["subtree_max"] > feats.get("subtree_mean", 0) * 1.5) if feats.get("subtree_mean", 0) > 0 else 0
+
+    # Prefix/suffix features
+    if toks:
+        first_tok = toks[0]
+        feats["prefix_2"] = first_tok.prefix_ if hasattr(first_tok, "prefix_") else ""
+        feats["suffix_2"] = first_tok.suffix_ if hasattr(first_tok, "suffix_") else ""
+
+    # Conjoin complexity
+    feats["n_conj_per_conj"] = feats["n_conj"] / max(feats["n_coord"], 1)
+
+    # Sentence length buckets
+    feats["len_bucket_10"] = int(feats["n_tok"] <= 10)
+    feats["len_bucket_20"] = int(10 < feats["n_tok"] <= 20)
+    feats["len_bucket_30"] = int(20 < feats["n_tok"] <= 30)
+    feats["len_bucket_40"] = int(30 < feats["n_tok"] <= 40)
+    feats["len_bucket_50"] = int(feats["n_tok"] > 40)
+
+    # Embed depth from root
+    root_depths = []
+    for t in sent:
+        depth = 0
+        cur = t
+        while cur.head != cur and cur.head is not None:
+            depth += 1
+            cur = cur.head
+            if depth > 100:
+                break
+        root_depths.append(depth)
+    feats["mean_root_depth"] = float(np.mean(root_depths)) if root_depths else 0.0
+    feats["max_root_depth"] = max(root_depths) if root_depths else 0
+
+    # ── More structural: subtree quantiles ────────────────────────────────────────────
+    if subtree_sizes:
+        sorted_ss = sorted(subtree_sizes)
+        n = len(sorted_ss)
+        feats["subtree_p25"] = sorted_ss[int(n * 0.25)]
+        feats["subtree_p50"] = sorted_ss[int(n * 0.50)]
+        feats["subtree_p75"] = sorted_ss[int(n * 0.75)]
+        feats["subtree_iqr"] = feats["subtree_p75"] - feats["subtree_p25"]
+        mean_ss = np.mean(subtree_sizes)
+        var_ss = np.var(subtree_sizes) if len(subtree_sizes) > 1 else 0.0
+        feats["subtree_skew"] = float(np.mean([((s - mean_ss) ** 3) / max(var_ss ** 1.5, 1e-9) for s in subtree_sizes])) if var_ss > 1e-9 else 0.0
+    else:
+        feats["subtree_p25"] = feats["subtree_p50"] = feats["subtree_p75"] = 0.0
+        feats["subtree_iqr"] = feats["subtree_skew"] = 0.0
+
+    # ── Word shape patterns ─────────────────────────────────────────────────────────────
+    def word_shape(t):
+        s = t.text
+        if s.isupper(): return "UPPER"
+        if s.islower(): return "lower"
+        if s.istitle(): return "Title"
+        if s.isdigit(): return "digit"
+        if s.isalpha(): return "mixed"
+        return "other"
+    shape_counts = Counter(word_shape(t) for t in toks)
+    for ws in ("lower", "Title", "UPPER", "digit", "mixed", "other"):
+        feats[f"shape_{ws}"] = shape_counts.get(ws, 0)
+
+    # ── More punctuation ───────────────────────────────────────────────────────────────
+    feats["n_semicol"] = text.count(";")
+    feats["n_colon"] = text.count(":")
+    feats["excl_per_clause"] = text.count("!") / max(feats["n_clause"], 1)
+    feats["n_multi_punct"] = sum(1 for i in range(1, len(text)) if text[i] == text[i-1] and text[i] in "!?.")
+    feats["n_question"] = text.count("?")
+    feats["capitalized_ratio"] = sum(1 for t in toks if t.text[0].isupper() if t.text) / max(len(toks), 1)
+    feats["all_caps_words"] = sum(1 for t in toks if t.text.isupper() and len(t.text) > 1)
+    feats["has_paren"] = int("(" in text or ")" in text)
+    feats["paren_depth"] = max(0, sum(1 for c in text if c == "(") - sum(1 for c in text if c == ")"))
+
+    # ── More dependency relation features ─────────────────────────────────────────────
+    n_tok_safe = max(len(sent), 1)
+    extra_deps = ("det", "case", "amod", "advmod", "nmod", "compound", "flat", "mark", "ccomp", "orphan", "agent")
+    for d in extra_deps:
+        feats[f"dep_{d}_count"] = sum(1 for t in sent if t.dep_ == d)
+    # Ratios
+    feats["det_per_noun"] = feats.get("dep_det_count", 0) / max(n_noun, 1)
+    feats["case_per_noun"] = feats.get("dep_case_count", 0) / max(n_noun, 1)
+    feats["amod_per_noun"] = feats.get("dep_amod_count", 0) / max(n_noun, 1)
+    feats["advmod_per_verb"] = feats.get("dep_advmod_count", 0) / max(len(verbs), 1)
+    feats["compound_per_noun"] = feats.get("dep_compound_count", 0) / max(n_noun, 1)
+    feats["dep_diversity"] = len(set(t.dep_ for t in sent)) / n_tok_safe
+    feats["n_dep_relations"] = len(set(t.dep_ for t in sent))
+
+    # ── Tree width at each depth ───────────────────────────────────────────────────────
+    depth_to_width = {}
+    for t, d in zip(sent, root_depths):
+        depth_to_width[d] = depth_to_width.get(d, 0) + 1
+    if depth_to_width:
+        widths = list(depth_to_width.values())
+        feats["tree_width_max"] = max(widths)
+        feats["tree_width_mean"] = float(np.mean(widths))
+        feats["tree_depth_to_width_ratio"] = feats["max_root_depth"] / max(feats["tree_width_max"], 1)
+    else:
+        feats["tree_width_max"] = feats["tree_width_mean"] = 0.0
+        feats["tree_depth_to_width_ratio"] = 0.0
+
+    # ── Entropy of POS and dep distributions ───────────────────────────────────────────
+    pos_counter = Counter(t.pos_ for t in sent)
+    dep_counter = Counter(t.dep_ for t in sent)
+    def entropy(counter):
+        total = sum(counter.values())
+        if total == 0: return 0.0
+        probs = [c / total for c in counter.values()]
+        return -sum(p * np.log2(max(p, 1e-9)) for p in probs)
+    feats["pos_entropy"] = entropy(pos_counter)
+    feats["dep_entropy"] = entropy(dep_counter)
+    feats["pos_diversity"] = len(pos_counter) / n_tok_safe
+    feats["dep_diversity_overall"] = len(dep_counter) / n_tok_safe
+
+    # ── Chunk / span features ─────────────────────────────────────────────────────────
+    if len(toks) >= 3:
+        chunk_size = max(1, len(toks) // 3)
+        feats["chunk_begin_width"] = len([t for t in toks[:chunk_size] if not t.is_space])
+        feats["chunk_mid_width"] = len([t for t in toks[chunk_size:2*chunk_size] if not t.is_space])
+        feats["chunk_end_width"] = len([t for t in toks[2*chunk_size:] if not t.is_space])
+        feats["chunk_begin_ratio"] = feats["chunk_begin_width"] / max(len(toks), 1)
+        feats["chunk_end_ratio"] = feats["chunk_end_width"] / max(len(toks), 1)
+    else:
+        feats["chunk_begin_width"] = feats["chunk_mid_width"] = feats["chunk_end_width"] = 0
+        feats["chunk_begin_ratio"] = feats["chunk_end_ratio"] = 0.0
+
+    # ── Word length quantiles ─────────────────────────────────────────────────────────
+    if word_lens:
+        sorted_lens = sorted(word_lens)
+        n = len(sorted_lens)
+        feats["word_len_p25"] = sorted_lens[int(n * 0.25)]
+        feats["word_len_p75"] = sorted_lens[int(n * 0.75)]
+        feats["word_len_iqr"] = feats["word_len_p75"] - feats["word_len_p25"]
+        feats["word_len_range"] = max(word_lens) - min(word_lens)
+    else:
+        feats["word_len_p25"] = feats["word_len_p75"] = feats["word_len_iqr"] = feats["word_len_range"] = 0.0
+
+    # ── Gini coefficient of word lengths ───────────────────────────────────────────────
+    if word_lens and len(word_lens) > 1:
+        sorted_lens_s = sorted(word_lens)
+        n = len(sorted_lens_s)
+        cum = np.cumsum(sorted_lens_s)
+        feats["gini_word_len"] = (2 * np.sum((np.arange(1, n+1) * sorted_lens_s)) - (n + 1) * cum[-1]) / (n * cum[-1]) if cum[-1] > 0 else 0.0
+    else:
+        feats["gini_word_len"] = 0.0
+
+    # ── Capitalization of first word ─────────────────────────────────────────────────
+    feats["first_word_lower"] = int(toks[0].text[0].islower()) if toks and toks[0].text else 0
+    feats["first_word_upper"] = int(toks[0].text[0].isupper()) if toks and toks[0].text else 0
+
+    # ── Sentence-end punctuation type ────────────────────────────────────────────────
+    text_stripped = text.rstrip()
+    feats["ends_period"] = int(text_stripped.endswith("."))
+    feats["ends_excl"] = int(text_stripped.endswith("!"))
+    feats["ends_quest"] = int(text_stripped.endswith("?"))
+    feats["ends_comma"] = int(text_stripped.endswith(","))
+    feats["ends_ellipsis"] = int(text_stripped.endswith("..."))
+
     return feats
 
 

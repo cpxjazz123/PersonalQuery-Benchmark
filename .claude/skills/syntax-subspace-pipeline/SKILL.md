@@ -28,31 +28,45 @@ description: 跑全 5-stage Syntax Subspace 流水线。Stage 1 默认 N=5 attrs
   5. `!has_self_talk`(`can someone help`、`thanks!`、`let's try again`、`just those exact attributes` 等自言自语)
   6. `len(query) ≤ MAX_QUERY_TOKENS=60`(避免 80+ token 长尾失控污染 strict 池)
 
-## 规范目录结构(2026-09-01 更新)
+## 规范目录结构(2026-09-02 更新)
 
-**每个功能目录 = 1 个主脚本**(共 6 个)。gaussian/ 目录包含两类独立研究脚本:
-
-- `attribute_extraction/`:商品属性抽取
-- `gaussian/`:用户 cohort 构建 + per-user Gaussian 拟合(Stage 3 用) + VADES σ_u 研究脚本
-- `gen_query/` `select_query/` `syntactic_evaluation/`:各 stage 主脚本
-- `common/` / `syntactic_analysis/`:共享底座或预留目录
+**每个功能目录 = 1 个主脚本**(共 5 个)。
 
 ```
-attribute_extraction/   extract_product_attrs.py                  (Step 1: product attrs + select_top_attrs 工具)
-common/                 syntax_subspace_utils.py                  (318d features + paths)
-gaussian/               build_user.py                             (Stage 3: cohort + per-user Gaussian for pipeline)
-gaussian/               vades_main.py                             (Phase 8.G: VADES σ_u 研究 — Vector baseline 30.4% + Calibrated sigma)
-gen_query/              syntax_subspace_pool_regen.py             (Stage 1: pool generation only)
-select_query/           syntax_subspace_select_strict_alignment.py  (Stage 2 spaCy features + Stage 4 strict alignment)
-syntactic_evaluation/   syntax_subspace_retrieval_unified.py      (Stage 5: 7-retriever, NO rerank)
+attribute_extraction/   extract_product_attrs.py              (Step 1: product attrs + select_top_attrs 工具)
+common/                 syntax_subspace_utils.py              (318d features + paths)
+gaussian/               vades_pipeline.py                    (VADES 完整流水线: Stage 1-4 全合一)
+gen_query/              syntax_subspace_pool_regen.py         (Stage 1: pool generation only)
+select_query/           syntax_subspace_select_strict_alignment.py (Stage 2 spaCy features + Stage 4 strict alignment)
+syntactic_evaluation/   syntax_subspace_retrieval_unified.py (Stage 5: 7-retriever, NO rerank)
 syntactic_analysis/     (空)
 ```
 
 **目录职责**:
-- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/build_user.py` 的 Phase 1 Step 4 共用。
-- `gaussian/build_user.py`: Stage 3 pipeline 入口。Phase 1 = 评论扫描 + ASIN cohort; Phase 2 = per-user Gaussian。两 phase 自动检测 signature,命中 cache 跳过。
-- `gaussian/vades_main.py`: **Phase 8.G 独立研究脚本**。结论: σ_u 可被校准为"用户写作风格变化范围"(Corr≈0.99, MAE≈0.024, Bias≈0, Sharpness≈0.90),但不服务用户识别(Vector 30.4% > 所有 Gaussian 变体)。此脚本是 sigma 校准研究,不影响 Stage 3 pipeline。
-- **运行顺序**: 先 `python attribute_extraction/extract_product_attrs.py`(Step 1) → 再 `python gaussian/build_user.py`(Phase 1 + Phase 2)。`build_user.py` Phase 1 会自动检测 `result/product_attributes.json`,缺失则报错。
+- `attribute_extraction/`: 仅做商品属性抽取(Step 1)。`select_top_attrs()` 是工具函数,供下游 `gaussian/vades_pipeline.py` 共用。
+- `gaussian/vades_pipeline.py`: VADES 完整四阶段流水线:
+  - Stage 1: 训练 VADESSigma (μ_u, σ_u，64d)
+  - Stage 2: 冻结 μ_u，训练 σ_u 回归
+  - Stage 3: 训练 StyleMapper (64d→768d)
+  - Stage 4: TinyStyler 生成 + Wegmann 768d 验证
+    **核心结论**（2026-09-02）:
+    - TinyStyler 归一化注入（z/||z||）将风格向量压缩到单位球面，抹掉 dispersion 信息
+    - 真实文本: σ_Wegmann → dispersion_real ρ=1.0000（定义性）
+    - TinyStyler 生成: dispersion_gen = 0.72 × dispersion_real（压缩72%）
+    - σ_Wegmann → dispersion_gen ρ≈-0.11（不相关）
+    - **σ_Wegmann → centroid_offset ρ=0.62, p<1e-7（统计显著✓）**
+      高 σ 用户生成文本的 centroid 相对真实 centroid 偏移更大，这是 σ 的真实信号通道
+- `gen_query/`: Stage 1 pool generation
+- `select_query/`: Stage 2 + Stage 4
+- `syntactic_evaluation/`: Stage 5
+
+**运行顺序**:
+```
+Step 1 → attribute_extraction/extract_product_attrs.py
+Stage 1 → gen_query/syntax_subspace_pool_regen.py --stage pool_regen
+Stage 2+3+4 → gaussian/vades_pipeline.py  (VADES 完整流水线)
+Stage 5 → syntactic_evaluation/syntax_subspace_retrieval_unified.py
+```
 
 ## 前置检查
 
@@ -106,27 +120,33 @@ ls -la /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json
 # Step 1 — 商品属性抽取
 /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
   attribute_extraction/extract_product_attrs.py
-
-# Phase 1 + Phase 2 — 用户 cohort 构造 + per-user Gaussian 拟合(单脚本)
-/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  gaussian/build_user.py
 ```
-`build_user.py` Phase 1 自动检测 `result/product_attributes.json`(缺失则报错),Phase 2 自动检测 `scratch2/stage8_5_user_gaussians.json` signature(命中跳过)。
 
 ## 路径约定(Rule 13/16)
 
-- **Inputs**(`/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_asins.json` + `data/`):只读
+- **Inputs**(`scratch2/wenyu/gaussian_vades/stage8_5_asins.json` + `data/`):只读
 - **Intermediate cache**:
   - `select_query/stage7b_query_features.jsonl.gz`(用户指令 2026-08-29: Stage 2 cache 与 Stage 4 同模块,搬到 `select_query/` 目录下)
   - `scratch2/stage8_5_selection.json` + `stage8_5_selection_stats.json`(Stage 4)
   - `scratch2/stage8_5_retrieval_per_query.json` + `multiretrieval_embeds/<retr_name>/`(Stage 5)
+  - `gaussian_vades/phase8h_vades.pt`(Stage 1 checkpoint)
+  - `gaussian_vades/phase8h_style_mapper.pt`(Stage 3 checkpoint)
 - **Final results**(`/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/<name>.json`):
   - `result/gen_query/pool.json`
-  - `scratch2/stage8_5_user_gaussians.json`(Stage 3 — 用户 metadata >1.5GB,Rule 10 放 scratch2 不放 result/)
+  - `result/gaussian/vades_pipeline_results.json`
   - `result/syntactic_evaluation/retrieval_summary.json`(7 retriever volatility only)
   - `result/syntactic_evaluation/volatility.json`(canonical BM25+MiniLM slice)
 
 ## 跑 5 stages
+
+### Step 1: 商品属性抽取
+
+```bash
+cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
+  attribute_extraction/extract_product_attrs.py \
+  > /home/wlia0047/hj82_scratch2/wenyu/logs/step1_attrs.log 2>&1 &
+```
 
 ### Stage 1: vLLM pool generation(Stage 1 of 5)
 
@@ -177,31 +197,43 @@ stage_features()
 "
 ```
 
-### Stage 3: per-user Gaussians(Stage 3 of 5)
+### Stage 3: VADES Pipeline — gaussian/vades_pipeline.py(Stage 3 of 5)
 
-`gaussian/build_user.py` 同时跑 Phase 1(cohort)+ Phase 2(Gaussian)。若 Phase 1 缓存命中(只跑 Phase 2)同样合法:
+`gaussian/vades_pipeline.py` 是 VADES 完整流水线,包含四个子阶段:
 
-**附:σ_u 研究结论**(Phase 8.G,`gaussian/vades_main.py`):
-- σ_u 可被校准为"用户写作风格变化范围":Corr≈0.99, MAE≈0.024, Bias≈0, Sharpness≈0.90
-- σ_u 不服务用户识别:Vector baseline(μ-only) 30.4% > 所有 Gaussian 变体(≤29.1%)
-- 解释:G_u = N(μ_u, σ_u²),μ_u = "这是谁",σ_u = "这个用户风格变化多大"
+**Stage 3.1**: 训练 VADESSigma (μ_u, σ_u) → 保存 `phase8h_vades.pt`
+**Stage 3.2**: 冻结 μ_u，训练 σ_u 回归 → 保存 `phase8h_vades_sigma.pt`
+**Stage 3.3**: 训练 StyleMapper (64d→768d) → 保存 `phase8h_style_mapper.pt`
+**Stage 3.4**: TinyStyler 个性化生成 + Wegmann 768d 三指标验证
 
 ```bash
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
-  gaussian/build_user.py \
-  > /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log 2>&1 &
+  gaussian/vades_pipeline.py \
+  > /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_vades_pipeline.log 2>&1 &
 ```
+
+**预计时间**:约 40 分钟
 
 **轮询**:
 ```bash
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  sleep 60; tail -n 3 /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log
-  if grep -qE "wrote →|Phase 2 CACHE HIT" /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_user_gaussians.log; then break; fi
+  sleep 120; tail -n 5 /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_vades_pipeline.log
+  if grep -q "VADES PIPELINE COMPLETE" /home/wlia0047/hj82_scratch2/wenyu/logs/stage3_vades_pipeline.log; then break; fi
 done
 ```
 
-**完成标志**:`stage3_user_gaussians.log` 含 `wrote → ...scratch2/stage8_5_user_gaussians.json`,或 `Phase 2 CACHE HIT` 表示已缓存跳过。
+**完成标志**:日志含 `VADES PIPELINE COMPLETE` + 核心指标:
+- (a) Style adherence: cos ≥ 0.98 为佳
+- (b) σ_Wegmann → dispersion_real: ρ=1.0000（定义性 sanity check）
+- (c) σ_Wegmann → dispersion_gen: ρ≈-0.11（归一化压缩，无关）
+- (d) **σ_Wegmann → centroid_offset: ρ=0.62, p<1e-7（统计显著✓）**
+
+**输出文件**:
+- `gaussian_vades/phase8h_vades.pt` — VADESSigma checkpoint
+- `gaussian_vades/phase8h_vades_sigma.pt` — σ 回归 checkpoint
+- `gaussian_vades/phase8h_style_mapper.pt` — StyleMapper checkpoint
+- `result/gaussian/vades_pipeline_results.json` — Stage 4 验证结果
 
 ### Stage 4: Mahalanobis strict alignment(Stage 4 of 5)
 
@@ -275,7 +307,7 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 期望产物:
 - `result/gen_query/pool.json`(Stage 1)
 - `select_query/stage7b_query_features.jsonl.gz`(Stage 2 intermediate,在 `select_query/` 下)
-- `scratch2/stage8_5_user_gaussians.json`(Stage 3)
+- `result/gaussian/vades_pipeline_results.json`(Stage 3)
 - `scratch2/stage8_5_selection.json` + `scratch2/stage8_5_selection_stats.json`(Stage 4 intermediate)
 - `result/syntactic_evaluation/retrieval_summary.json`(Stage 5 Part B,7 retriever volatility)
 - `result/syntactic_evaluation/volatility.json`(Stage 5 canonical BM25+MiniLM slice)
@@ -300,15 +332,15 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 
 ## 规则遵守(CLAUDE.md)
 
-- Rule 3:所有参数硬编码到脚本,运行统一 `python <script>`(可选 `--stage X` 仅 Stage 1/2)。Stage 3/4/5 无参数传入
+- Rule 3:所有参数硬编码到脚本,运行统一 `python <script>`(可选 `--stage X` 仅 Stage 1)。Stage 3/4/5 无参数传入
 - Rule 7:只用 `pq_env` (`/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`)
 - Rule 8:所有 stage 用 `nohup ... &` 后台运行,**禁止 sbatch/srun**
 - Rule 9:用 `tail` + `grep` 轮询完成标志,**禁止 `sleep X; tail`** 长休眠
 - Rule 10:中间 cache + log 写 `/home/wlia0047/hj82_scratch2/wenyu/`,**最终聚合结果写 `/home/wlia0047/ar57/wenyu/PersoanlQuery/result/<dir>/`**
 - Rule 11:cwd = `/home/wlia0047/ar57/wenyu/PersoanlQuery`
-- Rule 12:脚本留在 6 个项目目录(attribute_extraction/common/gaussian/gen_query/select_query/syntactic_evaluation/),不写到 scratch2
+- Rule 12:脚本留在 5 个项目目录(attribute_extraction/common/gaussian/gen_query/select_query/syntactic_evaluation/),不写到 scratch2
 - Rule 13:`result/` 只放 JSON/NPZ/CSV/log 产物,无 .py/.sh
-- Rule 14:每个功能目录 1 个主脚本(2026-08-29 整理后)
+- Rule 14:每个功能目录 1 个主脚本(2026-09-02 整理后)
 - Rule 16:每个功能目录在 result/ 下对应单一 JSON(允许 stage 唯一 JSON + summary 配对)
 
 ## 故障排查
@@ -317,7 +349,7 @@ ls -la /home/wlia0047/ar57/wenyu/PersoanlQuery/result/*/*.json
 |------|------|
 | Stage 1 卡住 | `tail vllm_server.log`,确认 vLLM 已加载 Qwen2-7B |
 | Stage 2 OOM | spaCy n_process=8 占用过大,可改 `n_process=4` |
-| Stage 3 找不到 review | 确认 `data/Baby_Products_2023.jsonl.gz` 存在 |
+| Stage 3 卡住 | 检查 GPU 利用率,确认 TinyStyler 模型加载正常 |
 | Stage 5 GPU OOM | 减小 batch_size;SPLADE 用 chunked-stream(默认开启) |
 | Stage 5 dense retriever stale cache | 删除 `scratch2/multiretrieval_embeds/<retr_name>/query_embeds.npy` 让脚本重编码 |
 | vLLM 起不来 (flashinfer JIT nvcc 错) | `export VLLM_USE_FLASHINFER_SAMPLER=0` + `export VLLM_FLASHINFER_AUTOTUNE_SKIP_OPS="..."` 后再启 vLLM |
