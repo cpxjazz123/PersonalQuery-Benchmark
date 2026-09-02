@@ -1,10 +1,14 @@
 """
-VADES Pipeline — 完整四阶段流水线
+VADES Pipeline — Gaussian Predictive Validity 验证
+
+不经过 TinyStyler 生成，直接测 Gaussian 的 predictive validity：
+  80% 真实文本 → 拟合 N(μ_u, σ_u²)
+  20% held-out 真实文本 → 计算 dispersion → 与 σ_u 相关性
 
 Stage 1: 训练 VADESSigma（μ_u, σ_u）→ 保存 phase8h_vades.pt
 Stage 2: 冻结 μ_u，训练 σ_u 回归目标 → 保存 phase8h_vades_sigma.pt
 Stage 3: 训练 StyleMapper（64d→768d）→ 保存 phase8h_style_mapper.pt
-Stage 4: TinyStyler 个性化生成 + 三指标验证
+Stage 4: Gaussian Predictive Validity（纯净测试，无 TinyStyler 生成）
 
 依赖：
   - /home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/phase8f_style_embed_original.pkl
@@ -23,7 +27,8 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, f_oneway
+import statsmodels.api as sm
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
@@ -32,29 +37,30 @@ warnings.filterwarnings('ignore')
 # Config
 # ════════════════════════════════════════════════════════════════════════════════
 SCRATCH      = Path('/home/wlia0047/hj82_scratch2/wenyu')
-EMBED_CACHE  = SCRATCH / 'gaussian_vades/phase8f_style_embed_original.pkl'
-REVIEW_CACHE = SCRATCH / 'gaussian_vades/stage1_filtered_users_reviews_10k_dense_ge50.json'
+EMBED_CACHE  = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/user_review_sentence_extract/uid_embed_cache.pkl')
+SENT_CACHE   = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/user_review_sentence_extract/uid_to_sentences.pkl')
+RAW_DATA    = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl.gz')
 ATTR_CACHE   = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/product_attributes.json')
-VADES_PT     = SCRATCH / 'gaussian_vades/phase8h_vades.pt'
-SIGMA_PT     = SCRATCH / 'gaussian_vades/phase8h_vades_sigma.pt'
-MAPPER_PT    = SCRATCH / 'gaussian_vades/phase8h_style_mapper.pt'
+SKIP_STAGES_1_3 = False   # False = 训练 VADES/StyleMapper，Stage 4 测 predictive validity
+# 新路径（旧 gaussian_vades/ 已删除，改到这里）
+GAUSSIAN_CACHE = SCRATCH / 'gaussian_vades_cache.pkl'
+VADES_PT     = SCRATCH / 'gaussian_vades_vades.pt'
+SIGMA_PT     = SCRATCH / 'gaussian_vades_sigma.pt'
+MAPPER_PT    = SCRATCH / 'gaussian_vades_style_mapper.pt'
 QWEN_URL     = 'http://localhost:8800/v1/completions'
 QWEN_MODEL   = '/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct'
-TS_DIR       = '/fs04/ar57/wenyu/.cache/huggingface/hub/models--tinystyler--tinystyler/snapshots/2a879107b2ec342e57170b82cdc344d5179fa32b'
 
 PCA_DIM    = 128
 LATENT_DIM = 64
 HIDDEN     = 256
 WEGMANN_DIM = 768
-N_EPOCHS   = 80
+N_EPOCHS   = 40
 LR         = 1e-3
-BATCH_SIZE = 256
+BATCH_SIZE = 512
 L_SAMPLES  = 5
 SEED       = 42
 DEVICE     = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 EPS        = 1e-6
-N_SAMPLES_GEN = 30
-NEUTRAL_SOURCE = "Looking for a lightweight stroller that is easy to fold and suitable for travel."
 
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -68,37 +74,35 @@ print("\n" + "="*70)
 print("Stage 0: 加载数据")
 print("="*70)
 
+# 加载 embed 缓存（MPNet 768d → PCA 128d，1000用户×50句）
 with open(EMBED_CACHE, 'rb') as f:
     cache = pickle.load(f)
-uid_to_embed = cache['uid_to_embed']
+uid_to_embed_768 = cache['uid_to_embed_768']   # 768d 原始 MPNet（Stage 3 StyleMapper 用）
+uid_to_embed_128 = cache['uid_to_embed_128']   # 128d PCA（Stage 1 VADES 用）
+pca = cache.get('pca', None)
 
-with open(REVIEW_CACHE) as f:
-    review_data = json.load(f)
+# 加载句子缓存（原始句子文本，用于 stylometric dispersion 和 Stage 4）
+with open(SENT_CACHE, 'rb') as f:
+    uid_to_sentences_raw = pickle.load(f)
 
+# 取恰好有 100 句的用户（embed cache 前 5145 个）
+MAX_USERS = 5145
+all_cache_uids = list(uid_to_embed_128.keys())[:MAX_USERS]
+
+# Stage 1 VADESSigma 用 128d PCA embeddings
 MIN_SENTS = 10
-valid_uids = [u for u in cache['all_uids'] if u in uid_to_embed and len(uid_to_embed[u]) >= MIN_SENTS]
+valid_uids = [u for u in all_cache_uids if u in uid_to_embed_128 and len(uid_to_embed_128[u]) >= MIN_SENTS]
 uid_to_idx = {u: i for i, u in enumerate(valid_uids)}
 n_users = len(valid_uids)
 print(f"  Users: {n_users}")
 
-# PCA降维
-all_embs = np.vstack([e for el in uid_to_embed.values() for e in el])
-pca = PCA(n_components=PCA_DIM, random_state=SEED)
-pca.fit(all_embs)
-uid_to_pca = {uid: pca.transform(np.array(el)).astype(np.float32)
-               for uid, el in uid_to_embed.items() if len(el) > 0}
+# uid_to_pca = 128d（Stage 1 VADESSigma 直接用）
+uid_to_pca = {uid: np.array(uid_to_embed_128[uid], dtype=np.float32) for uid in all_cache_uids if uid in uid_to_embed_128}
 
-# 加载 sentences 用于 stylometric dispersion
+# uid_to_sentences 原始句子缓存（最多50句）
 uid_to_sentences = {}
-for entry in review_data:
-    uid = entry['user_id']
-    if uid not in uid_to_idx:
-        continue
-    sents = []
-    for rev in entry.get('reviews', []):
-        for s in rev.get('target_reviews', []):
-            sents.append(s)
-    uid_to_sentences[uid] = sents
+for uid in valid_uids:
+    uid_to_sentences[uid] = uid_to_sentences_raw.get(uid, [])[:100]
 
 # 80/20 split for dispersion supervision
 SEED_PREFIX = "vades_pipe|"
@@ -176,9 +180,12 @@ for uid, idx in uid_to_idx.items():
 # ════════════════════════════════════════════════════════════════════════════════
 # Stage 1: 训练 VADESSigma（μ_u, σ_u）
 # ════════════════════════════════════════════════════════════════════════════════
-print("\n" + "="*70)
-print("Stage 1: 训练 VADESSigma（μ_u, σ_u）")
-print("="*70)
+if SKIP_STAGES_1_3:
+    print("\n  [SKIP] Stage 1/2/3 — 直接使用经验 Gaussian")
+else:
+    print("\n" + "="*70)
+    print("Stage 1: 训练 VADESSigma（μ_u, σ_u）")
+    print("="*70)
 
 class VADESSigma(nn.Module):
     def __init__(self, n_users, in_dim=PCA_DIM, hidden=HIDDEN, latent=LATENT_DIM):
@@ -239,6 +246,7 @@ def calibration_diagnostics(sigma_per_user, disp_arr, tag):
 # 训练
 model = VADESSigma(n_users).to(DEVICE)
 VADES_PT = SCRATCH / 'gaussian_vades/phase8h_vades.pt'
+_cache_loaded = False
 if VADES_PT.exists():
     print(f"  [CACHE] Loading Stage 1 from {VADES_PT}")
     ckpt = torch.load(VADES_PT, map_location=DEVICE)
@@ -248,6 +256,7 @@ if VADES_PT.exists():
     model.doc_mu.load_state_dict(ckpt['doc_mu'])
     model.doc_lv.load_state_dict(ckpt['doc_lv'])
     print(f"  [CACHE] Stage 1 loaded (calib_corr={ckpt.get('calib_corr','?')})")
+    _cache_loaded = True
 else:
     opt = AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
     sched = CosineAnnealingLR(opt, T_max=N_EPOCHS)
@@ -268,12 +277,15 @@ else:
             av = {k: v/max(nb,1) for k,v in ep.items()}
             print(f"  ep {epoch:3d}: tot={av['tot']:.4f} id={av['id']:.4f} disp={av['disp']:.6f}")
 
-# 保存 Stage 1 checkpoint
-user_lv_np = model.user_lv.weight.detach().cpu().numpy()
-user_sigma = np.sqrt(np.maximum(np.exp(user_lv_np), 1e-6))
-sigma_mean_per_user = user_sigma.mean(axis=1)
-calib = calibration_diagnostics(sigma_mean_per_user, disp_val_arr, "val")
-print(f"  val: Corr={calib['corr']:.4f} MAE={calib['mae']:.4f} Bias={calib['bias']:+.4f} Sharp={calib['sharpness']:.4f}")
+# 保存 Stage 1 checkpoint（cache 加载时跳过 calibration，直接保存当前模型）
+if not _cache_loaded:
+    user_lv_np = model.user_lv.weight.detach().cpu().numpy()
+    user_sigma = np.sqrt(np.maximum(np.exp(user_lv_np), 1e-6))
+    sigma_mean_per_user = user_sigma.mean(axis=1)
+    calib = calibration_diagnostics(sigma_mean_per_user, disp_val_arr, "val")
+    print(f"  val: Corr={calib['corr']:.4f} MAE={calib['mae']:.4f} Bias={calib['bias']:+.4f} Sharp={calib['sharpness']:.4f}")
+else:
+    calib = {'corr': float(ckpt.get('calib_corr', 0))}
 
 torch.save({
     'user_mu': model.user_mu.weight.detach().cpu(),
@@ -296,7 +308,7 @@ print("="*70)
 # 计算每个用户的真实 embedding 方差（两个分支都用到，先提前计算）
 uid_to_target_var = {}
 for uid in valid_uids:
-    pl = uid_to_pca[uid]
+    pl = np.array(uid_to_pca[uid], dtype=np.float32)
     std_per_dim = pl.std(axis=0)
     uid_to_target_var[uid] = std_per_dim
 all_vars = np.stack([uid_to_target_var[u].mean() for u in valid_uids])
@@ -416,7 +428,7 @@ else:
 
     uid_to_wegmann_centroid = {}
     for uid in valid_uids:
-        embeds = uid_to_embed.get(uid, [])
+        embeds = uid_to_embed_768.get(uid, [])
         if len(embeds) < 5:
             continue
         uid_to_wegmann_centroid[uid] = np.stack(embeds).mean(axis=0)
@@ -477,27 +489,19 @@ else:
     print(f"  → {MAPPER_PT}")
 
 # ════════════════════════════════════════════════════════════════════════════════
-# Stage 4: TinyStyler 生成 + 三指标验证（纯 VADES + StyleMapper 链）
+# Stage 4: Gaussian Predictive Validity（纯净测试，不经过 TinyStyler）
 #
-# 编码链（无任何 T5+PCA）:
-#   text → TinyStyler T5 encode → 768d → VADES doc_net → 64d → StyleMapper → 768d Wegmann
-#
-# 三指标均在 Wegmann 768d 空间计算（与 TinyStyler injection 同一空间）:
-#   (a) Style adherence:  cos(z_injected, z_reencoded) in 768d
-#   (b) σ→Dispersion:    Corr(σ_u, Dispersion_gen) in 768d
-#   (c) User attribution: nearest μ_u^768d in 768d
+# 用 MPNet (768d) 对真实句子编码，在 Wegmann 空间测 Gaussian predictive validity
 # ════════════════════════════════════════════════════════════════════════════════
 print("\n" + "="*70)
-print("Stage 4: TinyStyler 生成 + 三指标验证（VADES+StyleMapper 链）")
+print("Stage 4: Gaussian Predictive Validity（纯净测试）")
 print("="*70)
 
-# 加载 TinyStyler
-sys.path.insert(0, TS_DIR)
-from tinystyler import get_tinystyler_model
-tinystyler_tok, tinystyler_model = get_tinystyler_model(DEVICE)
-tinystyler_model.eval()
-ts_t5 = tinystyler_model.model.encoder   # TinyStyler T5 encoder
-print("  TinyStyler loaded")
+# 加载 AnnaWegmann/Style-Embedding（ACL 2022 原生 Wegmann 模型，768d）
+from sentence_transformers import SentenceTransformer
+wegmann = SentenceTransformer('AnnaWegmann/Style-Embedding', device=DEVICE)
+wegmann.eval()
+print("  Wegmann (AnnaWegmann/Style-Embedding, 768d) loaded")
 
 # 加载 VADES doc_net（用于 768d→64d 投影）
 # 从 VADES checkpoint 取出 doc_net 结构并加载权重
@@ -540,98 +544,63 @@ vades_encoder.load_state_dict({
 vades_encoder.eval()
 print("  VADES encoder (768d→64d) loaded")
 
-# ── Stage 4a: 批量编码所有用户句子 → 768d → 64d → 768d Wegmann
-print("\n  Stage 4a: 批量编码用户句子（纯 VADES+StyleMapper 链）...")
+# ── Stage 4a: 批量编码所有用户句子 → MPNet 768d
+print("\n  Stage 4a: 批量编码用户句子（Wegmann 768d）...")
 
-def encode_sentences_to_wegmann(texts, batch_size=512):
-    """text → TinyStyler T5 → 768d → VADES doc_net → 64d → StyleMapper → 768d"""
+def encode_sentences_to_wegmann(texts, batch_size=256):
+    """text → MPNet → 768d Wegmann space"""
     all_768d = []
     for start in range(0, len(texts), batch_size):
         end = min(start + batch_size, len(texts))
         batch = texts[start:end]
-        inputs = tinystyler_tok(batch, return_tensors="pt", padding=True,
-                                truncation=True, max_length=128).to(DEVICE)
         with torch.no_grad():
-            enc = ts_t5(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-            emb_768 = enc.last_hidden_state.mean(dim=1)  # (batch, 768)
-            emb_128 = t5_to_doc(emb_768)  # (batch, 128) → VADES doc_net
-        with torch.no_grad():
-            mu_64, _ = vades_encoder(emb_128)  # (batch, 64)
-            mu_64_norm = F.normalize(mu_64, dim=-1)
-            wegmann_768 = mapper.get_style_vector(mu_64_norm)  # (batch, 768)
-        all_768d.append(wegmann_768.cpu().numpy())
+            emb = wegmann.encode(batch, batch_size=len(batch), normalize_embeddings=True)  # (batch, 768)
+        all_768d.append(emb.astype(np.float32))
     return np.concatenate(all_768d, axis=0).astype(np.float32)  # (N, 768)
 
-# 收集所有用户的句子
-uid_set_review = {e['user_id'] for e in review_data}
-common_uids = [u for u in valid_uids if u in uid_set_review][:999]
-uid_gen = [u for u in common_uids if u in uid_to_sentences]
-print(f"  Encoding {len(uid_gen)} users' sentences...")
+# SKIP: 直接从 embed 缓存加载 768d（不需要重新编码）
+if SKIP_STAGES_1_3:
+    uid_gen = list(valid_uids)
+    uid_to_sentence_list = {}
+    all_sent_wegmann_list = []
+    all_sent_uidx = []
+    for gi, uid in enumerate(uid_gen):
+        sents = uid_to_sentences_raw.get(uid, [])[:100]
+        uid_to_sentence_list[uid] = sents
+        emb_768 = np.array(uid_to_embed_768[uid], dtype=np.float32)
+        for emb in emb_768:
+            all_sent_wegmann_list.append(emb)
+            all_sent_uidx.append(gi)
+    all_sent_wegmann = np.array(all_sent_wegmann_list)
+    print(f"  [SKIP] Loaded from cache: {len(uid_gen)} users, {len(all_sent_wegmann)} sents, shape: {all_sent_wegmann.shape}")
+else:
+    uid_gen = list(valid_uids)
+    uid_to_sentence_list = {}
+    all_sent_wegmann_list = []
+    all_sent_uidx = []
+    for gi, uid in enumerate(uid_gen):
+        sents = uid_to_sentences_raw.get(uid, [])[:100]
+        uid_to_sentence_list[uid] = sents
+        emb_768 = np.array(uid_to_embed_768[uid], dtype=np.float32)
+        for emb in emb_768:
+            all_sent_wegmann_list.append(emb)
+            all_sent_uidx.append(gi)
+    all_sent_wegmann = np.array(all_sent_wegmann_list)
+    print(f"  [CACHE] Loaded from embed cache: {len(uid_gen)} users, {len(all_sent_wegmann)} sents, shape: {all_sent_wegmann.shape}")
 
-uid_to_sentence_list = {}
-all_sent_texts = []
-all_sent_uidx = []
-for gi, uid in enumerate(uid_gen):
-    sents = uid_to_sentences[uid][:50]  # 最多50句
-    uid_to_sentence_list[uid] = sents
-    for s in sents[:20]:  # 最多20句，加速
-        all_sent_texts.append(s)
-        all_sent_uidx.append(gi)
+# ── O(n log n) 索引：argsort + searchsorted，替代三处 O(n²) 的 enumerate+if ──
+_sent_uidx_arr = np.array(all_sent_uidx, dtype=np.int32)
+_sent_sort_idx = np.argsort(_sent_uidx_arr, kind='quicksort')
+_uid_counts = np.bincount(_sent_uidx_arr, minlength=len(uid_gen))
+_uid_offsets = np.concatenate([[0], np.cumsum(_uid_counts[:-1])])
+def _mask_for(gi):
+    o, c = _uid_offsets[gi], _uid_counts[gi]
+    return _sent_sort_idx[o:o+c]
 
-print(f"  Total sentences to encode: {len(all_sent_texts)}")
-t_enc = time.time()
-all_sent_wegmann = encode_sentences_to_wegmann(all_sent_texts, batch_size=256)
-print(f"  Encoded in {time.time()-t_enc:.1f}s, shape: {all_sent_wegmann.shape}")
-
-# ── 同时编码真实句子到 VADES 64d 空间（用于在 VADES 原空间测 dispersion）
-def encode_sentences_to_vades_64(texts, batch_size=512):
-    """text → TinyStyler T5 → 768d → VADES doc_net → 64d"""
-    all_64d = []
-    for start in range(0, len(texts), batch_size):
-        end = min(start + batch_size, len(texts))
-        batch = texts[start:end]
-        inputs = tinystyler_tok(batch, return_tensors="pt", padding=True,
-                                truncation=True, max_length=128).to(DEVICE)
-        with torch.no_grad():
-            enc = ts_t5(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-            emb_768 = enc.last_hidden_state.mean(dim=1)  # (batch, 768)
-            emb_128 = t5_to_doc(emb_768)  # 1024→128
-        with torch.no_grad():
-            mu_64, _ = vades_encoder(emb_128)  # (batch, 64)
-            all_64d.append(mu_64.detach().cpu().numpy())
-    return np.concatenate(all_64d, axis=0).astype(np.float32)  # (N, 64)
-
-t_enc64 = time.time()
-all_sent_vades_64 = encode_sentences_to_vades_64(all_sent_texts, batch_size=256)
-print(f"  VADES 64d encoding: {len(all_sent_texts)} sents in {time.time()-t_enc64:.1f}s, shape: {all_sent_vades_64.shape}")
-
-# 用户在 VADES 64d 空间的 σ_VADES（来自模型预测）
-# 以及真实文本在 VADES 64d 空间的 dispersion
-sigma_vades = np.zeros(len(uid_gen), dtype=np.float32)
-uid_vades_disp = {}  # gi -> {eucl, ang}
-for gi, uid in enumerate(uid_gen):
-    idx = uid_to_idx[uid]
-    lv_t = np.exp(user_lv_np[idx].astype(np.float32))
-    sigma_vades[gi] = float(np.sqrt(np.maximum(lv_t.mean(), 1e-6)))
-    mask = [i for i, u in enumerate(all_sent_uidx) if u == gi]
-    if len(mask) >= 3:
-        emb_v = all_sent_vades_64[mask]
-        cen_v = emb_v.mean(axis=0)
-        d_e = float(np.linalg.norm(emb_v - cen_v, axis=1).mean())
-        # VADES 64d 角距离
-        emb_vn = emb_v / (np.linalg.norm(emb_v, axis=1, keepdims=True) + 1e-8)
-        cen_vn = cen_v / (np.linalg.norm(cen_v) + 1e-8)
-        cos_sim = np.clip(np.dot(emb_vn, cen_vn), -1, 1)
-        d_a = float(np.arccos(cos_sim).mean())
-        uid_vades_disp[gi] = {'eucl': d_e, 'ang': d_a}
-    else:
-        uid_vades_disp[gi] = {'eucl': np.nan, 'ang': np.nan}
-print(f"  σ_VADES range: {sigma_vades.min():.4f}–{sigma_vades.max():.4f}")
-
-# 计算每个用户在 768d Wegmann 空间的真实 centroid
+# ── 768d Wegmann 空间 centroid ──
 uid_to_wegmann_centroid_768 = {}
 for gi, uid in enumerate(uid_gen):
-    mask = [i for i, u in enumerate(all_sent_uidx) if u == gi]
+    mask = _mask_for(gi)
     if len(mask) >= 3:
         uid_to_wegmann_centroid_768[uid] = all_sent_wegmann[mask].mean(axis=0)
 
@@ -639,163 +608,30 @@ for gi, uid in enumerate(uid_gen):
 mu_w = np.zeros((len(uid_gen), WEGMANN_DIM), dtype=np.float32)
 sigma_w = np.zeros(len(uid_gen), dtype=np.float32)
 for gi, uid in enumerate(uid_gen):
-    mask = [i for i, u in enumerate(all_sent_uidx) if u == gi]
+    mask = _mask_for(gi)
     if len(mask) >= 3:
         embs = all_sent_wegmann[mask]
         mu_w[gi] = embs.mean(axis=0)
         sigma_w[gi] = np.linalg.norm(embs - mu_w[gi], axis=1).mean()
 print(f"  User centroids: {len(uid_to_wegmann_centroid_768)} users computed")
 
-# ── Stage 4b: TinyStyler 批量生成（全量收集后一次性 batch generate）
-# 策略：不通过 injection_strength 控制 dispersion（已被证伪，TinyStyler 归一化抹掉了幅度差异）
-# 改为：采样 z ~ N(μ_u, σ_u²)，用多个随机种子重复生成，测量生成文本 dispersion
-print(f"\n  Stage 4b: TinyStyler 生成（{len(uid_gen)} users × {N_SAMPLES_GEN} samples per user）...")
+# ════════════════════════════════════════════════════════════════════════════════
+# Stage 4 — Gaussian Predictive Validity（纯净测试，不经过 TinyStyler）
+#
+# 核心问题：Gaussian 本身是否能预测用户未来文本的风格分布？
+#
+# 实验设计：
+#   80% 真实文本 → 拟合 N(μ_u, σ_u²)
+#   20% held-out 真实文本 → 计算真实 dispersion D_u^heldout
+#
+# 两个核心指标：
+#   (a) cos(μ_train, μ_heldout)  — 中心预测能力
+#   (b) Corr(σ_train, D_u^heldout) — 范围预测能力
+# ════════════════════════════════════════════════════════════════════════════════
+print("\n" + "="*70)
+print("Stage 4: Gaussian Predictive Validity（纯净测试）")
+print("="*70)
 
-torch.backends.cudnn.benchmark = True
-
-all_z_64 = []
-all_uid_idx = []
-rng_global = np.random.default_rng(SEED)
-
-for gi, uid in enumerate(uid_gen):
-    idx = uid_to_idx[uid]
-    mu_t = user_mu_np[idx].astype(np.float32)
-    lv_t = np.exp(user_lv_np[idx].astype(np.float32))
-    sigma_t = float(np.sqrt(np.maximum(lv_t.mean(), 1e-6)))
-    rng_s = np.random.default_rng(SEED + gi)
-    for k in range(N_SAMPLES_GEN):
-        eps = rng_s.normal(0, 1, LATENT_DIM).astype(np.float32)
-        z = mu_t + eps * sigma_t  # 直接用 σ_u 作为 scale（不用 ALPHA_SCALE 放大）
-        z = z / (np.linalg.norm(z) + 1e-8)
-        all_z_64.append(z)
-        all_uid_idx.append(gi)
-
-all_z_64 = np.array(all_z_64, dtype=np.float32)
-print(f"  Total z vectors: {len(all_z_64)}")
-
-# Batched generation: 分批，每批 64 个 style 向量一次性 generate
-BATCH_G = 64
-base_inputs = tinystyler_tok(NEUTRAL_SOURCE, return_tensors="pt", padding=True,
-                               truncation=True, max_length=128)
-base_ids = base_inputs['input_ids'].repeat(BATCH_G, 1).to(DEVICE)  # (BATCH_G, seq)
-base_att = base_inputs['attention_mask'].repeat(BATCH_G, 1).to(DEVICE)  # (BATCH_G, seq)
-
-all_gen_texts = [None] * len(all_z_64)
-t_gen = time.time()
-
-for start in range(0, len(all_z_64), BATCH_G):
-    end = min(start + BATCH_G, len(all_z_64))
-    batch_n = end - start
-    z_batch = torch.from_numpy(all_z_64[start:end]).float().to(DEVICE)  # (B, 64)
-    # z → StyleMapper → 768d
-    with torch.no_grad():
-        style_768 = mapper.get_style_vector(z_batch)  # (B, 768)
-    # 调整 base inputs 到实际 batch size
-    ids_batch = base_ids[:batch_n]
-    att_batch = base_att[:batch_n]
-    with torch.no_grad():
-        out_ids = tinystyler_model.generate(
-            input_ids=ids_batch,
-            attention_mask=att_batch,
-            style=style_768,
-            do_sample=True,
-            temperature=0.8,
-            top_p=0.9,
-            max_new_tokens=64,
-        )
-    texts = tinystyler_tok.batch_decode(out_ids, skip_special_tokens=True)
-    for j, text in enumerate(texts):
-        all_gen_texts[start + j] = text.strip()
-    if (start + BATCH_G) % 500 == 0 or end == len(all_z_64):
-        print(f"  Generated {end}/{len(all_z_64)} texts ({end/len(all_z_64)*100:.0f}%)")
-
-print(f"  Generation done in {time.time()-t_gen:.1f}s")
-print(f"  Sample:")
-for i in range(3):
-    print(f"    [{uid_gen[all_uid_idx[i]][:8]}] {all_gen_texts[i][:80]}")
-
-# ── Stage 4c: 重新编码生成文本（纯 VADES+StyleMapper 链）
-print("\n  Stage 4c: 重新编码生成文本（VADES+StyleMapper 链）...")
-
-valid_texts = [(i, t) for i, t in enumerate(all_gen_texts) if t and len(t.strip()) > 5]
-valid_idx = [i for i, t in valid_texts]
-valid_gen = [t for i, t in valid_texts]
-print(f"  Valid texts: {len(valid_gen)}/{len(all_gen_texts)}")
-
-t_enc2 = time.time()
-gen_emb_768 = encode_sentences_to_wegmann(valid_gen, batch_size=256)
-print(f"  Re-encoded in {time.time()-t_enc2:.1f}s")
-
-gen_emb_full = np.zeros((len(all_gen_texts), WEGMANN_DIM), dtype=np.float32)
-for j, orig_idx in enumerate(valid_idx):
-    gen_emb_full[orig_idx] = gen_emb_768[j]
-
-# (a) Style adherence: cos(z_injected, z_reencoded)
-#     检验生成质量：TinyStyler 是否忠实将 z 注入到文本
-cos_inject = []
-for orig_idx in valid_idx:
-    gi = all_uid_idx[orig_idx]
-    uid = uid_gen[gi]
-    idx = uid_to_idx[uid]
-    mu_t = torch.from_numpy(user_mu_np[idx]).float().to(DEVICE)
-    mu_norm = F.normalize(mu_t.unsqueeze(0), dim=-1)
-    z_inj = mapper.get_style_vector(mu_norm.squeeze(0)).detach().cpu().numpy()
-    z_hat = gen_emb_full[orig_idx]
-    cos_inject.append(np.dot(z_inj, z_hat))
-cos_inject = np.array(cos_inject)
-print(f"\n  (a) Style adherence: mean={cos_inject.mean():.4f} median={np.median(cos_inject):.4f}")
-print(f"      → TinyStyler 是否忠实注入了风格向量？mean≥0.98 为佳")
-
-# ── Stage 4d: 在多个空间测 dispersion
-# 关键：σ_u 来自 VADES 64d 空间，测量 dispersion 的空间应与 σ_u 对齐
-print("\n  Stage 4d: 多空间 dispersion 测量...")
-
-# 1. T5 768d 空间（直接编码生成文本，不过 VADES/StyleMapper）
-def encode_t5_768(texts, batch_size=256):
-    all_768 = []
-    for start in range(0, len(texts), batch_size):
-        end = min(start + batch_size, len(texts))
-        batch = texts[start:end]
-        inputs = tinystyler_tok(batch, return_tensors="pt", padding=True,
-                                truncation=True, max_length=128).to(DEVICE)
-        with torch.no_grad():
-            enc = ts_t5(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-            emb_1024 = enc.last_hidden_state.mean(dim=1)  # (batch, 1024) T5-Large
-            emb_768 = t5_proj_1024_to_768(emb_1024)  # (batch, 768)
-        all_768.append(emb_768.cpu().numpy())
-    return np.concatenate(all_768, axis=0).astype(np.float32)
-
-# T5-Large 1024d → 768d 投影（用于 T5 直接编码空间）
-t5_proj_1024_to_768 = nn.Linear(1024, 768).to(DEVICE)
-t5_proj_1024_to_768.eval()
-for p in t5_proj_1024_to_768.parameters():
-    p.requires_grad = False
-
-gen_emb_t5 = encode_t5_768(valid_gen, batch_size=256)
-gen_emb_t5_full = np.zeros((len(all_gen_texts), 768), dtype=np.float32)
-for j, orig_idx in enumerate(valid_idx):
-    gen_emb_t5_full[orig_idx] = gen_emb_t5[j]
-
-# 2. VADES 64d 空间（生成文本的 64d 表征）
-gen_emb_64_full = np.zeros((len(all_gen_texts), LATENT_DIM), dtype=np.float32)
-gen_emb_64 = []
-for start in range(0, len(valid_gen), 256):
-    end = min(start + 256, len(valid_gen))
-    batch = valid_gen[start:end]
-    inputs = tinystyler_tok(batch, return_tensors="pt", padding=True,
-                            truncation=True, max_length=128).to(DEVICE)
-    with torch.no_grad():
-        enc = ts_t5(input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'])
-        emb_768 = enc.last_hidden_state.mean(dim=1)  # (B, 768)
-        emb_128 = t5_to_doc(emb_768)
-        mu_64, _ = vades_encoder(emb_128)
-        gen_emb_64.append(mu_64.detach().cpu().numpy())
-gen_emb_64 = np.concatenate(gen_emb_64, axis=0).astype(np.float32)
-for j, orig_idx in enumerate(valid_idx):
-    gen_emb_64_full[orig_idx] = gen_emb_64[j]
-
-# 3. 对每个用户计算 dispersion（欧氏 + 角距离）
-# 角距离更适合单位球面向量：arccos(clamp(cos_sim, -1, 1))
 def angular_disp(embs):
     """单位向量集的平均角距离（弧度）"""
     norms = np.linalg.norm(embs, axis=1, keepdims=True)
@@ -807,238 +643,315 @@ def angular_disp(embs):
     angles = np.arccos(cos_sims)
     return float(np.nanmean(angles))
 
+# ── 从 VADES checkpoint 加载 σ_u（始终需要）─
+ckpt_vades = torch.load(VADES_PT, map_location='cpu', weights_only=True)
+user_lv_np = ckpt_vades['user_lv'].numpy()  # (n_users, 64)
+sigma_vades_per_user = np.sqrt(np.maximum(np.exp(user_lv_np), 1e-6)).mean(axis=1)  # (n_users,)
+print(f"  VADES σ_u loaded: {len(sigma_vades_per_user)} users, mean={sigma_vades_per_user.mean():.4f}")
+
+# ── Per-user Gaussian 缓存（基于 embed cache + MAX_USERS + SEED 签名）─
+_embed_mtime = EMBED_CACHE.stat().st_mtime if EMBED_CACHE.exists() else 0
+_cache_sig = {
+    'embed_mtime': _embed_mtime,
+    'max_users': MAX_USERS,
+    'seed': SEED,
+    'min_sents': MIN_SENTS,
+}
+_cache_valid = False
+if GAUSSIAN_CACHE.exists():
+    try:
+        with open(GAUSSIAN_CACHE, 'rb') as f:
+            _cached = pickle.load(f)
+        if _cached.get('signature') == _cache_sig:
+            cos_train_heldout           = _cached['cos_train_heldout']
+            sigma_train_list            = _cached['sigma_train_list']
+            sigma_maha_train_list       = _cached['sigma_maha_train_list']
+            disp_heldout_eucl           = _cached['disp_heldout_eucl']
+            disp_heldout_ang            = _cached['disp_heldout_ang']
+            disp_heldout_ang_from_train_cen = _cached['disp_heldout_ang_from_train_cen']
+            sigma_maha_heldout_list     = _cached['sigma_maha_heldout_list']
+            N_u_list   = _cached['N_u_list']
+            L_u_list   = _cached['L_u_list']
+            W_u_list   = _cached['W_u_list']
+            Q_mu_list  = _cached['Q_mu_list']
+            Q_sigma_list = _cached['Q_sigma_list']
+            n_users_used = len(cos_train_heldout)
+            _cache_valid = True
+            print(f"  [CACHE] Loaded per-user Gaussian from {GAUSSIAN_CACHE} ({n_users_used} users)")
+        else:
+            print(f"  [CACHE] Signature mismatch, recomputing...")
+    except Exception as e:
+        print(f"  [CACHE] Load failed ({e}), recomputing...")
+
+if not _cache_valid:
+    cos_train_heldout = []
+    sigma_train_list = []
+    sigma_maha_train_list = []
+    disp_heldout_eucl = []
+    disp_heldout_ang = []
+    disp_heldout_ang_from_train_cen = []
+    sigma_maha_heldout_list = []
+    N_u_list = []
+    L_u_list = []
+    W_u_list = []
+    Q_mu_list = []
+    Q_sigma_list = []
+    n_users_used = 0
+
+    for gi, uid in enumerate(uid_gen):
+        mask_all = _mask_for(gi)
+        n_total = len(mask_all)
+        if n_total < 10:
+            continue
+
+        rng_split = np.random.default_rng(SEED + gi)
+        idx_shuffled = list(range(n_total))
+        rng_split.shuffle(idx_shuffled)
+        n_train = int(np.ceil(n_total * 0.8))
+        idx_train = idx_shuffled[:n_train]
+        idx_held = idx_shuffled[n_train:]
+
+        emb_train = all_sent_wegmann[mask_all][idx_train]
+        mu_train = emb_train.mean(axis=0)
+        mu_train_n = mu_train / (np.linalg.norm(mu_train) + 1e-8)
+
+        diffs = emb_train - mu_train
+        var_diag = diffs.var(axis=0) + 1e-4
+        # 经验 σ（原始）vs VADES σ_u（训练好的）
+        sigma_tr = float(sigma_vades_per_user[gi])   # VADES-learned σ_u
+        D_maha_train = float(np.sqrt((diffs ** 2 / var_diag).sum(axis=1)).mean())
+
+        emb_held = all_sent_wegmann[mask_all][idx_held]
+        n_held = len(emb_held)
+        if n_held < 2:
+            continue
+
+        mu_held = emb_held.mean(axis=0)
+        mu_held_n = mu_held / (np.linalg.norm(mu_held) + 1e-8)
+        cos_sim = float(np.dot(mu_train_n, mu_held_n))
+        cos_train_heldout.append(cos_sim)
+
+        emb_held_diff = emb_held - mu_held
+        d_eucl = float(np.linalg.norm(emb_held_diff, axis=1).mean())
+        d_ang = angular_disp(emb_held)
+        disp_heldout_eucl.append(d_eucl)
+        disp_heldout_ang.append(d_ang)
+
+        emb_held_n = emb_held / (np.linalg.norm(emb_held, axis=1, keepdims=True) + 1e-8)
+        cos_sims = np.clip(np.sum(emb_held_n * mu_train_n, axis=1), -1, 1)
+        angles = np.arccos(cos_sims)
+        d_ang_from_tr = float(np.nanmean(angles))
+        disp_heldout_ang_from_train_cen.append(d_ang_from_tr)
+
+        D_maha_heldout = float(np.sqrt((emb_held_diff ** 2 / var_diag).sum(axis=1)).mean())
+
+        sigma_train_list.append(sigma_tr)
+        sigma_maha_train_list.append(D_maha_train)
+        sigma_maha_heldout_list.append(D_maha_heldout)
+
+        N_u_list.append(n_total)
+        L_u_list.append(float(np.mean([len(s.split()) for s in uid_to_sentence_list[uid]])))
+        W_u_list.append(float(np.sum([len(s.split()) for s in uid_to_sentence_list[uid]])))
+        Q_mu_list.append(cos_sim)
+        Q_sigma_list.append(abs(sigma_tr - d_eucl))
+        n_users_used += 1
+
+    _cached_data = {
+        'signature': _cache_sig,
+        'cos_train_heldout': cos_train_heldout,
+        'sigma_train_list': sigma_train_list,
+        'sigma_maha_train_list': sigma_maha_train_list,
+        'disp_heldout_eucl': disp_heldout_eucl,
+        'disp_heldout_ang': disp_heldout_ang,
+        'disp_heldout_ang_from_train_cen': disp_heldout_ang_from_train_cen,
+        'sigma_maha_heldout_list': sigma_maha_heldout_list,
+        'N_u_list': N_u_list,
+        'L_u_list': L_u_list,
+        'W_u_list': W_u_list,
+        'Q_mu_list': Q_mu_list,
+        'Q_sigma_list': Q_sigma_list,
+    }
+    with open(GAUSSIAN_CACHE, 'wb') as f:
+        pickle.dump(_cached_data, f)
+    print(f"  [CACHE] Saved to {GAUSSIAN_CACHE} ({n_users_used} users)")
+
+cos_arr = np.array(cos_train_heldout)
+sigma_vades_arr = np.array(sigma_train_list)
+sigma_maha_tr_arr = np.array(sigma_maha_train_list)
+disp_eucl_arr = np.array(disp_heldout_eucl)
+disp_ang_arr = np.array(disp_heldout_ang)
+disp_ang_ft_arr = np.array(disp_heldout_ang_from_train_cen)
+sigma_maha_ho_arr = np.array(sigma_maha_heldout_list)
+
+print(f"  n_users: {n_users_used}")
+print(f"\n  (a) 中心预测 — cos(μ_train, μ_heldout):")
+print(f"      mean={cos_arr.mean():.4f}  median={np.median(cos_arr):.4f}  min={cos_arr.min():.4f}")
+print(f"      → 期望 > 0.9（用户风格中心稳定）")
+
+print(f"\n  (b) 范围预测:")
+rho_sigma_tr_ang, p_sta = spearmanr(sigma_vades_arr, disp_ang_ft_arr)
+rho_sigma_tr_eucl, p_ste = spearmanr(sigma_vades_arr, disp_eucl_arr)
+rho_maha_tr_ho, p_mho = spearmanr(sigma_maha_tr_arr, sigma_maha_ho_arr)
+print(f"      σ_VADES → Dispersion_heldout (角距): ρ={rho_sigma_tr_ang:.4f}  p={p_sta:.2e}")
+print(f"      σ_VADES → Dispersion_heldout (欧氏): ρ={rho_sigma_tr_eucl:.4f}  p={p_ste:.2e}")
+print(f"      D_maha_train → D_maha_heldout: ρ={rho_maha_tr_ho:.4f}  p={p_mho:.2e}")
+print(f"      → 期望 ρ > 0.3 且 p < 0.05")
+
 # ════════════════════════════════════════════════════════════════════════════════
-# Stage 4d: 核心验证 — σ_Wegmann 能否预测生成文本的 dispersion
-#
-# 实验设计（对齐之前成功的 999-user 实验）：
-#   - σ_Wegmann = 从真实文本 embedding 算出的用户内 dispersion
-#   - dispersion_real = 真实文本在 Wegmann 空间的 dispersion
-#   - dispersion_gen = TinyStyler 生成文本在 Wegmann 空间的 dispersion
-#
-# 成功基准：σ_Wegmann → dispersion_real ρ≈1.0（定义性关系）
-# 成功基准：σ_Wegmann → dispersion_real ρ≈0.77（999-user 历史最佳）
-# 当前测试：σ_Wegmann → dispersion_gen ρ>?（我们想验证的）
+# Part C: 长度分解分析（W_u / N_u / L_u 对 Q_mu / Q_sigma 的影响）
 # ════════════════════════════════════════════════════════════════════════════════
-print("\n  Stage 4d: σ_Wegmann → dispersion 核心验证...")
+print(f"\n{'='*70}")
+print("Part C: 长度分解分析")
+print("="*70)
 
-# Step 1: 计算每个用户真实文本的 Wegmann 768d dispersion
-# 真实文本的 embedding 已经保存在 all_sent_wegmann 里
-uid_real_disp = {}  # gi -> {eucl, ang}
-for gi in range(len(uid_gen)):
-    mask = [i for i, u in enumerate(all_sent_uidx) if u == gi]
-    if len(mask) < 3:
-        uid_real_disp[gi] = {'eucl': np.nan, 'ang': np.nan}
-        continue
-    emb_real = all_sent_wegmann[mask]
-    cen_real = emb_real.mean(axis=0)
-    d_eucl = float(np.linalg.norm(emb_real - cen_real, axis=1).mean())
-    d_ang = angular_disp(emb_real)
-    uid_real_disp[gi] = {'eucl': d_eucl, 'ang': d_ang}
+N_arr = np.array(N_u_list, dtype=float)
+L_arr = np.array(L_u_list, dtype=float)
+W_arr = np.array(W_u_list, dtype=float)
+logN_arr = np.log(N_arr + 1)
+Q_mu_arr = np.array(Q_mu_list, dtype=float)
+Q_sigma_arr = np.array(Q_sigma_list, dtype=float)
 
-# Step 2: 计算每个用户 TinyStyler 生成文本的 Wegmann 768d dispersion
-uid_gen_disp = {}  # gi -> {eucl, ang}
-for gi in range(len(uid_gen)):
-    mask = [i for i in valid_idx if all_uid_idx[i] == gi]
-    if len(mask) < 2:
-        uid_gen_disp[gi] = {'eucl': np.nan, 'ang': np.nan}
-        continue
-    emb_gen = gen_emb_full[mask]
-    cen_gen = emb_gen.mean(axis=0)
-    d_eucl = float(np.linalg.norm(emb_gen - cen_gen, axis=1).mean())
-    d_ang = angular_disp(emb_gen)
-    uid_gen_disp[gi] = {'eucl': d_eucl, 'ang': d_ang}
+print(f"\n  基础统计:")
+print(f"    N_u: mean={N_arr.mean():.1f} median={np.median(N_arr):.0f} min={N_arr.min():.0f} max={N_arr.max():.0f}")
+print(f"    L_u: mean={L_arr.mean():.1f} median={np.median(L_arr):.1f} min={L_arr.min():.1f} max={L_arr.max():.1f}")
+print(f"    W_u: mean={W_arr.mean():.0f} median={np.median(W_arr):.0f} min={W_arr.min():.0f} max={W_arr.max():.0f}")
 
-# Step 2b: VADES 64d space dispersion for generated texts
-uid_gen_disp_vades = {}
-for gi in range(len(uid_gen)):
-    mask = [i for i in valid_idx if all_uid_idx[i] == gi]
-    if len(mask) < 2:
-        uid_gen_disp_vades[gi] = {'eucl': np.nan, 'ang': np.nan}
-        continue
-    emb_v = gen_emb_64_full[mask]
-    cen_v = emb_v.mean(axis=0)
-    d_e = float(np.linalg.norm(emb_v - cen_v, axis=1).mean())
-    emb_vn = emb_v / (np.linalg.norm(emb_v, axis=1, keepdims=True) + 1e-8)
-    cen_vn = cen_v / (np.linalg.norm(cen_v) + 1e-8)
-    cos_sim = np.clip(np.sum(emb_vn * cen_vn), -1, 1)
-    d_a = float(np.arccos(cos_sim).mean())
-    uid_gen_disp_vades[gi] = {'eucl': d_e, 'ang': d_a}
-
-# Step 3: 计算 σ_Wegmann → dispersion_real（定义性 sanity check，期望 ≈1.0）
-print("\n  [Sanity Check] σ_Wegmann 定义性关系：")
-for metric in ['eucl', 'ang']:
-    sigma_vals = []
-    disp_vals = []
-    for gi in range(len(uid_gen)):
-        if not np.isnan(uid_real_disp[gi][metric]):
-            sigma_vals.append(sigma_w[gi])
-            disp_vals.append(uid_real_disp[gi][metric])
-    if len(sigma_vals) >= 5:
-        rho, p = spearmanr(sigma_vals, disp_vals)
-        label = '欧氏' if metric == 'eucl' else '角距'
-        print(f"    σ_Wegmann → dispersion_real ({label}): n={len(sigma_vals)} ρ={rho:.4f} p={p:.2e}")
-
-# Step 4: 计算 σ_Wegmann → dispersion_gen（核心测试）
-print("\n  [Core Test] σ_Wegmann → TinyStyler 生成文本 dispersion：")
-summary_rhos = {}
-for metric in ['eucl', 'ang']:
-    sigma_vals = []
-    disp_vals = []
-    for gi in range(len(uid_gen)):
-        if not np.isnan(uid_gen_disp[gi][metric]) and not np.isnan(uid_real_disp[gi][metric]):
-            sigma_vals.append(sigma_w[gi])
-            disp_vals.append(uid_gen_disp[gi][metric])
-    if len(sigma_vals) >= 5:
-        rho, p = spearmanr(sigma_vals, disp_vals)
-        label = '欧氏' if metric == 'eucl' else '角距'
-        key = f'wegmann_gen_{metric}'
-        sig = "✓" if abs(rho) > 0.3 and p < 0.05 else "✗"
-        print(f"    σ_Wegmann → dispersion_gen_Wegmann ({label}): n={len(sigma_vals)} ρ={rho:.4f} p={p:.2e} {sig}")
-        summary_rhos[key] = (rho, p)
-
-# Step 4b: 在 VADES 64d 空间测量（σ 是 VADES 空间学的，测量也应该在 VADES 空间）
-print("\n  [Core Test VADES] σ_VADES → VADES 64d dispersion：")
-for space_key, sigma_arr, uid_disp_dict, space_name in [
-    ('σ_VADES', sigma_vades, uid_gen_disp_vades, 'VADES 64d'),
-    ('σ_VADES', sigma_vades, uid_gen_disp, 'Wegmann 768d'),
+print(f"\n  相关性分析:")
+for label, predictor, target, name in [
+    ("W_u → Q_mu",   W_arr,       Q_mu_arr,    "W_u"),
+    ("logN_u → Q_mu", logN_arr,   Q_mu_arr,    "logN_u"),
+    ("L_u → Q_mu",   L_arr,       Q_mu_arr,    "L_u"),
+    ("W_u → Q_sigma", W_arr,      Q_sigma_arr, "W_u"),
+    ("logN_u → Q_sigma", logN_arr, Q_sigma_arr, "logN_u"),
+    ("L_u → Q_sigma", L_arr,      Q_sigma_arr, "L_u"),
 ]:
-    for metric in ['eucl', 'ang']:
-        sigma_vals = []
-        disp_vals = []
-        for gi in range(len(uid_gen)):
-            if not np.isnan(uid_disp_dict[gi][metric]):
-                sigma_vals.append(sigma_arr[gi])
-                disp_vals.append(uid_disp_dict[gi][metric])
-        if len(sigma_vals) >= 5:
-            rho, p = spearmanr(sigma_vals, disp_vals)
-            label = '欧氏' if metric == 'eucl' else '角距'
-            key = f'vades_gen_{space_name.replace(" ", "_").lower()}_{metric}'
-            sig = "✓" if abs(rho) > 0.3 and p < 0.05 else "✗"
-            print(f"    {space_key} → dispersion_gen_{space_name} ({label}): n={len(sigma_vals)} ρ={rho:.4f} p={p:.2e} {sig}")
-            summary_rhos[key] = (rho, p)
+    r, p = spearmanr(predictor, target)
+    sig = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else ""
+    print(f"    {label}: ρ={r:+.4f} p={p:.2e} {sig}")
 
-# Step 5: 直接比较同一用户的真实 dispersion vs 生成 dispersion（对齐度检验）
-print("\n  [Alignment Check] 真实文本 dispersion vs TinyStyler 生成文本 dispersion：")
-for metric in ['eucl', 'ang']:
-    real_vals = []
-    gen_vals = []
-    for gi in range(len(uid_gen)):
-        if not np.isnan(uid_real_disp[gi][metric]) and not np.isnan(uid_gen_disp[gi][metric]):
-            real_vals.append(uid_real_disp[gi][metric])
-            gen_vals.append(uid_gen_disp[gi][metric])
-    if len(real_vals) >= 5:
-        rho, p = spearmanr(real_vals, gen_vals)
-        label = '欧氏' if metric == 'eucl' else '角距'
-        key = f'real_vs_gen_{metric}'
-        print(f"    dispersion_real → dispersion_gen ({label}): n={len(real_vals)} ρ={rho:.4f} p={p:.2e}")
-        summary_rhos[key] = (rho, p)
-        print(f"      (真实文本 dispersion 范围: mean={np.mean(real_vals):.4f}, 生成文本: mean={np.mean(gen_vals):.4f})")
+print(f"\n  多元回归 — Q_mu = β0 + β1*logN_u + β2*L_u:")
+X = np.column_stack([logN_arr, L_arr])
+X = sm.add_constant(X)
+try:
+    m_qmu = sm.OLS(Q_mu_arr, X).fit()
+    print(f"    β0(const)={m_qmu.params[0]:+.4f} p={m_qmu.pvalues[0]:.2e}")
+    print(f"    β1(logN_u)={m_qmu.params[1]:+.4f} p={m_qmu.pvalues[1]:.2e} {'*' if m_qmu.pvalues[1]<0.05 else ''}")
+    print(f"    β2(L_u)={m_qmu.params[2]:+.4f} p={m_qmu.pvalues[2]:.2e} {'*' if m_qmu.pvalues[2]<0.05 else ''}")
+    print(f"    R²={m_qmu.rsquared:.4f}")
+except Exception as e:
+    print(f"    FAILED: {e}")
 
-# 同时打印 σ_Wegmann 在 T5 空间的 dispersion 预测能力作为对比
-print("\n  [Auxiliary] σ_Wegmann → dispersion_gen_T5 欧氏：")
-sigma_t5_vals = []
-disp_t5_vals = []
-for gi in range(len(uid_gen)):
-    mask = [i for i in valid_idx if all_uid_idx[i] == gi]
-    if len(mask) < 2:
-        continue
-    emb_t5 = gen_emb_t5_full[mask]
-    cen_t5 = emb_t5.mean(axis=0)
-    d_t5 = float(np.linalg.norm(emb_t5 - cen_t5, axis=1).mean())
-    sigma_t5_vals.append(sigma_w[gi])
-    disp_t5_vals.append(d_t5)
-if len(sigma_t5_vals) >= 5:
-    rho, p = spearmanr(sigma_t5_vals, disp_t5_vals)
-    print(f"    σ_Wegmann → dispersion_gen_T5 (欧氏): n={len(sigma_t5_vals)} ρ={rho:.4f} p={p:.2e}")
+print(f"\n  多元回归 — Q_sigma = β0 + β1*logN_u + β2*L_u:")
+try:
+    m_qsig = sm.OLS(Q_sigma_arr, X).fit()
+    print(f"    β0(const)={m_qsig.params[0]:+.4f} p={m_qsig.pvalues[0]:.2e}")
+    print(f"    β1(logN_u)={m_qsig.params[1]:+.4f} p={m_qsig.pvalues[1]:.2e} {'*' if m_qsig.pvalues[1]<0.05 else ''}")
+    print(f"    β2(L_u)={m_qsig.params[2]:+.4f} p={m_qsig.pvalues[2]:.2e} {'*' if m_qsig.pvalues[2]<0.05 else ''}")
+    print(f"    R²={m_qsig.rsquared:.4f}")
+except Exception as e:
+    print(f"    FAILED: {e}")
 
 # ════════════════════════════════════════════════════════════════════════════════
-# Stage 4e: 补充分析 — 高 σ 用户生成的文本，centroid 是否离真实 centroid 更远？
-#
-# 新假设：TinyStyler 归一化后 dispersion 被压缩，但 σ 大的用户生成的文本
-#         平均风格向量（gen_centroid）可能离真实 centroid 更远
-#         因为 σ 大 → 采样方向更分散 → 归一化后方向差异累积 → centroid 偏移
+# Part D: Matched Experiment（N=20 固定句子数，按 L_u 分 short/medium/long）
 # ════════════════════════════════════════════════════════════════════════════════
-print("\n  Stage 4e: σ_Wegmann → centroid_offset 补充分析...")
+print(f"\n{'='*70}")
+print("Part D: Matched Experiment (N=20 sentences)")
+print("="*70)
 
-# 计算每个用户生成文本的 centroid 与真实文本 centroid 的偏移
-offset_eucl_list = []
-offset_ang_list = []
-sigma_list = []
-disp_gen_list = []
+# 取恰好有≥20句的用户，取前20句
+N_FIXED = 100
+idx_ge20 = [i for i, n in enumerate(N_u_list) if n >= N_FIXED]
+print(f"  有≥{N_FIXED}句的用户: {len(idx_ge20)}/{len(N_u_list)}")
 
-for gi in range(len(uid_gen)):
-    # 真实文本 centroid
-    mask_real = [i for i, u in enumerate(all_sent_uidx) if u == gi]
-    if len(mask_real) < 3:
-        continue
-    cen_real = all_sent_wegmann[mask_real].mean(axis=0)
-    # 生成文本 centroid
-    mask_gen = [i for i in valid_idx if all_uid_idx[i] == gi]
-    if len(mask_gen) < 2:
-        continue
-    cen_gen = gen_emb_full[mask_gen].mean(axis=0)
-    # 归一化后计算偏移
-    cen_real_n = cen_real / (np.linalg.norm(cen_real) + 1e-8)
-    cen_gen_n = cen_gen / (np.linalg.norm(cen_gen) + 1e-8)
-    offset_eucl = float(np.linalg.norm(cen_gen_n - cen_real_n))
-    cos_sim = np.dot(cen_real_n, cen_gen_n)
-    cos_sim = np.clip(cos_sim, -1, 1)
-    offset_ang = float(np.arccos(cos_sim))
-    offset_eucl_list.append(offset_eucl)
-    offset_ang_list.append(offset_ang)
-    sigma_list.append(sigma_w[gi])
-    disp_gen_list.append(uid_gen_disp[gi]['eucl'])
+N20_N = np.array([N_u_list[i] for i in idx_ge20])
+N20_L = np.array([L_u_list[i] for i in idx_ge20])
+N20_Qmu = np.array([Q_mu_list[i] for i in idx_ge20])
+N20_Qsigma = np.array([Q_sigma_list[i] for i in idx_ge20])
 
-if len(sigma_list) >= 5:
-    print(f"    Gen centroid 偏移（欧氏）: mean={np.mean(offset_eucl_list):.4f} std={np.std(offset_eucl_list):.4f}")
-    print(f"    Gen centroid 偏移（角距）: mean={np.mean(offset_ang_list):.4f} std={np.std(offset_ang_list):.4f}")
-    rho_off_e, p_off_e = spearmanr(sigma_list, offset_eucl_list)
-    rho_off_a, p_off_a = spearmanr(sigma_list, offset_ang_list)
-    print(f"    σ_Wegmann → centroid_offset (欧氏): n={len(sigma_list)} ρ={rho_off_e:.4f} p={p_off_e:.2e}")
-    print(f"    σ_Wegmann → centroid_offset (角距): n={len(sigma_list)} ρ={rho_off_a:.4f} p={p_off_a:.2e}")
+# 按 L_u 三分位分 short / medium / long
+p33, p67 = float(np.percentile(N20_L, 33)), float(np.percentile(N20_L, 67))
+groups = np.where(N20_L <= p33, 'short', np.where(N20_L <= p67, 'medium', 'long'))
+print(f"  L_u 分位点: short≤{p33:.1f} medium≤{p67:.1f} long>{p67:.1f}")
 
-    # 同时测 dispersion_gen 和 centroid_offset 的关系
-    rho_disp_off, p_disp_off = spearmanr(disp_gen_list, offset_eucl_list)
-    print(f"    dispersion_gen → centroid_offset (欧氏): ρ={rho_disp_off:.4f} p={p_disp_off:.2e}")
-    print(f"      (若 high dispersion + small offset → TinyStyler 均匀压缩风格)")
-    print(f"      (若 high dispersion + large offset → TinyStyler 方向偏移)")
+print(f"\n  Q_mu = cos(μ_train, μ_heldout) 对比:")
+for g in ['short', 'medium', 'long']:
+    mask = groups == g
+    vals = N20_Qmu[mask]
+    print(f"    {g:8s}: n={mask.sum():3d}  mean={vals.mean():.4f}  std={vals.std():.4f}")
 
-    summary_rhos['sigma_wegmann_centroid_offset_eucl'] = (rho_off_e, p_off_e)
-    summary_rhos['sigma_wegmann_centroid_offset_ang'] = (rho_off_a, p_off_a)
+print(f"\n  Q_sigma = |σ_train - Disp_heldout| 对比:")
+for g in ['short', 'medium', 'long']:
+    mask = groups == g
+    vals = N20_Qsigma[mask]
+    print(f"    {g:8s}: n={mask.sum():3d}  mean={vals.mean():.4f}  std={vals.std():.4f}")
 
+# ANOVA 检验
+for label, vals_by_group in [("Q_mu", [N20_Qmu[groups==g] for g in ['short','medium','long']]),
+                               ("Q_sigma", [N20_Qsigma[groups==g] for g in ['short','medium','long']])]:
+    try:
+        f, pval = f_oneway(*vals_by_group)
+        print(f"\n  ANOVA {label}: F={f:.3f} p={pval:.4f} {'*' if pval<0.05 else ''}")
+    except Exception:
+        pass
+
+# 保存结果
+summary_rhos_gaussian = {
+    'cos_center_prediction': {'mean': float(cos_arr.mean()), 'median': float(np.median(cos_arr))},
+    'sigma_train_euclidean_vs_disp_heldout_ang': {'rho': float(rho_sigma_tr_ang), 'p': float(p_sta)},
+    'sigma_train_euclidean_vs_disp_heldout_eucl': {'rho': float(rho_sigma_tr_eucl), 'p': float(p_ste)},
+    'D_maha_train_vs_D_maha_heldout': {'rho': float(rho_maha_tr_ho), 'p': float(p_mho)},
+    'n_users': n_users_used,
+}
 
 # ════════════════════════════════════════════════════════════════════════════════
 # 保存结果
 # ════════════════════════════════════════════════════════════════════════════════
+RESULT_OUT = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/gaussian')
+RESULT_OUT.mkdir(exist_ok=True, parents=True)
+
+# ── 保存 per-user Gaussian 分布（μ_u 64d + σ_u 向量）──
+gauss_out = RESULT_OUT / 'vades_user_gaussians.npz'
+np.savez_compressed(
+    gauss_out,
+    user_ids=np.array([str(u) for u in valid_uids]),
+    mu_64d=user_mu_np.astype(np.float32),
+    lv_64d=user_lv_np.astype(np.float32),
+    sigma_vades=sigma_vades_per_user.astype(np.float32),
+)
+print(f"  → {gauss_out}")
+
 results = {
     'stage1_calib_corr': float(calib['corr']),
     'stage2_sigma_target_corr': float(corr_sigma),
     'stage3_mapper_val_cos': float(best_val_cos),
-    'n_users': len(uid_gen),
-    'n_samples_per_user': N_SAMPLES_GEN,
-    'n_generated': len(valid_gen),
-    'style_adherence_mean_cos': float(cos_inject.mean()),
-    'dispersion_results': {k: {'rho': float(r), 'p': float(p)} for k, (r, p) in summary_rhos.items()},
-    'best_dispersion_key': max(summary_rhos, key=lambda k: abs(summary_rhos[k][0])) if summary_rhos else 'none',
-    'best_rho': float(max(abs(r) for r, p in summary_rhos.values())) if summary_rhos else 0.0,
+    'n_users': n_users_used,
+    'gaussian_predictive_validity': summary_rhos_gaussian,
 }
 
-RESULT_OUT = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/gaussian')
-RESULT_OUT.mkdir(exist_ok=True, parents=True)
 out_path = RESULT_OUT / 'vades_pipeline_results.json'
 with open(out_path, 'w') as f:
     json.dump(results, f, indent=2)
-print(f"\n  → {out_path}")
+print(f"  → {out_path}")
 
-best_key = max(summary_rhos, key=lambda k: abs(summary_rhos[k][0])) if summary_rhos else 'none'
-best_rho, best_p = summary_rhos.get(best_key, (0.0, 1.0))
 print(f"\n{'='*70}")
 print("VADES PIPELINE COMPLETE")
 print(f"{'='*70}")
 print(f"  Stage 1 (VADESSigma): Corr={calib['corr']:.4f}")
 print(f"  Stage 2 (σ regression): TargetCorr={corr_sigma:.4f}")
 print(f"  Stage 3 (StyleMapper): val_cos={best_val_cos:.4f}")
-print(f"  Stage 4 (Verification):")
-print(f"    (a) Style adherence: {cos_inject.mean():.4f}")
-print(f"    最佳 dispersion: {best_key}  ρ={best_rho:.4f} {'✓' if abs(best_rho)>0.3 and best_p<0.05 else '✗'}")
+print(f"  Stage 4 (Gaussian Predictive Validity — 经验 Gaussian):")
+print(f"    (a) cos(μ_train, μ_heldout): {cos_arr.mean():.4f}")
+print(f"    (b) σ_train(Euclid) → Disp_heldout (ang): ρ={rho_sigma_tr_ang:.4f} p={p_sta:.2e}")
+print(f"    (c) σ_train(Euclid) → Disp_heldout (eucl): ρ={rho_sigma_tr_eucl:.4f} p={p_ste:.2e}")
+print(f"    (d) D_maha_train → D_maha_heldout: ρ={rho_maha_tr_ho:.4f} p={p_mho:.2e}")
+rho_keys = [k for k in summary_rhos_gaussian
+            if isinstance(summary_rhos_gaussian[k], dict) and 'rho' in summary_rhos_gaussian[k]]
+if rho_keys:
+    best_key = max(rho_keys, key=lambda k: abs(summary_rhos_gaussian[k]['rho']))
+    best_rho = summary_rhos_gaussian[best_key]['rho']
+    best_p = summary_rhos_gaussian[best_key]['p']
+else:
+    best_key = 'none'; best_rho = 0.0; best_p = 1.0
+print(f"    最佳: {best_key} ρ={best_rho:.4f} {'✓' if abs(best_rho)>0.3 and best_p<0.05 else '✗'}")
 print("当前任务已完成，请做下一个任务的指示。")
+
