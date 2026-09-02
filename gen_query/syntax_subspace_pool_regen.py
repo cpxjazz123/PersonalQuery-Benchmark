@@ -32,8 +32,8 @@ TINYSTYLER_WEIGHTS = os.path.join(
     'hub/models--tinystyler--tinystyler/snapshots/2a879107b2ec342e57170b82cdc344d5179fa32b/tinystyler_model_weights.pt'
 )
 T5_SNAP = os.path.join(HF_HOME, 'hub/models--google--t5-v1_1-large/snapshots/a98b0fcd0b8137ded40cdf0c0cf0ee884e7c9726')
-STYLE_ALPHA = 2.0
-MAX_NEW_TOKENS = 48
+STYLE_ALPHA = 1.0   # 纯 μ（无噪声），alpha≥0.5 稳定在 d_self↓ + P(d<σ)=100%
+MAX_NEW_TOKENS = 72
 BATCH_TINYSTYLER = 32
 VLLM_URL = 'http://localhost:8800/v1/completions'
 QWEN_MODEL = '/home/wlia0047/hj82_scratch2/wenyu/RAG/cfrag_project/LLMs/Qwen2-7B-Instruct'
@@ -84,14 +84,21 @@ def build_attrs_text(attrs: dict) -> str:
 # ===========================================================================
 
 _COUNTY_RE = re.compile(r"\b(i'm|im|i|my|me|mine|we|our|us|looking for|looking to|i want|i need|i'm hoping|i'm looking|i'm searching|hoping to|shopping for|searching for|in search of|want to buy|need to find|wanting|needing)\b", re.IGNORECASE)
+# 只保留真正自言自语/元评论的 pattern，不误杀正常的 1st-person query 表达
 _SELF_TALK_PATTERNS = [
-    r"\bcan someone help\b", r"\bcan anyone help\b", r"\bany suggestions\??",
-    r"\bany ideas\??", r"\bthanks!?\s*$", r"\bthanks again\b", r"\bthank you\b",
+    r"\bcan someone help\b", r"\bcan anyone help\b",
+    r"\bany suggestions\??", r"\bany ideas\??",
+    r"\bthanks!?\s*$", r"\bthanks again\b", r"\bthank you\b",
     r"\bi appreciate\b", r"\byou'?re amazing\b", r"\byou'?re the best\b",
     r"\blet'?s keep it simple\b", r"\blet'?s try again\b", r"\blet me rephrase\b",
+    r"\blet me clarify\b",
     r"\bdoes that sound right\b", r"\bdoes that help\b",
     r"\bthat'?s exactly what i'?m\b", r"\bjust those exact attributes\b",
-    r"\bi hope so\b",
+    r"\bwithout (specifying|adding) any\b",
+    r"\bthat'?s what i'?m after\b", r"\bi hope so\b",
+    r"\bsound(s)? good\??", r"\bmake(s)? sense\??",
+    r"\bhelp me find\b",  # 角色扮演: 问别人帮忙找
+    r"\bi'?d appreciate\b",
 ]
 _BAD_PUNCT_RE = re.compile(r"^(here|this|below|sure|okay|ok)[,:]|^attribute[s]?:|^brand:|^color:|^material:|^style:")
 
@@ -258,7 +265,8 @@ def tinystyler_rewrite(base_queries: List[str], style_vectors: np.ndarray,
                 input_ids, attn_mask,
                 style=style_scaled,
                 max_new_tokens=MAX_NEW_TOKENS,
-                do_sample=False,  # greedy
+                do_sample=False,
+                repetition_penalty=1.2,  # 防止 T5 贪婪解码时重复生成同一短语
             )
 
         for i in range(bsz):
@@ -324,8 +332,7 @@ def stage_pool_regen():
     log("[Step 2] TinyStyler rewriting with style vectors ...")
     uidxs = rng.integers(0, n_users, size=len(jobs))
     mu_batch = mu_768[uidxs].astype(np.float32)
-    sigma_batch = sigma_arr[uidxs].astype(np.float32)
-    z_style = mu_batch + sigma_batch[:, None] * rng.standard_normal((len(jobs), 768)).astype(np.float32)
+    z_style = mu_batch  # 纯 μ（无噪声），alpha=1.0 已在诊断中确认 d_self↓ + P=100%
 
     styled_queries = tinystyler_rewrite(base_queries, z_style, ts_model, t5_tokenizer)
     log(f"  TinyStyler done: {len(styled_queries)} styled queries")
