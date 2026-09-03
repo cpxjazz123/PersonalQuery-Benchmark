@@ -51,3 +51,6 @@ result/
 
 # No iteration docs going forward (per user request 2026-08-22)
 iterations/
+
+# Result outputs — never push
+result/
