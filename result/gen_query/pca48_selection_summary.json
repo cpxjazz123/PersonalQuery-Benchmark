@@ -1,36 +1,3 @@
-{
-  "config": {
-    "PILOT_N_ASIN": 50,
-    "N_SAMPLE_USERS": 20,
-    "K_PER_PAIR": 4,
-    "N_EXEMPLARS": 1,
-    "TEMP": 0.7,
-    "leakage_control": "exclude user sentences from target ASIN",
-    "selection_conditions": [
-      "random",
-      "nearest",
-      "farthest"
-    ]
-  },
-  "results": {
-    "random": {
-      "condition": "random",
-      "n_pairs": 167,
-      "n_strict": 321,
-      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_pca48_selection_random.json"
-    },
-    "nearest": {
-      "condition": "nearest",
-      "n_pairs": 167,
-      "n_strict": 323,
-      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_pca48_selection_nearest.json"
-    },
-    "farthest": {
-      "condition": "farthest",
-      "n_pairs": 167,
-      "n_strict": 319,
-      "pool_path": "/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/pool_pca48_selection_farthest.json"
-    }
-  },
-  "next_step": "Phase 4.C-2: Stage 4 strict alignment on each pool, compute per-pair transfer_gain, ρ(exemplar, query d_self)"
-}
+version https://git-lfs.github.com/spec/v1
+oid sha256:3e89480864a901151911e43835b3feb85b0f3563a1f2daab002627b972d0e73a
+size 1043
