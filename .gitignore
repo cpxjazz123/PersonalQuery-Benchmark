@@ -27,7 +27,6 @@ env/
 .claude/settings minimax.json
 
 # Project scratch / outputs
-result/
 logs/
 scratch/
 *.log
@@ -47,10 +46,26 @@ select_query/*.jsonl.gz
 # Local runtime state
 .opencode/
 data/
-result/
 
 # No iteration docs going forward (per user request 2026-08-22)
 iterations/
 
-# Result outputs — never push
-result/
+# Result outputs — only Stage 03+ subdirs are LFS-pushed (2026-09-06)
+result/01_attribute_extraction/
+result/02_user_review_sentence_extract/
+# Skip non-json sidecars (too large, regenerable)
+result/**/*.npz
+result/**/*.pkl
+result/**/*.jsonl.gz
+result/**/*.bin
+result/**/*.pt
+result/**/*.gz
+# But include json outputs (LFS-tracked via *.json in .gitattributes)
+!result/03_spacy_encode/*.json
+!result/04_gaussian/*.json
+!result/07_gen_query/*.json
+!result/08_select_query/*.json
+!result/09_sercl_user_profile/*.json
+!result/10_typo_injection/*.json
+!result/11_syntactic_evaluation/*.json
+!result/12_typo_evaluation/*.json
