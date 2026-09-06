@@ -1,8 +1,0 @@
-{
-  "description": "Corrected baseline pilot (50 ASINs, K=200, attrs-corrected prompt, no prototype)",
-  "n_valid": 665,
-  "PASSED_pct_valid": 0.045112781954887216,
-  "F3_pct_fails": 0.8566929133858268,
-  "F3_min_d_self_median": 11.118863159680165,
-  "F3_max_M_median": -2.091528884762379
-}

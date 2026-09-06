@@ -1,8 +1,0 @@
-{
-  "description": "User-specific exemplar anchor pilot (50 ASINs × ~20 users/ASIN)",
-  "n_valid": 171,
-  "PASSED_pct_valid": 0.023391812865497075,
-  "F3_pct_fails": 0.7485029940119761,
-  "F3_min_d_self_median": 11.297904851665994,
-  "F3_max_M_median": -0.9926382178896169
-}

@@ -14,20 +14,59 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
+import re
+from multiprocessing import Pool
 from pathlib import Path
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # === Inputs ===
 DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
-META_GZ = DATA / "meta_Baby_Products_2023.jsonl.gz"
+META_GZ = DATA / "meta_Baby_Products_2023.jsonl"
+
+# 用户指令 2026-09-04: multiprocessing 加速 (13 cores, 留 3 给 OS/IO).
+N_WORKERS = min(10, max(1, (os.cpu_count() or 4) - 3))
+# chunk size: 每 worker 一次拿 N 条, 减少 IPC 开销
+CHUNK_SIZE = 5_000
 
 # === Outputs ===
-PRODUCT_ATTRS_JSON = REPO_ROOT / "result" / "product_attributes.json"
+PRODUCT_ATTRS_JSON = REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes.json"
 
 # === Step 1 — extract_attrs 参数 ===
 MAX_STR_LEN = 200
 TOP_LEVEL_NUMERIC_FIELDS = ("average_rating", "rating_number", "price")
+
+# 用户指令 2026-09-04: 源头过滤含数字的 attr (单 attr 维度).
+EXCLUDE_NUMERIC_VALUES = True
+
+# 用户指令 2026-09-04: 过滤数字后, attrs 数 < MIN_ATTRS 的 ASIN 整条跳过.
+MIN_ATTRS_PER_ASIN = 5
+
+# 用户指令 2026-09-04: 短语 attr 过滤 — value word 数 > MAX_VALUE_WORDS
+# 视为短语跳过 (>3 words 的 value 多为 Feature 整句描述, 难被 LLM 自然注入 query).
+MAX_VALUE_WORDS = 3
+
+# 用户指令 2026-09-04: yes/no 单值 attr 过滤 — value 是 yes/no/true/false
+# 的 attr 是二元 metadata (e.g. 'Is Discontinued By Manufacturer: Yes'),
+# 对 LLM 生成自然 query 无信息量, 跳过.
+_YES_NO_VALUES = {"yes", "no", "true", "false"}
+
+
+def _has_ascii_alpha(s: str) -> bool:
+    """value/key 是否至少含一个 ASCII 英文字母."""
+    return any(c.isascii() and c.isalpha() for c in str(s))
+
+
+def _is_non_cjk(s: str) -> bool:
+    """value/key 不含 CJK (中文/日文/韩文) 字符. accented (ü/é/ñ) 允许."""
+    return not any(
+        0x4E00 <= ord(c) <= 0x9FFF  # CJK Unified Ideographs
+        or 0x3040 <= ord(c) <= 0x309F  # Hiragana
+        or 0x30A0 <= ord(c) <= 0x30FF  # Katakana
+        or 0xAC00 <= ord(c) <= 0xD7AF  # Hangul
+        for c in str(s)
+    )
 
 # === select_top_attrs 参数 (供下游 cohort construction 共用) ===
 MAX_ATTRS = 5
@@ -75,40 +114,111 @@ def has_digit(s: str) -> bool:
 def extract_attrs(d: dict) -> dict:
     """Extract structured attributes from a single product meta dict.
 
-    Returns dict {field_name: string_value} containing all short-string
-    fields from details + top-level structured fields (main_category,
-    average_rating, rating_number, price). No numeric value filtering
+    Supports two meta formats:
+    - New (2023): features (list) + details (dict)
+    - Old (2018): top-level fields only
+
+    Returns dict {field_name: string_value}. No numeric value filtering
     here — that is select_top_attrs()'s job (called downstream).
     """
-    details = d.get("details")
-    if not isinstance(details, dict):
-        details = {}
     out: dict = {}
 
-    # details 中的所有短字符串字段
-    for k, v in details.items():
-        if not isinstance(v, str):
-            continue
-        s = v.strip()
-        if not s or len(s) > MAX_STR_LEN:
-            continue
-        out[k] = s
+    # New 2023 format: details dict
+    details = d.get("details")
+    if isinstance(details, dict):
+        for k, v in details.items():
+            if not isinstance(v, str):
+                continue
+            s = v.strip()
+            if not s or len(s) > MAX_STR_LEN:
+                continue
+            out[k] = s
 
-    # 用户指令 2026-08-27: 删除 Brand fallback (Rule 7 禁止降级)
-    # 原代码: details 无 Brand → store → title[0], 三层降级
-    # 现: 仅从 details 取; Brand 缺失则 out 无 Brand 键,
-    # 下游 select_top_attrs 按 ATTR_PRIORITY 跳过, 不影响其他字段
+    # New 2023 format: features list
+    features = d.get("features")
+    if isinstance(features, list):
+        for i, v in enumerate(features):
+            if not isinstance(v, str):
+                continue
+            s = v.strip()
+            if not s or len(s) > MAX_STR_LEN:
+                continue
+            # features are anonymous; name them by index
+            out[f"Feature {i+1}"] = s
 
-    # top-level 结构化字段
-    main_cat = d.get("main_category")
-    if isinstance(main_cat, str) and main_cat.strip():
-        out["Main Category"] = main_cat.strip()
+    # Old 2018 format: top-level fields (also used as fallback)
+    for field in ("brand", "main_category"):
+        v = d.get(field)
+        if isinstance(v, str) and v.strip():
+            name = "Brand" if field == "brand" else "Main Category"
+            if name not in out:
+                out[name] = v.strip()
 
     for field in TOP_LEVEL_NUMERIC_FIELDS:
         v = d.get(field)
         if v is None or v == "":
             continue
         out[field.replace("_", " ").title().replace(" ", " ")] = v
+
+    # 用户指令 2026-09-04: 源头过滤含数字的 (k, v) (单 attr 维度)
+    if EXCLUDE_NUMERIC_VALUES:
+        out = {k: v for k, v in out.items() if not has_digit(str(v))}
+
+    # 用户指令 2026-09-04: value 去重 (大小写不敏感), 同一 value 已出现过则
+    # 跳过新的 (k, v) — 保留首次出现的 key
+    seen_values: set[str] = set()
+    deduped: dict = {}
+    for k, v in out.items():
+        v_key = str(v).strip().lower()
+        if v_key in seen_values:
+            continue
+        seen_values.add(v_key)
+        deduped[k] = v
+    out = deduped
+
+    # 用户指令 2026-09-04: 短语过滤 — value word 数 > MAX_VALUE_WORDS 视为短语跳过
+    out = {
+        k: v
+        for k, v in out.items()
+        if len(re.findall(r"\S+", str(v))) <= MAX_VALUE_WORDS
+    }
+
+    # 用户指令 2026-09-04: yes/no 二元值过滤
+    out = {
+        k: v
+        for k, v in out.items()
+        if str(v).strip().lower() not in _YES_NO_VALUES
+    }
+
+    # 用户指令 2026-09-04: 非英文 key/value 过滤 — key 和 value 都至少
+    # 需含一个 ASCII 英文字母 (CJK / 纯数字 / 纯符号全部跳过)
+    out = {
+        k: v
+        for k, v in out.items()
+        if _has_ascii_alpha(k) and _has_ascii_alpha(v) and _is_non_cjk(v)
+    }
+
+    # 用户指令 2026-09-04: 多值取首段 — value 含逗号时只保留第一段 (e.g.
+    # 'Lightweight, Breathable' → 'Lightweight'), 取首段后重新过 yes/no /
+    # 短语 / 英文过滤
+    cleaned: dict = {}
+    for k, v in out.items():
+        if "," in str(v):
+            first = str(v).split(",", 1)[0].strip()
+            if not first:
+                continue
+            # 重新过严过滤
+            if (
+                _has_ascii_alpha(k)
+                and _has_ascii_alpha(first)
+                and _is_non_cjk(first)
+                and first.lower() not in _YES_NO_VALUES
+                and len(re.findall(r"\S+", first)) <= MAX_VALUE_WORDS
+            ):
+                cleaned[k] = first
+        else:
+            cleaned[k] = v
+    out = cleaned
 
     return out
 
@@ -168,40 +278,96 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
     return out
 
 
+def _process_one(raw_line: str):
+    """Worker 入口: 1 行 metadata → (asin, attrs) 或 None.
+
+    必须 module-level + 纯函数, 让 multiprocessing.Pool 能 pickle.
+    返回值用 None 标记 skip (无 asin / attrs < MIN),主进程 reduce 时忽略。
+    """
+    line = raw_line.strip()
+    if not line:
+        return None
+    try:
+        d = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    asin = d.get("parent_asin") or d.get("asin")
+    if not asin:
+        return None
+    attrs = extract_attrs(d)
+    if len(attrs) < MIN_ATTRS_PER_ASIN:
+        return None
+    return (asin, attrs)
+
+
+def _process_chunk(chunk: list[str]):
+    """Worker 入口 (chunked): N 行 metadata → list of (asin, attrs).
+
+    比 _process_one 减少 IPC 次数, 主进程 imap_unordered 按 chunk 喂。
+    """
+    out = []
+    for line in chunk:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        asin = d.get("parent_asin") or d.get("asin")
+        if not asin:
+            continue
+        attrs = extract_attrs(d)
+        if len(attrs) < MIN_ATTRS_PER_ASIN:
+            continue
+        out.append((asin, attrs))
+    return out
+
+
 def step1_extract_attrs() -> dict[str, dict]:
-    log("=== Step 1: extract_attrs ===")
+    log("=== Step 1: extract_attrs (multiprocessing) ===")
+    log(f"  workers={N_WORKERS}, chunk_size={CHUNK_SIZE}")
+
     product_attrs: dict[str, dict] = {}
     n_total = 0
     n_with_attrs = 0
+    n_skipped_few_attrs = 0
     n_with_details = 0
     n_top_level_only = 0
     field_counter: dict[str, int] = {}
 
-    with gzip.open(META_GZ, "rt") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            d = json.loads(line)
-            n_total += 1
-            asin = d.get("parent_asin")
-            if not asin:
-                continue
-            attrs = extract_attrs(d)
-            if attrs:
-                product_attrs[asin] = attrs
-                n_with_attrs += 1
-                has_details = any(
-                    k not in ("Brand", "Main Category", "Average Rating",
-                              "Rating Number", "Price")
-                    for k in attrs
-                )
-                if has_details:
-                    n_with_details += 1
-                else:
-                    n_top_level_only += 1
-                for k in attrs:
-                    field_counter[k] = field_counter.get(k, 0) + 1
+    # 主进程先一次性读取所有行到内存 (1.5 GB), 避免 worker fork 后
+    # 多进程争抢同一个文件描述符 (POSIX 行为).
+    _open = gzip.open if str(META_GZ).endswith('.gz') else open
+    mode = 'rt' if _open is gzip.open else 'r'
+    with _open(META_GZ, mode) as f:
+        all_lines = f.readlines()
+    n_total = len(all_lines)
+    log(f"  read {n_total} lines from metadata; dispatching to {N_WORKERS} workers")
+
+    # chunked dispatch
+    chunks = [
+        all_lines[i : i + CHUNK_SIZE]
+        for i in range(0, len(all_lines), CHUNK_SIZE)
+    ]
+    n_skipped_few_attrs = 0
+    with Pool(processes=N_WORKERS) as pool:
+        for sub in pool.imap_unordered(_process_chunk, chunks):
+            for asin, attrs in sub:
+                if attrs:
+                    product_attrs[asin] = attrs
+                    n_with_attrs += 1
+                    has_details = any(
+                        k not in ("Brand", "Main Category", "Average Rating",
+                                  "Rating Number", "Price")
+                        for k in attrs
+                    )
+                    if has_details:
+                        n_with_details += 1
+                    else:
+                        n_top_level_only += 1
+                    for k in attrs:
+                        field_counter[k] = field_counter.get(k, 0) + 1
 
     PRODUCT_ATTRS_JSON.parent.mkdir(parents=True, exist_ok=True)
     PRODUCT_ATTRS_JSON.write_text(
@@ -211,6 +377,7 @@ def step1_extract_attrs() -> dict[str, dict]:
     log(f"  total metadata products={n_total}, with attrs={n_with_attrs}")
     log(f"    details-based={n_with_details}, top-level only={n_top_level_only}")
     log(f"    distinct attr fields={len(field_counter)}")
+    log(f"    skipped ASINs (filtered attrs <{MIN_ATTRS_PER_ASIN})={n_total - n_with_attrs}")
     log(f"  wrote → {PRODUCT_ATTRS_JSON}")
     return product_attrs
 

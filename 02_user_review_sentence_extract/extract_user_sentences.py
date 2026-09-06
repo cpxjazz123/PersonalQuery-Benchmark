@@ -10,15 +10,19 @@ import gzip, json, re, pickle
 from pathlib import Path
 
 SCRATCH = Path('/home/wlia0047/hj82_scratch2/wenyu')
-RAW_DATA = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl.gz')
-OUT_PATH = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_gaussian/uid_to_sentences.json')
-OUT_PKL  = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_gaussian/uid_to_sentences.pkl')
+RAW_DATA = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl')
+OUT_PATH = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/02_user_review_sentence_extract/uid_to_sentences.json')
+OUT_PKL  = Path('/home/wlia0047/ar57/wenyu/PersoanlQuery/result/02_user_review_sentence_extract/uid_to_sentences.pkl')
 
 SENT_SPLIT = re.compile(r'(?<=[.!?])\s+')
 
 print("Stage 0: 加载原始数据...")
 uid_to_sents = {}
-with gzip.open(RAW_DATA, 'rt') as f:
+
+# Auto-detect: .gz → gzip.open, else → open (plain JSONL)
+_open = gzip.open if str(RAW_DATA).endswith('.gz') else open
+mode = 'rt' if _open is gzip.open else 'r'
+with _open(RAW_DATA, mode) as f:
     for line in f:
         e = json.loads(line)
         uid = e['user_id']
