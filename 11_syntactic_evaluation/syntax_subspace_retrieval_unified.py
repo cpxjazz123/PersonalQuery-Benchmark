@@ -45,9 +45,9 @@ _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 # ===========================================================================
 # PATHS (inlined from common/syntax_subspace_utils.py 2026-09-06: common/ deleted)
 # ===========================================================================
+REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
 META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl"
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-06: 用户指向新 schema
 PER_QUERY_OUT = Path(f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_per_query{_SEL_SUFFIX}.json")
 SUMMARY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/retrieval_summary{_SEL_SUFFIX}.json")

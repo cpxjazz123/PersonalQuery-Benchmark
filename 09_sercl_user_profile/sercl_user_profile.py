@@ -36,7 +36,7 @@ OUT_DIR = REPO_ROOT / "result/09_sercl_user_profile"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ----- Hardcoded hyperparams (Rule 3) -----
-SERCL_N_USERS = None                # None = 所有符合条件的 selected uids (无 smoke cap)
+SERCL_N_USERS = None                # 2026-09-06 full: None = 全量符合条件的 selected uids
 SERCL_MIN_SENTS = 30                # 每个用户至少这么多句子 (Rule 20: smoke 小)
 SERCL_MAX_SENTS_PER_USER = 50    # 2026-09-06: 每用户最多 50 句 (None=不限); tradeoff: stats stability vs compute
 SERCL_SEED = 42

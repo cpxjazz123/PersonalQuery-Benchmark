@@ -17,7 +17,7 @@
   $PY 07_gen_query/sft_pool_generate.py
 
 输出:
-  result/07_gen_query/pool.json
+  result/07_gen_query/pool_queries.json
 """
 from __future__ import annotations
 
@@ -34,10 +34,9 @@ sys.path.insert(0, str(REPO_ROOT))
 OUT_DIR = REPO_ROOT / "result/07_gen_query"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 2026-09-05 修复: 抽样域限定为 valid Gaussian 用户覆盖的 ASIN (≥2 valid users)
-# 来源: result/05_gaussian_audit/asin_coverage_valid_ge2.json
-ASIN_COVERAGE_PATH = REPO_ROOT / "result/05_gaussian_audit/asin_coverage_valid_ge2.json"
-SFT_POOL_SOURCE = "gaussian_valid_ge2"  # 标注抽样源
+# Stage 04 canonical artifact 提供 fitted users 与 ASIN cohort coverage。
+STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
+SFT_POOL_SOURCE = "stage04_fitted_cohort"  # 标注抽样源
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
@@ -83,20 +82,19 @@ def load_attributes() -> Dict[str, Dict[str, str]]:
 
 def select_eval_asins(attrs_all: Dict[str, Dict[str, str]],
                       n_asin: int) -> List[str]:
-    """加载 n_asin 个 ASIN, 排除 SFT 训练用过的.
-
-    2026-09-05 新版: 抽样域限定为 valid Gaussian 用户 (E1E2E3E4 全 pass) 覆盖
-    且 ≥2 valid users 的 ASIN, 保证下游 08 selection 每个 ASIN 都有多个
-    candidate target user 可选. 按 valid uid 数量降序取前 n_asin (高 density
-    优先, cohort competitor 更充足).
-    """
-    if not ASIN_COVERAGE_PATH.exists():
+    """从 Stage 04 fitted cohort 中选择有属性的 ASIN。"""
+    if not STAGE04_PATH.exists():
         raise FileNotFoundError(
-            f"{ASIN_COVERAGE_PATH} 不存在, 请先跑 05_gaussian_audit/raw_cov_validity.py"
+            f"{STAGE04_PATH} 不存在, 请先跑 04_gaussian/fit_per_user_gaussian.py"
         )
-    with open(ASIN_COVERAGE_PATH) as f:
-        coverage = json.load(f)
-    asin_to_valid = coverage["asin_to_valid_uids"]
+    with open(STAGE04_PATH) as f:
+        stage04 = json.load(f)
+    asin_to_valid = stage04.get("cohort_gates")
+    if not isinstance(asin_to_valid, dict) or not asin_to_valid:
+        raise ValueError("Stage 04 artifact requires non-empty cohort_gates")
+    for asin, cohort in asin_to_valid.items():
+        if not isinstance(cohort, dict) or len(cohort) < 2:
+            raise ValueError(f"Stage 04 cohort {asin} has fewer than two users")
 
     excluded = set()
     if SFT_POOL_EXCLUDE_TRAIN:
@@ -155,7 +153,31 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
     """
     from vllm import SamplingParams
     from vllm.lora.request import LoRARequest
-    from common.grpo_reward import check_content, tokenize
+    import re
+
+    def tokenize(text: str) -> List[str]:
+        return re.findall(r"\b\w+(?:['-]\w+)*\b", text)
+
+    def check_content(text: str, attrs: Dict[str, str]):
+        tokens = tokenize(text.lower())
+        normalized = " ".join(tokens)
+        covered = {}
+        missing = []
+        for key, value in attrs.items():
+            value_tokens = tokenize(str(value).lower())
+            if not value_tokens:
+                raise ValueError(f"attribute {key} has no tokenized value")
+            value_text = " ".join(value_tokens)
+            covered[key] = value_text in normalized
+            if not covered[key]:
+                missing.append(key)
+        repeated = len(tokens) != len(set(tokens))
+        known_tokens = {
+            token for value in attrs.values()
+            for token in tokenize(str(value).lower())
+        }
+        extras = [token for token in tokens if token not in known_tokens]
+        return covered, missing, repeated, extras
 
     llm = get_or_create_llm()
     prompts = [_build_sft_prompt(attrs) for attrs in attrs_list]
@@ -182,7 +204,7 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
         for choice in out.outputs:
             text = choice.text.strip().split("\n")[0].strip()
             cov, miss, rep, extras = check_content(text, attrs)
-            content_pass = (len(miss) == 0 and len(rep) == 0
+            content_pass = (len(miss) == 0 and not rep
                             and len(extras) <= SFT_POOL_MAX_EXTRAS)
             cands.append({
                 "text": text,
@@ -228,7 +250,7 @@ def main_pipeline():
                 "top_p": SFT_POOL_TOP_P,
                 "max_new_tokens": SFT_POOL_MAX_NEW_TOKENS,
                 "source": SFT_POOL_SOURCE,
-                "coverage_path": str(ASIN_COVERAGE_PATH),
+                "stage04_source": str(STAGE04_PATH),
             },
             "pool": pool,
         }, f, indent=2, ensure_ascii=False)

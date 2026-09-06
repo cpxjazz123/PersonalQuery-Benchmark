@@ -3,8 +3,8 @@
 
 Loads:
   - result/09_sercl_user_profile/user_sercl_profile.json        (per-user edits + mechanism histograms)
-  - result/10_typo_injection/user_mahalanobis_stats.json        (per-user μ_u + Σ_u⁻¹ + D² thresholds)
-  - result/08_select_query/selected_queries.json                (uid/asin/query source)
+  - result/04_gaussian/user_gaussian_stats.json                  (per-user μ_u + Σ_u⁻¹ + cohort gates)
+  - result/08_select_query/selected_queries.json                  (uid/asin/query source)
 
 For each (uid, query) in selected_queries:
   1. Look up user's error model + 32d μ + Σ⁻¹ + D² threshold
@@ -43,14 +43,13 @@ from injection_sampler import sample_injection
 
 # Hardcoded paths (Rule 3)
 SERCL_PROFILE = REPO_ROOT / "result/09_sercl_user_profile/user_sercl_profile.json"
-MAHAL_STATS = REPO_ROOT / "result/10_typo_injection/user_mahalanobis_stats.json"
+STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
 SELECTED = REPO_ROOT / "result/08_select_query/selected_queries.json"
-COHORT_GATES = REPO_ROOT / "result/10_typo_injection/asin_cohort_gates.json"
 OUT_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary.json"
 
 # Hardcoded hyperparams
-SMOKE = False                   # True=5 users smoke, False=full 217 users (Rule 20)
+SMOKE = False                   # 2026-09-06 full: 21 selections × 48 users; True=5 users smoke (Rule 20)
 N_SMOKE_USERS = 5
 MAX_QUERIES_PER_USER = 3
 SEED_BASE = 42
@@ -70,20 +69,66 @@ def load_inputs():
     profiles = load_sercl_profile(SERCL_PROFILE)
     log(f"  loaded {len(profiles)} user error models")
 
-    with open(MAHAL_STATS) as f:
-        mahal = json.load(f)
-    log(f"  loaded {len(mahal)} user Mahalanobis stats")
+    if not STAGE04_PATH.exists():
+        raise FileNotFoundError(
+            f"missing: {STAGE04_PATH} (run 04_gaussian/fit_per_user_gaussian.py)"
+        )
+    with open(STAGE04_PATH) as f:
+        stage04 = json.load(f)
+    if not isinstance(stage04, dict):
+        raise ValueError("Stage 04 artifact must be a JSON object")
+    mahal = stage04.get("users")
+    cohort = stage04.get("cohort_gates")
+    config = stage04.get("config")
+    if not isinstance(mahal, dict) or not mahal:
+        raise ValueError("Stage 04 artifact requires non-empty users")
+    if not isinstance(cohort, dict) or not cohort:
+        raise ValueError("Stage 04 artifact requires non-empty cohort_gates")
+    if not isinstance(config, dict) or config.get("gate_quantile") != 0.95:
+        raise ValueError("Stage 04 artifact must use gate_quantile=0.95")
+    expanded_cohort = {}
+    for asin, gates in cohort.items():
+        if not isinstance(gates, dict) or len(gates) < 2:
+            raise ValueError(f"invalid Stage 04 cohort for ASIN {asin}")
+        expanded_cohort[asin] = {}
+        for uid, gate in gates.items():
+            if uid not in mahal:
+                raise ValueError(f"cohort {asin} references missing user {uid}")
+            if not isinstance(gate, dict) or "gate_T" not in gate:
+                raise ValueError(f"cohort {asin}/{uid} missing gate_T")
+            user_stats = mahal[uid]
+            if "d2_q95" not in user_stats or "mu" not in user_stats \
+                    or "sigma_inv" not in user_stats:
+                raise ValueError(f"Stage 04 user {uid} is missing Gaussian fields")
+            if not np.isclose(float(gate["gate_T"]), float(user_stats["d2_q95"]),
+                              rtol=0.0, atol=1e-5):
+                raise ValueError(f"cohort gate mismatch for {asin}/{uid}")
+            expanded_cohort[asin][uid] = {
+                "mu": user_stats["mu"],
+                "sigma_inv": user_stats["sigma_inv"],
+                "gate_T": float(gate["gate_T"]),
+                "n": int(gate.get("n_profile", user_stats["n"])),
+                "n_val": int(gate.get("n_val", user_stats.get("n_val", 0))),
+            }
 
     with open(SELECTED) as f:
         sel = json.load(f)
+    if not isinstance(sel, dict) or not isinstance(sel.get("selections"), list):
+        raise ValueError("selected_queries.json requires a selections list")
+    for entry in sel["selections"]:
+        asin = entry.get("asin")
+        if asin not in expanded_cohort:
+            raise ValueError(f"selected ASIN {asin} missing from Stage 04 cohort_gates")
+        for selected_user in entry.get("users", []):
+            uid = selected_user.get("uid")
+            if uid not in mahal or uid not in expanded_cohort[asin]:
+                raise ValueError(f"selected pair ({uid}, {asin}) missing from Stage 04")
     log(f"  loaded {len(sel['selections'])} selections")
+    n_pairs = sum(len(c) for c in expanded_cohort.values())
+    log(f"  loaded Stage 04: {len(mahal)} users, {len(expanded_cohort)} ASIN cohort gates, "
+        f"{n_pairs} pairs")
 
-    with open(COHORT_GATES) as f:
-        cohort = json.load(f)
-    n_pairs = sum(len(c) for c in cohort.values())
-    log(f"  loaded {len(cohort)} asin cohort gates, {n_pairs} (asin, uid) pairs")
-
-    return profiles, mahal, sel, cohort
+    return profiles, mahal, sel, expanded_cohort
 
 
 def collect_pairs(selections, mahal, max_per_user):
@@ -109,6 +154,9 @@ def main():
     profiles, mahal, sel, cohort = load_inputs()
 
     pairs = collect_pairs(sel["selections"], mahal, MAX_QUERIES_PER_USER)
+    for uid, asin, _ in pairs:
+        if asin not in cohort or uid not in cohort[asin]:
+            raise ValueError(f"selected pair ({uid}, {asin}) missing from Stage 04 cohort_gates")
     if SMOKE:
         rng = random.Random(SEED_BASE)
         rng.shuffle(pairs)
@@ -226,8 +274,8 @@ def main():
             "max_queries_per_user": MAX_QUERIES_PER_USER,
             "single_shot": True,
             "d2_threshold_quantile": D2_THRESHOLD_QUANTILE,
-            "mahal_stats_source": str(MAHAL_STATS),
-            "cohort_gates_source": str(COHORT_GATES),
+            "mahal_stats_source": str(STAGE04_PATH),
+            "cohort_gates_source": str(STAGE04_PATH),
             "semantic_threshold": 0.9,
             "semantic_model": "sentence-transformers/all-MiniLM-L6-v2",
             "note": "single-shot injection; gates: Bernoulli → Mahalanobis D²(target Q_95) "

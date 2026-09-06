@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 """Query selection: per-user Mahalanobis D² + validation-quantile gate.
 
-用户 2026-09-05 设计 (两层):
-  1. 目标用户真实历史句子的句法向量 z_i (profile 段) 估计 μ_u 与正则化协方差
-     Σ_u + λI;
-  2. 同一冻结 encoder 编码候选 query 得 z_q, D²(q,u) = (z_q−μ_u)ᵀ Σ_u⁻¹ (z_q−μ_u);
-  3. absolute gate 阈值不看测试候选, 从验证集 (val 段) 真实句子 self-D² 取
-     分位数 T_u = Q_0.75;
-  4. D²(q,u) ≤ T_u 才算落在用户正常句法范围内, 通过者中选 D² 最小;
-  5. 每 ASIN 给所有 healthy user 各选 1 query (per-(asin, uid) task), 共享
-     candidates, 不再 regen;
-  6. 全程同一 encoder、同一归一化 (count/(1+count))、同一正则化 (λI)。
+Refactor 2026-09-06: per-user Gaussian 与 per-(asin, uid) cohort membership
+由 Stage 04 的单一 canonical artifact 提供，08 只做 candidate query 编码、
+选择判定与输出，不在运行时重新拟合 Gaussian。
 
-复用资产 (全部已核实):
+流程:
+  1. 加载 result/04_gaussian/user_gaussian_stats.json 的 users/cohort_gates
+  2. 加载 frozen encoder + vocab, 编码候选 pool queries → 32d z_q
+  3. 对每个 (asin, uid) task:
+     a. D²(z_q, μ_u) ≤ u.d2_q95 (gate_T)   ← target 核心内
+     b. ∀comp ∈ cohort: D²(z_q, μ_comp) > comp.d2_q95 ← 核心外
+  4. 通过者中选 D² 最小
+  5. 每 ASIN 给 Stage 04 cohort 中的用户各选 1 query, ≥2 unique user 才保留
+
+复用资产:
   - 冻结 encoder: pcfg_cache/adaptive_encoder.pt (_SupEncoder 21737→256→32, eval)
-  - 预编码 profile/val z: pcfg_cache/adaptive_embeddings.npz (3-way hash split)
-  - 行→uid: pcfg_cache/user_n_sents.json (sum=816023=sent_vectors 行数)
-  - 归一化: normalize_counts (03_spacy_encode/syntax_pcfg_pipeline.py:190)
-  - 规则: extract_struct_rules (同 :147), spaCy en_core_web_sm (同 :72)
-  - 候选池: result/06_gen_query/pool.json
+  - vocab:        pcfg_cache/vocab.json (21737 规则)
+  - Stage 04 canonical Gaussian + cohort gates:
+    result/04_gaussian/user_gaussian_stats.json
+  - pool queries: result/07_gen_query/pool_queries.json
 
-用法 (Rule 3: no args):
+用法 (Rule 3: 无参数):
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
   $PY 08_select_query/syntax_select_mahalanobis_gate.py
 
-输出:
-  result/08_select_query/selected_queries.json
+输出: result/08_select_query/selected_queries.json
 """
 from __future__ import annotations
 
@@ -47,43 +47,29 @@ sys.path.insert(0, str(REPO_ROOT))
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
 POOL_PATH = REPO_ROOT / "result/07_gen_query/pool_queries.json"
 ATTRS_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes.json"
-ASIN_USERS_PATH = REPO_ROOT / "asin_users/asin_to_users.json"
 OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
-MULTI_AUDIT_PATH = REPO_ROOT / "result/05_gaussian_audit/raw_cov_validity.json"
+# Stage 04 是 Gaussian 与 cohort membership 的唯一 canonical source。
+STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
+USER_STATS_PATH = STAGE04_PATH
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # --- Hardcoded hyperparams (Rule 3) ---
-LAMBDA = 0.0                # 2026-09-05: 与 audit 一致用 raw Σ, 不加 ridge
-                            # (audit 用 raw_cov_validity 算 E1E2E3E4, 必须统一)
-# 2026-09-06 用户锁定 Q=0.95 作为 inside-target strict 的过滤分位数
-# (1000 ASIN × 100 cand sweep: Q=0.95 → 972 selected / 673 unique_asins / 243 asins_ge2)
 FILTER_Q = 0.95
-SEMANTIC_SIM_THRESHOLD = 0.8   # 2026-09-06: 同一 ASIN query 间 miniLM cos ≥ 此值才保留
-GATE_QUANTILE_BY_TIER = {   # val self-D² 分位数 gate (用户设计: 三档策略)
-    "healthy": FILTER_Q,    # 健康用户: Q_0.95 (Stage 8 inside-target strict 主体)
-    "usable": 0.95,         # 可用用户: 与 healthy 一致 (2026-09-06 统一)
-    "unreliable": None,     # 不可靠用户: 不参选 (记 no_pass 但不 regen)
-}
-MIN_PROFILE_SENTS = 40      # 拟合 32d full cov 的最小 profile 句数
-MIN_VAL_SENTS = 10          # 算 gate 的最小 val 句数
-MAX_REGEN_ROUNDS = 3        # 无候选通过时最大重新生成轮数
-REGEN_K = 8                 # 每轮重新生成的 candidates 数
-SMOKE = False               # True=5 ASIN smoke, False=100 ASIN full (Rule 20)
+SEMANTIC_SIM_THRESHOLD = 0.8
+MIN_PROFILE_SENTS = 40
+MIN_VAL_SENTS = 10
+SMOKE = False
 N_SMOKE_ASIN = 5
-SPACY_MODEL = "en_core_web_sm"   # 与 cache 一致 (syntax_pcfg_pipeline.py:72)
-SPACY_DISABLE = ["ner", "textcat", "lemmatizer"]  # 同 :229
+SPACY_MODEL = "en_core_web_sm"
+SPACY_DISABLE = ["ner", "textcat", "lemmatizer"]
 
-# 2026-09-05: 核心区域排他性 (Stage 8 升级)
-# 2026-09-06: 与 FILTER_Q 同步 (user 锁定 Q=0.95)
-COMPETITOR_GATE_QUANTILE = FILTER_Q   # competitor 的"核心外" = val D² > Q0.95
-BS_N_BOOTSTRAP = 29               # target 核心区域稳定性重抽样数
-BS_FRAC = 0.5                     # 重抽样比例 (与 audit E4 一致)
-BS_P_THRESH = 0.95                # bootstrap 通过阈值 (≥95% 稳定)
-BS_SEED = 42                      # bootstrap 随机种子 (可复现)
-# 2026-09-05 (Stage 8 single-fit 变体): 跳过 bootstrap, 直接用一次性固定高斯筛选.
-# 命名为 single_fit_unique (固定 Gaussian, 无 bootstrap 稳定性声明).
-USE_SINGLE_FIT = True             # True=single_fit_unique, False=bootstrap core exclusive
-ENCODE_DEVICE = "cpu"       # encoder 前向极小 (≤1000 短句), 不与 vLLM 抢 GPU
+COMPETITOR_GATE_QUANTILE = FILTER_Q
+BS_N_BOOTSTRAP = 29
+BS_FRAC = 0.5
+BS_P_THRESH = 0.95
+BS_SEED = 42
+USE_SINGLE_FIT = True    # single_fit_unique: 一次性固定高斯, 无 bootstrap
+ENCODE_DEVICE = "cpu"
 
 
 def log(msg: str) -> None:
@@ -91,7 +77,7 @@ def log(msg: str) -> None:
 
 
 # ============================================================================
-# 03_spacy_encode 模块加载 (_SupEncoder / extract_struct_rules, Rule 19 不挪动)
+# 03_spacy_encode 模块加载 (_SupEncoder / extract_struct_rules)
 # ============================================================================
 
 _pcfg = None
@@ -110,11 +96,10 @@ def _load_pcfg():
 
 
 # ============================================================================
-# 冻结 encoder 加载 (与 03_spacy_encode stage_adaptive 保存格式对齐)
+# 冻结 encoder 加载 (用于 candidate query 编码)
 # ============================================================================
 
 def load_encoder() -> torch.nn.Module:
-    """重建 _SupEncoder 并加载 adaptive_encoder.pt (必须 eval, BatchNorm)."""
     ckpt = torch.load(CACHE_DIR / "adaptive_encoder.pt", map_location="cpu",
                       weights_only=False)
     cfg = ckpt["config"]
@@ -129,68 +114,80 @@ def load_encoder() -> torch.nn.Module:
 
 
 # ============================================================================
-# 预编码 profile/val z + 行→uid 映射
+# Stage 04 产物加载 (per-user Gaussian + cohort gates)
 # ============================================================================
 
-def load_precomputed() -> Dict:
-    """adaptive_embeddings.npz + user_n_sents.json → per-uid profile/val 索引."""
-    npz = np.load(CACHE_DIR / "adaptive_embeddings.npz", allow_pickle=False)
-    z_profile = npz["z_profile"]   # (407510, 32)
-    z_val = npz["z_val"]           # (163543, 32)
-    profile_idx = npz["profile_idx"]
-    val_idx = npz["val_idx"]
-    uid_list = [str(u) for u in npz["uid_list"]]
-
-    with open(CACHE_DIR / "user_n_sents.json") as f:
-        user_n_sents = json.load(f)
-    n_total = int(sum(user_n_sents))
-    if n_total <= max(int(profile_idx.max()), int(val_idx.max())):
+def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
+    """严格加载 Stage 04 canonical artifact 及其 users/cohort_gates。"""
+    if not STAGE04_PATH.exists():
+        raise FileNotFoundError(
+            f"missing: {STAGE04_PATH} (run 04_gaussian/fit_per_user_gaussian.py)"
+        )
+    with open(STAGE04_PATH) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError("Stage 04 artifact must be a JSON object")
+    users = data.get("users")
+    cohort_gates = data.get("cohort_gates")
+    config = data.get("config")
+    if not isinstance(users, dict) or not users:
+        raise ValueError("Stage 04 artifact requires non-empty 'users'")
+    if not isinstance(cohort_gates, dict) or not cohort_gates:
+        raise ValueError("Stage 04 artifact requires non-empty 'cohort_gates'")
+    if not isinstance(config, dict) or config.get("gate_quantile") != FILTER_Q:
         raise ValueError(
-            f"row index out of range: n_total={n_total}, "
-            f"max_idx={max(int(profile_idx.max()), int(val_idx.max()))}")
-    if len(user_n_sents) != len(uid_list):
-        raise ValueError(
-            f"user_n_sents ({len(user_n_sents)}) != uid_list ({len(uid_list)})")
+            f"Stage 04 gate_quantile must equal FILTER_Q={FILTER_Q}; "
+            f"got {None if not isinstance(config, dict) else config.get('gate_quantile')}"
+        )
+    for asin, cohort in cohort_gates.items():
+        if not isinstance(cohort, dict) or len(cohort) < 2:
+            raise ValueError(f"cohort {asin} must contain at least two users")
+        for uid, gate in cohort.items():
+            if uid not in users:
+                raise ValueError(f"cohort {asin} references missing user {uid}")
+            if not isinstance(gate, dict) or "gate_T" not in gate:
+                raise ValueError(f"cohort {asin}/{uid} missing gate_T")
+    log(f"  loaded Stage 04: {len(users)} users, {len(cohort_gates)} ASINs, "
+        f"{sum(len(c) for c in cohort_gates.values())} cohort pairs")
+    return users, cohort_gates, config
 
-    # 行 → uid index (行按 uid_list 顺序连续排列)
-    uid_idx_per_row = np.repeat(np.arange(len(uid_list)), user_n_sents)
 
-    prof_row_uid = uid_idx_per_row[profile_idx]
-    val_row_uid = uid_idx_per_row[val_idx]
-    n_profile_per_uid = np.bincount(prof_row_uid, minlength=len(uid_list))
-    n_val_per_uid = np.bincount(val_row_uid, minlength=len(uid_list))
-
-    # 每 uid 的 profile/val 行 mask 预构建 (布尔矩阵 5000×816023 太大, 按需现算)
-    uid_to_row = {u: i for i, u in enumerate(uid_list)}
-    log(f"  precomputed z: profile={z_profile.shape}, val={z_val.shape}, "
-        f"uids={len(uid_list)}")
+def _gauss_from_stats(stats: Dict) -> Dict:
+    """把 Stage 04 user stats 转成 selection 所需的 numpy 结构。"""
+    required = ("mu", "sigma_inv", "n", "n_val", "d2_q50", "d2_q95")
+    missing = [key for key in required if key not in stats]
+    if missing:
+        raise ValueError(f"Stage 04 user stats missing fields: {missing}")
+    mu = np.asarray(stats["mu"], dtype=np.float32)
+    inv_sigma = np.asarray(stats["sigma_inv"], dtype=np.float32)
+    if mu.shape != (32,) or inv_sigma.shape != (32, 32):
+        raise ValueError(f"invalid Gaussian shape: mu={mu.shape}, sigma_inv={inv_sigma.shape}")
     return {
-        "z_profile": z_profile, "z_val": z_val,
-        "profile_idx": profile_idx, "val_idx": val_idx,
-        "prof_row_uid": prof_row_uid, "val_row_uid": val_row_uid,
-        "n_profile_per_uid": n_profile_per_uid, "n_val_per_uid": n_val_per_uid,
-        "uid_to_row": uid_to_row,
+        "mu": mu,
+        "inv_sigma": inv_sigma,
+        "gate_T": float(stats["d2_q95"]),
+        "d2_val_median": float(stats["d2_q50"]),
+        "gate_quantile": FILTER_Q,
+        "n": int(stats["n"]),
+        "n_val": int(stats["n_val"]),
     }
 
 
 # ============================================================================
-# candidate query 编码 (同一 encoder / 同一归一化 / 同一规则)
+# candidate query 编码
 # ============================================================================
 
 def encode_texts(texts: List[str], nlp, rule_to_id: Dict[str, int],
                  vocab_size: int, encoder: torch.nn.Module) -> np.ndarray:
-    """texts → spaCy doc → extract_struct_rules (set 语义, 与 cache 一致)
-    → 21737 二值计数向量 → normalize (x/(1+x)) → encoder → z (n, 32)."""
     extract_struct_rules = _load_pcfg().extract_struct_rules
-
     n = len(texts)
     counts = np.zeros((n, vocab_size), dtype=np.float32)
     for i, doc in enumerate(nlp.pipe(texts, batch_size=256)):
         for r in extract_struct_rules(doc):
             j = rule_to_id.get(r)
-            if j is not None:            # 与 cache 构建一致: vocab 外规则丢弃
-                counts[i, j] = 1.0       # sent_vectors 为二值 (data max=1)
-    counts = counts / (1.0 + counts)     # normalize_counts (pipeline :190)
+            if j is not None:
+                counts[i, j] = 1.0
+    counts = counts / (1.0 + counts)
     with torch.no_grad():
         z, _ = encoder(torch.tensor(counts, dtype=torch.float32,
                                     device=ENCODE_DEVICE))
@@ -198,53 +195,8 @@ def encode_texts(texts: List[str], nlp, rule_to_id: Dict[str, int],
 
 
 # ============================================================================
-# per-user Gaussian + gate
+# Mahalanobis 计算
 # ============================================================================
-
-def fit_user_gaussian(Z_prof: np.ndarray, Z_val: np.ndarray,
-                       gate_quantile: float = 0.75) -> Dict:
-    """μ_u, raw Σ_u (no ridge, 与 audit 一致), val self-D² 的 Q_gate gate.
-
-    2026-09-05: 与 audit 阶段 raw_cov_validity.py 保持完全一致 (λ=0).
-    inv 奇异 → 抛 RuntimeError (调用方 catch 后该 user 跳过).
-    """
-    mu = Z_prof.mean(axis=0)
-    centered = Z_prof - mu
-    cov = (centered.T @ centered) / max(len(Z_prof) - 1, 1)
-    if LAMBDA > 0:
-        cov = cov + LAMBDA * np.eye(cov.shape[0], dtype=cov.dtype)
-    try:
-        inv_sigma = np.linalg.inv(cov)
-    except np.linalg.LinAlgError as e:
-        raise RuntimeError(f"Σ_u singular (λ={LAMBDA}): {e}") from e
-
-    diff = Z_val - mu
-    d2_val = np.einsum("nd,de,ne->n", diff, inv_sigma, diff)
-    if np.any(d2_val < 0):
-        raise RuntimeError(f"negative Mahalanobis D² (numerical): min={d2_val.min()}")
-    gate_T = float(np.quantile(d2_val, gate_quantile))
-    return {
-        "mu": mu, "inv_sigma": inv_sigma,
-        "d2_val": d2_val, "gate_T": gate_T,
-        "d2_val_median": float(np.median(d2_val)),
-        "gate_quantile": gate_quantile,
-    }
-
-
-def load_audit() -> Dict[str, str]:
-    """加载 raw_cov_validity.json, 把 valid_gaussian==True 的 uid 标 healthy,
-    其余当 usable. 若文件缺失则全用户当 usable (向后兼容).
-    """
-    if not MULTI_AUDIT_PATH.exists():
-        log(f"  WARNING: {MULTI_AUDIT_PATH} 不存在, 全用户当 usable")
-        return {}
-    with open(MULTI_AUDIT_PATH) as f:
-        au = json.load(f)
-    out = {}
-    for u, r in au["per_user"].items():
-        out[u] = "healthy" if r.get("valid_gaussian") else "usable"
-    return out
-
 
 def maha_d2(Z: np.ndarray, mu: np.ndarray, inv_sigma: np.ndarray) -> np.ndarray:
     diff = Z - mu
@@ -252,66 +204,28 @@ def maha_d2(Z: np.ndarray, mu: np.ndarray, inv_sigma: np.ndarray) -> np.ndarray:
 
 
 def maha_d2_one(z: np.ndarray, mu: np.ndarray, inv_sigma: np.ndarray) -> float:
-    """单点 Mahalanobis D² (target/competitor 核心区域判定用)."""
     d = z - mu
     return float(d @ inv_sigma @ d)
 
 
-def cohort_competitor_gates(competitor_uids: List[str], pre: Dict,
-                            audit_tier: Dict[str, str],
-                            gate_quantile: float = 0.75) -> Dict[str, Dict]:
-    """同一 ASIN 的 competitor healthy users 拟合 Gaussian, 返回 gate dict.
-
-    与 target 用同一 gate_quantile (默认 Q0.75 competitor 核心 = 高包容
-    "核心内" 区域, query 需落在其外). 奇异 Σ 的 competitor 跳过.
-    """
-    out: Dict[str, Dict] = {}
-    for uid in competitor_uids:
-        i = pre["uid_to_row"].get(uid)
-        if i is None:
-            continue
-        if audit_tier.get(uid, "usable") != "healthy":
-            continue
-        if (pre["n_profile_per_uid"][i] < MIN_PROFILE_SENTS
-                or pre["n_val_per_uid"][i] < MIN_VAL_SENTS):
-            continue
-        p_mask = pre["prof_row_uid"] == i
-        v_mask = pre["val_row_uid"] == i
-        Z_prof = pre["z_profile"][p_mask]
-        Z_val = pre["z_val"][v_mask]
-        try:
-            gauss = fit_user_gaussian(Z_prof, Z_val, gate_quantile=gate_quantile)
-        except RuntimeError:
-            continue
-        out[uid] = {**gauss, "Z_prof": Z_prof}
-    return out
-
+# ============================================================================
+# 选择判定 (single_fit_unique 主体)
+# ============================================================================
 
 def check_single_fit_unique(query_z: np.ndarray, target: Dict,
                             competitors: Dict[str, Dict]) -> Tuple[bool, Dict]:
-    """Stage 8 single-fit 变体: 一次性固定高斯筛选.
-
-    不做 bootstrap 重抽样 / 重拟合. 仅依赖已 fit 的 μ/Σ/gate_T:
-      - d_target ≤ target.gate_T (核心内)
-      - ∀competitor: d_competitor > comp.gate_T (核心外)
-
-    返回命名: single_fit_unique (与 bootstrap exclusive 区分)
-    """
     debug = {"d_target": None, "d_competitors": {}, "fail_stage": None}
-
     d_t = maha_d2_one(query_z, target["mu"], target["inv_sigma"])
     debug["d_target"] = d_t
     if d_t > target["gate_T"]:
         debug["fail_stage"] = "target_outside_core"
         return False, debug
-
     for uid, comp in competitors.items():
         d_c = maha_d2_one(query_z, comp["mu"], comp["inv_sigma"])
         debug["d_competitors"][uid] = d_c
         if d_c <= comp["gate_T"]:
             debug["fail_stage"] = f"inside_competitor_core:{uid}"
             return False, debug
-
     debug["fail_stage"] = None
     return True, debug
 
@@ -320,36 +234,28 @@ def check_exclusive(query_z: np.ndarray, target: Dict,
                     competitors: Dict[str, Dict],
                     B: int = 29, p_thresh: float = 0.95,
                     bs_seed: int = 42) -> Tuple[bool, float, Dict]:
-    """核心区域排他性 + bootstrap 稳定性.
+    """bootstrap 变体 (USE_SINGLE_FIT=False 时启用).
 
-    判定顺序 (任一失败即 false):
-      1. d_target ≤ target.gate_T (target 核心内)
-      2. ∀competitor: d_competitor > competitor.gate_T (落在所有 competitor 核心外)
-      3. Bootstrap: 重抽样 target profile B 次, 重 fit Gaussian, 统计
-         d_target ≤ target.gate_T 的稳定性 (P ≥ p_thresh)
-
-    Returns: (stable, P_pass, debug_info)
+    需要 target["Z_prof"] 用于重抽样. Stage 04 不缓存 Z_prof, 因此默认
+    (USE_SINGLE_FIT=True) 不走此路径. 若强制启用且 Z_prof 缺失, 返回失败.
     """
     debug = {"d_target": None, "d_competitors": {}, "n_pass_B": 0, "B": B,
              "boot_d2s": None, "fail_stage": None}
-
-    # Step 1: target 核心内
+    if "Z_prof" not in target:
+        debug["fail_stage"] = "bootstrap_unavailable:Z_prof_missing"
+        return False, 0.0, debug
+    Z_prof = target["Z_prof"]
     d_t = maha_d2_one(query_z, target["mu"], target["inv_sigma"])
     debug["d_target"] = d_t
     if d_t > target["gate_T"]:
         debug["fail_stage"] = "target_outside_core"
         return False, 0.0, debug
-
-    # Step 2: 全 competitor 核心外
     for uid, comp in competitors.items():
         d_c = maha_d2_one(query_z, comp["mu"], comp["inv_sigma"])
         debug["d_competitors"][uid] = d_c
         if d_c <= comp["gate_T"]:
             debug["fail_stage"] = f"inside_competitor_core:{uid}"
             return False, 0.0, debug
-
-    # Step 3: Bootstrap stability of target core region
-    Z_prof = target["Z_prof"]
     n_take = max(int(len(Z_prof) * BS_FRAC), 1)
     rng = np.random.RandomState(bs_seed)
     n_pass = 0
@@ -360,8 +266,6 @@ def check_exclusive(query_z: np.ndarray, target: Dict,
         mu_b = Z_b.mean(axis=0)
         centered = Z_b - mu_b
         cov_b = (centered.T @ centered) / max(len(Z_b) - 1, 1)
-        if LAMBDA > 0:
-            cov_b = cov_b + LAMBDA * np.eye(cov_b.shape[0], dtype=cov_b.dtype)
         try:
             inv_b = np.linalg.inv(cov_b)
         except np.linalg.LinAlgError:
@@ -371,27 +275,13 @@ def check_exclusive(query_z: np.ndarray, target: Dict,
         boot_d2s[b] = d_b
         if d_b <= target["gate_T"]:
             n_pass += 1
-
     P_pass = n_pass / B
     debug["n_pass_B"] = n_pass
     debug["boot_d2s"] = boot_d2s.tolist()
     if P_pass < p_thresh:
         debug["fail_stage"] = f"bootstrap_unstable:{n_pass}/{B}<{p_thresh}"
         return False, P_pass, debug
-    debug["fail_stage"] = None
     return True, P_pass, debug
-
-
-# ============================================================================
-# 06 生成模块 (regen 复用)
-# ============================================================================
-
-def load_gen_module():
-    spec = importlib.util.spec_from_file_location(
-        "sft_pool_generate", REPO_ROOT / "07_gen_query/sft_pool_generate.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 # ============================================================================
@@ -400,17 +290,15 @@ def load_gen_module():
 
 def main_pipeline():
     log("=== syntax_select_mahalanobis_gate ===")
-    log(f"  FILTER_Q={FILTER_Q} (inside-target strict, 2026-09-06 用户锁定 Q=0.95)")
-    log(f"  λ={LAMBDA}  gate_by_tier={GATE_QUANTILE_BY_TIER}  "
-        f"COMPETITOR_GATE_QUANTILE={COMPETITOR_GATE_QUANTILE}  "
-        f"MIN_PROFILE={MIN_PROFILE_SENTS}  MIN_VAL={MIN_VAL_SENTS}  "
-        f"MAX_REGEN_ROUNDS={MAX_REGEN_ROUNDS}  SMOKE={SMOKE}")
+    log(f"  FILTER_Q={FILTER_Q}  MIN_PROFILE={MIN_PROFILE_SENTS} "
+        f"MIN_VAL={MIN_VAL_SENTS}  SMOKE={SMOKE}")
 
-    # --- 加载冻结 encoder + 预编码 z ---
+    # --- 加载 Stage 04 canonical artifact (per-user Gaussian + cohort gates) ---
+    user_stats, cohort_gates_map, stage04_config = load_stage04()
+
+    # --- 加载冻结 encoder + vocab (用于编码 candidate queries) ---
     encoder = load_encoder()
-    pre = load_precomputed()
     V = encoder.encoder[0].in_features
-
     with open(CACHE_DIR / "vocab.json") as f:
         vocab = json.load(f)
     if len(vocab) != V:
@@ -421,22 +309,20 @@ def main_pipeline():
     # --- 候选池 + target user 选择 ---
     with open(POOL_PATH) as f:
         pool_data = json.load(f)
-    # 适配两种结构: 顶层 dict (精简版) 或 {"pool": {asin: [...]}} (旧版)
     if isinstance(pool_data, dict) and "pool" in pool_data \
             and isinstance(pool_data["pool"], dict):
         pool_queries = pool_data["pool"]
     else:
-        pool_queries = pool_data   # {asin: [text, ...]}
+        pool_queries = pool_data
     with open(ATTRS_PATH) as f:
         attrs_all = json.load(f)
-    with open(ASIN_USERS_PATH) as f:
-        asin_to_users = json.load(f)
 
     def _attrs_for(asin: str) -> Dict[str, str]:
-        a = attrs_all.get(asin, {})
+        a = attrs_all.get(asin)
+        if a is None:
+            raise KeyError(f"missing product attributes for selected ASIN {asin}")
         return dict(list(a.items())[:5])
 
-    # 展开为旧格式 [{asin, attrs, candidates}]
     pool_entries = []
     for asin, queries in pool_queries.items():
         cands = [{"text": t, "pass": bool(len(t.split()) >= 3)}
@@ -446,113 +332,57 @@ def main_pipeline():
     log(f"  pool queries loaded: {len(pool_entries)} ASINs, "
         f"total candidates={sum(len(p['candidates']) for p in pool_entries)}")
 
-    audit_tier = load_audit()
-    log(f"  raw_cov_validity audit: {len(audit_tier)} uids  tiers=" +
-        str({t: sum(1 for v in audit_tier.values() if v == t)
-             for t in ("healthy", "usable", "unreliable")}))
-
     if SMOKE:
         pool_entries = [p for p in pool_entries
-                        if any(u in pre["uid_to_row"]
-                               and pre["n_profile_per_uid"][pre["uid_to_row"][u]] >= MIN_PROFILE_SENTS
-                               and pre["n_val_per_uid"][pre["uid_to_row"][u]] >= MIN_VAL_SENTS
-                               for u in asin_to_users.get(p["asin"], []))][:N_SMOKE_ASIN]
+                        if p["asin"] in cohort_gates_map][:N_SMOKE_ASIN]
     log(f"  pool entries to process: {len(pool_entries)}")
 
     tasks: List[Dict] = []
     skipped: List[Dict] = []
     no_pass_unreliable: List[Dict] = []
-    no_pass_singular: List[Dict] = []
-    # 2026-09-05: cohort 缓存, 按 asin 复用 competitor gates
-    asin_to_competitors: Dict[str, Dict[str, Dict]] = {}
     for entry in pool_entries:
         asin = entry["asin"]
-        # 2026-09-05: 每个 ASIN 给所有 healthy user 各选 1 query (per-(asin,uid) task)
-        eligible_users: List[Tuple[str, int]] = []
-        for u in asin_to_users.get(asin, []):
-            i = pre["uid_to_row"].get(u)
-            if i is None:
-                continue
-            if (pre["n_profile_per_uid"][i] >= MIN_PROFILE_SENTS
-                    and pre["n_val_per_uid"][i] >= MIN_VAL_SENTS):
-                eligible_users.append((u, i))
-        if not eligible_users:
-            skipped.append({"asin": asin, "reason": "no_eligible_cached_reviewer"})
+        comps_for_asin = cohort_gates_map.get(asin)
+        if comps_for_asin is None:
+            skipped.append({"asin": asin, "reason": "no_stage04_cohort"})
             continue
-        # 2026-09-05: 预先 fit 该 ASIN 所有 healthy competitor 的 Gaussian
-        competitor_uids_all = [u for u, _ in eligible_users
-                               if audit_tier.get(u, "usable") == "healthy"]
-        if asin not in asin_to_competitors:
-            asin_to_competitors[asin] = cohort_competitor_gates(
-                competitor_uids_all, pre, audit_tier,
-                gate_quantile=COMPETITOR_GATE_QUANTILE,
-            )
-            log(f"    {asin}: {len(asin_to_competitors[asin])} competitor gates fit "
-                f"(from {len(competitor_uids_all)} healthy)")
-        for uid, ui in eligible_users:
-            tier = audit_tier.get(uid, "usable")
-            # 仅 healthy user 参选 (用户决策: 质量优先)
-            if tier != "healthy":
-                continue
-            gate_q = GATE_QUANTILE_BY_TIER[tier]
-            p_mask = pre["prof_row_uid"] == ui
-            v_mask = pre["val_row_uid"] == ui
-            Z_prof = pre["z_profile"][p_mask]
-            Z_val = pre["z_val"][v_mask]
-            try:
-                gauss = fit_user_gaussian(Z_prof, Z_val, gate_quantile=gate_q)
-            except RuntimeError as e:
-                # raw Σ 奇异 (audit E2/E3 应已挡掉, 这里兜底)
-                no_pass_singular.append({
-                    "asin": asin, "uid": uid, "tier": tier,
-                    "reason": f"Σ singular: {e}",
-                })
-                continue
-            # 2026-09-05: competitors = 同 ASIN 其他 healthy (排除自身)
-            comps = {c_uid: c for c_uid, c in asin_to_competitors[asin].items()
-                     if c_uid != uid}
+        for uid in sorted(comps_for_asin):
+            if uid not in user_stats:
+                raise ValueError(f"Stage 04 cohort {asin} references missing user {uid}")
+            gauss = _gauss_from_stats(user_stats[uid])
+            comps = {
+                c_uid: _gauss_from_stats(user_stats[c_uid])
+                for c_uid in comps_for_asin
+                if c_uid != uid
+            }
+            if not comps:
+                raise ValueError(f"Stage 04 cohort {asin} has no competitor for {uid}")
             tasks.append({
-                "asin": asin, "uid": uid, "tier": tier,
+                "asin": asin, "uid": uid, "tier": "stage04_fitted",
                 "attrs": entry["attrs"],
                 "candidates": list(entry["candidates"]),
                 "gauss": gauss,
-                "Z_prof": Z_prof,  # 给 check_exclusive bootstrap 用
                 "competitors": comps,
-                "n_profile": len(Z_prof), "n_val": len(Z_val),
             })
-    log(f"  tasks: {len(tasks)}  skipped: {len(skipped)}  "
-        f"unreliable_no_pass: {len(no_pass_unreliable)}  "
-        f"singular_no_pass: {len(no_pass_singular)}")
+    log(f"  tasks: {len(tasks)}  skipped: {len(skipped)}")
     if not tasks:
         raise RuntimeError("no eligible (ASIN, target_user) tasks")
-    for t in tasks:
-        log(f"    {t['asin']} uid={t['uid']} n_prof={t['n_profile']} "
-            f"n_val={t['n_val']} gate_T={t['gauss']['gate_T']:.2f} "
-            f"(val D² median {t['gauss']['d2_val_median']:.2f})")
 
-    gen_mod = None  # lazy: 共享 candidates, 不需要 regen
+    for t in tasks[:5]:
+        log(f"    {t['asin']} uid={t['uid']} gate_T={t['gauss']['gate_T']:.2f} "
+            f"(d2_q50={t['gauss']['d2_val_median']:.2f})")
+    if len(tasks) > 5:
+        log(f"    ... and {len(tasks) - 5} more tasks")
 
-    # --- 选择循环 (per-(asin, uid) 独立 Mahalanobis + tier gate) ---
-    # 2026-09-05: 每 ASIN 给所有 healthy user 各选 1 query.
-    # candidates 是 user-agnostic 的 (内容级 query), 不随 user 改, 所以
-    # 一次性按 asin 编码全部 candidates, 然后对每个 user 重算 D² + gate.
-    selections: List[Dict] = []
-    no_pass: List[Dict] = []
-    all_d2_round0: List[float] = []
-    n_gate_pass_round0 = 0
-    n_cand_round0 = 0
-
-    # 按 asin 分组 tasks
+    # --- 一次性编码所有 ASIN 的 candidates (按 asin 分组) ---
     asin_to_tasks: Dict[str, List[Dict]] = {}
     for t in tasks:
         asin_to_tasks.setdefault(t["asin"], []).append(t)
 
-    # 一次性编码所有 ASIN 的 candidates (dedup by asin)
     asins = list(asin_to_tasks.keys())
     texts_flat: List[str] = []
-    spans: List[Tuple[int, int, str]] = []  # (start, end, asin)
+    spans: List[Tuple[int, int, str]] = []
     for a in asins:
-        # 用第一个 task 的 candidates (同一 ASIN 内 user 共用)
         cands = asin_to_tasks[a][0]["candidates"]
         start = len(texts_flat)
         texts_flat.extend(c["text"] for c in cands)
@@ -560,19 +390,23 @@ def main_pipeline():
     log(f"  encoding {len(texts_flat)} candidates across {len(asins)} ASINs")
     Z_all = encode_texts(texts_flat, nlp, rule_to_id, V, encoder)
 
-    # 按 asin 缓存 Z_q (cand_records 不在 asin 级共享, per-task deepcopy 避免跨 user 覆盖)
     asin_to_Zq: Dict[str, np.ndarray] = {}
     asin_to_cand_text: Dict[str, List[Dict]] = {}
     for s, e, a in spans:
         asin_to_Zq[a] = Z_all[s:e]
         asin_to_cand_text[a] = asin_to_tasks[a][0]["candidates"]
 
-    # 对每个 task (per asin × user) 算 D² + 排他性 + bootstrap 选 best unique
+    # --- 选择循环 ---
+    selections: List[Dict] = []
+    no_pass: List[Dict] = []
+    all_d2_round0: List[float] = []
+    n_gate_pass_round0 = 0
+    n_cand_round0 = 0
+
     for t in tasks:
         a = t["asin"]
         Z_q = asin_to_Zq[a]
         cands_src = asin_to_cand_text[a]
-        # per-task deepcopy: c["d2"] / c["pass_gate"] / c["pass_unique"] 必须 per-user
         cand_records = [{
             "text": c["text"],
             "d2": None,
@@ -582,17 +416,13 @@ def main_pipeline():
         } for c in cands_src]
         d2 = maha_d2(Z_q, t["gauss"]["mu"], t["gauss"]["inv_sigma"])
         gate_T = t["gauss"]["gate_T"]
-        # 填每条记录的 d2 (legacy, 报告用)
         for c, d in zip(cand_records, d2):
             c["d2"] = float(d)
             c["pass_gate"] = bool(d <= gate_T)
-        # 2026-09-05: 核心区域排他性 + (可选) bootstrap stability 替换单一 gate
         competitors = t["competitors"]
-        target_with_Z = {**t["gauss"], "Z_prof": t["Z_prof"]}
-        unique_pass: List[Dict] = []   # 通过 3-way 排他性的 cand records
+        unique_pass: List[Dict] = []
         for i, c in enumerate(cand_records):
             if USE_SINGLE_FIT:
-                # single_fit_unique: 一次性固定高斯, 无 bootstrap 声明
                 ok, dbg = check_single_fit_unique(Z_q[i], t["gauss"], competitors)
                 c["pass_unique"] = bool(ok)
                 c["P_pass"] = None
@@ -600,9 +430,8 @@ def main_pipeline():
                 if ok:
                     unique_pass.append(c)
             else:
-                # 完整 bootstrap core exclusive
                 stable, P_pass, dbg = check_exclusive(
-                    Z_q[i], target_with_Z, competitors,
+                    Z_q[i], t["gauss"], competitors,
                     B=BS_N_BOOTSTRAP, p_thresh=BS_P_THRESH, bs_seed=BS_SEED,
                 )
                 c["pass_unique"] = bool(stable)
@@ -617,11 +446,11 @@ def main_pipeline():
             best = min(unique_pass, key=lambda c: c["d2"])
             selections.append({
                 "asin": a, "uid": t["uid"],
-                "tier": t.get("tier", "usable"),
+                "tier": t.get("tier", "stage04_fitted"),
                 "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
                                   else "bootstrap_core_exclusive",
                 "gate_quantile_used": t["gauss"].get("gate_quantile"),
-                "n_profile": t["n_profile"], "n_val": t["n_val"],
+                "n_profile": t["gauss"]["n"], "n_val": t["gauss"]["n_val"],
                 "gate_T": gate_T,
                 "d2_val_median": t["gauss"]["d2_val_median"],
                 "selected": best,
@@ -634,14 +463,13 @@ def main_pipeline():
                 "candidates": cand_records,
             })
         else:
-            # 2026-09-05: 无 unique candidate → 记 no_unique, 不降级
+            from collections import Counter
             fail_stages = [c["fail_stage"] for c in cand_records
                            if c.get("fail_stage")]
-            from collections import Counter
             fail_counter = Counter(fail_stages)
             no_pass.append({
                 "asin": a, "uid": t["uid"],
-                "tier": t.get("tier", "usable"),
+                "tier": t.get("tier", "stage04_fitted"),
                 "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
                                   else "bootstrap_core_exclusive",
                 "gate_quantile_used": t["gauss"].get("gate_quantile"),
@@ -655,11 +483,8 @@ def main_pipeline():
                 "candidates": cand_records,
             })
 
-    # --- 汇总输出 ---
     d2_arr = np.array(all_d2_round0, dtype=np.float64)
-    # 合并 unreliable 用户到 no_pass (他们根本不参选)
     no_pass_total = no_pass + no_pass_unreliable
-    # 2026-09-06: ASIN × unique-user 分布统计
     from collections import Counter
     asin_user_count = Counter(s["asin"] for s in selections)
     n_asins_ge2_unique_users = sum(1 for c in asin_user_count.values() if c >= 2)
@@ -670,13 +495,13 @@ def main_pipeline():
         "n_no_pass": len(no_pass_total),
         "n_skipped": len(skipped),
         "n_unreliable_no_select": len(no_pass_unreliable),
-        "total_regen_rounds": 0,  # 共享 candidates, 不 regen
+        "total_regen_rounds": 0,
         "round0_gate_pass_rate": (n_gate_pass_round0 / max(1, n_cand_round0)),
         "round0_d2_median": float(np.median(d2_arr)) if len(d2_arr) else None,
         "round0_d2_p25": float(np.quantile(d2_arr, 0.25)) if len(d2_arr) else None,
         "round0_d2_p75": float(np.quantile(d2_arr, 0.75)) if len(d2_arr) else None,
-        "n_unique_asins": n_unique_asins,                          # 2026-09-06
-        "n_asins_ge2_unique_users": n_asins_ge2_unique_users,      # 2026-09-06
+        "n_unique_asins": n_unique_asins,
+        "n_asins_ge2_unique_users": n_asins_ge2_unique_users,
     }
     log(f"  SUMMARY: tasks={summary['n_tasks']} selected={summary['n_selected']} "
         f"no_pass={summary['n_no_pass']} (unreliable={summary['n_unreliable_no_select']}) "
@@ -686,20 +511,20 @@ def main_pipeline():
         f"round0_d2_median={summary['round0_d2_median']} "
         f"unique_asins={n_unique_asins} asins_ge2_unique_users={n_asins_ge2_unique_users}")
 
-    # 2026-09-06: 精简产物 schema, 按 ASIN 聚合, 仅保留 ≥2 个 unique user 的 ASIN
-    asin_to_users = defaultdict(list)
+    # 按 ASIN 聚合 (≥2 users)
+    asin_to_users_out = defaultdict(list)
     for s in selections:
-        asin_to_users[s["asin"]].append({
+        asin_to_users_out[s["asin"]].append({
             "uid": s["uid"],
             "query": s["selected"]["text"],
         })
     asin_blocks = [
         {"asin": a, "users": us}
-        for a, us in sorted(asin_to_users.items())
-        if len(us) >= 2  # 2026-09-06: <2 users 的 ASIN 不保留
+        for a, us in sorted(asin_to_users_out.items())
+        if len(us) >= 2
     ]
 
-    # 2026-09-06: 同一 ASIN 的 unique query 之间 max pair cos ≥ 0.9 (MiniLM)
+    # 同一 ASIN unique query max pair cos ≥ 0.9 (MiniLM)
     from sentence_transformers import SentenceTransformer
     _st_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     filtered_blocks = []
@@ -709,7 +534,6 @@ def main_pipeline():
                                normalize_embeddings=True, show_progress_bar=False)
         cos = emb @ emb.T
         n = len(texts)
-        # 取上三角 (i<j) 最大值
         if n == 2:
             max_cos = float(cos[0, 1])
         else:
@@ -723,23 +547,20 @@ def main_pipeline():
 
     out = {
         "config": {
-            "filter_q": FILTER_Q,         # 2026-09-06: 用户锁定 Q=0.95
-            "lambda": LAMBDA,
-            "gate_quantile_by_tier": GATE_QUANTILE_BY_TIER,
-            "min_profile_sents": MIN_PROFILE_SENTS, "min_val_sents": MIN_VAL_SENTS,
-            "max_regen_rounds": MAX_REGEN_ROUNDS, "regen_k": REGEN_K,
+            "filter_q": FILTER_Q,
+            "min_profile_sents": MIN_PROFILE_SENTS,
+            "min_val_sents": MIN_VAL_SENTS,
             "smoke": SMOKE,
             "encoder": str(CACHE_DIR / "adaptive_encoder.pt"),
-            "precomputed_z": str(CACHE_DIR / "adaptive_embeddings.npz"),
+            "stage04_source": str(STAGE04_PATH),
+            "stage04_config": stage04_config,
             "pool_path": str(POOL_PATH),
             "spacy_model": SPACY_MODEL,
-            "tier_source": str(MULTI_AUDIT_PATH),
-            "note": "gate T_u = Q_tier of val self-D² (经验分位数, 不基于 χ² 理论分布); "
-                    "selection = argmin D² among D²<=T_u; no fallback; "
-                    "unreliable tier 用户不参选, 直接记 no_pass",
+            "note": "per-user Gaussian and cohort membership are loaded from "
+                    "the Stage 04 canonical artifact; gate_T=d2_q95; "
+                    "single_fit_unique uses fixed full-covariance fits",
         },
         "summary": summary,
-        # 2026-09-06: 按 ASIN 聚合的精简 selections (≥2 users)
         "selections": asin_blocks,
         "no_pass": [
             {"asin": np["asin"], "uid": np["uid"]}
