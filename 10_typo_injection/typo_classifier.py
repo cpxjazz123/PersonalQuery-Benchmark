@@ -3,14 +3,19 @@
 Classifies (incorrect_word, corrected_word) pairs from SErCL user_word_edits into
 mechanisms used to INJECT realistic typos into personalized queries.
 
-Mechanisms (priority high → low):
-  user_historical      : user's own typo pair (from user_word_edits R: simple-sub op)
+Char-level mechanisms (true typos; the only kind emitted by Stage 10 result):
   keyboard_adjacent    : single-letter substitution, both letters on QWERTY neighbors
   letter_swap          : two adjacent letters transposed (product → prodcut)
   letter_repetition    : correct word has one extra repeated letter (really → reallly)
+  letter_deletion      : correct word has one extra letter (te → the)
+  letter_insertion     : correct word has one missing letter (the → te)
+
+Surface-form mechanisms (NOT emitted as typos; tracked in summary only):
   case_error           : only case differs (Apple ↔ apple)
   apostrophe_error     : don't ↔ dont, it's ↔ its (apostrophe insertion/deletion)
-  semantic_substitution: doesn't fit any above (NOT injectable, e.g. it's → that)
+
+Not injectable:
+  semantic_substitution: doesn't fit any above (e.g. it's → that)
 
 Note: SErCL R:simple edits provide direct (incorrect→correct) mappings; we keep them
 verbatim for user_historical mechanism (highest priority, most realistic).
@@ -69,6 +74,21 @@ _APOSTROPHE_PAIRS = {
     ("were", "we're"), ("we're", "were"),
 }
 
+# Mechanism taxonomy (used by Stage 10 for both position-rank and output schema)
+CHAR_LEVEL_MECHANISMS = (
+    "keyboard_adjacent",
+    "letter_swap",
+    "letter_repetition",
+    "letter_insertion",
+    "letter_deletion",
+)
+SURFACE_FORM_MECHANISMS = (
+    "case_error",
+    "apostrophe_error",
+)
+# All mechanisms except semantic_substitution
+ALL_WRITING_MECHANISMS = CHAR_LEVEL_MECHANISMS + SURFACE_FORM_MECHANISMS
+
 
 def _normalize_token(w: str) -> str:
     """Strip surrounding punctuation for comparison."""
@@ -124,18 +144,40 @@ def classify_mechanism(incorrect: str, corrected: str) -> str:
         # >2 diffs of same length: probably semantic
         return "semantic_substitution"
 
-    # Length difference of 1: insertion/deletion (letter_repetition)
+    # Length difference of 1: insertion/deletion. Direction matters:
+    #   - shorter correct → incorrect has INSERTION (one extra letter)
+    #   - longer correct → incorrect has DELETION (one letter missing)
+    # Within INSERTION: if the extra letter matches an adjacent letter in the
+    # corrected word, call it letter_repetition (e.g. really→reallly: extra
+    # 'l' next to existing 'l'). Otherwise call it letter_insertion.
     if abs(len(inc_l) - len(cor_l)) == 1:
-        longer, shorter = (inc_l, cor_l) if len(inc_l) > len(cor_l) else (cor_l, inc_l)
-        # Find first index where they differ
+        if len(inc_l) > len(cor_l):
+            longer, shorter = inc_l, cor_l
+            direction = "insertion"
+        else:
+            longer, shorter = cor_l, inc_l
+            direction = "deletion"
+        # Find the index where they diverge
+        div_i = -1
         for i in range(len(shorter)):
             if shorter[i] != longer[i]:
-                # Check if shorter is longer with one letter removed at position i
-                if longer[:i] + longer[i+1:] == shorter:
-                    return "letter_repetition"
-                return "semantic_substitution"
-        # All chars match except one extra at end
-        return "letter_repetition"
+                div_i = i
+                break
+        if div_i == -1:
+            div_i = len(shorter)
+        # Check whether shorter matches longer with one char removed at div_i
+        if longer[:div_i] + longer[div_i+1:] != shorter:
+            return "semantic_substitution"
+        if direction == "deletion":
+            return "letter_deletion"
+        # insertion: is the inserted letter at div_i the same as its neighbor
+        # in the longer (corrected) word?
+        inserted = longer[div_i]
+        left = longer[div_i - 1] if div_i > 0 else ""
+        right = longer[div_i + 1] if div_i + 1 < len(longer) else ""
+        if inserted == left or inserted == right:
+            return "letter_repetition"
+        return "letter_insertion"
 
     return "semantic_substitution"
 
@@ -171,12 +213,41 @@ def reverse_mechanism(correct_word: str, mechanism: str, rng_seed: int | None = 
     wl = w.lower()
 
     if mechanism == "letter_repetition":
-        # Repeat a letter (pick a non-edge letter with alpha)
-        candidates = [i for i in range(1, len(w) - 1) if w[i].isalpha()]
+        # Repeat a letter at a position where it matches an adjacent letter
+        # in the corrected word (e.g. really[3]='l' is adjacent to itself).
+        candidates = []
+        for i in range(1, len(w) - 1):
+            if w[i].isalpha() and (w[i] == w[i-1] or w[i] == w[i+1]):
+                candidates.append(i)
+        if not candidates:
+            # Fallback: any alpha letter at non-edge position
+            candidates = [i for i in range(1, len(w) - 1) if w[i].isalpha()]
         if not candidates:
             return w + w[-1]
         i = rng.choice(candidates) if rng else candidates[0]
         return w[:i+1] + w[i] + w[i+1:]
+
+    if mechanism == "letter_insertion":
+        # Insert an extra letter at a position where it doesn't match neighbors
+        # (e.g. apple[2]+l → applle but l doesn't match neighbors, prefer repetition).
+        # Fallback: pick any alpha position not adjacent to same letter.
+        candidates = [i for i in range(len(w)) if w[i].isalpha()]
+        # Avoid positions adjacent to same letter (those are better for repetition)
+        non_repeat = [i for i in candidates
+                      if (i == 0 or w[i] != w[i-1]) and (i + 1 >= len(w) or w[i] != w[i+1])]
+        pool = non_repeat if non_repeat else candidates
+        if not pool:
+            return w + w[-1] if w else w
+        i = rng.choice(pool) if rng else pool[0]
+        return w[:i+1] + w[i] + w[i+1:]
+
+    if mechanism == "letter_deletion":
+        # Remove one letter (e.g. the → te)
+        candidates = [i for i in range(len(w)) if w[i].isalpha()]
+        if not candidates:
+            return w
+        i = rng.choice(candidates) if rng else candidates[0]
+        return w[:i] + w[i+1:]
 
     if mechanism == "letter_swap":
         candidates = [i for i in range(len(w) - 1) if w[i].isalpha() and w[i+1].isalpha()]

@@ -48,6 +48,9 @@ CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
 POOL_PATH = REPO_ROOT / "result/07_gen_query/pool_queries.json"
 ATTRS_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes.json"
 OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
+SMOKE_OUT_PATH = Path(
+    "/home/wlia0047/hj82_scratch2/wenyu/stage08_select_smoke.json"
+)
 # Stage 04 是 Gaussian 与 cohort membership 的唯一 canonical source。
 STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
 USER_STATS_PATH = STAGE04_PATH
@@ -69,11 +72,32 @@ BS_FRAC = 0.5
 BS_P_THRESH = 0.95
 BS_SEED = 42
 USE_SINGLE_FIT = True    # single_fit_unique: 一次性固定高斯, 无 bootstrap
-ENCODE_DEVICE = "cpu"
+ENCODE_DEVICE = "cuda:0"
+ENCODE_CHUNK_SIZE = 1024
+SPACY_BATCH_SIZE = 256
+MINILM_BATCH_SIZE = 512
+D2_GATE_ABS_TOL = 0.25
+D2_GATE_REL_TOL = 1e-3
+D2_BOUNDARY_RECHECK_TOL = 0.25
 
 
 def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def require_cuda() -> None:
+    """要求 CUDA；禁止在性能关键路径静默回退 CPU。"""
+    if not torch.cuda.is_available():
+        raise RuntimeError("Stage 08 requires CUDA for batched encoder inference")
+    device = torch.device(ENCODE_DEVICE)
+    if device.type != "cuda" or device.index != 0:
+        raise ValueError(f"ENCODE_DEVICE must be cuda:0, got {ENCODE_DEVICE}")
+    if torch.cuda.device_count() < 1:
+        raise RuntimeError("CUDA device 0 is unavailable")
+    torch.cuda.set_device(0)
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    log(f"  CUDA device: {torch.cuda.get_device_name(0)}")
 
 
 # ============================================================================
@@ -107,9 +131,10 @@ def load_encoder() -> torch.nn.Module:
     model = _SupEncoder(cfg["vocab_size"], cfg["z_dim"], tuple(cfg["hidden"]),
                         cfg["n_users"], cfg["dropout"])
     model.load_state_dict(ckpt["model_state"])
+    model.to(torch.device(ENCODE_DEVICE))
     model.eval()
     log(f"  encoder loaded: vocab={cfg['vocab_size']} z={cfg['z_dim']} "
-        f"hidden={cfg['hidden']} n_users={cfg['n_users']}")
+        f"hidden={cfg['hidden']} n_users={cfg['n_users']} device={ENCODE_DEVICE}")
     return model
 
 
@@ -162,10 +187,15 @@ def _gauss_from_stats(stats: Dict) -> Dict:
     inv_sigma = np.asarray(stats["sigma_inv"], dtype=np.float32)
     if mu.shape != (32,) or inv_sigma.shape != (32, 32):
         raise ValueError(f"invalid Gaussian shape: mu={mu.shape}, sigma_inv={inv_sigma.shape}")
+    gate_T = float(stats["d2_q95"])
+    if not np.all(np.isfinite(mu)) or not np.all(np.isfinite(inv_sigma)):
+        raise FloatingPointError("non-finite Stage 04 Gaussian parameters")
+    if not np.isfinite(gate_T) or gate_T < 0:
+        raise ValueError(f"invalid Stage 04 gate_T={gate_T}")
     return {
         "mu": mu,
         "inv_sigma": inv_sigma,
-        "gate_T": float(stats["d2_q95"]),
+        "gate_T": gate_T,
         "d2_val_median": float(stats["d2_q50"]),
         "gate_quantile": FILTER_Q,
         "n": int(stats["n"]),
@@ -179,19 +209,30 @@ def _gauss_from_stats(stats: Dict) -> Dict:
 
 def encode_texts(texts: List[str], nlp, rule_to_id: Dict[str, int],
                  vocab_size: int, encoder: torch.nn.Module) -> np.ndarray:
+    """分块提取规则并编码，避免构造全量 ``n×vocab`` 矩阵。"""
     extract_struct_rules = _load_pcfg().extract_struct_rules
-    n = len(texts)
-    counts = np.zeros((n, vocab_size), dtype=np.float32)
-    for i, doc in enumerate(nlp.pipe(texts, batch_size=256)):
-        for r in extract_struct_rules(doc):
-            j = rule_to_id.get(r)
-            if j is not None:
-                counts[i, j] = 1.0
-    counts = counts / (1.0 + counts)
-    with torch.no_grad():
-        z, _ = encoder(torch.tensor(counts, dtype=torch.float32,
-                                    device=ENCODE_DEVICE))
-    return z.cpu().numpy().astype(np.float32)
+    if not texts:
+        return np.empty((0, 32), dtype=np.float32)
+    encoded_chunks: List[np.ndarray] = []
+    total = len(texts)
+    for start in range(0, total, ENCODE_CHUNK_SIZE):
+        chunk_texts = texts[start:start + ENCODE_CHUNK_SIZE]
+        counts = np.zeros((len(chunk_texts), vocab_size), dtype=np.float32)
+        for i, doc in enumerate(nlp.pipe(chunk_texts, batch_size=SPACY_BATCH_SIZE)):
+            for rule in extract_struct_rules(doc):
+                j = rule_to_id.get(rule)
+                if j is not None:
+                    counts[i, j] = 1.0
+        counts *= 0.5
+        counts_tensor = torch.from_numpy(counts).to(
+            device=torch.device(ENCODE_DEVICE), dtype=torch.float32
+        )
+        with torch.inference_mode():
+            z, _ = encoder(counts_tensor)
+        encoded_chunks.append(z.detach().cpu().numpy().astype(np.float32))
+        del counts_tensor, counts, z
+        log(f"    encoded {min(start + len(chunk_texts), total)}/{total}")
+    return np.concatenate(encoded_chunks, axis=0)
 
 
 # ============================================================================
@@ -292,6 +333,11 @@ def main_pipeline():
     log("=== syntax_select_mahalanobis_gate ===")
     log(f"  FILTER_Q={FILTER_Q}  MIN_PROFILE={MIN_PROFILE_SENTS} "
         f"MIN_VAL={MIN_VAL_SENTS}  SMOKE={SMOKE}")
+    require_cuda()
+    if not USE_SINGLE_FIT:
+        raise NotImplementedError(
+            "vectorized Stage 08 selection requires USE_SINGLE_FIT=True"
+        )
 
     # --- 加载 Stage 04 canonical artifact (per-user Gaussian + cohort gates) ---
     user_stats, cohort_gates_map, stage04_config = load_stage04()
@@ -337,64 +383,77 @@ def main_pipeline():
                         if p["asin"] in cohort_gates_map][:N_SMOKE_ASIN]
     log(f"  pool entries to process: {len(pool_entries)}")
 
+    # Stage 04 Gaussian 只转换一次；task 仅保存轻量引用。
+    gauss_cache = {uid: _gauss_from_stats(stats)
+                   for uid, stats in user_stats.items()}
+    asin_work: Dict[str, Dict] = {}
     tasks: List[Dict] = []
     skipped: List[Dict] = []
     no_pass_unreliable: List[Dict] = []
     for entry in pool_entries:
         asin = entry["asin"]
-        comps_for_asin = cohort_gates_map.get(asin)
-        if comps_for_asin is None:
+        cohort = cohort_gates_map.get(asin)
+        if cohort is None:
             skipped.append({"asin": asin, "reason": "no_stage04_cohort"})
             continue
-        for uid in sorted(comps_for_asin):
-            if uid not in user_stats:
+        target_uids = sorted(cohort)
+        cohort_uids = list(cohort)
+        for uid in target_uids:
+            if uid not in gauss_cache:
                 raise ValueError(f"Stage 04 cohort {asin} references missing user {uid}")
-            gauss = _gauss_from_stats(user_stats[uid])
-            comps = {
-                c_uid: _gauss_from_stats(user_stats[c_uid])
-                for c_uid in comps_for_asin
-                if c_uid != uid
-            }
-            if not comps:
+            if len(cohort_uids) < 2:
                 raise ValueError(f"Stage 04 cohort {asin} has no competitor for {uid}")
-            tasks.append({
-                "asin": asin, "uid": uid, "tier": "stage04_fitted",
-                "attrs": entry["attrs"],
-                "candidates": list(entry["candidates"]),
-                "gauss": gauss,
-                "competitors": comps,
-            })
+        asin_work[asin] = {
+            "asin": asin,
+            "attrs": entry["attrs"],
+            "candidates": entry["candidates"],
+            "uids": target_uids,
+            "cohort_uids": cohort_uids,
+            "cohort": cohort,
+        }
+        for uid in target_uids:
+            tasks.append({"asin": asin, "uid": uid, "tier": "stage04_fitted"})
     log(f"  tasks: {len(tasks)}  skipped: {len(skipped)}")
     if not tasks:
         raise RuntimeError("no eligible (ASIN, target_user) tasks")
 
     for t in tasks[:5]:
-        log(f"    {t['asin']} uid={t['uid']} gate_T={t['gauss']['gate_T']:.2f} "
-            f"(d2_q50={t['gauss']['d2_val_median']:.2f})")
+        gauss = gauss_cache[t["uid"]]
+        log(f"    {t['asin']} uid={t['uid']} gate_T={gauss['gate_T']:.2f} "
+            f"(d2_q50={gauss['d2_val_median']:.2f})")
     if len(tasks) > 5:
         log(f"    ... and {len(tasks) - 5} more tasks")
 
-    # --- 一次性编码所有 ASIN 的 candidates (按 asin 分组) ---
-    asin_to_tasks: Dict[str, List[Dict]] = {}
-    for t in tasks:
-        asin_to_tasks.setdefault(t["asin"], []).append(t)
-
-    asins = list(asin_to_tasks.keys())
-    texts_flat: List[str] = []
-    spans: List[Tuple[int, int, str]] = []
-    for a in asins:
-        cands = asin_to_tasks[a][0]["candidates"]
-        start = len(texts_flat)
-        texts_flat.extend(c["text"] for c in cands)
-        spans.append((start, len(texts_flat), a))
-    log(f"  encoding {len(texts_flat)} candidates across {len(asins)} ASINs")
-    Z_all = encode_texts(texts_flat, nlp, rule_to_id, V, encoder)
-
-    asin_to_Zq: Dict[str, np.ndarray] = {}
-    asin_to_cand_text: Dict[str, List[Dict]] = {}
-    for s, e, a in spans:
-        asin_to_Zq[a] = Z_all[s:e]
-        asin_to_cand_text[a] = asin_to_tasks[a][0]["candidates"]
+    # --- 全局精确文本去重，再按 ASIN 恢复候选顺序 ---
+    asins = list(asin_work)
+    unique_text_to_idx: Dict[str, int] = {}
+    unique_texts: List[str] = []
+    asin_text_indices: Dict[str, np.ndarray] = {}
+    for asin in asins:
+        indices = []
+        for candidate in asin_work[asin]["candidates"]:
+            text = candidate["text"]
+            index = unique_text_to_idx.get(text)
+            if index is None:
+                index = len(unique_texts)
+                unique_text_to_idx[text] = index
+                unique_texts.append(text)
+            indices.append(index)
+        asin_text_indices[asin] = np.asarray(indices, dtype=np.int64)
+    log(f"  encoding {len(unique_texts)} unique texts for "
+        f"{sum(len(asin_work[a]['candidates']) for a in asins)} candidates "
+        f"across {len(asins)} ASINs")
+    Z_unique = encode_texts(unique_texts, nlp, rule_to_id, V, encoder)
+    if Z_unique.shape != (len(unique_texts), 32):
+        raise ValueError(f"encoder output shape mismatch: {Z_unique.shape}")
+    asin_to_Zq = {
+        asin: Z_unique[asin_text_indices[asin]]
+        for asin in asins
+    }
+    asin_to_cand_text = {
+        asin: asin_work[asin]["candidates"]
+        for asin in asins
+    }
 
     # --- 选择循环 ---
     selections: List[Dict] = []
@@ -403,85 +462,168 @@ def main_pipeline():
     n_gate_pass_round0 = 0
     n_cand_round0 = 0
 
-    for t in tasks:
-        a = t["asin"]
-        Z_q = asin_to_Zq[a]
-        cands_src = asin_to_cand_text[a]
-        cand_records = [{
-            "text": c["text"],
-            "d2": None,
-            "pass_gate": False,
-            "content_pass": bool(c.get("pass", False)),
-            "round": 0,
-        } for c in cands_src]
-        d2 = maha_d2(Z_q, t["gauss"]["mu"], t["gauss"]["inv_sigma"])
-        gate_T = t["gauss"]["gate_T"]
-        for c, d in zip(cand_records, d2):
-            c["d2"] = float(d)
-            c["pass_gate"] = bool(d <= gate_T)
-        competitors = t["competitors"]
-        unique_pass: List[Dict] = []
-        for i, c in enumerate(cand_records):
-            if USE_SINGLE_FIT:
-                ok, dbg = check_single_fit_unique(Z_q[i], t["gauss"], competitors)
-                c["pass_unique"] = bool(ok)
-                c["P_pass"] = None
-                c["fail_stage"] = dbg.get("fail_stage")
-                if ok:
-                    unique_pass.append(c)
+    for asin in asins:
+        work = asin_work[asin]
+        Z_q = asin_to_Zq[asin]
+        cands_src = asin_to_cand_text[asin]
+        uids = work["uids"]
+        cohort_uids = work["cohort_uids"]
+        mu = np.stack([gauss_cache[uid]["mu"] for uid in cohort_uids], axis=0)
+        inv_sigma = np.stack([gauss_cache[uid]["inv_sigma"] for uid in cohort_uids], axis=0)
+        gate_Ts = np.asarray([float(work["cohort"][uid]["gate_T"])
+                              for uid in cohort_uids], dtype=np.float64)
+        for idx, uid in enumerate(cohort_uids):
+            expected_gate = gauss_cache[uid]["gate_T"]
+            if not np.isfinite(expected_gate) or not np.isclose(
+                    gate_Ts[idx], expected_gate, atol=1e-5, rtol=0.0):
+                raise ValueError(f"gate_T mismatch for {asin}/{uid}")
+        diff = Z_q[:, None, :] - mu[None, :, :]
+        # 先做与 maha_d2_one 相同的左乘，再做行向量内积，
+        # 比三操作数 einsum 更接近旧标量路径的累加顺序。
+        left = np.einsum("cud,ude->cue", diff, inv_sigma)
+        d2_matrix = np.sum(left * diff, axis=2, dtype=np.float32)
+        if not np.all(np.isfinite(d2_matrix)):
+            raise FloatingPointError(f"non-finite candidate D² for ASIN {asin}")
+        # 仅对接近 gate 的元素用旧标量公式复核，消除不同 BLAS 累加顺序
+        # 在边界处造成的判定漂移；远离边界的主体仍保持全向量化。
+        near_gate = np.abs(d2_matrix - gate_Ts[None, :]) <= D2_BOUNDARY_RECHECK_TOL
+        boundary_pairs = np.argwhere(near_gate)
+        for candidate_i, cohort_i in boundary_pairs:
+            candidate_i = int(candidate_i)
+            cohort_i = int(cohort_i)
+            d2_matrix[candidate_i, cohort_i] = maha_d2_one(
+                Z_q[candidate_i], gauss_cache[cohort_uids[cohort_i]]["mu"],
+                gauss_cache[cohort_uids[cohort_i]]["inv_sigma"]
+            )
+        target_index = {uid: i for i, uid in enumerate(cohort_uids)}
+        for uid in uids:
+            target_i = target_index[uid]
+            target_d2 = d2_matrix[:, target_i]
+            gate_T = float(gate_Ts[target_i])
+            target_inside = target_d2 <= gate_T
+            if SMOKE:
+                near_target = np.abs(target_d2 - gate_T) <= D2_BOUNDARY_RECHECK_TOL
+                for boundary_i in np.flatnonzero(near_target):
+                    scalar_target_d2 = maha_d2_one(
+                        Z_q[boundary_i], gauss_cache[uid]["mu"],
+                        gauss_cache[uid]["inv_sigma"]
+                    )
+                    target_inside[boundary_i] = scalar_target_d2 <= gate_T
+            competitor_inside = d2_matrix <= gate_Ts[None, :]
+            competitor_inside[:, target_i] = False
+            pass_unique_mask = target_inside & (~competitor_inside.any(axis=1))
+            cand_records = []
+            for i, (c, d, in_gate, unique) in enumerate(zip(
+                    cands_src, target_d2, target_inside, pass_unique_mask)):
+                if unique:
+                    fail_stage = None
+                elif not in_gate:
+                    fail_stage = "target_outside_core"
+                else:
+                    competitor_indices = np.flatnonzero(competitor_inside[i])
+                    if len(competitor_indices) == 0:
+                        raise RuntimeError(
+                            f"exclusive gate state inconsistent for {asin}/{uid}/{i}"
+                        )
+                    fail_stage = (
+                        f"inside_competitor_core:"
+                        f"{cohort_uids[int(competitor_indices[0])] }"
+                    )
+                cand_records.append({
+                    "text": c["text"],
+                    "d2": float(d),
+                    "pass_gate": bool(in_gate),
+                    "content_pass": bool(c.get("pass", False)),
+                    "round": 0,
+                    "pass_unique": bool(unique),
+                    "P_pass": None,
+                    "fail_stage": fail_stage,
+                })
+            unique_indices = np.flatnonzero(pass_unique_mask)
+            unique_pass = [cand_records[int(i)] for i in unique_indices]
+            n_cand_round0 += len(cand_records)
+            n_gate_pass_round0 += int(target_inside.sum())
+            all_d2_round0.extend(float(d) for d in target_d2)
+            gauss = gauss_cache[uid]
+            if SMOKE:
+                competitors = {
+                    comp_uid: gauss_cache[comp_uid]
+                    for comp_uid in cohort_uids
+                    if comp_uid != uid
+                }
+                scalar_unique = []
+                for i, candidate in enumerate(cands_src):
+                    scalar_ok, scalar_debug = check_single_fit_unique(
+                        Z_q[i], gauss_cache[uid], competitors
+                    )
+                    if not np.isclose(
+                        cand_records[i]["d2"], scalar_debug["d_target"],
+                        # einsum 与标量 BLAS 的 float32 累加顺序不同；门控值使用显式误差界。
+                        rtol=D2_GATE_REL_TOL, atol=D2_GATE_ABS_TOL,
+                    ):
+                        raise AssertionError(
+                            f"vectorized/scalar target D² mismatch: {asin}/{uid}/{i} "
+                            f"vectorized={cand_records[i]['d2']:.9g} "
+                            f"scalar={scalar_debug['d_target']:.9g} "
+                            f"abs={abs(cand_records[i]['d2'] - scalar_debug['d_target']):.9g}"
+                        )
+                    if cand_records[i]["pass_unique"] != scalar_ok:
+                        raise AssertionError(
+                            f"vectorized/scalar pass mismatch: {asin}/{uid}/{i}"
+                        )
+                    if cand_records[i]["fail_stage"] != scalar_debug["fail_stage"]:
+                        raise AssertionError(
+                            f"vectorized/scalar fail-stage mismatch: {asin}/{uid}/{i} "
+                            f"vectorized={cand_records[i]['fail_stage']} "
+                            f"scalar={scalar_debug['fail_stage']}"
+                        )
+                    if scalar_ok:
+                        scalar_unique.append(i)
+                if list(unique_indices.astype(int)) != scalar_unique:
+                    raise AssertionError(
+                        f"vectorized/scalar candidate set mismatch: {asin}/{uid}"
+                    )
+
+            if unique_pass:
+                best = min(unique_pass, key=lambda c: c["d2"])
+                selections.append({
+                    "asin": asin, "uid": uid,
+                    "tier": "stage04_fitted",
+                    "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
+                                      else "bootstrap_core_exclusive",
+                    "gate_quantile_used": gauss["gate_quantile"],
+                    "n_profile": gauss["n"], "n_val": gauss["n_val"],
+                    "gate_T": gate_T,
+                    "d2_val_median": gauss["d2_val_median"],
+                    "selected": best,
+                    "n_pass_unique": len(unique_pass),
+                    "n_pass_gate": int(target_inside.sum()),
+                    "n_competitors": len(uids) - 1,
+                    "n_candidates": len(cand_records),
+                    "n_regen_rounds_used": 0,
+                    "P_pass": None,
+                    "candidates": cand_records,
+                })
             else:
-                stable, P_pass, dbg = check_exclusive(
-                    Z_q[i], t["gauss"], competitors,
-                    B=BS_N_BOOTSTRAP, p_thresh=BS_P_THRESH, bs_seed=BS_SEED,
-                )
-                c["pass_unique"] = bool(stable)
-                c["P_pass"] = float(P_pass)
-                c["fail_stage"] = dbg.get("fail_stage")
-                if stable:
-                    unique_pass.append(c)
-        n_cand_round0 += len(cand_records)
-        n_gate_pass_round0 += len([c for c in cand_records if c["pass_gate"]])
-        all_d2_round0.extend(c["d2"] for c in cand_records)
-        if unique_pass:
-            best = min(unique_pass, key=lambda c: c["d2"])
-            selections.append({
-                "asin": a, "uid": t["uid"],
-                "tier": t.get("tier", "stage04_fitted"),
-                "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
-                                  else "bootstrap_core_exclusive",
-                "gate_quantile_used": t["gauss"].get("gate_quantile"),
-                "n_profile": t["gauss"]["n"], "n_val": t["gauss"]["n_val"],
-                "gate_T": gate_T,
-                "d2_val_median": t["gauss"]["d2_val_median"],
-                "selected": best,
-                "n_pass_unique": len(unique_pass),
-                "n_pass_gate": len([c for c in cand_records if c["pass_gate"]]),
-                "n_competitors": len(competitors),
-                "n_candidates": len(cand_records),
-                "n_regen_rounds_used": 0,
-                "P_pass": best["P_pass"],
-                "candidates": cand_records,
-            })
-        else:
-            from collections import Counter
-            fail_stages = [c["fail_stage"] for c in cand_records
-                           if c.get("fail_stage")]
-            fail_counter = Counter(fail_stages)
-            no_pass.append({
-                "asin": a, "uid": t["uid"],
-                "tier": t.get("tier", "stage04_fitted"),
-                "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
-                                  else "bootstrap_core_exclusive",
-                "gate_quantile_used": t["gauss"].get("gate_quantile"),
-                "gate_T": gate_T,
-                "min_d2": min(c["d2"] for c in cand_records),
-                "n_candidates": len(cand_records),
-                "n_regen_rounds_used": 0,
-                "reason": "no_unique",
-                "fail_stages": dict(fail_counter.most_common()),
-                "n_competitors": len(competitors),
-                "candidates": cand_records,
-            })
+                from collections import Counter
+                fail_stages = [c["fail_stage"] for c in cand_records
+                               if c.get("fail_stage")]
+                no_pass.append({
+                    "asin": asin, "uid": uid,
+                    "tier": "stage04_fitted",
+                    "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
+                                      else "bootstrap_core_exclusive",
+                    "gate_quantile_used": gauss["gate_quantile"],
+                    "gate_T": gate_T,
+                    "min_d2": float(target_d2.min()),
+                    "n_candidates": len(cand_records),
+                    "n_regen_rounds_used": 0,
+                    "reason": "no_unique",
+                    "fail_stages": dict(Counter(fail_stages).most_common()),
+                    "n_competitors": len(uids) - 1,
+                    "candidates": cand_records,
+                })
+        del diff, d2_matrix, mu, inv_sigma, gate_Ts
 
     d2_arr = np.array(all_d2_round0, dtype=np.float64)
     no_pass_total = no_pass + no_pass_unreliable
@@ -526,22 +668,35 @@ def main_pipeline():
 
     # 同一 ASIN unique query max pair cos ≥ 0.9 (MiniLM)
     from sentence_transformers import SentenceTransformer
-    _st_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    st_device = ENCODE_DEVICE
+    _st_model = SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2", device=st_device
+    )
+    block_texts = [[u["query"] for u in blk["users"]] for blk in asin_blocks]
+    flat_texts = [text for texts in block_texts for text in texts]
     filtered_blocks = []
-    for blk in asin_blocks:
-        texts = [u["query"] for u in blk["users"]]
-        emb = _st_model.encode(texts, convert_to_tensor=True,
-                               normalize_embeddings=True, show_progress_bar=False)
-        cos = emb @ emb.T
-        n = len(texts)
-        if n == 2:
-            max_cos = float(cos[0, 1])
-        else:
-            mask = ~torch.eye(n, dtype=torch.bool, device=cos.device)
-            max_cos = float(cos[mask].max())
-        if max_cos >= SEMANTIC_SIM_THRESHOLD:
-            blk["max_pair_cos"] = max_cos
-            filtered_blocks.append(blk)
+    if flat_texts:
+        flat_emb = _st_model.encode(
+            flat_texts, batch_size=MINILM_BATCH_SIZE, convert_to_tensor=True,
+            normalize_embeddings=True, show_progress_bar=False,
+            device=st_device,
+        )
+        offset = 0
+        for blk, texts in zip(asin_blocks, block_texts):
+            n = len(texts)
+            emb = flat_emb[offset:offset + n]
+            offset += n
+            cos = emb @ emb.T
+            if n == 2:
+                max_cos = float(cos[0, 1])
+            else:
+                mask = ~torch.eye(n, dtype=torch.bool, device=cos.device)
+                max_cos = float(cos[mask].max())
+            if max_cos >= SEMANTIC_SIM_THRESHOLD:
+                blk["max_pair_cos"] = max_cos
+                filtered_blocks.append(blk)
+        if offset != len(flat_texts):
+            raise RuntimeError("MiniLM block/text offset mismatch")
     asin_blocks = filtered_blocks
     n_asin_blocks = len(asin_blocks)
 
@@ -551,6 +706,9 @@ def main_pipeline():
             "min_profile_sents": MIN_PROFILE_SENTS,
             "min_val_sents": MIN_VAL_SENTS,
             "smoke": SMOKE,
+            "semantic_sim_threshold": SEMANTIC_SIM_THRESHOLD,
+            "encoder_device": ENCODE_DEVICE,
+            "encoder_chunk_size": ENCODE_CHUNK_SIZE,
             "encoder": str(CACHE_DIR / "adaptive_encoder.pt"),
             "stage04_source": str(STAGE04_PATH),
             "stage04_config": stage04_config,
@@ -568,9 +726,10 @@ def main_pipeline():
         ],
         "skipped": skipped,
     }
-    with open(OUT_PATH, "w") as f:
+    output_path = SMOKE_OUT_PATH if SMOKE else OUT_PATH
+    with open(output_path, "w") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
-    log(f"  saved -> {OUT_PATH}")
+    log(f"  saved -> {output_path}")
     log("=== syntax_select_mahalanobis_gate DONE ===")
 
 

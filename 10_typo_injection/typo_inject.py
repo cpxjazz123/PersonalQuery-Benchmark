@@ -49,8 +49,8 @@ OUT_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary.json"
 
 # Hardcoded hyperparams
-SMOKE = False                   # 2026-09-06 full: 21 selections × 48 users; True=5 users smoke (Rule 20)
-N_SMOKE_USERS = 5
+SMOKE = False                   # 2026-09-06 full: 21 selections × 48 users; True=50 users smoke (Rule 20)
+N_SMOKE_USERS = 50
 MAX_QUERIES_PER_USER = 3
 SEED_BASE = 42
 
@@ -172,29 +172,34 @@ def main():
     log(f"running on {len(pairs)} (uid, asin, query) pairs (SMOKE={SMOKE})")
 
     results = []
+    debug_metas = []   # collect meta from each pair for diagnosis (SMOKE only)
     n_total_processed = 0
     per_user_stats = defaultdict(lambda: {
         "n_total": 0,
-        "n_bernoulli_pass": 0,    # Bernoulli fired on at least one token
+        "n_bernoulli_pass": 0,    # a candidate position was identified
         "n_injected": 0,          # final injection passed all gates
-        "n_gate_fail": 0,         # Bernoulli passed but D² exceeded target threshold
+        "n_gate_fail": 0,         # candidate identified but D² exceeded target
         "n_semantic_fail": 0,     # Gaussian passed but MiniLM sim < 0.9
         "n_exclusive_fail": 0,    # Gaussian + semantic passed but inside competitor core
-        "n_no_candidate": 0,      # Bernoulli produced no candidate
-        "typo_count": 0,          # keyboard_adjacent / letter_swap / letter_repetition
-        "surface_form_count": 0,  # case_error / apostrophe_error
+        "n_no_candidate": 0,      # no candidate (user has zero char-level history)
+        "n_surface_form_only_skip": 0,  # user has only case_error/apostrophe history
+        "n_minimality_fail": 0,   # edit distance / len delta / valid-word check failed
+        "typo_count": 0,          # char-level typos (keyboard_adjacent / letter_swap / ...)
         "mechanisms": defaultdict(int),
+        "transformation_sources": defaultdict(int),  # user_historical_full/d3/.../generic_fallback
+        "edit_distances": [],
         "d2_deltas": [],
         "sem_sims": [],
         "min_d_competitors": [],
     })
     mech_total = defaultdict(int)
     typo_total = 0
-    surface_form_total = 0
     gate_fail_total = 0
     semantic_fail_total = 0
     exclusive_fail_total = 0
     bernoulli_pass_total = 0
+    surface_form_only_skip_total = 0
+    minimality_fail_total = 0
 
     for i, (uid, asin, query) in enumerate(pairs):
         if uid not in profiles:
@@ -216,28 +221,32 @@ def main():
         s = per_user_stats[uid]
         s["n_total"] += 1
         n_total_processed += 1
-        # Track Bernoulli pass (at least one candidate) via meta.confidence > 0
-        # — if meta exists with a position even when injection failed, Bernoulli fired
+        # Track char-level Bernoulli pass — meta exists with a position means we
+        # identified a candidate position. The new sampler always produces one
+        # position (top-scored by char-level rate) so this is essentially 1.0
+        # unless the user has zero char-level history.
         if meta is not None and meta.position >= 0:
             s["n_bernoulli_pass"] += 1
             bernoulli_pass_total += 1
         else:
             s["n_no_candidate"] += 1
+            if meta is not None and meta.transformation_source == "surface_form_only":
+                s["n_surface_form_only_skip"] += 1
 
         if inj is not None and meta is not None and meta.gaussian_pass and meta.semantic_pass and meta.exclusive_pass:
             s["n_injected"] += 1
             s["mechanisms"][meta.mechanism] += 1
-            if meta.mechanism_category == "typo":
-                s["typo_count"] += 1
-                typo_total += 1
-            elif meta.mechanism_category == "surface_form":
-                s["surface_form_count"] += 1
-                surface_form_total += 1
+            # mechanism is always char-level (CHAR_LEVEL_MECHANISMS) — surface-form
+            # never reaches this point
+            s["typo_count"] += 1
+            typo_total += 1
             s["d2_deltas"].append(meta.d_mahalanobis_after - meta.d_mahalanobis_before)
             s["sem_sims"].append(meta.semantic_sim)
             if meta.min_d_competitor > 0:
                 s["min_d_competitors"].append(meta.min_d_competitor)
             mech_total[meta.mechanism] += 1
+            s["transformation_sources"][meta.transformation_source] += 1
+            s["edit_distances"].append(meta.edit_distance)
         else:
             if meta is not None and meta.position >= 0:
                 if not meta.gaussian_pass:
@@ -249,8 +258,13 @@ def main():
                 elif meta.gaussian_pass and meta.semantic_pass and not meta.exclusive_pass:
                     s["n_exclusive_fail"] += 1
                     exclusive_fail_total += 1
+                else:
+                    # minimality gate failed
+                    s["n_minimality_fail"] = s.get("n_minimality_fail", 0) + 1
 
         # Only keep successfully injected pairs (skip no-candidate / gate-fail)
+        # Results now contain only CHAR-LEVEL typos (case_error / apostrophe_error
+        # are not emitted by the sampler).
         if inj is not None and meta is not None and meta.gaussian_pass:
             results.append({
                 "uid": uid,
@@ -259,6 +273,36 @@ def main():
                 "typo_query": inj,
                 "original_token": meta.original_token,
                 "typo_token": meta.typo_token,
+                "mechanism": meta.mechanism,
+                "transformation_source": meta.transformation_source,
+                "edit_distance": meta.edit_distance,
+                "len_delta": meta.len_delta,
+                "context_sig": meta.context_sig,
+                "confidence": meta.confidence,
+                "semantic_sim": meta.semantic_sim,
+            })
+
+        # SMOKE: keep all meta for diagnosis
+        if SMOKE and meta is not None:
+            debug_metas.append({
+                "uid": uid,
+                "asin": asin,
+                "position": meta.position,
+                "original_token": meta.original_token,
+                "typo_token": meta.typo_token,
+                "mechanism": meta.mechanism,
+                "transformation_source": meta.transformation_source,
+                "edit_distance": meta.edit_distance,
+                "len_delta": meta.len_delta,
+                "d2_before": meta.d_mahalanobis_before,
+                "d2_after": meta.d_mahalanobis_after,
+                "d2_threshold": stats.get(f"d2_{D2_THRESHOLD_QUANTILE}"),
+                "gaussian_pass": meta.gaussian_pass,
+                "semantic_sim": meta.semantic_sim,
+                "semantic_pass": meta.semantic_pass,
+                "min_d_competitor": meta.min_d_competitor,
+                "n_competitors": meta.n_competitors,
+                "exclusive_pass": meta.exclusive_pass,
             })
 
         if (i + 1) % 50 == 0:
@@ -278,8 +322,19 @@ def main():
             "cohort_gates_source": str(STAGE04_PATH),
             "semantic_threshold": 0.9,
             "semantic_model": "sentence-transformers/all-MiniLM-L6-v2",
-            "note": "single-shot injection; gates: Bernoulli → Mahalanobis D²(target Q_95) "
-                    "→ exclusive cohort (∀comp: d²>comp Q_95) → MiniLM cosine ≥ 0.9",
+            "char_level_mechanisms": ["keyboard_adjacent", "letter_swap", "letter_repetition",
+                                       "letter_insertion", "letter_deletion"],
+            "min_token_len": 3,
+            "max_edit_distance": 2,
+            "max_len_delta": 1,
+            "valid_word_check": True,
+            "note": "char-level-only single-shot injection. Position ranked by P_u(char_level_error|context). "
+                    "Transformation reuses user-historical char-level typo at the same (orig_token, sig) "
+                    "if available, else generic char-level mechanism. Gates: minimality (ed≤2, |Δlen|≤1, "
+                    "len≥3, not a different English word) → Mahalanobis D²(target Q_95) → exclusive cohort "
+                    "(∀comp: d²>comp Q_95) → MiniLM cosine ≥ 0.9. Surface-form errors (case_error / "
+                    "apostrophe_error) are NOT emitted — they are tracked separately via "
+                    "n_surface_form_only_skip when user has only surface-form history.",
         },
         "totals": {
             "n_attempted": n_total_processed,
@@ -289,11 +344,19 @@ def main():
             "n_gate_fail": gate_fail_total,
             "n_semantic_fail": semantic_fail_total,
             "n_exclusive_fail": exclusive_fail_total,
+            "n_minimality_fail": minimality_fail_total,
+            "n_surface_form_only_skip": surface_form_only_skip_total,
             "injection_rate_among_bernoulli": n_injected / max(1, bernoulli_pass_total),
             "bernoulli_pass_rate": bernoulli_pass_total / max(1, n_total_processed),
             "typo_count": typo_total,
-            "surface_form_count": surface_form_total,
             "mechanism_counts": dict(mech_total),
+            "transformation_source_counts": {
+                src: sum(s.get("transformation_sources", {}).get(src, 0)
+                         for s in per_user_stats.values())
+                for src in ["user_historical_full", "user_historical_d3",
+                            "user_historical_coarse", "user_historical_any",
+                            "generic_fallback"]
+            },
         },
         "per_user": {
             uid: {
@@ -303,10 +366,14 @@ def main():
                 "n_gate_fail": s["n_gate_fail"],
                 "n_semantic_fail": s["n_semantic_fail"],
                 "n_exclusive_fail": s["n_exclusive_fail"],
+                "n_minimality_fail": s.get("n_minimality_fail", 0),
                 "n_no_candidate": s["n_no_candidate"],
+                "n_surface_form_only_skip": s["n_surface_form_only_skip"],
                 "typo_count": s["typo_count"],
-                "surface_form_count": s["surface_form_count"],
                 "mechanisms": dict(s["mechanisms"]),
+                "transformation_sources": dict(s["transformation_sources"]),
+                "edit_distance_mean": float(np.mean(s["edit_distances"])) if s["edit_distances"] else None,
+                "edit_distance_max": int(max(s["edit_distances"])) if s["edit_distances"] else None,
                 "d2_delta_mean": float(np.mean(s["d2_deltas"])) if s["d2_deltas"] else None,
                 "sem_sim_mean": float(np.mean(s["sem_sims"])) if s["sem_sims"] else None,
                 "sem_sim_min": float(min(s["sem_sims"])) if s["sem_sims"] else None,
@@ -323,21 +390,30 @@ def main():
             "config": summary["config"],
             "results": results,
         }, f, indent=2, ensure_ascii=False)
-    log(f"wrote → {OUT_RESULTS} ({len(results)} injected pairs)")
+    log(f"wrote → {OUT_RESULTS} ({len(results)} char-level injected pairs)")
 
     with open(OUT_SUMMARY, "w") as f:
         json.dump(summary, f, indent=2)
     log(f"wrote → {OUT_SUMMARY}")
 
+    if SMOKE:
+        debug_path = OUT_RESULTS.parent / "smoke_debug_metas.json"
+        with open(debug_path, "w", encoding="utf-8") as f:
+            json.dump(debug_metas, f, indent=2, ensure_ascii=False)
+        log(f"wrote → {debug_path} ({len(debug_metas)} meta records)")
+
     t = summary["totals"]
     log(f"Bernoulli pass rate: {t['bernoulli_pass_rate']*100:.1f}% ({t['n_bernoulli_pass']}/{t['n_attempted']})")
     log(f"Injection rate (among Bernoulli pass): {t['injection_rate_among_bernoulli']*100:.1f}%")
     log(f"Overall injection: {t['n_injected_written']}/{t['n_attempted']} = {t['n_injected_written']/t['n_attempted']*100:.1f}%")
+    log(f"Surface-form-only skip: {t['n_surface_form_only_skip']}")
+    log(f"Minimality fail: {t['n_minimality_fail']}")
     log(f"Mahalanobis gate fail: {t['n_gate_fail']}")
     log(f"Exclusive cohort gate fail: {t['n_exclusive_fail']}")
     log(f"Semantic gate fail (sim<0.9): {t['n_semantic_fail']}")
-    log(f"Typo: {t['typo_count']}, Surface-form: {t['surface_form_count']}")
+    log(f"Typo (char-level): {t['typo_count']}")
     log(f"Mechanisms: {dict(mech_total)}")
+    log(f"Transformation sources: {t['transformation_source_counts']}")
 
 
 if __name__ == "__main__":

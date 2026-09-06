@@ -45,8 +45,9 @@ ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_POOL_SEED = 42
 SFT_POOL_SMOKE = False        # True=5 ASIN smoke, False=100 ASIN full (Rule 20)
-SFT_POOL_N_ASIN = 5 if SFT_POOL_SMOKE else 1000  # 2026-09-06: 扩到 1000 ASIN
-SFT_POOL_K = 100              # 2026-09-06: 每个 ASIN 100 candidates
+SFT_POOL_N_ASIN = 5 if SFT_POOL_SMOKE else 10000  # 2026-09-06: 扩到 10000 ASIN
+SFT_POOL_K = 25               # 2026-09-06: 提速 C 方案, n=25 跑 2 轮, 总候选 50/ASIN (KV cache 复用)
+SFT_POOL_ROUNDS = 2            # 2026-09-06: 同 prompt 跑 2 轮, 合并为 50/ASIN
 SFT_POOL_TEMP = 0.7
 SFT_POOL_TOP_P = 0.95
 SFT_POOL_MAX_NEW_TOKENS = 40
@@ -136,7 +137,8 @@ def get_or_create_llm():
         enable_lora=True,
         max_lora_rank=8,
         max_model_len=384,        # 150 prompt + 40 gen + 32 query = 222, 384 留 slack
-        gpu_memory_utilization=0.55,  # 2026-09-06: qwen_hidden_server 已停, 提至 0.55
+        gpu_memory_utilization=0.85,  # 2026-09-06: 用户提速要求, 0.55→0.85 + max_num_seqs 扩并发
+        max_num_seqs=1024,             # 2026-09-06: vLLM 默认 256, 扩并发 batch
         enforce_eager=False,           # 2026-09-06: 启用 CUDA graph, 预期 +20-30% 吞吐
         dtype="bfloat16",
         trust_remote_code=True,
@@ -223,7 +225,7 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
 def main_pipeline():
     log("=== sft_pool_generate ===")
     log(f"  Qwen={QWEN_PATH}  adapter={SFT_ADAPTER_DIR}")
-    log(f"  N_ASIN={SFT_POOL_N_ASIN}  K={SFT_POOL_K}  temp={SFT_POOL_TEMP} "
+    log(f"  N_ASIN={SFT_POOL_N_ASIN}  K={SFT_POOL_K}  rounds={SFT_POOL_ROUNDS}  temp={SFT_POOL_TEMP} "
         f"top_p={SFT_POOL_TOP_P}  max_new_tokens={SFT_POOL_MAX_NEW_TOKENS}")
 
     attrs_all = load_attributes()
@@ -231,7 +233,11 @@ def main_pipeline():
     log(f"  eval_asins (n={len(eval_asins)}): {eval_asins[:5]} ...")
 
     attrs_list = [dict(list(attrs_all[a].items())[:5]) for a in eval_asins]
-    cands_per_asin = generate_candidates(attrs_list, SFT_POOL_K)
+    cands_per_asin_rounds: List[List[List[Dict]]] = []
+    for round_idx in range(SFT_POOL_ROUNDS):
+        log(f"  --- round {round_idx+1}/{SFT_POOL_ROUNDS} ---")
+        cands_per_asin_rounds.append(generate_candidates(attrs_list, SFT_POOL_K))
+    cands_per_asin = [c1 + c2 for c1, c2 in zip(*cands_per_asin_rounds)]
 
     # --- Build pool_queries.json (精简版: asin -> [query, ...]) ---
     pool = {entry_asin: [c["text"] for c in cands]
