@@ -41,7 +41,8 @@ N_SMOKE_USERS = 50
 N_SMOKE_ASINS = 5
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
-LAMBDA = 0.0
+LAMBDA = 1e-3
+MIN_EIGEN_RATIO = 1e-8
 GATE_QUANTILE = 0.95
 
 
@@ -122,21 +123,33 @@ def fit_one_user(z_prof: np.ndarray, z_val: np.ndarray) -> dict | None:
     eigenvalues = np.linalg.eigvalsh(cov)
     if not np.all(np.isfinite(eigenvalues)) or eigenvalues[0] <= 0:
         return None
+    eigen_ratio = float(eigenvalues[0] / eigenvalues[-1])
+    if not np.isfinite(eigen_ratio) or eigen_ratio < MIN_EIGEN_RATIO:
+        raise FloatingPointError(
+            f"ill-conditioned regularized covariance: eigen_ratio={eigen_ratio}"
+        )
     try:
-        inv_sigma = np.linalg.inv(cov)
+        chol = np.linalg.cholesky(cov)
     except np.linalg.LinAlgError:
         return None
 
+    # Cholesky solve avoids the unstable explicit matrix inverse while keeping
+    # sigma_inv in the artifact schema consumed by later stages.
+    identity = np.eye(cov.shape[0], dtype=np.float64)
+    inv_sigma = np.linalg.solve(
+        chol.T, np.linalg.solve(chol, identity)
+    )
+    inv_sigma = (inv_sigma + inv_sigma.T) * 0.5
+
     diff = z_val - mu
-    d2_val = np.einsum("nd,de,ne->n", diff, inv_sigma, diff)
+    whitened = np.linalg.solve(chol, diff.T).T
+    d2_val = np.sum(whitened * whitened, axis=1)
     if not np.all(np.isfinite(d2_val)):
         raise FloatingPointError("non-finite validation Mahalanobis D²")
     if np.any(d2_val < 0):
-        # 仅修正浮点舍入造成的极小负值；显著负值说明协方差计算异常。
-        min_d2 = float(d2_val.min())
-        if min_d2 < -1e-6:
-            raise FloatingPointError(f"negative validation D²: min={min_d2}")
-        d2_val = np.maximum(d2_val, 0.0)
+        raise FloatingPointError(
+            f"negative validation D² after Cholesky solve: min={float(d2_val.min())}"
+        )
 
     return {
         "mu": mu.astype(np.float32).tolist(),

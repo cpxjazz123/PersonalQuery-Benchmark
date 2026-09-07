@@ -38,6 +38,12 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
 SFT_POOL_SOURCE = "stage04_fitted_cohort"  # 标注抽样源
 
+# CONTRASTIVE_5558 ABLATION: 5558 contrastive cohort stats
+CONTRASTIVE_5558 = False
+if CONTRASTIVE_5558:
+    STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_5558.json"
+    SFT_POOL_SOURCE = "stage04_fitted_cohort_5558_contrastive"
+
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
 ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes.json"

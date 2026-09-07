@@ -43,7 +43,9 @@ N_SENTS_PATH = CACHE_DIR / "user_n_sents.json"
 
 OUT_DIR = REPO_ROOT / "result/05_gaussian_audit"
 OUT_PATH = OUT_DIR / "raw_cov_validity.json"
-ASIN_USERS_PATH = REPO_ROOT / "asin_users/asin_to_users.json"
+ASIN_USERS_PATH = (
+    REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users.json"
+)
 ASIN_COVERAGE_PATH = OUT_DIR / "asin_coverage_valid_ge2.json"
 
 K_DIM = 32

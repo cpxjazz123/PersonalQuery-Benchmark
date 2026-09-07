@@ -54,6 +54,10 @@ SUMMARY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_ev
 VOLATILITY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/volatility{_SEL_SUFFIX}.json")
 EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
 
+# 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
+SMOKE = False
+N_SMOKE_QUERIES = 5
+
 
 def log(msg: str) -> None:
     """Timestamped log print (inlined from common/syntax_subspace_utils.py)."""
@@ -878,6 +882,14 @@ def main():
     log("\n=== 0. Selection signature + cache check ===")
     selection = json.load(open(SEL_IN))
     entries = _flatten_selection(selection)
+    if SMOKE:
+        if len(entries) < N_SMOKE_QUERIES:
+            raise ValueError(
+                f"SMOKE requires at least {N_SMOKE_QUERIES} selection entries, got {len(entries)}"
+            )
+        entries = entries[:N_SMOKE_QUERIES]
+        selection = {"entries": entries}
+        log(f"  SMOKE selection: first {len(entries)} queries")
     selection_sig = _compute_selection_signature(selection)
     log(f"  selection_sig = {selection_sig}")
 

@@ -64,6 +64,12 @@ CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
 ENCODER_PT = CACHE_DIR / "adaptive_encoder.pt"
 ENCODER_DEVICE = "cpu"  # 32d encode is trivial; CPU is fine
 
+# CONTRASTIVE_5558 ABLATION: 5558 cohort NT-Xent encoder
+CONTRASTIVE_5558 = False
+if CONTRASTIVE_5558:
+    CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache_5558")
+    ENCODER_PT = CACHE_DIR / "supervised_encoder.pt"
+
 # Semantic similarity gate (MiniLM bi-encoder, 384d, cosine ≥ 0.9)
 SEMANTIC_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 SEMANTIC_THRESHOLD = 0.9

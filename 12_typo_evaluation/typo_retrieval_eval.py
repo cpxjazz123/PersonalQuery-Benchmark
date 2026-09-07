@@ -105,6 +105,21 @@ def main():
     pairs = load_pairs()
     log(f"  loaded {len(pairs)} (uid, asin, original, typo) pairs")
 
+    if len(pairs) == 0:
+        log(f"  no typo pairs to evaluate (Stage 10 injected 0). writing empty summary.")
+        out_path = REPO_ROOT / "result/12_typo_evaluation/typo_paired_summary.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
+            json.dump({
+                "config": {"smoke": SMOKE, "ks": KS,
+                           "typo_source": str(TYPO_RESULTS)},
+                "n_pairs": 0,
+                "note": "0 typo pairs injected in Stage 10; nothing to evaluate",
+            }, f, indent=2)
+        log(f"  wrote → {out_path}")
+        log(f"=== Stage 12 DONE in {time.time()-t0:.1f}s ===")
+        return
+
     # ---- Build corpus (asin → product doc) ----
     asin_to_doc = retr_mod.build_meta_corpus()
     asins = sorted(asin_to_doc.keys())

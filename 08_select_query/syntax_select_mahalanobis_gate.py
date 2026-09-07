@@ -6,19 +6,21 @@ Refactor 2026-09-06: per-user Gaussian 与 per-(asin, uid) cohort membership
 选择判定与输出，不在运行时重新拟合 Gaussian。
 
 流程:
-  1. 加载 result/04_gaussian/user_gaussian_stats.json 的 users/cohort_gates
-  2. 加载 frozen encoder + vocab, 编码候选 pool queries → 32d z_q
-  3. 对每个 (asin, uid) task:
+  1. 加载 Stage 05 audit 的 E1–E4 valid_gaussian 用户与 ASIN coverage
+  2. 从 Stage 04 读取这些有效用户对应的 Gaussian 参数与 gate_T
+  3. 加载 frozen encoder + vocab, 编码候选 pool queries → 32d z_q
+  4. 对每个 (asin, uid) task:
      a. D²(z_q, μ_u) ≤ u.d2_q95 (gate_T)   ← target 核心内
      b. ∀comp ∈ cohort: D²(z_q, μ_comp) > comp.d2_q95 ← 核心外
-  4. 通过者中选 D² 最小
-  5. 每 ASIN 给 Stage 04 cohort 中的用户各选 1 query, ≥2 unique user 才保留
+  5. 通过者中选 D² 最小
+  6. 每 ASIN 给 Stage 05 valid cohort 中的用户各选 1 query, ≥2 unique user 才保留
 
 复用资产:
   - 冻结 encoder: pcfg_cache/adaptive_encoder.pt (_SupEncoder 21737→256→32, eval)
   - vocab:        pcfg_cache/vocab.json (21737 规则)
-  - Stage 04 canonical Gaussian + cohort gates:
-    result/04_gaussian/user_gaussian_stats.json
+  - Stage 05 audit: result/05_gaussian_audit/raw_cov_validity.json
+  - Stage 05 coverage: result/05_gaussian_audit/asin_coverage_valid_ge2.json
+  - Stage 04 Gaussian parameters: result/04_gaussian/user_gaussian_stats.json
   - pool queries: result/07_gen_query/pool_queries.json
 
 用法 (Rule 3: 无参数):
@@ -51,10 +53,26 @@ OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
 SMOKE_OUT_PATH = Path(
     "/home/wlia0047/hj82_scratch2/wenyu/stage08_select_smoke.json"
 )
-# Stage 04 是 Gaussian 与 cohort membership 的唯一 canonical source。
+# Stage 05 定义 E1–E4 valid_gaussian 用户与可用 ASIN cohort；Stage 04
+# 仅提供这些有效用户的 Gaussian 参数。
 STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
+STAGE05_AUDIT_PATH = REPO_ROOT / "result/05_gaussian_audit/raw_cov_validity.json"
+STAGE05_COVERAGE_PATH = (
+    REPO_ROOT / "result/05_gaussian_audit/asin_coverage_valid_ge2.json"
+)
 USER_STATS_PATH = STAGE04_PATH
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# CONTRASTIVE_5558 ABLATION: 5558 cohort, NT-Xent contrastive encoder + 5558 stats
+CONTRASTIVE_5558 = False
+if CONTRASTIVE_5558:
+    CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache_5558")
+    STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_5558.json"
+    USER_STATS_PATH = STAGE04_PATH
+    OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries_5558.json"
+    SMOKE_OUT_PATH = Path(
+        "/home/wlia0047/hj82_scratch2/wenyu/stage08_select_smoke_5558.json"
+    )
 
 # --- Hardcoded hyperparams (Rule 3) ---
 FILTER_Q = 0.95
@@ -124,13 +142,23 @@ def _load_pcfg():
 # ============================================================================
 
 def load_encoder() -> torch.nn.Module:
-    ckpt = torch.load(CACHE_DIR / "adaptive_encoder.pt", map_location="cpu",
-                      weights_only=False)
+    encoder_path = CACHE_DIR / "adaptive_encoder.pt"
+    if not encoder_path.exists():
+        # CONTRASTIVE_5558 path: stage_super 写 supervised_encoder.pt, 没有 adaptive_encoder.pt
+        sup_path = CACHE_DIR / "supervised_encoder.pt"
+        if sup_path.exists():
+            encoder_path = sup_path
+            log(f"  adaptive_encoder.pt missing, fallback → {sup_path}")
+        else:
+            raise FileNotFoundError(f"missing encoder: {CACHE_DIR / 'adaptive_encoder.pt'}")
+    ckpt = torch.load(encoder_path, map_location="cpu", weights_only=False)
     cfg = ckpt["config"]
     _SupEncoder = _load_pcfg()._SupEncoder
-    model = _SupEncoder(cfg["vocab_size"], cfg["z_dim"], tuple(cfg["hidden"]),
-                        cfg["n_users"], cfg["dropout"])
-    model.load_state_dict(ckpt["model_state"])
+    model = _SupEncoder(
+        cfg["vocab_size"], cfg["z_dim"], tuple(cfg["hidden"]),
+        cfg["n_users"], cfg["dropout"]
+    )
+    model.load_state_dict(ckpt["model_state"], strict=False)
     model.to(torch.device(ENCODE_DEVICE))
     model.eval()
     log(f"  encoder loaded: vocab={cfg['vocab_size']} z={cfg['z_dim']} "
@@ -143,37 +171,93 @@ def load_encoder() -> torch.nn.Module:
 # ============================================================================
 
 def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
-    """严格加载 Stage 04 canonical artifact 及其 users/cohort_gates。"""
-    if not STAGE04_PATH.exists():
-        raise FileNotFoundError(
-            f"missing: {STAGE04_PATH} (run 04_gaussian/fit_per_user_gaussian.py)"
-        )
+    """加载 Stage 04 参数，并严格应用 Stage 05 E1–E4 有效性过滤。"""
+    for path in (STAGE04_PATH, STAGE05_AUDIT_PATH, STAGE05_COVERAGE_PATH):
+        if not path.exists():
+            raise FileNotFoundError(f"missing required Stage 04/05 artifact: {path}")
     with open(STAGE04_PATH) as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        raise ValueError("Stage 04 artifact must be a JSON object")
-    users = data.get("users")
-    cohort_gates = data.get("cohort_gates")
-    config = data.get("config")
-    if not isinstance(users, dict) or not users:
+        stage04 = json.load(f)
+    with open(STAGE05_AUDIT_PATH) as f:
+        audit = json.load(f)
+    with open(STAGE05_COVERAGE_PATH) as f:
+        coverage = json.load(f)
+    if not isinstance(stage04, dict) or not isinstance(audit, dict):
+        raise ValueError("Stage 04 and Stage 05 audit artifacts must be JSON objects")
+    if not isinstance(coverage, dict):
+        raise ValueError("Stage 05 coverage artifact must be a JSON object")
+
+    users_all = stage04.get("users")
+    stage04_cohorts = stage04.get("cohort_gates")
+    config = stage04.get("config")
+    per_user = audit.get("per_user")
+    audit_summary = audit.get("summary")
+    asin_to_valid = coverage.get("asin_to_valid_uids")
+    coverage_config = coverage.get("config")
+    if not isinstance(users_all, dict) or not users_all:
         raise ValueError("Stage 04 artifact requires non-empty 'users'")
-    if not isinstance(cohort_gates, dict) or not cohort_gates:
+    if not isinstance(stage04_cohorts, dict) or not stage04_cohorts:
         raise ValueError("Stage 04 artifact requires non-empty 'cohort_gates'")
     if not isinstance(config, dict) or config.get("gate_quantile") != FILTER_Q:
         raise ValueError(
             f"Stage 04 gate_quantile must equal FILTER_Q={FILTER_Q}; "
             f"got {None if not isinstance(config, dict) else config.get('gate_quantile')}"
         )
-    for asin, cohort in cohort_gates.items():
-        if not isinstance(cohort, dict) or len(cohort) < 2:
-            raise ValueError(f"cohort {asin} must contain at least two users")
-        for uid, gate in cohort.items():
-            if uid not in users:
-                raise ValueError(f"cohort {asin} references missing user {uid}")
+    if not isinstance(per_user, dict) or not per_user:
+        raise ValueError("Stage 05 audit requires non-empty 'per_user'")
+    if not isinstance(audit_summary, dict):
+        raise ValueError("Stage 05 audit requires 'summary'")
+    if not isinstance(asin_to_valid, dict) or not asin_to_valid:
+        raise ValueError("Stage 05 coverage requires non-empty 'asin_to_valid_uids'")
+    if not isinstance(coverage_config, dict) or coverage_config.get("min_users_per_asin") != 2:
+        raise ValueError("Stage 05 coverage must use min_users_per_asin=2")
+
+    valid_uids = {
+        uid for uid, record in per_user.items()
+        if isinstance(record, dict) and record.get("valid_gaussian") is True
+    }
+    expected_valid = audit_summary.get("n_valid")
+    if expected_valid != len(valid_uids):
+        raise ValueError(
+            f"Stage 05 valid count mismatch: summary={expected_valid}, "
+            f"records={len(valid_uids)}"
+        )
+    users = {uid: users_all[uid] for uid in sorted(valid_uids) if uid in users_all}
+    missing_gaussian = sorted(valid_uids - users.keys())
+    if missing_gaussian:
+        raise ValueError(
+            f"Stage 05 valid users missing from Stage 04 Gaussian: {missing_gaussian[:5]}"
+        )
+
+    cohort_gates: Dict[str, Dict[str, Dict]] = {}
+    for asin, valid_list in asin_to_valid.items():
+        if not isinstance(valid_list, list) or len(valid_list) < 2:
+            raise ValueError(f"Stage 05 coverage cohort {asin} must contain >=2 users")
+        if len(set(valid_list)) != len(valid_list):
+            raise ValueError(f"Stage 05 coverage cohort {asin} contains duplicate users")
+        if not set(valid_list).issubset(valid_uids):
+            raise ValueError(f"Stage 05 coverage cohort {asin} contains invalid user")
+        if asin not in stage04_cohorts:
+            raise ValueError(f"Stage 05 coverage ASIN missing from Stage 04: {asin}")
+        source_cohort = stage04_cohorts[asin]
+        cohort_gates[asin] = {}
+        for uid in valid_list:
+            if uid not in source_cohort:
+                raise ValueError(f"Stage 05 coverage user missing from Stage 04 cohort: {asin}/{uid}")
+            gate = source_cohort[uid]
             if not isinstance(gate, dict) or "gate_T" not in gate:
-                raise ValueError(f"cohort {asin}/{uid} missing gate_T")
-    log(f"  loaded Stage 04: {len(users)} users, {len(cohort_gates)} ASINs, "
+                raise ValueError(f"Stage 04 cohort {asin}/{uid} missing gate_T")
+            cohort_gates[asin][uid] = gate
+
+    log(f"  loaded Stage 04 Gaussian: {len(users_all)} users")
+    log(f"  applied Stage 05 E1-E4 filter: {len(users)} valid users "
+        f"(audit summary={expected_valid})")
+    log(f"  loaded Stage 05 coverage: {len(cohort_gates)} ASINs, "
         f"{sum(len(c) for c in cohort_gates.values())} cohort pairs")
+    config = dict(config)
+    config["stage05_audit_source"] = str(STAGE05_AUDIT_PATH)
+    config["stage05_coverage_source"] = str(STAGE05_COVERAGE_PATH)
+    config["stage05_valid_users"] = len(users)
+    config["stage05_valid_asins"] = len(cohort_gates)
     return users, cohort_gates, config
 
 

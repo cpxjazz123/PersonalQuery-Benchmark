@@ -48,10 +48,18 @@ SELECTED = REPO_ROOT / "result/08_select_query/selected_queries.json"
 OUT_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary.json"
 
+# CONTRASTIVE_5558 ABLATION: 5558 cohort, contrastive encoder + stats
+CONTRASTIVE_5558 = False
+if CONTRASTIVE_5558:
+    SERCL_PROFILE = REPO_ROOT / "result/09_sercl_user_profile/user_sercl_profile_5558.json"
+    STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_5558.json"
+    SELECTED = REPO_ROOT / "result/08_select_query/selected_queries_5558.json"
+    OUT_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results_5558.json"
+    OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary_5558.json"
+
 # Hardcoded hyperparams
-SMOKE = False                   # 2026-09-06 full: 21 selections × 48 users; True=50 users smoke (Rule 20)
+SMOKE = False                   # full run over all selected query pairs
 N_SMOKE_USERS = 50
-MAX_QUERIES_PER_USER = 3
 SEED_BASE = 42
 
 # D² threshold quantile (per-user). We use Q_95 = self-distance at 95th percentile
@@ -131,21 +139,15 @@ def load_inputs():
     return profiles, mahal, sel, expanded_cohort
 
 
-def collect_pairs(selections, mahal, max_per_user):
-    pairs_by_uid = defaultdict(list)
+def collect_pairs(selections, mahal):
+    pairs = []
     for s in selections:
         asin = s["asin"]
         for u in s.get("users", []):
             uid = u["uid"]
             if uid not in mahal:
                 continue
-            if len(pairs_by_uid[uid]) >= max_per_user:
-                continue
-            pairs_by_uid[uid].append((asin, u["query"]))
-    pairs = []
-    for uid, qs in pairs_by_uid.items():
-        for asin, q in qs:
-            pairs.append((uid, asin, q))
+            pairs.append((uid, asin, u["query"]))
     return pairs
 
 
@@ -153,7 +155,7 @@ def main():
     t0 = time.time()
     profiles, mahal, sel, cohort = load_inputs()
 
-    pairs = collect_pairs(sel["selections"], mahal, MAX_QUERIES_PER_USER)
+    pairs = collect_pairs(sel["selections"], mahal)
     for uid, asin, _ in pairs:
         if asin not in cohort or uid not in cohort[asin]:
             raise ValueError(f"selected pair ({uid}, {asin}) missing from Stage 04 cohort_gates")
@@ -315,7 +317,7 @@ def main():
     summary = {
         "config": {
             "smoke": SMOKE,
-            "max_queries_per_user": MAX_QUERIES_PER_USER,
+            "all_selected_queries": True,
             "single_shot": True,
             "d2_threshold_quantile": D2_THRESHOLD_QUANTILE,
             "mahal_stats_source": str(STAGE04_PATH),
