@@ -41,7 +41,6 @@ N_SMOKE_USERS = 50
 N_SMOKE_ASINS = 5
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
-LAMBDA = 1e-3
 MIN_EIGEN_RATIO = 1e-8
 GATE_QUANTILE = 0.95
 
@@ -118,16 +117,12 @@ def fit_one_user(z_prof: np.ndarray, z_val: np.ndarray) -> dict | None:
     centered = z_prof - mu
     cov = (centered.T @ centered) / (n_prof - 1)
     cov = (cov + cov.T) * 0.5
-    if LAMBDA > 0:
-        cov = cov + LAMBDA * np.eye(cov.shape[0], dtype=np.float64)
     eigenvalues = np.linalg.eigvalsh(cov)
     if not np.all(np.isfinite(eigenvalues)) or eigenvalues[0] <= 0:
         return None
     eigen_ratio = float(eigenvalues[0] / eigenvalues[-1])
     if not np.isfinite(eigen_ratio) or eigen_ratio < MIN_EIGEN_RATIO:
-        raise FloatingPointError(
-            f"ill-conditioned regularized covariance: eigen_ratio={eigen_ratio}"
-        )
+        return None
     try:
         chol = np.linalg.cholesky(cov)
     except np.linalg.LinAlgError:
@@ -217,7 +212,7 @@ def main() -> None:
     log("=== Stage 04 — Per-User 32d Gaussian + Cohort Gates ===")
     log(
         f"  SMOKE={SMOKE}  MIN_PROFILE={MIN_PROFILE_SENTS} "
-        f"MIN_VAL={MIN_VAL_SENTS}  LAMBDA={LAMBDA}  Q={GATE_QUANTILE}"
+        f"MIN_VAL={MIN_VAL_SENTS}  raw_covariance=True  Q={GATE_QUANTILE}"
     )
 
     z_profile, z_val, uid_list, prof_offsets, val_offsets = _load_embedding_groups()
@@ -273,7 +268,7 @@ def main() -> None:
             "smoke": SMOKE,
             "min_profile_sents": MIN_PROFILE_SENTS,
             "min_val_sents": MIN_VAL_SENTS,
-            "lambda": LAMBDA,
+            "covariance": "raw_full",
             "gate_quantile": GATE_QUANTILE,
             "gate_quantiles": [0.50, 0.75, 0.95],
             "syntax_dim": int(z_profile.shape[1]),
@@ -287,7 +282,7 @@ def main() -> None:
             "n_asins_considered": len(asin_to_users),
             "pcfg_cache_source": str(CACHE_DIR / "adaptive_embeddings.npz"),
             "asin_users_source": str(ASIN_USERS_PATH),
-            "note": "32d supervised raw full-covariance Gaussian; "
+            "note": "32d supervised raw full-covariance Gaussian without ridge; "
             "cohort gate_T is validation d2_q95; compact cohort entries "
             "reference users in the same canonical artifact",
         },
