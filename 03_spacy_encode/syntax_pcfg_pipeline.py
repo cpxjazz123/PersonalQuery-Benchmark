@@ -1,21 +1,25 @@
 """PCFG dependency-rule → sentence embedding → user Gaussian → LOPO attribution.
 
 一体化 pipeline (per 项目 Rule 18, 03_spacy_encode 只允许一个主脚本)。
-通过 MODE 常量选择 stage, 避免参数传入 (per Rule 3)。
+主入口 main_pipeline() 一键串行运行所有 stage, 不再依赖 MODE 切换;
+individual stage_*() 函数保留用于单 stage smoke / debug。
 
-Stages:
-  pcfg_attr   直接 discrete PCFG log-likelihood attribution (不需 cache, 见下方)
-  cache       parse sentences + 保存 sparse rule-count matrix (per-user + per-sent)
-  vae         train AE/VAE 重建监督 → sentence_embeddings.npy
-  super       train supervised encoder (user-ID CE + rule dropout + L2) → supervised_embeddings.npy
-  gauss       fit per-user Gaussian N(μ_u, Σ_u) on embeddings
-  attr        LOPO attribution on embeddings (cosine to user mean)
-  gauss_attr  LOPO attribution via Gaussian log-likelihood + Mahalanobis
-              on per-user N(μ_u, Σ_u_diag) (验证 32d supervised z
-              真正支持 Gaussian personalized representation)
-  full        cache → super → gauss → attr → gauss_attr
+Canonical pipeline 链路:
+  cache        parse sentences + 建 sparse rule-count matrix (per-user + per-sent)
+  pcfg_attr    discrete PCFG log-likelihood baseline (独立 baseline, 不需 cache)
+  strict       训监督 encoder V→256→32 (rule dropout 0.3, L2 1e-2, profile-only) →
+                 supervised_embeddings.npy (给 gauss/attr/gauss_attr 消费) +
+                 strict_embeddings.npz (no-leakage LOPO)
+  gauss        fit per-user N(μ_u, Σ_u) on supervised z + signal_to_noise 诊断
+  attr         LOPO attribution: argmax cos(z_q, μ_u)
+  gauss_attr   3 种 attribution (cos / log N(z|μ,σ²) / Maha-pooled) 同 split 对比
+  ablation     7 种 attribution + 用户方差分层, 验证 Σ 是否真捕获表达范围
+  adaptive     3-way profile/val/test split, val 上扫 τ, test 一次性评估
 
-输入 (Stage cache/vae/super/gauss/attr):
+(vae 作为 super 的备选 unsupervised encoder, 不在 canonical pipeline 中, 保留
+stage_vae() 用于 ablation 对比; stage_super() 与 stage_multi_seed() 已删除)
+
+输入:
   result/02_user_review_sentence_extract/uid_to_sentences.pkl
 
 中间缓存:
@@ -23,13 +27,20 @@ Stages:
     counts.npz, sent_vectors.npz, uid_list.json, user_n_sents.json, vocab.json, meta.json
     sentence_embeddings.npy (vae), supervised_embeddings.npy (super)
     syntax_vae_model.pt, supervised_encoder.pt
+    strict_encoder.pt, strict_embeddings.npz (strict)
+    adaptive_encoder.pt, adaptive_embeddings.npz (adaptive)
     syntax_vae_train.json, supervised_train.json
 
-输出 (Stage attr):
-  result/03_spacy_encode/syntax_pcfg_user_gaussian.json (per-user μ/σ²/z norm)
-  result/03_spacy_encode/syntax_pcfg_attribution_<mode>.json (overall + lift)
+输出 (result/03_spacy_encode/):
+  pcfg_attribution_lopo.json          (pcfg_attr)
+  syntax_pcfg_user_gaussian.json      (gauss)
+  syntax_pcfg_attribution_supervised.json (attr)
+  syntax_pcfg_gauss_attr.json         (gauss_attr)
+  syntax_pcfg_strict_attr.json        (strict)
+  syntax_pcfg_ablation.json           (ablation)
+  syntax_pcfg_adaptive.json           (adaptive)
 
-历史实验 lift 记录 (100 users, LOPO):
+历史 lift 记录 (100 users, LOPO):
   pcfg_attr (discrete 7858d log-P):          7.97× chance
   super (z=32, rule dropout 0.3, L2 1e-2):   7.09× chance  ← 连续 z 的 SOTA
   super (z=64):                              6.83×
@@ -56,11 +67,6 @@ from scipy.sparse import csr_matrix, load_npz, save_npz
 # ============================================================================
 # 常量 (硬编码, per Rule 3)
 # ============================================================================
-
-# 当前运行 stage: "pcfg_attr" | "cache" | "vae" | "super" | "gauss"
-#                 | "attr" | "gauss_attr" | "strict" | "ablation"
-#                 | "adaptive" | "multi_seed" | "full"
-MODE = "adaptive"
 
 # 路径
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
@@ -96,14 +102,14 @@ VAE_DROPOUT = 0.1
 VAE_WEIGHT_DECAY = 1e-5
 VAE_LOG_EVERY = 5
 
-# Stage: super
+# Stage: strict + adaptive (SUP_* 共享: supervised encoder V→256→32)
 SUP_EPOCHS = 80
-SUP_BATCH_SIZE = 512
+SUP_BATCH_SIZE = 2048
 SUP_LR = 5e-4
 SUP_Z_DIM = 32
 SUP_HIDDEN = (256,)
 SUP_DROPOUT = 0.5
-SUP_RULE_DROPOUT = 0.3     # 关键: 训练时随机 mask rule columns
+SUP_RULE_DROPOUT = 0.1     # 关键: 训练时随机 mask rule columns (profile-only 减半, 0.3 太狠 → 不收敛)
 SUP_WEIGHT_DECAY = 1e-2
 SUP_LABEL_SMOOTHING = 0.1
 SUP_LOG_EVERY = 5
@@ -119,6 +125,7 @@ GAUSS_USE_POOLED_COV = True  # Mahalanobis 用 pooled Σ across all users
 # Stage: strict (no-leakage supervised encoder + Gaussian attribution)
 STRICT_VAL_FRAC = 0.15      # 从 profile 中再留 15% 做早停 validation
 STRICT_SEED = 42
+STRICT_PATIENCE = 10        # val_acc plateau N epochs → early stop
 
 # Stage: ablation (distribution-vs-point)
 ABLATION_EPS = 1e-3         # Σ 正则化 (diag & full)
@@ -131,13 +138,28 @@ ADAPTIVE_TEST_FRAC = 0.30      # 最终 eval (encoder + threshold 都没见过)
 # hash mod=10 分桶: b<5 profile, 5<=b<7 val, 7<=b<10 test
 ADAPTIVE_SOFT_SCALE = 0.5      # soft mixture sigmoid 温度
 
-# Stage: multi_seed (重复 adaptive 用不同 seed × 不同 hash salt, 验证稳定性)
-MULTISEED_SEEDS = [42, 123, 456, 789, 1024, 7, 2024, 9999][:8]  # 默认 8 seeds
-MULTISEED_EPOCHS = 40          # 比 adaptive 80 短, 节省时间 (early-stop 也取到合理 acc)
-
 
 def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def _verify_cached_embeddings_cohort(emb_path: Path,
+                                      expected_n_sents: int,
+                                      z_dim: int,
+                                      stage_name: str) -> None:
+    """验证 cached embeddings 是否匹配当前 cache cohort。
+
+    Per Rule 7: 不静默。stale cache(不同 n_sents / z_dim)直接 raise,
+    让用户显式决定删除旧 cache 还是放弃当前 run。
+    """
+    if not emb_path.exists():
+        return  # 已在 caller 检查过 exists, 这里只验 shape
+    arr = np.load(emb_path)
+    if arr.ndim != 2 or arr.shape != (expected_n_sents, z_dim):
+        raise ValueError(
+            f"{stage_name} cache cohort mismatch: cached {emb_path.name} "
+            f"shape={arr.shape} vs current cache expected "
+            f"({expected_n_sents}, {z_dim}); delete {emb_path} and rerun")
 
 
 # ============================================================================
@@ -200,7 +222,7 @@ def normalize_counts(sent_csr):
 def load_cache():
     if not (CACHE_DIR / "sent_vectors.npz").exists():
         raise FileNotFoundError(
-            f"cache not found at {CACHE_DIR}, run MODE='cache' first")
+            f"cache not found at {CACHE_DIR}, run stage_cache() or main_pipeline() first")
     sent_csr = load_npz(CACHE_DIR / "sent_vectors.npz")
     counts = load_npz(CACHE_DIR / "counts.npz")
     with open(CACHE_DIR / "uid_list.json") as f:
@@ -256,15 +278,27 @@ def stage_cache():
     sent_offset = 0
     rules_cache = CACHE_DIR / f"all_doc_rules_{len(selected)}.pkl"
     # Resume from partial cache if exists
+    need_parse = True
     if rules_cache.exists():
         cache_t = time.time()
         with open(rules_cache, "rb") as f:
             saved = pickle.load(f)
-        all_doc_rules = saved["rules"]
-        sent_offset = saved["offset"]
-        log(f"  loaded partial parse cache: {sent_offset}/{n_total} sents "
-            f"({time.time()-cache_t:.1f}s)")
+        cached_rules = saved["rules"]
+        cached_offset = saved["offset"]
+        if len(cached_rules) >= n_total:
+            # Cache 已经覆盖当前 cohort 全量, 跳过 parse loop 避免 30s+ 冗余 pickle 写盘
+            all_doc_rules = cached_rules[:n_total]
+            log(f"  full cache hit: {n_total} sents ready "
+                f"({time.time()-cache_t:.1f}s), skip parse loop")
+            need_parse = False
+        else:
+            all_doc_rules = cached_rules
+            sent_offset = cached_offset
+            log(f"  loaded partial parse cache: {sent_offset}/{n_total} sents "
+                f"({time.time()-cache_t:.1f}s)")
     for ci in range(0, len(selected), CHUNK_USERS):
+        if not need_parse:
+            break
         chunk_users = selected[ci:ci+CHUNK_USERS]
         chunk_n = sum(user_n_sents[ci + j] for j in range(len(chunk_users)))
         chunk_sents = all_sents[sent_offset:sent_offset + chunk_n]
@@ -536,6 +570,20 @@ def _vae_kl(mu, logvar):
 def stage_vae():
     """训练 AE (β=0) 或 β-VAE (β>0), 保存 encoder 输出到 embeddings.npy。"""
     t0 = time.time()
+    cached = [
+        CACHE_DIR / "sentence_embeddings.npy",
+        CACHE_DIR / "syntax_vae_model.pt",
+        CACHE_DIR / "syntax_vae_train.json",
+    ]
+    missing = [p for p in cached if not p.exists()]
+    if not missing:
+        cache_meta = json.loads((CACHE_DIR / "meta.json").read_text())
+        _verify_cached_embeddings_cohort(
+            CACHE_DIR / "sentence_embeddings.npy",
+            cache_meta["n_total_sents"], VAE_Z_DIM, "stage_vae")
+        log(f"skip stage_vae: {len(cached)} cached output(s) exist, "
+            f"cohort match ({cache_meta['n_total_sents']} sents)")
+        return
     torch.manual_seed(SEED)
     np.random.seed(SEED)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -616,7 +664,8 @@ def stage_vae():
 
 
 # ============================================================================
-# Stage: super (supervised encoder with user-ID CE + rule dropout)
+# Encoder class (shared by stage_strict + stage_adaptive; stage_super 已删除,
+# stage_strict 兼任产出 supervised_embeddings.npy)
 # ============================================================================
 
 class _SupEncoder(nn.Module):
@@ -635,155 +684,6 @@ class _SupEncoder(nn.Module):
     def forward(self, x):
         z = self.encoder(x)
         return z, self.classifier(z)
-
-
-def stage_super():
-    """User-ID 监督训练 encoder, rule dropout + L2 防过拟合。
-
-    大规模 (≥1000 users, ≥100K sents) 用 sparse→dense per-batch 避免 OOM:
-    全量 toarray 会占用 940K×7858×4B ≈ 30GB, 单 batch 256×7858×4B ≈ 8MB。
-    """
-    t0 = time.time()
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    cache = load_cache()
-    sent_csr = cache["sent_csr"]
-    V = sent_csr.shape[1]
-    n_sents = sent_csr.shape[0]
-    user_n_sents = cache["user_n_sents"]
-    n_users = len(user_n_sents)
-    log(f"super: V={V}, n_sents={n_sents}, n_users={n_users}, "
-        f"z={SUP_Z_DIM}, rule_dropout={SUP_RULE_DROPOUT}")
-
-    sent_norm = normalize_counts(sent_csr)
-
-    def to_dense_batch(indices: np.ndarray) -> torch.Tensor:
-        """CSR 行切片 → dense float32 tensor (CPU → GPU)."""
-        rows = sent_norm[indices]
-        return torch.tensor(rows.toarray(), dtype=torch.float32,
-                            device=device)
-
-    # per-sentence user labels
-    user_labels = np.zeros(n_sents, dtype=np.int64)
-    off = 0
-    for ui, n in enumerate(user_n_sents):
-        user_labels[off:off + n] = ui
-        off += n
-
-    # per-user train/val mask (hash-based) → index arrays
-    with open(SENT_CACHE, "rb") as f:
-        uid_to_sents = pickle.load(f)
-    train_idx_list = []
-    val_idx_list = []
-    sent_off = 0
-    threshold = int(SUP_TRAIN_FRAC * 10)
-    for ui, uid in enumerate(cache["uid_list"]):
-        sents = [s for s in uid_to_sents[uid] if 5 < len(s.split()) < 50]
-        for si, s in enumerate(sents):
-            (train_idx_list if hash_bucket(s, mod=10) < threshold
-             else val_idx_list).append(sent_off + si)
-        sent_off += len(sents)
-    train_idx = np.asarray(train_idx_list, dtype=np.int64)
-    val_idx = np.asarray(val_idx_list, dtype=np.int64)
-    log(f"train={len(train_idx)}, val={len(val_idx)}")
-
-    y_train = torch.tensor(user_labels[train_idx],
-                           dtype=torch.long, device=device)
-    y_val = torch.tensor(user_labels[val_idx],
-                         dtype=torch.long, device=device)
-
-    model = _SupEncoder(V, SUP_Z_DIM, SUP_HIDDEN, n_users, SUP_DROPOUT).to(device)
-    n_params = sum(p.numel() for p in model.parameters())
-    log(f"encoder: V={V} → {SUP_HIDDEN} → z={SUP_Z_DIM}, "
-        f"params={n_params/1e6:.2f}M")
-
-    opt = torch.optim.Adam(model.parameters(), lr=SUP_LR,
-                           weight_decay=SUP_WEIGHT_DECAY)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=SUP_EPOCHS)
-
-    best_val = 0.0
-    best_state = None
-    history = []
-    n_train = len(train_idx)
-    for epoch in range(1, SUP_EPOCHS + 1):
-        model.train()
-        perm = np.random.permutation(train_idx)
-        ep_loss = ep_correct = 0
-        n_batches = 0
-        for i in range(0, n_train, SUP_BATCH_SIZE):
-            batch_idx = perm[i:i + SUP_BATCH_SIZE]
-            xb = to_dense_batch(batch_idx)
-            yb = y_train[i:i + SUP_BATCH_SIZE] if False else \
-                torch.tensor(user_labels[batch_idx],
-                             dtype=torch.long, device=device)
-            if SUP_RULE_DROPOUT > 0:
-                mask = (torch.rand(xb.shape[1], device=device)
-                        > SUP_RULE_DROPOUT).float()
-                xb = xb * mask.unsqueeze(0)
-            opt.zero_grad()
-            _, logits = model(xb)
-            loss = F.cross_entropy(logits, yb,
-                                   label_smoothing=SUP_LABEL_SMOOTHING)
-            loss.backward()
-            opt.step()
-            ep_loss += float(loss.detach())
-            ep_correct += int((logits.argmax(dim=1) == yb).sum().detach())
-            n_batches += 1
-        sched.step()
-
-        model.eval()
-        with torch.no_grad():
-            v_correct = 0
-            for i in range(0, len(val_idx), SUP_BATCH_SIZE):
-                batch_idx = val_idx[i:i + SUP_BATCH_SIZE]
-                xb = to_dense_batch(batch_idx)
-                _, logits = model(xb)
-                yb = torch.tensor(user_labels[batch_idx],
-                                  dtype=torch.long, device=device)
-                v_correct += int((logits.argmax(dim=1) == yb).sum().detach())
-        v_acc = v_correct / max(len(val_idx), 1)
-        t_acc = ep_correct / max(n_train, 1)
-        avg_loss = ep_loss / n_batches
-        history.append({"epoch": epoch, "loss": avg_loss,
-                        "train_acc": t_acc, "val_acc": v_acc})
-        if v_acc > best_val:
-            best_val = v_acc
-            best_state = {k: v.cpu().clone()
-                          for k, v in model.state_dict().items()}
-        if (epoch == 1 or epoch % SUP_LOG_EVERY == 0
-                or epoch == SUP_EPOCHS):
-            log(f"  epoch {epoch:>3}/{SUP_EPOCHS}  loss={avg_loss:.4f}  "
-                f"train={t_acc*100:.1f}%  val={v_acc*100:.1f}%")
-
-    log(f"best val_acc: {best_val*100:.1f}%")
-    model.load_state_dict(best_state)
-
-    model.eval()
-    z_all = np.zeros((n_sents, SUP_Z_DIM), dtype=np.float32)
-    with torch.no_grad():
-        for i in range(0, n_sents, SUP_BATCH_SIZE):
-            batch_idx = np.arange(i, min(i + SUP_BATCH_SIZE, n_sents))
-            xb = to_dense_batch(batch_idx)
-            z, _ = model(xb)
-            z_all[i:i + xb.shape[0]] = z.cpu().numpy()
-
-    np.save(CACHE_DIR / "supervised_embeddings.npy", z_all)
-    torch.save({"model_state": model.state_dict(),
-                "config": {"vocab_size": V, "z_dim": SUP_Z_DIM,
-                           "hidden": list(SUP_HIDDEN), "dropout": SUP_DROPOUT,
-                           "n_users": n_users}},
-               CACHE_DIR / "supervised_encoder.pt")
-    with open(CACHE_DIR / "supervised_train.json", "w") as f:
-        json.dump({"config": {"epochs": SUP_EPOCHS, "z_dim": SUP_Z_DIM,
-                              "lr": SUP_LR, "rule_dropout": SUP_RULE_DROPOUT,
-                              "n_users": n_users, "hidden": list(SUP_HIDDEN)},
-                   "history": history,
-                   "best_val_acc": best_val,
-                   "n_params_M": n_params / 1e6}, f, indent=2)
-    log(f"wrote → {CACHE_DIR}/supervised_embeddings.npy {z_all.shape}")
-    log(f"=== Total: {time.time()-t0:.0f}s ===")
 
 
 # ============================================================================
@@ -1189,6 +1089,35 @@ def stage_strict(out_path: Path = None):
     if out_path is None:
         out_path = OUT_DIR / "syntax_pcfg_strict_attr.json"
 
+    cached = [
+        out_path,
+        CACHE_DIR / "strict_encoder.pt",
+        CACHE_DIR / "strict_embeddings.npz",
+        CACHE_DIR / "supervised_embeddings.npy",
+    ]
+    missing = [p for p in cached if not p.exists()]
+    if not missing:
+        cache_meta = json.loads((CACHE_DIR / "meta.json").read_text())
+        npz = np.load(CACHE_DIR / "strict_embeddings.npz")
+        n_profile = int(npz["z_profile"].shape[0])
+        n_test = int(npz["z_test"].shape[0])
+        n_users_cached = int(len(npz["uid_list"]))
+        if (n_profile + n_test != cache_meta["n_total_sents"]
+                or n_users_cached != cache_meta["n_users"]):
+            raise ValueError(
+                f"stage_strict cache cohort mismatch: cached profile="
+                f"{n_profile} test={n_test} users={n_users_cached} vs "
+                f"current n_sents={cache_meta['n_total_sents']} "
+                f"n_users={cache_meta['n_users']}; delete "
+                f"{CACHE_DIR / 'strict_embeddings.npz'} and rerun")
+        _verify_cached_embeddings_cohort(
+            CACHE_DIR / "supervised_embeddings.npy",
+            cache_meta["n_total_sents"], SUP_Z_DIM, "stage_strict")
+        log(f"skip stage_strict: {len(cached)} cached output(s) exist, "
+            f"cohort match (n_sents={cache_meta['n_total_sents']}, "
+            f"n_users={cache_meta['n_users']})")
+        return
+
     cache = load_cache()
     sent_csr = cache["sent_csr"]
     V = sent_csr.shape[1]
@@ -1255,6 +1184,7 @@ def stage_strict(out_path: Path = None):
 
     best_val = 0.0
     best_state = None
+    epochs_since_best = 0
     history = []
     n_train = len(train_idx_global)
     for epoch in range(1, SUP_EPOCHS + 1):
@@ -1302,10 +1232,18 @@ def stage_strict(out_path: Path = None):
             best_val = v_acc
             best_state = {k: v.cpu().clone()
                           for k, v in model.state_dict().items()}
+            epochs_since_best = 0
+        else:
+            epochs_since_best += 1
         if (epoch == 1 or epoch % SUP_LOG_EVERY == 0
                 or epoch == SUP_EPOCHS):
             log(f"  epoch {epoch:>3}/{SUP_EPOCHS}  loss={avg_loss:.4f}  "
-                f"train={t_acc*100:.1f}%  val={v_acc*100:.1f}%")
+                f"train={t_acc*100:.1f}%  val={v_acc*100:.1f}%  "
+                f"plateau={epochs_since_best}/{STRICT_PATIENCE}")
+        if epochs_since_best >= STRICT_PATIENCE:
+            log(f"  early stop at epoch {epoch}: val_acc plateau "
+                f"{STRICT_PATIENCE} epochs (best={best_val*100:.2f}%)")
+            break
 
     log(f"best val_acc: {best_val*100:.1f}%")
     model.load_state_dict(best_state)
@@ -1325,6 +1263,15 @@ def stage_strict(out_path: Path = None):
     z_profile = encode_all(profile_idx)
     z_test = encode_all(test_idx)
     log(f"encoded: z_profile {z_profile.shape}, z_test {z_test.shape}")
+
+    # === Step 3b: 用 strict encoder 再编码全部 n_sents 句子 (供 gauss/attr/gauss_attr
+    #     消费, 与 strict_embeddings.npz 共享同一 encoder 但不泄露 test 标签,
+    #     只是 encoder 本身训练时只看了 profile,test 句子本身仍可见) ===
+    all_idx = np.arange(n_sents, dtype=np.int64)
+    z_all = encode_all(all_idx)
+    np.save(CACHE_DIR / "supervised_embeddings.npy", z_all)
+    log(f"encoded all (供 gauss/attr/gauss_attr 消费): "
+        f"z_all {z_all.shape} → supervised_embeddings.npy")
 
     # === Step 4: per-user Gaussian on profile ===
     mu = np.zeros((n_users, SUP_Z_DIM), dtype=np.float64)
@@ -1525,7 +1472,7 @@ def stage_ablation(strict_npz: Path = None,
 
     if not strict_npz.exists():
         raise FileNotFoundError(
-            f"{strict_npz} not found, run MODE='strict' first")
+            f"{strict_npz} not found, run stage_strict() or main_pipeline() first")
 
     log(f"loading strict embeddings: {strict_npz}")
     d = np.load(strict_npz, allow_pickle=True)
@@ -1896,6 +1843,33 @@ def stage_adaptive(out_path: Path = None):
     t0 = time.time()
     if out_path is None:
         out_path = OUT_DIR / "syntax_pcfg_adaptive.json"
+
+    cached = [
+        out_path,
+        CACHE_DIR / "adaptive_encoder.pt",
+        CACHE_DIR / "adaptive_embeddings.npz",
+    ]
+    missing = [p for p in cached if not p.exists()]
+    if not missing:
+        cache_meta = json.loads((CACHE_DIR / "meta.json").read_text())
+        npz = np.load(CACHE_DIR / "adaptive_embeddings.npz")
+        n_profile = int(npz["z_profile"].shape[0])
+        n_val = int(npz["z_val"].shape[0])
+        n_test = int(npz["z_test"].shape[0])
+        n_users_cached = int(len(npz["uid_list"]))
+        if (n_profile + n_val + n_test != cache_meta["n_total_sents"]
+                or n_users_cached != cache_meta["n_users"]):
+            raise ValueError(
+                f"stage_adaptive cache cohort mismatch: cached profile="
+                f"{n_profile} val={n_val} test={n_test} users="
+                f"{n_users_cached} vs current n_sents="
+                f"{cache_meta['n_total_sents']} n_users="
+                f"{cache_meta['n_users']}; delete "
+                f"{CACHE_DIR / 'adaptive_embeddings.npz'} and rerun")
+        log(f"skip stage_adaptive: {len(cached)} cached output(s) exist, "
+            f"cohort match (n_sents={cache_meta['n_total_sents']}, "
+            f"n_users={cache_meta['n_users']})")
+        return
 
     cache = load_cache()
     sent_csr = cache["sent_csr"]
@@ -2325,455 +2299,35 @@ def stage_adaptive(out_path: Path = None):
 
 
 # ============================================================================
-# Stage: multi_seed (重复 adaptive 跨 N seeds × 不同 hash salt, 验证稳定性)
+# Main pipeline (一键串行运行所有 stage, 不依赖 MODE 调度)
 # ============================================================================
 
-def _run_one_seed(seed: int, cache, sent_norm, user_labels, user_n_sents,
-                  uid_list, n_users, V, device):
-    """单 seed 跑完整 adaptive 流程, 返回 test 结果 + τ* + encoder diag。
+def main_pipeline():
+    """Canonical pipeline: 串行执行全部 stage, 与历史 `full` MODE 等价。
 
-    关键: salt = f"multiseed_v1_{seed}" 让 hash bucketing 与 base HASH_SALT 不同,
-    实现真正的不同 split (不是只换 encoder 初始化)。
+    链路: cache → pcfg_attr → strict → gauss → attr → gauss_attr
+          → ablation → adaptive
+    (stage_super 与 stage_multi_seed 已删除, strict 兼任产出
+     supervised_embeddings.npy 给 gauss/attr/gauss_attr 消费, 省 ~45min super + 4h multi_seed)
+
+    假设 cache 已有产物则可跳过 stage_cache() (resume);
+    任意 stage 抛错会立即终止, 不做 fallback (per Rule 7)。
     """
-    t_seed = time.time()
-    salt = f"multiseed_v1_{seed}"
-    log(f"--- seed={seed} salt={salt} ---")
-
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-
-    # 3-way split
-    profile_dict, val_dict, test_dict = _three_way_split(
-        uid_list, cache, SENT_CACHE, salt=salt)
-    profile_idx = np.asarray(
-        sorted(i for v in profile_dict.values() for i in v),
-        dtype=np.int64)
-    val_idx = np.asarray(
-        sorted(i for v in val_dict.values() for i in v), dtype=np.int64)
-    test_idx = np.asarray(
-        sorted(i for v in test_dict.values() for i in v), dtype=np.int64)
-
-    # encoder train on profile only
-    rng_local = np.random.default_rng(seed)
-    perm = rng_local.permutation(len(profile_idx))
-    n_val_inner = int(len(profile_idx) * STRICT_VAL_FRAC)
-    profile_val_inner = profile_idx[perm[:n_val_inner]]
-    profile_train_inner = profile_idx[perm[n_val_inner:]]
-
-    def to_dense_batch(indices: np.ndarray) -> torch.Tensor:
-        rows = sent_norm[indices]
-        return torch.tensor(rows.toarray(), dtype=torch.float32,
-                            device=device)
-
-    model = _SupEncoder(V, SUP_Z_DIM, SUP_HIDDEN, n_users,
-                        SUP_DROPOUT).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=SUP_LR,
-                           weight_decay=SUP_WEIGHT_DECAY)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-        opt, T_max=MULTISEED_EPOCHS)
-
-    best_val = 0.0
-    best_state = None
-    n_train = len(profile_train_inner)
-    for epoch in range(1, MULTISEED_EPOCHS + 1):
-        model.train()
-        perm_epoch = np.random.permutation(profile_train_inner)
-        for i in range(0, n_train, SUP_BATCH_SIZE):
-            bi = perm_epoch[i:i + SUP_BATCH_SIZE]
-            xb = to_dense_batch(bi)
-            yb = torch.tensor(user_labels[bi],
-                              dtype=torch.long, device=device)
-            if SUP_RULE_DROPOUT > 0:
-                mask = (torch.rand(xb.shape[1], device=device)
-                        > SUP_RULE_DROPOUT).float()
-                xb = xb * mask.unsqueeze(0)
-            opt.zero_grad()
-            _, logits = model(xb)
-            loss = F.cross_entropy(logits, yb,
-                                   label_smoothing=SUP_LABEL_SMOOTHING)
-            loss.backward()
-            opt.step()
-        sched.step()
-        model.eval()
-        with torch.no_grad():
-            v_correct = 0
-            for i in range(0, len(profile_val_inner), SUP_BATCH_SIZE):
-                bi = profile_val_inner[i:i + SUP_BATCH_SIZE]
-                xb = to_dense_batch(bi)
-                _, logits = model(xb)
-                yb = torch.tensor(user_labels[bi],
-                                  dtype=torch.long, device=device)
-                v_correct += int(
-                    (logits.argmax(dim=1) == yb).sum().detach())
-        v_acc = v_correct / max(len(profile_val_inner), 1)
-        if v_acc > best_val:
-            best_val = v_acc
-            best_state = {k: v.cpu().clone()
-                          for k, v in model.state_dict().items()}
-    model.load_state_dict(best_state)
-    model.eval()
-
-    def encode_all(indices):
-        out = np.zeros((len(indices), SUP_Z_DIM), dtype=np.float32)
-        with torch.no_grad():
-            for i in range(0, len(indices), SUP_BATCH_SIZE):
-                bi = indices[i:i + SUP_BATCH_SIZE]
-                xb = to_dense_batch(bi)
-                z, _ = model(xb)
-                out[i:i + xb.shape[0]] = z.cpu().numpy()
-        return out
-
-    z_profile = encode_all(profile_idx)
-    z_val = encode_all(val_idx)
-    z_test = encode_all(test_idx)
-    p2l = {g: l for l, g in enumerate(profile_idx)}
-    v2l = {g: l for l, g in enumerate(val_idx)}
-    t2l = {g: l for l, g in enumerate(test_idx)}
-
-    # fit per-user μ, σ², Σ_full on profile
-    z_dim = SUP_Z_DIM
-    mu = np.zeros((n_users, z_dim), dtype=np.float64)
-    var_diag = np.zeros((n_users, z_dim), dtype=np.float64)
-    sigma_full = np.zeros((n_users, z_dim, z_dim), dtype=np.float64)
-    for ui, uid in enumerate(uid_list):
-        idxs = profile_dict[uid]
-        if not idxs:
-            continue
-        z = z_profile[[p2l[i] for i in idxs]]
-        mu[ui] = z.mean(axis=0)
-        if len(idxs) >= 2:
-            var_diag[ui] = z.var(axis=0, ddof=1)
-            centered = z - mu[ui]
-            cov = (centered.T @ centered) / max(len(idxs) - 1, 1)
-            tr = np.trace(cov) / z_dim
-            sigma_full[ui] = ((1 - ABLATION_FULL_SHRINK) * cov
-                              + ABLATION_FULL_SHRINK * tr * np.eye(z_dim))
-    sigma_full_reg = sigma_full + ABLATION_EPS * np.eye(z_dim)
-    try:
-        inv_sigma_full = np.linalg.inv(sigma_full_reg)
-    except np.linalg.LinAlgError:
-        inv_sigma_full = np.linalg.pinv(sigma_full_reg)
-
-    mu_norm = mu / (np.linalg.norm(mu, axis=1, keepdims=True) + 1e-8)
-    user_var = var_diag.mean(axis=1)
-
-    def get_scores(z_q):
-        z_q_n = z_q / (np.linalg.norm(z_q) + 1e-8)
-        cos_score = mu_norm @ z_q_n
-        diff = z_q - mu
-        maha = np.einsum("ud,ude,ue->u", diff, inv_sigma_full, diff)
-        return cos_score, -maha
-
-    chance = 1.0 / n_users
-
-    def eval_split(split_dict, mapping, z_array, tau, method):
-        correct = 0; total = 0
-        for ui, uid in enumerate(uid_list):
-            for global_i in split_dict[uid]:
-                li = mapping[global_i]
-                z_q = z_array.astype(np.float64)[li]
-                cos_s, maha_s = get_scores(z_q)
-                if method == "cosine":
-                    pred = int(np.argmax(cos_s))
-                elif method == "maha_full":
-                    pred = int(np.argmax(maha_s))
-                elif method == "adaptive":
-                    use_maha = user_var[ui] > tau
-                    pred = int(np.argmax(maha_s if use_maha else cos_s))
-                else:
-                    raise ValueError(method)
-                if pred == ui:
-                    correct += 1
-                total += 1
-        return correct, total
-
-    # τ sweep on val
-    var_sorted = np.sort(user_var)
-    tau_candidates = np.concatenate([
-        [var_sorted[0] - 1e-6],
-        np.quantile(var_sorted, np.linspace(0.05, 0.95, 19)),
-        [var_sorted[-1] + 1e-6],
-    ])
-    tau_candidates = np.unique(np.round(tau_candidates, 6))
-
-    val_curve = []
-    for tau in tau_candidates:
-        c, t = eval_split(val_dict, v2l, z_val, float(tau), "adaptive")
-        acc = c / max(t, 1)
-        val_curve.append({"tau": float(tau),
-                          "n_high_maha": int((user_var > tau).sum()),
-                          "acc": acc, "lift": acc / chance,
-                          "n_correct": c, "n_total": t})
-    val_curve.sort(key=lambda r: -r["acc"])
-    tau_star = val_curve[0]["tau"]
-
-    # test 3 methods
-    test_results = {}
-    test_corrects = {}
-    for m in ["cosine", "maha_full", "adaptive"]:
-        c, t = eval_split(test_dict, t2l, z_test, tau_star, m)
-        test_results[m] = {"acc": c/max(t,1), "lift": (c/max(t,1))/chance,
-                           "n_correct": c, "n_total": t}
-        test_corrects[m] = c
-    log(f"  seed={seed} τ*={tau_star:.4f} "
-        f"cos={test_results['cosine']['lift']:.2f}x "
-        f"maha={test_results['maha_full']['lift']:.2f}x "
-        f"adapt={test_results['adaptive']['lift']:.2f}x "
-        f"({time.time()-t_seed:.0f}s)")
-    return {
-        "seed": seed, "salt": salt,
-        "n_profile": int(len(profile_idx)),
-        "n_val": int(len(val_idx)),
-        "n_test": int(len(test_idx)),
-        "tau_star": float(tau_star),
-        "encoder_inner_val_acc": float(best_val),
-        "val_all_cosine_lift": next((r["lift"] for r in val_curve
-                                      if r["n_high_maha"] == 0), None),
-        "val_all_maha_lift": next((r["lift"] for r in val_curve
-                                    if r["n_high_maha"] == n_users), None),
-        "test_results": test_results,
-        "test_corrects": test_corrects,
-    }
-
-
-def stage_multi_seed(out_path: Path = None):
-    """重复 adaptive 流程跨 N seeds, 验证方法稳定性 + 配对统计检验。
-
-    每个 seed:
-      - 改 HASH_SALT 重新 SHA1 bucketing → 不同 profile/val/test split
-      - 改 torch/numpy seed 重新训 encoder
-      - 改 fit Gaussian + sweep τ
-      - 报告 3 个方法 (cosine / maha_full / adaptive) 在 test 上的 lift
-
-    聚合:
-      - mean ± std per method (lift, acc)
-      - McNemar: aggregate A=adapt_correct&base_wrong, B=base_correct&adapt_wrong
-        χ² = (|A-B|-1)² / (A+B)  [continuity corrected]
-      - paired t-test (scipy.stats.ttest_rel)
-      - Wilcoxon signed-rank (scipy.stats.wilcoxon)
-    """
-    t0 = time.time()
-    if out_path is None:
-        out_path = OUT_DIR / "syntax_pcfg_multiseed.json"
-
-    cache = load_cache()
-    sent_csr = cache["sent_csr"]
-    V = sent_csr.shape[1]
-    n_sents = sent_csr.shape[0]
-    user_n_sents = cache["user_n_sents"]
-    uid_list = cache["uid_list"]
-    n_users = len(uid_list)
-    log(f"multi_seed: V={V}, n_sents={n_sents}, n_users={n_users}, "
-        f"seeds={MULTISEED_SEEDS}, epochs={MULTISEED_EPOCHS}")
-
-    sent_norm = normalize_counts(sent_csr)
-    user_labels = np.zeros(n_sents, dtype=np.int64)
-    off = 0
-    for ui, n in enumerate(user_n_sents):
-        user_labels[off:off + n] = ui
-        off += n
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    chance = 1.0 / n_users
-
-    per_seed = []
-    for seed in MULTISEED_SEEDS:
-        r = _run_one_seed(seed, cache, sent_norm, user_labels, user_n_sents,
-                          uid_list, n_users, V, device)
-        per_seed.append(r)
-
-    # ---- 聚合 ----
-    methods = ["cosine", "maha_full", "adaptive"]
-    lifts = {m: np.array([s["test_results"][m]["lift"] for s in per_seed])
-             for m in methods}
-    accs = {m: np.array([s["test_results"][m]["acc"] for s in per_seed])
-            for m in methods}
-    correct = {m: np.array([s["test_corrects"][m] for s in per_seed])
-               for m in methods}
-
-    aggregate = {}
-    for m in methods:
-        aggregate[m] = {
-            "n_seeds": len(per_seed),
-            "mean_lift": float(lifts[m].mean()),
-            "std_lift": float(lifts[m].std(ddof=1)),
-            "min_lift": float(lifts[m].min()),
-            "max_lift": float(lifts[m].max()),
-            "mean_acc": float(accs[m].mean()),
-            "std_acc": float(accs[m].std(ddof=1)),
-            "per_seed_lift": lifts[m].tolist(),
-            "per_seed_correct": correct[m].tolist(),
-        }
-
-    # ---- 配对统计检验 ----
-    try:
-        from scipy import stats as scipy_stats
-    except ImportError:
-        scipy_stats = None
-
-    statistical_tests = {}
-    for baseline in ["cosine", "maha_full"]:
-        key = f"adaptive_vs_{baseline}"
-        # McNemar aggregate: per seed (A, B)
-        A_total = 0; B_total = 0
-        for s in per_seed:
-            A = (s["test_corrects"]["adaptive"]
-                 - (s["test_corrects"]["adaptive"]
-                    & ~0))  # placeholder
-            # A = adaptive correct AND baseline wrong = correct[a] - correct[a AND b]
-            # B = baseline correct AND adaptive wrong = correct[b] - correct[a AND b]
-            # 配对 A_i = adapt correct but not baseline
-            # Per test sents, we don't have per-sent bool, just total counts.
-            # 简化: 用 N_test * (acc_a - acc_b) 估; 精确需要 per-sent bool.
-            # 这里用 per-seed (adapt correct - baseline correct) 算 sign
-            A_total = 0
-        # 实际精确 McNemar 需要 per-sent 配对, 这里我们没存
-        # 改用 sign test: 每 seed 比较 adaptive_correct vs baseline_correct,
-        # 数 + 和 - 的对数, 二项检验
-        adapt_c = correct["adaptive"]
-        base_c = correct[baseline]
-        diff = adapt_c - base_c
-        wins = int((diff > 0).sum())
-        losses = int((diff < 0).sum())
-        ties = int((diff == 0).sum())
-        sign_test_n = wins + losses
-        # binom test: H0 P(+) = 0.5
-        if sign_test_n > 0 and scipy_stats is not None:
-            binom_p = float(scipy_stats.binomtest(
-                wins, sign_test_n, 0.5, alternative="greater").pvalue)
-        else:
-            binom_p = None
-        # paired t-test on per-sent lift (= correct counts / N_test)
-        # 用 lift 数组配对
-        if scipy_stats is not None and len(per_seed) >= 2:
-            try:
-                t_stat, t_p = scipy_stats.ttest_rel(
-                    lifts["adaptive"], lifts[baseline])
-                t_stat = float(t_stat); t_p = float(t_p)
-            except Exception as e:
-                t_stat, t_p = None, None
-            try:
-                w_stat, w_p = scipy_stats.wilcoxon(
-                    diff, alternative="greater")
-                w_stat = float(w_stat); w_p = float(w_p)
-            except Exception as e:
-                w_stat, w_p = None, None
-        else:
-            t_stat = t_p = w_stat = w_p = None
-        # exact McNemar-like 检验: 用正确数差 d_i = (A_i - B_i)
-        # 在 H0 下 d_i 中心化, 用 paired t 即可
-        statistical_tests[key] = {
-            "wins_losses_ties": {"wins": wins, "losses": losses,
-                                  "ties": ties},
-            "sign_test_binom_p_one_sided": binom_p,
-            "paired_ttest_t": t_stat, "paired_ttest_p": t_p,
-            "wilcoxon_W": w_stat, "wilcoxon_p": w_p,
-            "mean_lift_diff": float((lifts["adaptive"]
-                                      - lifts[baseline]).mean()),
-            "std_lift_diff": float((lifts["adaptive"]
-                                    - lifts[baseline]).std(ddof=1)),
-        }
-
-    # ---- 结论 ----
-    log(f"\n=== MULTI-SEED SUMMARY ({len(per_seed)} seeds) ===")
-    log(f"  PCFG discrete (历史): ~7.97× chance")
-    for m in methods:
-        a = aggregate[m]
-        log(f"  {m:>10s}: lift {a['mean_lift']:.2f} ± {a['std_lift']:.2f}x  "
-            f"(min {a['min_lift']:.2f}, max {a['max_lift']:.2f})")
-    log("\n  Per-seed wins (adaptive > baseline):")
-    for baseline in ["cosine", "maha_full"]:
-        st = statistical_tests[f"adaptive_vs_{baseline}"]
-        wlt = st["wins_losses_ties"]
-        log(f"    vs {baseline:>10s}: {wlt['wins']}W / {wlt['losses']}L / "
-            f"{wlt['ties']}T  (sign-test p={st['sign_test_binom_p_one_sided']}, "
-            f"paired t p={st['paired_ttest_p']}, Wilcoxon p={st['wilcoxon_p']})")
-    # adaptive 是否每次都赢?
-    adapt_wins_all_cos = all(
-        s["test_results"]["adaptive"]["lift"]
-        > s["test_results"]["cosine"]["lift"] for s in per_seed)
-    adapt_wins_all_maha = all(
-        s["test_results"]["adaptive"]["lift"]
-        > s["test_results"]["maha_full"]["lift"] for s in per_seed)
-    log(f"  adaptive > cosine on every seed: {adapt_wins_all_cos}")
-    log(f"  adaptive > maha_full on every seed: {adapt_wins_all_maha}")
-
-    # ---- 输出 ----
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    summary = {
-        "config": {
-            "n_seeds": len(per_seed),
-            "seeds": MULTISEED_SEEDS,
-            "epochs_per_seed": MULTISEED_EPOCHS,
-            "z_dim": SUP_Z_DIM, "n_users": n_users,
-            "split": "sha1_hash_50_20_30_with_per_seed_salt",
-            "gauss_eps": ABLATION_EPS,
-            "full_shrink_alpha": ABLATION_FULL_SHRINK,
-        },
-        "no_leakage": True,
-        "chance": chance,
-        "per_seed": per_seed,
-        "aggregate": aggregate,
-        "statistical_tests": statistical_tests,
-        "conclusion": {
-            "adaptive_wins_all_cos_seeds": adapt_wins_all_cos,
-            "adaptive_wins_all_maha_seeds": adapt_wins_all_maha,
-        },
-    }
-    with open(out_path, "w") as f:
-        json.dump(summary, f, indent=2)
-    log(f"wrote → {out_path}")
-    log(f"=== Total: {time.time()-t0:.1f}s ===")
-
-
-
-# ============================================================================
-# Main dispatch
-# ============================================================================
-
-def main():
     t_total = time.time()
-    log(f"=== MODE = {MODE} ===")
+    log(f"=== main_pipeline: canonical chain start ===")
 
-    if MODE == "pcfg_attr":
-        stage_pcfg_attr()
-    elif MODE == "cache":
-        stage_cache()
-    elif MODE == "vae":
-        stage_vae()
-    elif MODE == "super":
-        stage_super()
-    elif MODE == "gauss":
-        stage_gauss()
-    elif MODE == "attr":
-        stage_attr()
-    elif MODE == "gauss_attr":
-        stage_gauss_attr()
-    elif MODE == "strict":
-        stage_strict()
-    elif MODE == "ablation":
-        stage_ablation()
-    elif MODE == "adaptive":
-        stage_adaptive()
-    elif MODE == "multi_seed":
-        stage_multi_seed()
-    elif MODE == "full":
-        stage_cache()
-        stage_super()
-        stage_gauss(embed_path=CACHE_DIR / "supervised_embeddings.npy")
-        stage_attr(embed_path=CACHE_DIR / "supervised_embeddings.npy")
-        stage_gauss_attr()
-        stage_strict()
-        stage_ablation()
-        stage_adaptive()
-        stage_multi_seed()
-    else:
-        raise ValueError(
-            f"unknown MODE={MODE}; valid: pcfg_attr cache vae super gauss "
-            "attr gauss_attr strict ablation adaptive multi_seed full")
+    stage_cache()
+    stage_pcfg_attr()
+    stage_strict()  # 同时产出 supervised_embeddings.npy + strict_embeddings.npz
+    stage_gauss(embed_path=CACHE_DIR / "supervised_embeddings.npy")
+    stage_attr(embed_path=CACHE_DIR / "supervised_embeddings.npy")
+    stage_gauss_attr()
+    stage_ablation()
+    stage_adaptive()
+    # stage_multi_seed() 已从主链路移除 (单 stage ~4h, 单独调)
 
     log(f"\n=== ALL DONE ({time.time()-t_total:.0f}s) ===")
 
 
 if __name__ == "__main__":
-    main()
+    main_pipeline()
