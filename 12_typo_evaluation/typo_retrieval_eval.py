@@ -38,7 +38,7 @@ OUT_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
 OUT_DEGRADATION = REPO_ROOT / "result/12_typo_evaluation/retrieval_degradation.json"
 
 # Hardcoded (Rule 3)
-SMOKE = False
+SMOKE = False  # smoke 5 pairs passed; run full 1013 pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 

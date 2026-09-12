@@ -28,7 +28,7 @@ in cohort_summary. If a user has only surface-form history and no char-level
 pattern, the query is marked n_surface_form_only_skip.
 
 Encoding pipelines (matches `08_select_query/syntax_select_mahalanobis_gate.py`):
-  Syntax 32d:  text → spaCy doc → extract_struct_rules (21737 binary count)
+  Syntax 32d:  text → spaCy doc → extract_struct_rules (31847 binary count)
                   → normalize (x/(1+x)) → frozen _SupEncoder → z (32d)
   Semantic:    text → sentence-transformers/all-MiniLM-L6-v2 → e (384d)
                   → cosine similarity
@@ -61,8 +61,8 @@ from valid_words import is_meaningful_change
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 PCFG_PIPELINE = REPO_ROOT / "03_spacy_encode/syntax_pcfg_pipeline.py"
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
-ENCODER_PT = CACHE_DIR / "adaptive_encoder.pt"
-ENCODER_DEVICE = "cpu"  # 32d encode is trivial; CPU is fine
+ENCODER_PT = CACHE_DIR / "strict3_encoder.pt"
+ENCODER_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # GPU-accelerated 32d encode
 
 # CONTRASTIVE_5558 ABLATION: 5558 cohort NT-Xent encoder
 CONTRASTIVE_5558 = False
@@ -121,7 +121,7 @@ def _load_pcfg_module():
 
 
 def _load_encoder():
-    """Load _SupEncoder from adaptive_encoder.pt (must eval)."""
+    """Load _SupEncoder from strict3_encoder.pt (must eval)."""
     global _encoder
     if _encoder is None:
         ckpt = torch.load(ENCODER_PT, map_location="cpu", weights_only=False)
@@ -132,12 +132,13 @@ def _load_encoder():
             cfg["n_users"], cfg["dropout"])
         model.load_state_dict(ckpt["model_state"])
         model.eval()
+        model.to(ENCODER_DEVICE)
         _encoder = model
     return _encoder
 
 
 def _load_rule_to_id() -> Dict[str, int]:
-    """Load vocab.json (list of 21737 rule strings) → {rule_str: id}."""
+    """Load vocab.json (list of 31847 rule strings) → {rule_str: id}."""
     global _rule_to_id
     if not _rule_to_id:
         with open(CACHE_DIR / "vocab.json") as f:
@@ -219,7 +220,7 @@ def _load_semantic_encoder():
         os.environ.setdefault("HF_HOME", str(SEMANTIC_CACHE_DIR))
         os.environ.setdefault("HF_HUB_CACHE", str(SEMANTIC_CACHE_DIR / "hub"))
         from sentence_transformers import SentenceTransformer
-        _semantic_encoder = SentenceTransformer(SEMANTIC_MODEL_ID, device="cpu")
+        _semantic_encoder = SentenceTransformer(SEMANTIC_MODEL_ID, device=ENCODER_DEVICE)
     return _semantic_encoder
 
 
@@ -344,7 +345,7 @@ def sample_injection(
     nlp=None,
     encoder=None,
     rule_to_id: Optional[Dict[str, int]] = None,
-    vocab_size: int = 21737,
+    vocab_size: int = 31847,
 ) -> Tuple[Optional[str], Optional[InjectionMeta]]:
     """Apply at most one char-level typo injection to `query`.
 

@@ -55,6 +55,12 @@ K_USERS_PER_BATCH = 32
 K_PER_USER = 8
 # Effective batch size = 32 * 8 = 256
 
+# Smoke config (Rule 18/20: smoke 内嵌到主脚本,SMOKE=True 跑快速 sanity check)
+SMOKE = False  # Rule 18: smoke 内嵌,SMOKE=True 跑 sanity check
+SMOKE_N_USERS = 200
+SMOKE_EPOCHS = 3
+SMOKE_DIR = CACHE_DIR / "_smoke"
+
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -114,6 +120,18 @@ def main():
         uid_list = json.load(f)
     with open(CACHE_DIR / "user_n_sents.json") as f:
         user_n_sents = json.load(f)
+
+    # SMOKE subset: take first N users + slice sent_csr accordingly
+    if SMOKE:
+        SMOKE_DIR.mkdir(exist_ok=True)
+        n_users_orig = n_users
+        n_users = SMOKE_N_USERS
+        user_n_sents = user_n_sents[:SMOKE_N_USERS]
+        n_total_sents = int(sum(user_n_sents))
+        sent_csr = sent_csr[:n_total_sents].tocsr()
+        log(f"  SMOKE subset: users {n_users_orig} -> {n_users}, "
+            f"sents -> {n_total_sents}, sent_csr -> {sent_csr.shape}")
+
     user_off_per_user = np.zeros(n_users + 1, dtype=np.int64)
     user_off_per_user[1:] = np.cumsum(user_n_sents)
 
@@ -170,9 +188,13 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     log(f"encoder params: {n_params/1e6:.2f}M")
 
+    sup_epochs_effective = SMOKE_EPOCHS if SMOKE else SUP_EPOCHS
+    if SMOKE:
+        log(f"  SMOKE epochs: {sup_epochs_effective} (override SUP_EPOCHS={SUP_EPOCHS})")
+
     opt = torch.optim.Adam(model.parameters(), lr=SUP_LR,
                            weight_decay=SUP_WEIGHT_DECAY)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=SUP_EPOCHS)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=sup_epochs_effective)
     supcon = SupConLoss(tau=SUPCON_TAU).to(device)
 
     def batch_to_dense(local_idx_arr, source_idx_arr):
@@ -189,7 +211,7 @@ def main():
     PATIENCE = 8
     n_user_batches = len(valid_users) // K_USERS_PER_BATCH
 
-    for epoch in range(SUP_EPOCHS):
+    for epoch in range(sup_epochs_effective):
         model.train()
         np.random.shuffle(valid_users)
         train_loss_sum = 0.0
@@ -268,12 +290,13 @@ def main():
 
     z_profile = z_all[profile_idx]
     z_test = z_all[test_idx]
-    np.savez(CACHE_DIR / "strict_embeddings.npz",
+    out_dir = SMOKE_DIR if SMOKE else CACHE_DIR
+    np.savez(out_dir / "strict_embeddings.npz",
              z_profile=z_profile, z_test=z_test,
              profile_idx=profile_idx, test_idx=test_idx)
     log(f"  wrote strict_embeddings.npz "
         f"(z_profile {z_profile.shape}, z_test {z_test.shape})")
-    np.save(CACHE_DIR / "supervised_embeddings.npy", z_all)
+    np.save(out_dir / "supervised_embeddings.npy", z_all)
     log(f"  wrote supervised_embeddings.npy {z_all.shape}")
     torch.save({
         "state_dict": model.state_dict(),
@@ -286,8 +309,19 @@ def main():
         "tau": SUPCON_TAU,
         "best_epoch": best_epoch,
         "best_val_supcon": best_val,
-    }, CACHE_DIR / "strict_encoder.pt")
+        "smoke": SMOKE,
+    }, out_dir / "strict_encoder.pt")
     log(f"  wrote strict_encoder.pt (best ep{best_epoch} val={best_val:.4f})")
+
+    if SMOKE:
+        mean_norm = float(np.linalg.norm(z_all, axis=1).mean())
+        log(f"  SMOKE z_all shape={z_all.shape} mean_norm={mean_norm:.3f}")
+        if z_all.shape != (n_total_sents, SUP_Z_DIM):
+            raise ValueError(f"SMOKE shape mismatch: {z_all.shape} != "
+                             f"({n_total_sents}, {SUP_Z_DIM})")
+        if not np.isfinite(z_all).all():
+            raise ValueError("SMOKE z_all contains NaN/Inf")
+        log("SMOKE PASSED")
 
     log(f"\nALL DONE in {time.time() - t0:.1f}s")
 

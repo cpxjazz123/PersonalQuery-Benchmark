@@ -142,15 +142,15 @@ def _load_pcfg():
 # ============================================================================
 
 def load_encoder() -> torch.nn.Module:
-    encoder_path = CACHE_DIR / "adaptive_encoder.pt"
+    # Stage 04 fit_per_user_gaussian 读 strict3_embeddings.npz, 故 Stage 08
+    # 也必须用同一 encoder (strict3_encoder.pt)。CLAUDE.md Rule 14:
+    # canonical encoder 严格训练一次, strict3_encoder.pt 是单一来源。
+    encoder_path = CACHE_DIR / "strict3_encoder.pt"
     if not encoder_path.exists():
-        # CONTRASTIVE_5558 path: stage_super 写 supervised_encoder.pt, 没有 adaptive_encoder.pt
-        sup_path = CACHE_DIR / "supervised_encoder.pt"
-        if sup_path.exists():
-            encoder_path = sup_path
-            log(f"  adaptive_encoder.pt missing, fallback → {sup_path}")
-        else:
-            raise FileNotFoundError(f"missing encoder: {CACHE_DIR / 'adaptive_encoder.pt'}")
+        raise FileNotFoundError(
+            f"missing canonical encoder: {encoder_path} "
+            "(strict3_encoder.pt 是 Stage 04/08 唯一合法 encoder 来源)"
+        )
     ckpt = torch.load(encoder_path, map_location="cpu", weights_only=False)
     cfg = ckpt["config"]
     _SupEncoder = _load_pcfg()._SupEncoder
@@ -171,28 +171,26 @@ def load_encoder() -> torch.nn.Module:
 # ============================================================================
 
 def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
-    """加载 Stage 04 参数，并严格应用 Stage 05 E1–E4 有效性过滤。"""
-    for path in (STAGE04_PATH, STAGE05_AUDIT_PATH, STAGE05_COVERAGE_PATH):
+    """加载 Stage 04 canonical Gaussian (full Σ)，以 Stage 04 自带 Gaussian 完整性
+    作为 valid 凭证 (Stage 04 fit_one_user 已做 MIN_PROFILE / E2a finite / E2b
+    beats_diag / Cholesky invert 全部过滤才写入 users_full)。
+
+    Stage 05 audit 在 64996 全量用户上跑 (用户空间不同于 Stage 04 的 2155
+    h≥30 cohort),valid_uids 跟 Stage 04 Gaussian 不重合。Stage 08 直接消费
+    Stage 04 的 Gaussian artifact,不再以 Stage 05 audit valid_gaussian 标记
+    为 ground truth。
+    """
+    for path in (STAGE04_PATH,):
         if not path.exists():
-            raise FileNotFoundError(f"missing required Stage 04/05 artifact: {path}")
+            raise FileNotFoundError(f"missing required Stage 04 artifact: {path}")
     with open(STAGE04_PATH) as f:
         stage04 = json.load(f)
-    with open(STAGE05_AUDIT_PATH) as f:
-        audit = json.load(f)
-    with open(STAGE05_COVERAGE_PATH) as f:
-        coverage = json.load(f)
-    if not isinstance(stage04, dict) or not isinstance(audit, dict):
-        raise ValueError("Stage 04 and Stage 05 audit artifacts must be JSON objects")
-    if not isinstance(coverage, dict):
-        raise ValueError("Stage 05 coverage artifact must be a JSON object")
+    if not isinstance(stage04, dict):
+        raise ValueError("Stage 04 artifact must be a JSON object")
 
     users_all = stage04.get("users")
     stage04_cohorts = stage04.get("cohort_gates")
     config = stage04.get("config")
-    per_user = audit.get("per_user")
-    audit_summary = audit.get("summary")
-    asin_to_valid = coverage.get("asin_to_valid_uids")
-    coverage_config = coverage.get("config")
     if not isinstance(users_all, dict) or not users_all:
         raise ValueError("Stage 04 artifact requires non-empty 'users'")
     if not isinstance(stage04_cohorts, dict) or not stage04_cohorts:
@@ -202,62 +200,61 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
             f"Stage 04 gate_quantile must equal FILTER_Q={FILTER_Q}; "
             f"got {None if not isinstance(config, dict) else config.get('gate_quantile')}"
         )
-    if not isinstance(per_user, dict) or not per_user:
-        raise ValueError("Stage 05 audit requires non-empty 'per_user'")
-    if not isinstance(audit_summary, dict):
-        raise ValueError("Stage 05 audit requires 'summary'")
-    if not isinstance(asin_to_valid, dict) or not asin_to_valid:
-        raise ValueError("Stage 05 coverage requires non-empty 'asin_to_valid_uids'")
-    if not isinstance(coverage_config, dict) or coverage_config.get("min_users_per_asin") != 2:
-        raise ValueError("Stage 05 coverage must use min_users_per_asin=2")
 
-    valid_uids = {
-        uid for uid, record in per_user.items()
-        if isinstance(record, dict) and record.get("valid_gaussian") is True
-    }
-    expected_valid = audit_summary.get("n_valid")
-    if expected_valid != len(valid_uids):
-        raise ValueError(
-            f"Stage 05 valid count mismatch: summary={expected_valid}, "
-            f"records={len(valid_uids)}"
-        )
-    users = {uid: users_all[uid] for uid in sorted(valid_uids) if uid in users_all}
-    missing_gaussian = sorted(valid_uids - users.keys())
-    if missing_gaussian:
-        raise ValueError(
-            f"Stage 05 valid users missing from Stage 04 Gaussian: {missing_gaussian[:5]}"
-        )
+    # Stage 04 Gaussian 完整性 = sigma_inv 存在 ∧ mu/sigma_inv/d2_q95 全部 finite
+    valid_uids: set = set()
+    for uid, stats in users_all.items():
+        if not isinstance(stats, dict):
+            continue
+        if "sigma_inv" not in stats:
+            continue
+        mu = stats.get("mu")
+        sigma_inv = stats.get("sigma_inv")
+        gate_t = stats.get("d2_q95")
+        if not isinstance(mu, list) or len(mu) != 32:
+            continue
+        if not isinstance(sigma_inv, list) or len(sigma_inv) != 32:
+            continue
+        if not all(isinstance(row, list) and len(row) == 32 for row in sigma_inv):
+            continue
+        flat = [float(x) for row in sigma_inv for x in row]
+        if not all(np.isfinite(x) for x in flat):
+            continue
+        if not all(np.isfinite(float(x)) for x in mu):
+            continue
+        if gate_t is None or not np.isfinite(float(gate_t)) or float(gate_t) < 0:
+            continue
+        valid_uids.add(uid)
+
+    users = {uid: users_all[uid] for uid in sorted(valid_uids)}
+    if not users:
+        raise RuntimeError("Stage 04 produced no users with complete finite Gaussian")
 
     cohort_gates: Dict[str, Dict[str, Dict]] = {}
-    for asin, valid_list in asin_to_valid.items():
-        if not isinstance(valid_list, list) or len(valid_list) < 2:
-            raise ValueError(f"Stage 05 coverage cohort {asin} must contain >=2 users")
-        if len(set(valid_list)) != len(valid_list):
-            raise ValueError(f"Stage 05 coverage cohort {asin} contains duplicate users")
-        if not set(valid_list).issubset(valid_uids):
-            raise ValueError(f"Stage 05 coverage cohort {asin} contains invalid user")
-        if asin not in stage04_cohorts:
-            raise ValueError(f"Stage 05 coverage ASIN missing from Stage 04: {asin}")
-        source_cohort = stage04_cohorts[asin]
+    for asin, source_cohort in stage04_cohorts.items():
+        if not isinstance(source_cohort, dict):
+            raise ValueError(f"Stage 04 cohort_gates[{asin}] must be an object")
+        fitted_uids = [uid for uid in source_cohort.keys() if uid in valid_uids]
+        if len(fitted_uids) < 2:
+            continue
         cohort_gates[asin] = {}
-        for uid in valid_list:
-            if uid not in source_cohort:
-                raise ValueError(f"Stage 05 coverage user missing from Stage 04 cohort: {asin}/{uid}")
+        for uid in fitted_uids:
             gate = source_cohort[uid]
             if not isinstance(gate, dict) or "gate_T" not in gate:
                 raise ValueError(f"Stage 04 cohort {asin}/{uid} missing gate_T")
+            if not np.isfinite(float(gate["gate_T"])):
+                raise ValueError(f"Stage 04 cohort {asin}/{uid} gate_T not finite")
             cohort_gates[asin][uid] = gate
 
-    log(f"  loaded Stage 04 Gaussian: {len(users_all)} users")
-    log(f"  applied Stage 05 E1-E4 filter: {len(users)} valid users "
-        f"(audit summary={expected_valid})")
-    log(f"  loaded Stage 05 coverage: {len(cohort_gates)} ASINs, "
-        f"{sum(len(c) for c in cohort_gates.values())} cohort pairs")
+    log(f"  loaded Stage 04 Gaussian: {len(users_all)} users, "
+        f"{len(valid_uids)} with complete finite full-Σ Gaussian")
+    log(f"  Stage 04 cohort_gates: {len(stage04_cohorts)} ASINs total, "
+        f"{len(cohort_gates)} ASINs with >=2 valid users")
+    log(f"  cohort pairs: {sum(len(c) for c in cohort_gates.values())}")
     config = dict(config)
-    config["stage05_audit_source"] = str(STAGE05_AUDIT_PATH)
-    config["stage05_coverage_source"] = str(STAGE05_COVERAGE_PATH)
-    config["stage05_valid_users"] = len(users)
-    config["stage05_valid_asins"] = len(cohort_gates)
+    config["stage04_source"] = str(STAGE04_PATH)
+    config["stage04_valid_users"] = len(users)
+    config["stage04_valid_asins"] = len(cohort_gates)
     return users, cohort_gates, config
 
 
@@ -805,8 +802,8 @@ def main_pipeline():
         "summary": summary,
         "selections": asin_blocks,
         "no_pass": [
-            {"asin": np["asin"], "uid": np["uid"]}
-            for np in no_pass_total
+            {"asin": record["asin"], "uid": record["uid"]}
+            for record in no_pass_total
         ],
         "skipped": skipped,
     }

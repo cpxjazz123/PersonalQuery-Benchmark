@@ -51,7 +51,7 @@ ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_POOL_SEED = 42
 SFT_POOL_SMOKE = False        # True=5 ASIN smoke, False=100 ASIN full (Rule 20)
-SFT_POOL_N_ASIN = 5 if SFT_POOL_SMOKE else 10000  # 2026-09-06: 扩到 10000 ASIN
+SFT_POOL_N_ASIN = 5 if SFT_POOL_SMOKE else None  # SMOKE=5, full=None=不限制(全量 asin_to_valid)
 SFT_POOL_K = 25               # 2026-09-06: 提速 C 方案, n=25 跑 2 轮, 总候选 50/ASIN (KV cache 复用)
 SFT_POOL_ROUNDS = 2            # 2026-09-06: 同 prompt 跑 2 轮, 合并为 50/ASIN
 SFT_POOL_TEMP = 0.7
@@ -123,9 +123,12 @@ def select_eval_asins(attrs_all: Dict[str, Dict[str, str]],
     rng = random.Random(SFT_POOL_SEED)
     rng.shuffle(candidates)  # 仅打散同密度的 ASIN
     candidates.sort(key=lambda av: -av[1])
-    selected = [a for a, _ in candidates[:n_asin]]
-    if len(selected) < n_asin:
-        log(f"  WARNING: only {len(selected)} ASINs available, requested {n_asin}")
+    if n_asin is None:
+        selected = [a for a, _ in candidates]
+    else:
+        selected = [a for a, _ in candidates[:n_asin]]
+        if len(selected) < n_asin:
+            log(f"  WARNING: only {len(selected)} ASINs available, requested {n_asin}")
     return selected
 
 

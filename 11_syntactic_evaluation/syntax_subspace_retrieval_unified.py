@@ -49,9 +49,10 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
 META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl"
 SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-06: 用户指向新 schema
-PER_QUERY_OUT = Path(f"/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/stage8_5_retrieval_per_query{_SEL_SUFFIX}.json")
-SUMMARY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/retrieval_summary{_SEL_SUFFIX}.json")
-VOLATILITY_OUT = Path(f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/syntactic_evaluation/volatility{_SEL_SUFFIX}.json")
+RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
+PER_QUERY_OUT = RESULT_DIR / f"per_query{_SEL_SUFFIX}.json"
+SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
+VOLATILITY_OUT = RESULT_DIR / f"volatility{_SEL_SUFFIX}.json"
 EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
 
 # 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。

@@ -54,7 +54,7 @@ SERCL_OPS = ("R:", "M:", "U:")      # replacement / missing / unnecessary
 # 高频 error type 白名单 (后续可扩展)
 SERCL_TOP_ERROR_TYPES = None        # None = 不限; v1 不限, 看分布
 
-UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences.pkl"
+UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences.json"
 SELECTED_QUERIES = REPO_ROOT / "result/08_select_query/selected_queries.json"  # 2026-09-06: cohort 必须从此选
 
 
@@ -82,10 +82,10 @@ def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
                 selected_uids.add(uid)
     log(f"  unique uids in selected_queries.json: {len(selected_uids)}")
 
-    # Step 2: load sentences
-    with open(UID_TO_SENTS, "rb") as f:
-        all_uids = pickle.load(f)
-    log(f"  total uids in uid_to_sentences.pkl: {len(all_uids)}")
+    # Step 2: load sentences (JSON dict: {uid: [sent, ...]})
+    with open(UID_TO_SENTS, encoding="utf-8") as f:
+        all_uids = json.load(f)
+    log(f"  total uids in uid_to_sentences: {len(all_uids)}")
 
     # Step 3: intersect selected ∩ eligible (≥MIN_SENTS)
     eligible = []
