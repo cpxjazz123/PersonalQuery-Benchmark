@@ -48,6 +48,8 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
 
 EMBED_PATH = CACHE_DIR / "strict3_embeddings.npz"
+MANIFEST_PATH = CACHE_DIR / "strict3_manifest.json"
+READY_PATH = CACHE_DIR / "cache_ready.json"
 N_SENTS_PATH = CACHE_DIR / "user_n_sents.json"
 
 OUT_DIR = REPO_ROOT / "result/05_gaussian_audit"
@@ -57,7 +59,7 @@ ASIN_USERS_PATH = (
 )
 ASIN_COVERAGE_PATH = OUT_DIR / "asin_coverage_valid_ge2.json"
 
-K_DIM = 32
+K_DIM = 16
 N_USERS_EXPECTED = None  # 不再硬编码: 由 len(uid_list) 动态确定
 SEED = 42
 MIN_VAL_SENTS = 5          # E2a: 至少 5 条 val 句
@@ -72,17 +74,134 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def _atomic_json_dump(payload, path) -> None:
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(payload, f, indent=1, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _extract_cache_fingerprint() -> str:
+    """从 cache_ready.json 读取 sentence_source_fingerprint 以在 audit 结果上记录。"""
+    if not READY_PATH.exists():
+        return ""
+    with open(READY_PATH) as f:
+        return str(json.load(f).get("sentence_source_fingerprint", ""))
+
+
+def _sanitize_json(value):
+    """替换 NaN/Inf 为 None,确保 JSON 严格合法。"""
+    if isinstance(value, dict):
+        return {k: _sanitize_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_json(v) for v in value]
+    if isinstance(value, tuple):
+        return [_sanitize_json(v) for v in value]
+    if isinstance(value, (np.floating, float)):
+        v = float(value)
+        if not np.isfinite(v):
+            return None
+        return v
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    return value
+
+
+def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
+    """拒绝不属于当前 Stage 02 cohort 的 strict3 artifact。"""
+    for path in (MANIFEST_PATH, READY_PATH):
+        if not path.exists():
+            raise FileNotFoundError(
+                f"missing: {path} (run 03_spacy_encode.stage_strict3() first)")
+    required = ("z_profile", "z_val", "z_test",
+                "profile_idx", "val_idx", "test_idx", "uid_list",
+                "cohort_fingerprint", "uid_layout_fingerprint",
+                "vocab_fingerprint")
+    for key in required:
+        if key not in npz:
+            raise ValueError(f"strict3 artifact missing field: {key}")
+
+    artifact_uids = [str(u) for u in np.asarray(npz["uid_list"]).tolist()]
+    if len(artifact_uids) != len(n_sents):
+        raise ValueError(
+            f"strict3 uid_list ({len(artifact_uids)}) != user_n_sents "
+            f"({len(n_sents)})")
+    n_total = int(sum(n_sents))
+    for key in ("profile_idx", "val_idx", "test_idx"):
+        index = np.asarray(npz[key], dtype=np.int64)
+        if index.ndim != 1:
+            raise ValueError(f"strict3 {key} must be 1-D")
+        if len(index) and (int(index.min()) < 0
+                           or int(index.max()) >= n_total):
+            raise ValueError(
+                f"strict3 {key} index out of range [0,{n_total})")
+        if len(np.unique(index)) != len(index):
+            raise ValueError(f"strict3 {key} contains duplicate indices")
+    merged = np.concatenate(
+        [np.asarray(npz[k], dtype=np.int64) for k in
+         ("profile_idx", "val_idx", "test_idx")])
+    if len(np.unique(merged)) != n_total or not np.array_equal(
+            np.sort(merged), np.arange(n_total, dtype=np.int64)):
+        raise ValueError("strict3 split indices do not partition all sentences")
+    for key in ("z_profile", "z_val", "z_test"):
+        z = np.asarray(npz[key])
+        if z.ndim != 2 or z.shape[1] not in (16, 32):
+            raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
+        if not np.isfinite(z).all():
+            raise ValueError(f"strict3 {key} contains NaN/Inf")
+
+    with open(MANIFEST_PATH) as f:
+        manifest = json.load(f)
+    with open(READY_PATH) as f:
+        ready = json.load(f)
+    source_keys = (
+        ("cohort_fingerprint", "sentence_source_fingerprint"),
+        ("uid_layout_fingerprint", "uid_layout_fingerprint"),
+        ("vocab_fingerprint", "vocab_fingerprint"),
+    )
+    for npz_key, ready_key in source_keys:
+        npz_value = str(np.asarray(npz[npz_key]).item())
+        manifest_value = str(manifest.get(npz_key))
+        if npz_value != manifest_value:
+            raise ValueError(
+                f"strict3 artifact vs manifest mismatch at {npz_key}: "
+                f"npz={npz_value}, manifest={manifest_value!r}")
+        if manifest_value != str(ready.get(ready_key)):
+            raise ValueError(
+                f"strict3 manifest differs from cache_ready at {ready_key}")
+    if int(manifest.get("n_users", -1)) != len(artifact_uids):
+        raise ValueError("strict3 manifest n_users mismatch")
+    if int(ready.get("n_users", -1)) != len(artifact_uids):
+        raise ValueError("cache_ready n_users mismatch")
+    if int(manifest.get("n_total_sents", -1)) != n_total:
+        raise ValueError("strict3 manifest n_total_sents mismatch")
+    if int(ready.get("n_total_sents", -1)) != n_total:
+        raise ValueError("cache_ready n_total_sents mismatch")
+
+
 def load_assets():
+    for path in (EMBED_PATH, N_SENTS_PATH):
+        if not path.exists():
+            raise FileNotFoundError(
+                f"missing: {path} (run 03_spacy_encode first)")
     d = np.load(EMBED_PATH, allow_pickle=True)
+    n_sents = json.load(open(N_SENTS_PATH))
+    n_sents = [int(n) for n in n_sents]
+    uid_list = [str(u) for u in d["uid_list"]]
+    n_users_actual = len(uid_list)
+    if len(n_sents) != n_users_actual:
+        raise ValueError(
+            f"user_n_sents ({len(n_sents)}) != uid_list ({n_users_actual})")
+    if any(n < 0 for n in n_sents):
+        raise ValueError("user_n_sents contains a negative count")
+    _validate_strict3_artifact(d, n_sents)
+
     z_p = d["z_profile"]
     z_v = d["z_val"]
     pid = d["profile_idx"]
     vid = d["val_idx"]
-    uid_list = list(d["uid_list"])
-    n_users_actual = len(uid_list)
-    n_sents = json.load(open(N_SENTS_PATH))
-    assert len(n_sents) == n_users_actual, (
-        f"user_n_sents ({len(n_sents)}) != uid_list ({n_users_actual})")
     row2uid = np.repeat(np.arange(n_users_actual), n_sents)
     prof_uid = row2uid[pid]
     val_uid = row2uid[vid]
@@ -389,6 +508,7 @@ def main():
     fail_counts = {"E2a_finite": 0, "E2b_beats_diag": 0, "E4_stability": 0}
     fail_union: set = set()
     eff_dim_hist: dict = {}
+    eff_dim_per_user: list = []
     eff_rank_list: list = []
     d_pr_list: list = []
     valid_users = 0
@@ -405,6 +525,7 @@ def main():
         r = evaluate_one(P, V, K_DIM, rng)
         per_user[uid_list[u]] = r
         eff_dim_hist[r["e3_eff_dim_rel"]] = eff_dim_hist.get(r["e3_eff_dim_rel"], 0) + 1
+        eff_dim_per_user.append(int(r["e3_eff_dim_rel"]))
         eff_rank_list.append(r["e3_effective_rank"])
         d_pr_list.append(r["e3_participation_ratio"])
         if not r["valid_gaussian"]:
@@ -446,8 +567,10 @@ def main():
             f"{np.percentile(e4_pass_rates,[10,50,90]).tolist()}")
         log(f"    valid E4 rho_med P10/50/90 = "
             f"{np.percentile(e4_rhos,[10,50,90]).tolist()}")
+    eff_dim_pct = (np.percentile(eff_dim_per_user, [10, 50, 90]).tolist()
+                   if eff_dim_per_user else None)
     log(f"    E3 eff_dim_rel (λ/λ_max>{E3_REL_THR:g}) P10/50/90 = "
-        f"{np.percentile(list(eff_dim_hist.keys()),[10,50,90]).tolist() if eff_dim_hist else 'n/a'}")
+        f"{eff_dim_pct}")
     log(f"    E3 eff_dim_rel hist (全体) = "
         f"{sorted(eff_dim_hist.items())[:20]}...")
     log(f"    E3 effective_rank (全体) P10/50/90 = "
@@ -472,6 +595,8 @@ def main():
             "e4_pass_rate_threshold": E4_PASS_RATE,
             "e4_rho_threshold": E4_RHO_THRESHOLD,
             "seed": SEED,
+            "cache_schema_version": 2,
+            "cohort_fingerprint": _extract_cache_fingerprint(),
         },
         "summary": {
             "n_total": n_total,
@@ -487,15 +612,15 @@ def main():
             "valid_e4_pass_rate_pct": np.percentile(e4_pass_rates,[10,50,90]).tolist() if e4_pass_rates else None,
             "valid_e4_rho_pct": np.percentile(e4_rhos,[10,50,90]).tolist() if e4_rhos else None,
             "e3_eff_dim_rel_hist_all": {str(k): v for k, v in sorted(eff_dim_hist.items())},
-            "e3_eff_dim_rel_all_pct": np.percentile(list(eff_dim_hist.keys()),[10,50,90]).tolist() if eff_dim_hist else None,
+            "e3_eff_dim_rel_all_pct": eff_dim_pct,
             "e3_effective_rank_all_pct": np.percentile(eff_rank_list,[10,50,90]).tolist(),
             "e3_participation_ratio_all_pct": np.percentile(d_pr_list,[10,50,90]).tolist(),
             "e3_rel_threshold": E3_REL_THR,
         },
         "per_user": per_user,
     }
-    with open(OUT_PATH, "w") as f:
-        json.dump(out, f, indent=1, ensure_ascii=False)
+    out = _sanitize_json(out)
+    _atomic_json_dump(out, OUT_PATH)
     log(f"  saved -> {OUT_PATH} ({os.path.getsize(OUT_PATH)//1024} KB)")
 
     # ---- ASIN 覆盖分析: valid uid 覆盖的 ASIN (≥2 valid users) ----

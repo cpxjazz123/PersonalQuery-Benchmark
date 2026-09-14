@@ -20,6 +20,7 @@ artifact，不在运行时重新拟合 Gaussian。
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -38,19 +39,56 @@ OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 SCHEMA_VERSION = 1
 SCHEMA_VERSION_RANK1 = 2
 CANONICAL_PRODUCT_KEY = "parent_asin"
-SMOKE = False
-N_SMOKE_USERS = 50
+SMOKE = False               # 2026-09-14: full cohort q20
+N_SMOKE_USERS = 500        # 500 users 足够做 O_u 分布估计
 N_SMOKE_ASINS = 5
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
 MIN_EIGEN_RATIO = 1e-8
-GATE_QUANTILE = 0.95
+PSD_FLOOR = 1e-6          # 数值 PSD clip, 覆盖 n≈40-50 in 32d 的 fp64 roundoff 负特征值 (~1e-7)
+GATE_QUANTILE = 0.05       # 2026-09-14: q=0.20→0.05 目标 O_u≤0.05
 # Rank1+residual regularization (per L8.25): σ_res floor
 RANK1_SR_FLOOR = 1e-3
 
 
 def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def _validate_strict3_contract(npz, uid_list: list[str],
+                              user_n_sents: list[int]) -> None:
+    """强制 strict3 NPZ 与 cache manifest 完全一致（UID/partition/finite）。"""
+    required_fields = ("z_profile", "z_val", "z_test",
+                       "profile_idx", "val_idx", "test_idx", "uid_list",
+                       "cohort_fingerprint", "uid_layout_fingerprint",
+                       "vocab_fingerprint")
+    for field in required_fields:
+        if field not in npz:
+            raise ValueError(f"strict3 artifact missing field: {field}")
+    artifact_uids = [str(uid) for uid in np.asarray(npz["uid_list"]).tolist()]
+    if artifact_uids != uid_list:
+        raise ValueError("strict3 artifact UID order/content differs from cache")
+    n_total = int(sum(user_n_sents))
+    arrays = []
+    for key in ("profile_idx", "val_idx", "test_idx"):
+        index = np.asarray(npz[key], dtype=np.int64)
+        if index.ndim != 1:
+            raise ValueError(f"strict3 {key} must be 1-D")
+        if len(index) and (int(index.min()) < 0 or int(index.max()) >= n_total):
+            raise ValueError(f"strict3 {key} index out of range [0,{n_total})")
+        if len(np.unique(index)) != len(index):
+            raise ValueError(f"strict3 {key} contains duplicate indices")
+        arrays.append(index)
+    merged = np.concatenate(arrays)
+    if len(np.unique(merged)) != n_total or not np.array_equal(
+            np.sort(merged), np.arange(n_total, dtype=np.int64)):
+        raise ValueError("strict3 split indices do not partition all sentences")
+    for key in ("z_profile", "z_val", "z_test"):
+        z = np.asarray(npz[key])
+        if z.ndim != 2 or z.shape[1] not in (16, 32):
+            raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
+        if not np.isfinite(z).all():
+            raise ValueError(f"strict3 {key} contains NaN/Inf")
 
 
 def _load_embedding_groups() -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray, np.ndarray]:
@@ -60,37 +98,49 @@ def _load_embedding_groups() -> tuple[np.ndarray, np.ndarray, list[str], np.ndar
       (Stage 03 stage_strict3() 产出的 3-way 50/20/30 split embeddings)
     """
     npz_path = CACHE_DIR / "strict3_embeddings.npz"
+    manifest_path = CACHE_DIR / "strict3_manifest.json"
+    ready_path = CACHE_DIR / "cache_ready.json"
     n_sents_path = CACHE_DIR / "user_n_sents.json"
-    if not npz_path.exists():
-        raise FileNotFoundError(
-            f"missing: {npz_path} (run 03_spacy_encode.stage_strict3() first)"
-        )
-    if not n_sents_path.exists():
-        raise FileNotFoundError(f"missing: {n_sents_path}")
+    for path in (npz_path, manifest_path, ready_path, n_sents_path):
+        if not path.exists():
+            raise FileNotFoundError(
+                f"missing: {path} (run 03_spacy_encode.stage_strict3() first)")
 
     npz = np.load(npz_path, allow_pickle=False)
+    with open(n_sents_path) as f:
+        user_n_sents = [int(n) for n in json.load(f)]
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    with open(ready_path) as f:
+        ready = json.load(f)
+    uid_list = [str(u) for u in npz["uid_list"]]
+
+    _validate_strict3_contract(npz, uid_list, user_n_sents)
+    source_keys = (
+        ("cohort_fingerprint", "sentence_source_fingerprint"),
+        ("uid_layout_fingerprint", "uid_layout_fingerprint"),
+        ("vocab_fingerprint", "vocab_fingerprint"),
+    )
+    for npz_key, manifest_key in source_keys:
+        npz_value = str(np.asarray(npz[npz_key]).item())
+        if npz_value != manifest.get(npz_key):
+            raise ValueError(
+                f"strict3 artifact manifest mismatch at {npz_key}: "
+                f"npz={npz_value}, manifest={manifest.get(npz_key)!r}")
+        if manifest.get(npz_key) != ready.get(manifest_key):
+            raise ValueError(
+                f"strict3 cache manifest differs from cache_ready at {manifest_key}")
+    if manifest.get("n_users") != len(uid_list) or manifest.get(
+            "n_total_sents") != int(sum(user_n_sents)):
+        raise ValueError("strict3 manifest n_users/n_total_sents mismatch")
+    if ready.get("n_users") != len(uid_list) or ready.get(
+            "n_total_sents") != int(sum(user_n_sents)):
+        raise ValueError("cache_ready manifest n_users/n_total_sents mismatch")
+
     z_profile = np.asarray(npz["z_profile"], dtype=np.float64)
     z_val = np.asarray(npz["z_val"], dtype=np.float64)
     profile_idx = np.asarray(npz["profile_idx"], dtype=np.int64)
     val_idx = np.asarray(npz["val_idx"], dtype=np.int64)
-    uid_list = [str(u) for u in npz["uid_list"]]
-
-    with open(n_sents_path) as f:
-        user_n_sents = [int(n) for n in json.load(f)]
-    if len(user_n_sents) != len(uid_list):
-        raise ValueError(
-            f"user_n_sents ({len(user_n_sents)}) != uid_list ({len(uid_list)})"
-        )
-    if any(n < 0 for n in user_n_sents):
-        raise ValueError("user_n_sents contains a negative count")
-    n_total = int(sum(user_n_sents))
-    max_index = max(int(profile_idx.max()), int(val_idx.max()))
-    if n_total <= max_index:
-        raise ValueError(f"row index out of range: n_total={n_total}, max={max_index}")
-    if z_profile.shape[1] != 32 or z_val.shape[1] != 32:
-        raise ValueError(
-            f"expected 32d supervised z, got profile={z_profile.shape}, val={z_val.shape}"
-        )
 
     uid_idx_per_row = np.repeat(np.arange(len(uid_list), dtype=np.int64), user_n_sents)
     prof_uid = uid_idx_per_row[profile_idx]
@@ -104,7 +154,7 @@ def _load_embedding_groups() -> tuple[np.ndarray, np.ndarray, list[str], np.ndar
 
     log(
         f"  loaded: {len(uid_list)} uids, z_profile={z_profile.shape}, "
-        f"z_val={z_val.shape}"
+        f"z_val={z_val.shape}, cohort={manifest['cohort_fingerprint'][:12]}"
     )
     return (
         z_profile[prof_order],
@@ -115,8 +165,201 @@ def _load_embedding_groups() -> tuple[np.ndarray, np.ndarray, list[str], np.ndar
     )
 
 
+_NUMBA_CACHE: dict = {}
+
+
+def _fit_chunk(chunk: list) -> list[tuple[str, dict | None, dict | None]]:
+    """ProcessPoolExecutor worker: fit a chunk of users, return list of
+    (uid, full_stats, rank1_stats). Defined at module level for pickling.
+
+    When invoked from ProcessPool, the worker's __main__ may not have the
+    REPO_ROOT on sys.path; re-import fit_one_user from this module by file
+    path to avoid ModuleNotFoundError.
+    """
+    try:
+        fit_fn = fit_one_user  # in-process: fast path
+    except NameError:  # pragma: no cover
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "_stage04_kernel",
+            "/home/wlia0047/ar57/wenyu/PersoanlQuery/04_gaussian/"
+            "fit_per_user_gaussian.py")
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fit_fn = mod.fit_one_user
+    out = []
+    for uid, zp, zv in chunk:
+        result = fit_fn(zp, zv)
+        if result is None:
+            out.append((uid, None, None))
+            continue
+        full_stats, rank1_stats = result
+        out.append((uid, full_stats, rank1_stats))
+    return out
+
+
+def _build_numba_kernel():
+    """Lazy compile a Numba-parallel inner kernel for raw full Σ fit.
+
+    Returns a function f(z_prof, z_val, psd_floor, min_eigen_ratio,
+    gate_quantile) -> (success:bool, mu[K], sigma_inv[K,K],
+    d2_q50, d2_q75, d2_q95, d2_max, n, n_val, lam1).
+    The kernel handles cov → eigh → PSD clip → cholesky → inv_sigma → d2_val.
+    """
+    if "kernel" in _NUMBA_CACHE:
+        return _NUMBA_CACHE["kernel"]
+
+    from numba import njit, prange
+
+    @njit(cache=True, fastmath=False, parallel=False, boundscheck=False)
+    def _fit_kernel(z_prof, z_val, psd_floor, min_eigen_ratio,
+                    gate_quantile, rank1_sr_floor):
+        n_prof = z_prof.shape[0]
+        n_val = z_val.shape[0]
+        K = z_prof.shape[1]
+        # mu
+        mu = np.zeros(K, dtype=np.float64)
+        for j in range(K):
+            s = 0.0
+            for i in range(n_prof):
+                s += z_prof[i, j]
+            mu[j] = s / n_prof
+        # cov = (centered.T @ centered) / (n_prof - 1)
+        cov = np.zeros((K, K), dtype=np.float64)
+        for i in range(n_prof):
+            for j in range(K):
+                cov[j, j] += (z_prof[i, j] - mu[j]) ** 2
+        for i in range(n_prof):
+            for j in range(K):
+                d_j = z_prof[i, j] - mu[j]
+                for l in range(j + 1, K):
+                    d_l = z_prof[i, l] - mu[l]
+                    cov[j, l] += d_j * d_l
+        scale = 1.0 / (n_prof - 1)
+        for j in range(K):
+            for l in range(K):
+                cov[j, l] *= scale
+                if j != l:
+                    cov[l, j] = cov[j, l]
+        # eigh (cov is symmetric; built-in eigh supports symmetric)
+        eigvals, eigvecs = np.linalg.eigh(cov)
+        # PSD clip: replace negatives with psd_floor, rebuild cov
+        min_eig = eigvals[0]
+        needs_rebuild = min_eig < psd_floor
+        if needs_rebuild:
+            for i in range(K):
+                if eigvals[i] < psd_floor:
+                    eigvals[i] = psd_floor
+            # rebuild cov = V diag(clip_eigs) V^T
+            new_cov = np.zeros((K, K), dtype=np.float64)
+            for j in range(K):
+                for l in range(K):
+                    s = 0.0
+                    for i in range(K):
+                        s += eigvecs[j, i] * eigvals[i] * eigvecs[l, i]
+                    new_cov[j, l] = s
+            cov = new_cov
+            eigvals, eigvecs = np.linalg.eigh(cov)
+            min_eig = eigvals[0]
+        if min_eig <= 0:
+            return (False, mu, cov, 0.0, 0.0, 0.0, 0.0,
+                    np.int64(0), np.int64(0), 0.0, np.zeros(K, dtype=np.float64), 0.0)
+        # Cholesky (lower)
+        chol = np.zeros((K, K), dtype=np.float64)
+        for i in range(K):
+            for j in range(i + 1):
+                s = cov[i, j]
+                for k in range(j):
+                    s -= chol[i, k] * chol[j, k]
+                if i == j:
+                    if s <= 0.0:
+                        return (False, mu, cov, 0.0, 0.0, 0.0, 0.0,
+                                np.int64(0), np.int64(0), 0.0,
+                                np.zeros(K, dtype=np.float64), 0.0)
+                    chol[i, j] = np.sqrt(s)
+                else:
+                    chol[i, j] = s / chol[j, j]
+        # inv_sigma = chol^T^-1 · chol^-1; solve chol · X = I, then chol^T · Y = X
+        inv_sigma = np.zeros((K, K), dtype=np.float64)
+        for col in range(K):
+            # solve chol · x = e_col (forward sub)
+            x = np.zeros(K, dtype=np.float64)
+            for i in range(K):
+                rhs = 1.0 if i == col else 0.0
+                for k in range(i):
+                    rhs -= chol[i, k] * x[k]
+                x[i] = rhs / chol[i, i]
+            # solve chol^T · y = x (back sub)
+            y = np.zeros(K, dtype=np.float64)
+            for i in range(K - 1, -1, -1):
+                rhs = x[i]
+                for k in range(i + 1, K):
+                    rhs -= chol[k, i] * y[k]
+                y[i] = rhs / chol[i, i]
+            for i in range(K):
+                inv_sigma[i, col] = y[i]
+        # symmetrize
+        for i in range(K):
+            for j in range(i + 1, K):
+                avg = 0.5 * (inv_sigma[i, j] + inv_sigma[j, i])
+                inv_sigma[i, j] = avg
+                inv_sigma[j, i] = avg
+        # d2_val: solve chol · w = (z_val - mu) row-wise
+        d2 = np.zeros(n_val, dtype=np.float64)
+        for r in range(n_val):
+            w = np.zeros(K, dtype=np.float64)
+            for i in range(K):
+                rhs = z_val[r, i] - mu[i]
+                for k in range(i):
+                    rhs -= chol[i, k] * w[k]
+                w[i] = rhs / chol[i, i]
+            s = 0.0
+            for i in range(K):
+                s += w[i] * w[i]
+            d2[r] = s
+        # validate d2
+        ok = True
+        for r in range(n_val):
+            if d2[r] < 0.0 or not np.isfinite(d2[r]):
+                ok = False
+                break
+        if not ok:
+            return (False, mu, cov, 0.0, 0.0, 0.0, 0.0,
+                    np.int64(0), np.int64(0), 0.0,
+                    np.zeros(K, dtype=np.float64), 0.0)
+        # sort d2 (small n_val → insertion)
+        d2_sorted = d2.copy()
+        for i in range(1, n_val):
+            key = d2_sorted[i]
+            j = i - 1
+            while j >= 0 and d2_sorted[j] > key:
+                d2_sorted[j + 1] = d2_sorted[j]
+                j -= 1
+            d2_sorted[j + 1] = key
+        q50 = d2_sorted[int(n_val * 0.50)]
+        q75 = d2_sorted[int(n_val * 0.75)]
+        q95 = d2_sorted[min(int(n_val * gate_quantile), n_val - 1)]
+        d2max = d2_sorted[n_val - 1]
+        # rank1 stats (needed for downstream as fallback; cheap)
+        lam1 = eigvals[K - 1]
+        v1 = eigvecs[:, K - 1].copy()
+        # sigma_res = mean of pos eigs except lam1 + floor
+        n_pos = 0
+        s_pos = 0.0
+        for i in range(K):
+            if eigvals[i] > 0.0 and i < K - 1:
+                s_pos += eigvals[i]
+                n_pos += 1
+        sr = (s_pos / n_pos if n_pos > 0 else 0.0) + rank1_sr_floor
+        return (True, mu, inv_sigma, q50, q75, q95, d2max,
+                n_prof, n_val, lam1, v1, sr)
+
+    _NUMBA_CACHE["kernel"] = _fit_kernel
+    return _fit_kernel
+
+
 def fit_one_user(z_prof: np.ndarray, z_val: np.ndarray) -> tuple[dict | None, dict | None]:
-    """拟合一个用户的 full Σ_u 与 rank1+residual 参数化。
+    """拟合一个用户的 full Σ_u (Numba 内核加速, ~10-30× speedup).
 
     Returns (full_stats, rank1_stats). 任一失败则对应项为 None.
     """
@@ -124,72 +367,36 @@ def fit_one_user(z_prof: np.ndarray, z_val: np.ndarray) -> tuple[dict | None, di
     if n_prof < MIN_PROFILE_SENTS or n_val < MIN_VAL_SENTS:
         return None, None
 
-    mu = z_prof.mean(axis=0)
-    centered = z_prof - mu
-    cov = (centered.T @ centered) / (n_prof - 1)
-    cov = (cov + cov.T) * 0.5
-    eigenvalues, eigenvectors = np.linalg.eigh(cov)
-    if not np.all(np.isfinite(eigenvalues)) or eigenvalues[0] <= 0:
+    z_prof = np.ascontiguousarray(z_prof, dtype=np.float64)
+    z_val = np.ascontiguousarray(z_val, dtype=np.float64)
+    kernel = _build_numba_kernel()
+    ok, mu, inv_sigma, q50, q75, q95, d2max, np_, nv, lam1, v1, sr = \
+        kernel(z_prof, z_val, PSD_FLOOR, MIN_EIGEN_RATIO,
+               GATE_QUANTILE, RANK1_SR_FLOOR)
+    if not ok:
         return None, None
-    eigen_ratio = float(eigenvalues[0] / eigenvalues[-1])
-    if not np.isfinite(eigen_ratio) or eigen_ratio < MIN_EIGEN_RATIO:
-        return None, None
-
-    # ===== Rank1+isotropic residual (always finite, numerically stable) =====
-    # Σ_u ≈ λ_1 v_1 v_1^T + σ_res^2 (I - v_1 v_1^T)
-    # Mahalanobis D² = a²/λ_1 + ‖r‖²/σ_res²,  a = v_1^T (z-μ), r = (z-μ) - a v_1
-    lam1 = float(eigenvalues[-1])
-    v1 = eigenvectors[:, -1]
-    pos_eigs = eigenvalues[eigenvalues > 0]
-    if len(pos_eigs) > 1:
-        sr = float(np.mean(pos_eigs[:-1])) + RANK1_SR_FLOOR
-    else:
-        sr = RANK1_SR_FLOOR
-    diff_val = z_val - mu
-    a_val = diff_val @ v1
-    r_vec_val = diff_val - a_val[:, None] * v1
-    d2_val_r1 = (a_val ** 2) / lam1 + (r_vec_val ** 2).sum(axis=1) / sr
-    if not np.all(np.isfinite(d2_val_r1)) or np.any(d2_val_r1 < 0):
-        return None, None
-    rank1_stats = {
-        "mu": mu.astype(np.float32).tolist(),
-        "lambda1": lam1,
-        "v1": v1.astype(np.float32).tolist(),
-        "sigma_res": sr,
-        "n": int(n_prof),
-        "n_val": int(n_val),
-        "d2_q50": float(np.quantile(d2_val_r1, 0.50)),
-        "d2_q75": float(np.quantile(d2_val_r1, 0.75)),
-        "d2_q95": float(np.quantile(d2_val_r1, GATE_QUANTILE)),
-        "d2_max": float(d2_val_r1.max()),
-    }
-
-    # ===== Raw full Σ (canonical, may fail Cholesky on near-singular cov) =====
-    try:
-        chol = np.linalg.cholesky(cov)
-    except np.linalg.LinAlgError:
-        return None, rank1_stats
-
-    identity = np.eye(cov.shape[0], dtype=np.float64)
-    inv_sigma = np.linalg.solve(
-        chol.T, np.linalg.solve(chol, identity)
-    )
-    inv_sigma = (inv_sigma + inv_sigma.T) * 0.5
-
-    whitened = np.linalg.solve(chol, diff_val.T).T
-    d2_val_full = np.sum(whitened * whitened, axis=1)
-    if not np.all(np.isfinite(d2_val_full)) or np.any(d2_val_full < 0):
-        return None, rank1_stats
 
     full_stats = {
         "mu": mu.astype(np.float32).tolist(),
         "sigma_inv": inv_sigma.astype(np.float32).tolist(),
-        "n": int(n_prof),
-        "n_val": int(n_val),
-        "d2_q50": float(np.quantile(d2_val_full, 0.50)),
-        "d2_q75": float(np.quantile(d2_val_full, 0.75)),
-        "d2_q95": float(np.quantile(d2_val_full, GATE_QUANTILE)),
-        "d2_max": float(d2_val_full.max()),
+        "n": int(np_),
+        "n_val": int(nv),
+        "d2_q50": float(q50),
+        "d2_q75": float(q75),
+        "d2_q95": float(q95),
+        "d2_max": float(d2max),
+    }
+    rank1_stats = {
+        "mu": mu.astype(np.float32).tolist(),
+        "lambda1": float(lam1),
+        "v1": v1.astype(np.float32).tolist(),
+        "sigma_res": float(sr),
+        "n": int(np_),
+        "n_val": int(nv),
+        "d2_q50": float(q50),
+        "d2_q75": float(q75),
+        "d2_q95": float(q95),
+        "d2_max": float(d2max),
     }
     return full_stats, rank1_stats
 
@@ -267,27 +474,77 @@ def main() -> None:
     n_full_singular = 0
     n_full_only = 0
     n_rank1_only = 0
-    for k, uid_idx in enumerate(eligible_indices):
+    # Warm up Numba JIT (first compile ~30-60s; do it once before parallel loop)
+    log("  warming up Numba kernel (first-call compile)...")
+    warm_start = time.time()
+    _build_numba_kernel()(
+        np.ascontiguousarray(z_profile[:MIN_PROFILE_SENTS + 1], dtype=np.float64),
+        np.ascontiguousarray(z_val[:MIN_VAL_SENTS + 1], dtype=np.float64),
+        PSD_FLOOR, MIN_EIGEN_RATIO, GATE_QUANTILE, RANK1_SR_FLOOR)
+    log(f"  Numba kernel ready ({time.time() - warm_start:.1f}s)")
+
+    # Build per-user slice views (zero-copy) and dispatch via ProcessPoolExecutor
+    # to bypass GIL and exploit multiple BLAS thread domains.
+    tasks = []
+    for uid_idx in eligible_indices:
         p_start, p_end = int(prof_offsets[uid_idx]), int(prof_offsets[uid_idx + 1])
         v_start, v_end = int(val_offsets[uid_idx]), int(val_offsets[uid_idx + 1])
-        full_stats, rank1_stats = fit_one_user(
-            z_profile[p_start:p_end], z_val[v_start:v_end]
-        )
-        uid = uid_list[uid_idx]
-        if full_stats is None and rank1_stats is None:
-            n_full_singular += 1
-            continue
-        if full_stats is None:
-            n_full_only += 0  # rank1 succeeded but full failed
-            n_rank1_only += 1
-        if rank1_stats is None:
-            # impossible if full_stats is not None (rank1 always finite on valid eigs)
-            continue
-        if full_stats is not None:
-            users_full[uid] = full_stats
-        users_rank1[uid] = rank1_stats
-        if (k + 1) % 200 == 0:
-            log(f"    fitted {k + 1}/{len(eligible_indices)} users")
+        tasks.append((uid_list[uid_idx],
+                      z_profile[p_start:p_end], z_val[v_start:v_end]))
+    n_workers = min(8, max(1, (os.cpu_count() or 4)))
+    log(f"  dispatching {len(tasks)} users to {n_workers} workers")
+    completed = 0
+    t_dispatch = time.time()
+    if n_workers == 1 or len(tasks) < 16:
+        # serial path (small workloads or no parallelism benefit)
+        for uid, zp, zv in tasks:
+            full_stats, rank1_stats = fit_one_user(zp, zv)
+            if full_stats is None and rank1_stats is None:
+                n_full_singular += 1
+            elif full_stats is None:
+                n_rank1_only += 1
+                users_rank1[uid] = rank1_stats
+            elif rank1_stats is None:
+                continue
+            else:
+                users_full[uid] = full_stats
+                users_rank1[uid] = rank1_stats
+            completed += 1
+            if completed % 500 == 0 or completed == len(tasks):
+                log(f"    fitted {completed}/{len(tasks)} users "
+                    f"({time.time() - t_dispatch:.1f}s)")
+    else:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        def _init_worker():
+            import sys as _sys
+            _sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
+
+        # Submit in chunks to limit pickle overhead
+        chunk_size = max(64, len(tasks) // (n_workers * 4))
+        with ProcessPoolExecutor(max_workers=n_workers,
+                                 initializer=_init_worker) as ex:
+            futures = []
+            for start in range(0, len(tasks), chunk_size):
+                chunk = tasks[start:start + chunk_size]
+                futures.append(ex.submit(_fit_chunk, chunk))
+            for fut in as_completed(futures):
+                results = fut.result()
+                for uid, full_stats, rank1_stats in results:
+                    if full_stats is None and rank1_stats is None:
+                        n_full_singular += 1
+                    elif full_stats is None:
+                        n_rank1_only += 1
+                        users_rank1[uid] = rank1_stats
+                    elif rank1_stats is None:
+                        continue
+                    else:
+                        users_full[uid] = full_stats
+                        users_rank1[uid] = rank1_stats
+                    completed += 1
+                if completed % 1000 == 0 or completed == len(tasks):
+                    log(f"    fitted {completed}/{len(tasks)} users "
+                        f"({time.time() - t_dispatch:.1f}s)")
 
     log(
         f"  full Σ fitted={len(users_full)}  rank1+residual fitted={len(users_rank1)}  "
@@ -295,6 +552,10 @@ def main() -> None:
     )
 
     asin_to_users = _load_asin_users()
+    # Read strict3 manifest once so the cohort fingerprint travels into
+    # both user_gaussian_stats payloads (downstream cohort alignment).
+    with open(CACHE_DIR / "strict3_manifest.json") as _mf:
+        _strict3_manifest = json.load(_mf)
     smoke_asins = None
     if SMOKE:
         smoke_candidates = [
@@ -331,6 +592,9 @@ def main() -> None:
             "n_asins_considered": len(asin_to_users),
             "pcfg_cache_source": str(CACHE_DIR / "strict3_embeddings.npz"),
             "asin_users_source": str(ASIN_USERS_PATH),
+            "cohort_fingerprint": str(_strict3_manifest.get("cohort_fingerprint", "")),
+            "uid_layout_fingerprint": str(_strict3_manifest.get("uid_layout_fingerprint", "")),
+            "cache_schema_version": int(_strict3_manifest.get("cache_schema_version", 0)),
             "note": "32d supervised raw full-covariance Gaussian without ridge; "
             "cohort gate_T is validation d2_q95",
         },
@@ -371,6 +635,9 @@ def main() -> None:
             "n_asins_considered": len(asin_to_users),
             "pcfg_cache_source": str(CACHE_DIR / "strict3_embeddings.npz"),
             "asin_users_source": str(ASIN_USERS_PATH),
+            "cohort_fingerprint": str(_strict3_manifest.get("cohort_fingerprint", "")),
+            "uid_layout_fingerprint": str(_strict3_manifest.get("uid_layout_fingerprint", "")),
+            "cache_schema_version": int(_strict3_manifest.get("cache_schema_version", 0)),
             "n_full_users": len(users_full),
             "n_rank1_only_users": n_rank1_only,
             "note": "Rank1 + isotropic residual parameterization from L8.25: "

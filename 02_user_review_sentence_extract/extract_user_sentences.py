@@ -42,7 +42,12 @@ def _clean_html(text: str) -> str:
     """
     if not text:
         return text
-    text = html.unescape(text)
+    # Decode repeatedly because some source reviews contain double-encoded
+    # entities such as &amp;quot; → &quot; → ".
+    previous = None
+    while text != previous:
+        previous = text
+        text = html.unescape(text)
     text = _HTML_TAG_RE.sub(" ", text)
     text = _HTML_OTHER_RE.sub(" ", text)
     text = _MULTI_SPACE_RE.sub(" ", text)
@@ -122,4 +127,38 @@ print(f"  → PKL: {OUT_PKL}")
 with open(ASIN_USERS_OUT, 'w') as f:
     json.dump(asin_to_users, f, ensure_ascii=False)
 print(f"  → ASIN users: {ASIN_USERS_OUT}")
+
+# Cohort manifest: hash-based fingerprints for downstream Stage 03/04/05/09
+# cross-validation. Re-running Stage 02 with any source change will produce
+# different fingerprints, forcing the downstream cache & artifacts to rebuild
+# rather than silently reusing a stale cohort.
+import hashlib
+_uids_sorted = sorted(uid_to_sents.keys())
+_n_sents_sorted = [len(uid_to_sents[u]) for u in _uids_sorted]
+_sentences_concat = "\n".join(s for u in _uids_sorted for s in uid_to_sents[u])
+_sentence_source_fingerprint = hashlib.sha256(
+    _sentences_concat.encode("utf-8")).hexdigest()
+_uid_layout_hasher = hashlib.sha256()
+_uid_layout_hasher.update(
+    f"uids={len(_uids_sorted)}|min_sents={MIN_USER_SENTS}".encode("utf-8"))
+for uid, n_sents in zip(_uids_sorted, _n_sents_sorted):
+    _uid_layout_hasher.update(uid.encode("utf-8"))
+    _uid_layout_hasher.update(n_sents.to_bytes(4, "big"))
+_uid_layout_fingerprint = _uid_layout_hasher.hexdigest()
+cohort_manifest = {
+    "schema_version": 2,
+    "min_user_sents": int(MIN_USER_SENTS),
+    "n_users": len(_uids_sorted),
+    "n_total_sents": int(sum(_n_sents_sorted)),
+    "n_asins": len(asin_to_users),
+    "raw_data_source": str(RAW_DATA),
+    "sentence_source_fingerprint": _sentence_source_fingerprint,
+    "uid_layout_fingerprint": _uid_layout_fingerprint,
+    "html_clean": True,
+}
+with open(SCRATCH / "cohort_manifest.json", "w") as f:
+    json.dump(cohort_manifest, f, indent=2, ensure_ascii=False)
+print(f"  → manifest: {SCRATCH / 'cohort_manifest.json'} "
+      f"(sentence_source={_sentence_source_fingerprint[:12]}, "
+      f"uid_layout={_uid_layout_fingerprint[:12]})")
 print("Done.")

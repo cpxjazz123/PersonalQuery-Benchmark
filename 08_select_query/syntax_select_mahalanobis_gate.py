@@ -75,7 +75,7 @@ if CONTRASTIVE_5558:
     )
 
 # --- Hardcoded hyperparams (Rule 3) ---
-FILTER_Q = 0.95
+FILTER_Q = 0.05
 SEMANTIC_SIM_THRESHOLD = 0.8
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
@@ -210,12 +210,12 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
             continue
         mu = stats.get("mu")
         sigma_inv = stats.get("sigma_inv")
-        gate_t = stats.get("d2_q95")
-        if not isinstance(mu, list) or len(mu) != 32:
+        gate_t = stats.get("d2_q95")  # Stage 04 stores gate_quantile value in d2_q95 field
+        if not isinstance(mu, list) or len(mu) not in (16, 32):
             continue
-        if not isinstance(sigma_inv, list) or len(sigma_inv) != 32:
+        if not isinstance(sigma_inv, list) or len(sigma_inv) not in (16, 32):
             continue
-        if not all(isinstance(row, list) and len(row) == 32 for row in sigma_inv):
+        if not all(isinstance(row, list) and len(row) in (16, 32) for row in sigma_inv):
             continue
         flat = [float(x) for row in sigma_inv for x in row]
         if not all(np.isfinite(x) for x in flat):
@@ -266,8 +266,10 @@ def _gauss_from_stats(stats: Dict) -> Dict:
         raise ValueError(f"Stage 04 user stats missing fields: {missing}")
     mu = np.asarray(stats["mu"], dtype=np.float32)
     inv_sigma = np.asarray(stats["sigma_inv"], dtype=np.float32)
-    if mu.shape != (32,) or inv_sigma.shape != (32, 32):
-        raise ValueError(f"invalid Gaussian shape: mu={mu.shape}, sigma_inv={inv_sigma.shape}")
+    if mu.ndim != 1 or mu.shape[0] not in (16, 32):
+        raise ValueError(f"invalid Gaussian mu shape: {mu.shape}")
+    if inv_sigma.ndim != 2 or inv_sigma.shape[0] != inv_sigma.shape[1] or inv_sigma.shape[0] not in (16, 32):
+        raise ValueError(f"invalid Gaussian sigma_inv shape: {inv_sigma.shape}")
     gate_T = float(stats["d2_q95"])
     if not np.all(np.isfinite(mu)) or not np.all(np.isfinite(inv_sigma)):
         raise FloatingPointError("non-finite Stage 04 Gaussian parameters")
@@ -293,7 +295,7 @@ def encode_texts(texts: List[str], nlp, rule_to_id: Dict[str, int],
     """分块提取规则并编码，避免构造全量 ``n×vocab`` 矩阵。"""
     extract_struct_rules = _load_pcfg().extract_struct_rules
     if not texts:
-        return np.empty((0, 32), dtype=np.float32)
+        return np.empty((0, encoder.z_dim if hasattr(encoder, 'z_dim') else 16), dtype=np.float32)
     encoded_chunks: List[np.ndarray] = []
     total = len(texts)
     for start in range(0, total, ENCODE_CHUNK_SIZE):
@@ -525,7 +527,8 @@ def main_pipeline():
         f"{sum(len(asin_work[a]['candidates']) for a in asins)} candidates "
         f"across {len(asins)} ASINs")
     Z_unique = encode_texts(unique_texts, nlp, rule_to_id, V, encoder)
-    if Z_unique.shape != (len(unique_texts), 32):
+    z_dim = encoder.z_dim if hasattr(encoder, 'z_dim') else 16
+    if Z_unique.shape != (len(unique_texts), z_dim):
         raise ValueError(f"encoder output shape mismatch: {Z_unique.shape}")
     asin_to_Zq = {
         asin: Z_unique[asin_text_indices[asin]]

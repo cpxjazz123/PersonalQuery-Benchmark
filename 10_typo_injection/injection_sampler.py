@@ -109,6 +109,7 @@ class InjectionMeta:
 
 # Lazy-loaded encoder + rule_to_id
 _encoder = None
+_encoder_vocab_size: Optional[int] = None
 _rule_to_id: Dict[str, int] = {}
 
 
@@ -121,24 +122,25 @@ def _load_pcfg_module():
 
 
 def _load_encoder():
-    """Load _SupEncoder from strict3_encoder.pt (must eval)."""
-    global _encoder
+    """Load _SupEncoder from strict3_encoder.pt (must eval). Returns (model, vocab_size)."""
+    global _encoder, _encoder_vocab_size
     if _encoder is None:
         ckpt = torch.load(ENCODER_PT, map_location="cpu", weights_only=False)
         cfg = ckpt["config"]
+        _encoder_vocab_size = int(cfg["vocab_size"])
         _pcfg = _load_pcfg_module()
         model = _pcfg._SupEncoder(
-            cfg["vocab_size"], cfg["z_dim"], tuple(cfg["hidden"]),
+            _encoder_vocab_size, cfg["z_dim"], tuple(cfg["hidden"]),
             cfg["n_users"], cfg["dropout"])
         model.load_state_dict(ckpt["model_state"])
         model.eval()
         model.to(ENCODER_DEVICE)
         _encoder = model
-    return _encoder
+    return _encoder, _encoder_vocab_size
 
 
 def _load_rule_to_id() -> Dict[str, int]:
-    """Load vocab.json (list of 31847 rule strings) → {rule_str: id}."""
+    """Load vocab.json → {rule_str: id}. Length must equal encoder vocab_size."""
     global _rule_to_id
     if not _rule_to_id:
         with open(CACHE_DIR / "vocab.json") as f:
@@ -345,7 +347,7 @@ def sample_injection(
     nlp=None,
     encoder=None,
     rule_to_id: Optional[Dict[str, int]] = None,
-    vocab_size: int = 31847,
+    vocab_size: Optional[int] = None,
 ) -> Tuple[Optional[str], Optional[InjectionMeta]]:
     """Apply at most one char-level typo injection to `query`.
 
@@ -365,10 +367,16 @@ def sample_injection(
 
     if nlp is None:
         nlp = _ensure_spacy()
-    if encoder is None:
-        encoder = _load_encoder()
+    if encoder is None or vocab_size is None:
+        encoder, vocab_size = _load_encoder()
     if rule_to_id is None:
         rule_to_id = _load_rule_to_id()
+    if vocab_size is None:
+        vocab_size = len(rule_to_id)
+    if vocab_size != len(rule_to_id):
+        raise ValueError(
+            f"vocab_size ({vocab_size}) != len(rule_to_id) ({len(rule_to_id)}); "
+            "encoder.pt and vocab.json come from different cohort")
 
     # Encode original query (32d)
     feat_orig = _encode_queries_32d([query], nlp, encoder, rule_to_id, vocab_size)[0]

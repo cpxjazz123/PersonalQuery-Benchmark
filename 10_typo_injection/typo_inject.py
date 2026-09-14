@@ -92,8 +92,8 @@ def load_inputs():
         raise ValueError("Stage 04 artifact requires non-empty users")
     if not isinstance(cohort, dict) or not cohort:
         raise ValueError("Stage 04 artifact requires non-empty cohort_gates")
-    if not isinstance(config, dict) or config.get("gate_quantile") != 0.95:
-        raise ValueError("Stage 04 artifact must use gate_quantile=0.95")
+    if not isinstance(config, dict) or config.get("gate_quantile") not in (0.05, 0.95):
+        raise ValueError(f"Stage 04 artifact must use gate_quantile in (0.05, 0.95), got {config.get('gate_quantile')}")
     expanded_cohort = {}
     for asin, gates in cohort.items():
         if not isinstance(gates, dict) or len(gates) < 2:

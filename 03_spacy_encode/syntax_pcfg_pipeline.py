@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import pickle
 import time
 from collections import Counter
@@ -77,16 +78,27 @@ CHUNK_USERS = 2000
 SEED = 42
 HASH_SALT = "pcfg_lopo_v1"
 
+# Internal: effective training limit set by smoke mode or N_USERS_LIMIT
+# None = train on all cache users; set by main_pipeline() before stage_strict3()
+_EFFECTIVE_TRAIN_LIMIT = None
+
 # Stage: cache
 N_USERS_LIMIT = None        # None = 全部 eligible 用户 (raw 3.39M → h≥30 = 64,996)
 MIN_SENTS_PER_USER = 30
 MIN_DOC_FREQ = 2              # vocab filter: rule must appear in ≥ N docs
 
-# Stage: strict (SUP_* 共享: supervised encoder V→256→32)
+# Smoke mode: 200 users, 5 epochs — 验证 16d encoder 训练能收敛
+# smoke=True 时 N_USERS_LIMIT=200, SUP_EPOCHS=5, STRICT_PATIENCE=3
+SMOKE = False                 # 2026-09-14: 16d full run — 验证 q20 gate 后 O_u ≤ 0.05
+N_USERS_LIMIT_SMOKE = 200
+SMOKE_EPOCHS = 5
+SMOKE_PATIENCE = 3
+
+# Stage: strict (SUP_* 共享: supervised encoder V→256→z_dim)
 SUP_EPOCHS = 80
 SUP_BATCH_SIZE = 2048
 SUP_LR = 5e-4
-SUP_Z_DIM = 32
+SUP_Z_DIM = 16                # 2026-09-14: 32→16 per Phase L8.7b (16d wins all generalization metrics)
 SUP_HIDDEN = (256,)
 SUP_DROPOUT = 0.5
 SUP_RULE_DROPOUT = 0.1     # 关键: 训练时随机 mask rule columns (profile-only 减半, 0.3 太狠 → 不收敛)
@@ -105,15 +117,214 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+COHORT_FINGERPRINT_VERSION = "sha256-cohort-v1"
+
+
+def _hash_length_prefixed_text(hasher: "hashlib._Hash", text: str) -> None:
+    """把字符串以长度前缀写入 hash，避免边界歧义。"""
+    if not isinstance(text, str):
+        raise TypeError(f"cohort fingerprint requires str, got {type(text)!r}")
+    raw = text.encode("utf-8")
+    hasher.update(len(raw).to_bytes(8, "big"))
+    hasher.update(raw)
+
+
+def _cohort_fingerprint(uid_list: list[str], uid_to_sents: dict) -> str:
+    """对 UID 顺序、每用户句数及清洗后句子内容做稳定指纹。"""
+    hasher = hashlib.sha256()
+    _hash_length_prefixed_text(hasher, COHORT_FINGERPRINT_VERSION)
+    for uid in uid_list:
+        if uid not in uid_to_sents:
+            raise KeyError(f"selected uid missing from sentence cache: {uid}")
+        sents = uid_to_sents[uid]
+        if not isinstance(sents, list):
+            raise TypeError(f"sentences for uid {uid} must be list")
+        _hash_length_prefixed_text(hasher, uid)
+        hasher.update(len(sents).to_bytes(8, "big"))
+        for sentence in sents:
+            _hash_length_prefixed_text(hasher, sentence)
+    return hasher.hexdigest()
+
+
+def _uid_layout_fingerprint(uid_list: list[str], user_n_sents: list[int]) -> str:
+    """对 UID 顺序及句子布局做轻量指纹，供下游 contract 校验。"""
+    if len(uid_list) != len(user_n_sents):
+        raise ValueError("uid_list and user_n_sents length mismatch")
+    hasher = hashlib.sha256()
+    _hash_length_prefixed_text(hasher, "uid-layout-v1")
+    for uid, n_sents in zip(uid_list, user_n_sents):
+        _hash_length_prefixed_text(hasher, uid)
+        if not isinstance(n_sents, int) or n_sents < 0:
+            raise ValueError(f"invalid sentence count for uid {uid}: {n_sents!r}")
+        hasher.update(n_sents.to_bytes(8, "big"))
+    return hasher.hexdigest()
+
+
+def _array_fingerprint(array: np.ndarray) -> str:
+    """对数组 dtype、shape 和字节内容做指纹，防止同 shape stale embedding。"""
+    contiguous = np.ascontiguousarray(array)
+    hasher = hashlib.sha256()
+    _hash_length_prefixed_text(hasher, str(contiguous.dtype))
+    _hash_length_prefixed_text(hasher, repr(tuple(contiguous.shape)))
+    hasher.update(contiguous.tobytes(order="C"))
+    return hasher.hexdigest()
+
+
+def _file_fingerprint(path: Path) -> str:
+    """对大型 artifact 分块计算 SHA256，确认多个文件来自同一次提交。"""
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            block = f.read(1024 * 1024)
+            if not block:
+                break
+            hasher.update(block)
+    return hasher.hexdigest()
+
+
+def _sparse_fingerprint(matrix) -> str:
+    """对 sparse matrix 的结构和值做指纹，不把其展开成 dense。"""
+    hasher = hashlib.sha256()
+    _hash_length_prefixed_text(hasher, str(matrix.dtype))
+    _hash_length_prefixed_text(hasher, repr(tuple(matrix.shape)))
+    for part in (matrix.indptr, matrix.indices, matrix.data):
+        contiguous = np.ascontiguousarray(part)
+        _hash_length_prefixed_text(hasher, str(contiguous.dtype))
+        _hash_length_prefixed_text(hasher, repr(tuple(contiguous.shape)))
+        hasher.update(contiguous.tobytes(order="C"))
+    return hasher.hexdigest()
+
+
+def _string_list_fingerprint(values: list[str], tag: str) -> str:
+    """对有序字符串列表做稳定指纹。"""
+    hasher = hashlib.sha256()
+    _hash_length_prefixed_text(hasher, tag)
+    for value in values:
+        _hash_length_prefixed_text(hasher, value)
+    return hasher.hexdigest()
+
+
+def _atomic_json_dump(payload: dict, path: Path) -> None:
+    """以临时文件+rename 写 JSON，避免留下半个 manifest。"""
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _atomic_pickle_dump(payload: dict, path: Path) -> None:
+    """以临时文件+rename 写分块规则。"""
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "wb") as f:
+        pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _atomic_save_npz(path: Path, matrix) -> None:
+    """原子保存 sparse NPZ。"""
+    tmp = Path(str(path) + ".tmp.npz")
+    save_npz(tmp, matrix)
+    os.replace(tmp, path)
+
+
+def _atomic_save_npy(path: Path, array: np.ndarray) -> None:
+    """原子保存 dense NPY。"""
+    tmp = Path(str(path) + ".tmp.npy")
+    np.save(tmp, array)
+    os.replace(tmp, path)
+
+
+def _atomic_save_npz_arrays(path: Path, **arrays) -> None:
+    """原子保存包含多个数组的 NPZ。"""
+    tmp = Path(str(path) + ".tmp.npz")
+    np.savez(tmp, **arrays)
+    os.replace(tmp, path)
+
+
+def _load_stage02_cohort(preloaded: dict | None = None) -> tuple[list[str], list[int], dict]:
+    """加载 Stage 02 并重建确定性的当前 cohort manifest。"""
+    if preloaded is None:
+        with open(SENT_CACHE, "rb") as f:
+            uid_to_sents = pickle.load(f)
+    else:
+        uid_to_sents = preloaded
+    if not isinstance(uid_to_sents, dict):
+        raise TypeError(f"Stage 02 cache must be dict, got {type(uid_to_sents)!r}")
+    counts = {}
+    for uid, sents in uid_to_sents.items():
+        if not isinstance(uid, str):
+            raise TypeError(f"Stage 02 UID must be str, got {type(uid)!r}")
+        if not isinstance(sents, list):
+            raise TypeError(f"Stage 02 sentences for {uid} must be list")
+        if any(not isinstance(sentence, str) for sentence in sents):
+            raise TypeError(f"Stage 02 sentences for {uid} must all be str")
+        counts[uid] = len(sents)
+    selected = sorted([uid for uid, count in counts.items()
+                       if count >= MIN_SENTS_PER_USER])
+    rng = np.random.default_rng(SEED)
+    rng.shuffle(selected)
+    if N_USERS_LIMIT is not None:
+        selected = selected[:N_USERS_LIMIT]
+    user_n_sents = [counts[uid] for uid in selected]
+    n_total = int(sum(user_n_sents))
+    manifest = {
+        "cache_schema_version": 2,
+        "n_users": len(selected),
+        "n_total_sents": n_total,
+        "min_sents_per_user": MIN_SENTS_PER_USER,
+        "n_users_limit": N_USERS_LIMIT,
+        "seed": SEED,
+        "uid_layout_fingerprint": _uid_layout_fingerprint(
+            selected, user_n_sents),
+        "sentence_source_fingerprint": _cohort_fingerprint(
+            selected, uid_to_sents),
+    }
+    return selected, user_n_sents, manifest
+
+
+def _validate_rules_cache(saved: dict, expected: dict,
+                          expected_n_users: int,
+                          expected_n_sents: int) -> tuple[list, int]:
+    """严格验证可恢复的 PCFG partial/full cache。"""
+    if not isinstance(saved, dict):
+        raise ValueError("PCFG rules cache payload must be an object")
+    for key, expected_value in expected.items():
+        if saved.get(key) != expected_value:
+            raise ValueError(
+                f"PCFG rules cache cohort mismatch at {key}: "
+                f"cached={saved.get(key)!r}, current={expected_value!r}; "
+                f"delete the stale rules cache and rerun")
+    cached_rules = saved.get("rules")
+    cached_offset = saved.get("offset")
+    cached_next_user = saved.get("next_user_index")
+    if not isinstance(cached_rules, list):
+        raise ValueError("PCFG rules cache field 'rules' must be a list")
+    if not isinstance(cached_offset, int) or not isinstance(cached_next_user, int):
+        raise ValueError("PCFG rules cache offset metadata must be integers")
+    if cached_offset != len(cached_rules):
+        raise ValueError(
+            f"PCFG rules cache offset mismatch: offset={cached_offset}, "
+            f"rules={len(cached_rules)}; delete cache and rerun")
+    if not (0 <= cached_next_user <= expected_n_users):
+        raise ValueError(
+            f"PCFG rules cache next_user_index out of range: "
+            f"{cached_next_user} not in [0,{expected_n_users}]")
+    if cached_offset < 0 or cached_offset > expected_n_sents:
+        raise ValueError(
+            f"PCFG rules cache offset out of range: {cached_offset} "
+            f"not in [0,{expected_n_sents}]")
+    return cached_rules, cached_next_user
+
+
 def _verify_cached_embeddings_cohort(emb_path: Path,
                                       expected_n_sents: int,
                                       z_dim: int,
                                       stage_name: str) -> None:
-    """验证 cached embeddings 是否匹配当前 cache cohort。
-
-    Per Rule 7: 不静默。stale cache(不同 n_sents / z_dim)直接 raise,
-    让用户显式决定删除旧 cache 还是放弃当前 run。
-    """
+    """验证 cached embeddings 是否匹配当前 cache cohort。"""
     if not emb_path.exists():
         return  # 已在 caller 检查过 exists, 这里只验 shape
     arr = np.load(emb_path)
@@ -122,6 +333,73 @@ def _verify_cached_embeddings_cohort(emb_path: Path,
             f"{stage_name} cache cohort mismatch: cached {emb_path.name} "
             f"shape={arr.shape} vs current cache expected "
             f"({expected_n_sents}, {z_dim}); delete {emb_path} and rerun")
+    if not np.isfinite(arr).all():
+        raise ValueError(f"{stage_name} cache contains NaN/Inf: {emb_path}")
+
+
+def _npz_text(npz, key: str) -> str:
+    """读取 NPZ 中的标量文本字段并拒绝缺失/非标量值。"""
+    if key not in npz:
+        raise ValueError(f"strict3 artifact missing metadata field: {key}")
+    value = np.asarray(npz[key])
+    if value.ndim != 0:
+        raise ValueError(f"strict3 metadata field {key} must be scalar")
+    return str(value.item())
+
+
+def _validate_strict3_artifact(npz, cache: dict) -> dict:
+    """严格验证 strict3 的 UID、分区、shape、finite 和来源 manifest。"""
+    uid_list = cache["uid_list"]
+    user_n_sents = cache["user_n_sents"]
+    meta = cache["meta"]
+    n_total = int(sum(user_n_sents))
+    if "uid_list" not in npz:
+        raise ValueError("strict3 artifact missing uid_list")
+    artifact_uids = [str(uid) for uid in np.asarray(npz["uid_list"]).tolist()]
+    if artifact_uids != uid_list:
+        raise ValueError("strict3 artifact UID order/content differs from cache")
+    for key in ("z_profile", "z_val", "z_test"):
+        if key not in npz:
+            raise ValueError(f"strict3 artifact missing {key}")
+        z = np.asarray(npz[key])
+        if z.ndim != 2 or z.shape[1] != SUP_Z_DIM:
+            raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
+        if not np.isfinite(z).all():
+            raise ValueError(f"strict3 {key} contains NaN/Inf")
+    _validate_split_indices(npz, uid_list, user_n_sents)
+    for z_key, idx_key in (("z_profile", "profile_idx"),
+                           ("z_val", "val_idx"),
+                           ("z_test", "test_idx")):
+        if np.asarray(npz[z_key]).shape[0] != np.asarray(npz[idx_key]).size:
+            raise ValueError(f"strict3 {z_key}/{idx_key} row count mismatch")
+    if _npz_text(npz, "cohort_fingerprint") != meta["sentence_source_fingerprint"]:
+        raise ValueError("strict3 cohort fingerprint mismatch")
+    if _npz_text(npz, "uid_layout_fingerprint") != meta["uid_layout_fingerprint"]:
+        raise ValueError("strict3 UID layout fingerprint mismatch")
+    if _npz_text(npz, "vocab_fingerprint") != meta["vocab_fingerprint"]:
+        raise ValueError("strict3 vocabulary fingerprint mismatch")
+    expected_split = _three_way_split(uid_list, SENT_CACHE)
+    for key, expected_dict in zip(("profile_idx", "val_idx", "test_idx"),
+                                  expected_split):
+        expected_idx = np.asarray(sorted(i for values in expected_dict.values()
+                                         for i in values), dtype=np.int64)
+        actual_idx = np.asarray(npz[key], dtype=np.int64)
+        if not np.array_equal(actual_idx, expected_idx):
+            raise ValueError(f"strict3 {key} differs from current sentence split")
+    return {
+        "n_total_sents": n_total,
+        "n_users": len(uid_list),
+        "cohort_fingerprint": meta["sentence_source_fingerprint"],
+        "uid_layout_fingerprint": meta["uid_layout_fingerprint"],
+        "vocab_fingerprint": meta["vocab_fingerprint"],
+    }
+
+
+def _atomic_torch_save(payload: dict, path: Path) -> None:
+    """原子保存 PyTorch checkpoint。"""
+    tmp = Path(str(path) + ".tmp")
+    torch.save(payload, tmp)
+    os.replace(tmp, path)
 
 
 # ============================================================================
@@ -181,10 +459,91 @@ def normalize_counts(sent_csr):
     )
 
 
+def _validate_cache_manifest(meta: dict, expected_manifest: dict) -> None:
+    """校验 sparse cache 是否来自当前 Stage 02 cohort。"""
+    if not isinstance(meta, dict):
+        raise ValueError("pcfg cache meta must be an object")
+    required = {
+        **expected_manifest,
+        "cache_schema_version": 2,
+        "spacy_model": SPACY_MODEL,
+    }
+    for key, expected_value in required.items():
+        if meta.get(key) != expected_value:
+            raise ValueError(
+                f"pcfg cache manifest mismatch at {key}: "
+                f"cached={meta.get(key)!r}, current={expected_value!r}; "
+                f"rerun stage_cache()")
+    if meta.get("vocab_size", 0) <= 0:
+        raise ValueError("pcfg cache vocabulary is empty")
+
+
+def _validate_split_indices(npz: dict, uid_list: list[str],
+                            user_n_sents: list[int]) -> None:
+    """验证 strict3 三路索引非负、互斥且完整覆盖句子。"""
+    n_total = int(sum(user_n_sents))
+    arrays = []
+    for key in ("profile_idx", "val_idx", "test_idx"):
+        if key not in npz:
+            raise ValueError(f"strict3 artifact missing {key}")
+        index = np.asarray(npz[key], dtype=np.int64)
+        if index.ndim != 1:
+            raise ValueError(f"strict3 {key} must be 1-D, got {index.shape}")
+        if len(index) and (int(index.min()) < 0 or int(index.max()) >= n_total):
+            raise ValueError(f"strict3 {key} contains out-of-range index")
+        if len(np.unique(index)) != len(index):
+            raise ValueError(f"strict3 {key} contains duplicate indices")
+        arrays.append(index)
+    merged = np.concatenate(arrays)
+    if len(np.unique(merged)) != n_total or not np.array_equal(
+            np.sort(merged), np.arange(n_total, dtype=np.int64)):
+        raise ValueError("strict3 split indices do not partition all sentences")
+    if len(uid_list) != len(user_n_sents):
+        raise ValueError("strict3 uid_list/user_n_sents length mismatch")
+
+
+def _validate_cache_arrays(cache: dict, expected_manifest: dict) -> None:
+    """验证 sparse matrix、UID 顺序、句子布局及 finite 值。"""
+    sent_csr = cache["sent_csr"]
+    counts = cache["counts"]
+    uid_list = cache["uid_list"]
+    user_n_sents = cache["user_n_sents"]
+    meta = cache["meta"]
+    _validate_cache_manifest(meta, expected_manifest)
+    if not isinstance(uid_list, list) or uid_list != cache["expected_uid_list"]:
+        raise ValueError("pcfg cache UID order/content differs from Stage 02")
+    if not isinstance(user_n_sents, list) or user_n_sents != cache["expected_user_n_sents"]:
+        raise ValueError("pcfg cache user_n_sents differs from Stage 02")
+    expected_shape = (expected_manifest["n_total_sents"], meta["vocab_size"])
+    if sent_csr.shape != expected_shape:
+        raise ValueError(f"sent_vectors shape mismatch: {sent_csr.shape} != {expected_shape}")
+    if counts.shape != (expected_manifest["n_users"], meta["vocab_size"]):
+        raise ValueError(f"counts shape mismatch: {counts.shape}")
+    if sent_csr.ndim != 2 or counts.ndim != 2:
+        raise ValueError("pcfg sparse matrices must be 2-D")
+    if not np.isfinite(sent_csr.data).all() or not np.isfinite(counts.data).all():
+        raise ValueError("pcfg sparse cache contains NaN/Inf")
+    if _string_list_fingerprint(cache["vocab"], "vocab-v1") != meta["vocab_fingerprint"]:
+        raise ValueError("pcfg vocabulary fingerprint mismatch")
+    if _sparse_fingerprint(sent_csr) != meta["sent_vectors_fingerprint"]:
+        raise ValueError("sent_vectors fingerprint mismatch")
+    if _sparse_fingerprint(counts) != meta["counts_fingerprint"]:
+        raise ValueError("counts fingerprint mismatch")
+
+
 def load_cache():
-    if not (CACHE_DIR / "sent_vectors.npz").exists():
+    required_paths = [
+        CACHE_DIR / "sent_vectors.npz", CACHE_DIR / "counts.npz",
+        CACHE_DIR / "uid_list.json", CACHE_DIR / "user_n_sents.json",
+        CACHE_DIR / "vocab.json", CACHE_DIR / "meta.json",
+        CACHE_DIR / "cache_ready.json",
+    ]
+    missing = [str(path) for path in required_paths if not path.exists()]
+    if missing:
         raise FileNotFoundError(
-            f"cache not found at {CACHE_DIR}, run stage_cache() or main_pipeline() first")
+            f"pcfg cache incomplete; missing {missing}; run stage_cache()")
+    expected_uid_list, expected_user_n_sents, expected_manifest = (
+        _load_stage02_cohort())
     sent_csr = load_npz(CACHE_DIR / "sent_vectors.npz")
     counts = load_npz(CACHE_DIR / "counts.npz")
     with open(CACHE_DIR / "uid_list.json") as f:
@@ -195,20 +554,78 @@ def load_cache():
         vocab = json.load(f)
     with open(CACHE_DIR / "meta.json") as f:
         meta = json.load(f)
-    return {
+    with open(CACHE_DIR / "cache_ready.json") as f:
+        ready = json.load(f)
+    if ready != meta:
+        raise ValueError("pcfg cache_ready manifest differs from meta.json")
+    cache = {
         "sent_csr": sent_csr, "counts": counts,
         "uid_list": uid_list, "user_n_sents": user_n_sents,
         "vocab": vocab, "meta": meta,
+        "expected_uid_list": expected_uid_list,
+        "expected_user_n_sents": expected_user_n_sents,
     }
+    _validate_cache_arrays(cache, expected_manifest)
+    return cache
 
 
 # ============================================================================
 # Stage: cache (parse + sparse matrix persist)
 # ============================================================================
 
+def _load_rules_chunk(path: Path, expected_manifest: dict,
+                      start_user: int, end_user: int,
+                      start_sent: int, end_sent: int) -> list[list[str]]:
+    """读取并严格校验一个不可变的解析分片。"""
+    with open(path, "rb") as f:
+        saved = pickle.load(f)
+    if not isinstance(saved, dict):
+        raise ValueError(f"rules chunk is not an object: {path}")
+    for key, expected_value in expected_manifest.items():
+        if saved.get(key) != expected_value:
+            raise ValueError(
+                f"rules chunk cohort mismatch at {key}: {path}; "
+                f"cached={saved.get(key)!r}, current={expected_value!r}")
+    expected_ranges = {
+        "start_user": start_user, "end_user": end_user,
+        "start_sent": start_sent, "end_sent": end_sent,
+    }
+    for key, expected_value in expected_ranges.items():
+        if saved.get(key) != expected_value:
+            raise ValueError(
+                f"rules chunk range mismatch at {key}: {path}; "
+                f"cached={saved.get(key)!r}, current={expected_value!r}")
+    rules = saved.get("rules")
+    if not isinstance(rules, list) or len(rules) != end_sent - start_sent:
+        raise ValueError(
+            f"rules chunk length mismatch: {path}; "
+            f"got={len(rules) if isinstance(rules, list) else type(rules)!r}, "
+            f"expected={end_sent - start_sent}")
+    if any(not isinstance(rule_list, list) for rule_list in rules):
+        raise ValueError(f"rules chunk contains a non-list rule row: {path}")
+    return rules
+
+
+def _iter_rules_chunks(rules_dir: Path, selected: list[str],
+                       user_offsets: np.ndarray,
+                       manifest: dict):
+    """按用户顺序读取所有已校验的规则分片。"""
+    for start_user in range(0, len(selected), CHUNK_USERS):
+        end_user = min(start_user + CHUNK_USERS, len(selected))
+        start_sent = int(user_offsets[start_user])
+        end_sent = int(user_offsets[end_user])
+        path = rules_dir / f"chunk_{start_user}_{end_user}.pkl"
+        if not path.exists():
+            raise FileNotFoundError(f"missing completed rules chunk: {path}")
+        rules = _load_rules_chunk(
+            path, manifest, start_user, end_user, start_sent, end_sent)
+        yield start_user, end_user, start_sent, end_sent, rules
+
+
 def stage_cache():
     """en_core_web_sm parse sentences → sparse rule-count matrix。"""
     t0 = time.time()
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     # torch.set_default_tensor_type deprecated in PyTorch 2.1+ and conflicts
     # with spaCy CPU/GPU routing; let downstream code manage device explicitly.
     nlp = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
@@ -216,157 +633,175 @@ def stage_cache():
 
     with open(SENT_CACHE, "rb") as f:
         uid_to_sents = pickle.load(f)
-    counts = {u: len(s) for u, s in uid_to_sents.items()}
-    eligible = sorted([u for u, c in counts.items()
-                       if c >= MIN_SENTS_PER_USER])
-    rng = np.random.default_rng(SEED)
-    rng.shuffle(eligible)
-    if N_USERS_LIMIT is not None:
-        eligible = eligible[:N_USERS_LIMIT]
-    selected = eligible
+    selected, user_n_sents, cohort_manifest = _load_stage02_cohort(
+        preloaded=uid_to_sents)
+    user_offsets = np.concatenate(([0], np.cumsum(user_n_sents, dtype=np.int64)))
+    n_total = int(user_offsets[-1])
     log(f"users={len(selected)}, min_sents={MIN_SENTS_PER_USER}")
-
-    all_sents = []
-    user_n_sents = []
-    for u in selected:
-        sents = list(uid_to_sents[u])
-        all_sents.extend(sents)
-        user_n_sents.append(len(sents))
-    n_total = len(all_sents)
     log(f"total sents: {n_total}")
 
+    # 每个用户块单独原子落盘，避免把已解析规则反复整体 pickle 到内存和磁盘。
+    rules_dir = CACHE_DIR / "rules_chunks"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = rules_dir / "manifest.json"
+    chunk_paths = sorted(rules_dir.glob("chunk_*.pkl"))
+    if manifest_path.exists():
+        with open(manifest_path) as f:
+            saved_manifest = json.load(f)
+        if saved_manifest != cohort_manifest:
+            raise ValueError(
+                f"rules chunk manifest mismatch: cached={saved_manifest!r}, "
+                f"current={cohort_manifest!r}; delete {rules_dir} and rerun")
+    elif chunk_paths:
+        raise ValueError(
+            f"rules chunks exist without manifest at {rules_dir}; "
+            f"delete the incomplete cache before rerunning")
+    else:
+        _atomic_json_dump(cohort_manifest, manifest_path)
+
+    expected_names = {
+        f"chunk_{start}_{min(start + CHUNK_USERS, len(selected))}.pkl"
+        for start in range(0, len(selected), CHUNK_USERS)
+    }
+    unexpected = [p.name for p in chunk_paths if p.name not in expected_names]
+    if unexpected:
+        raise ValueError(f"unexpected rules chunk files: {unexpected[:5]}")
+
     t_parse = time.time()
-    all_doc_rules: list[list[str]] = []
-    sent_offset = 0
-    rules_cache = CACHE_DIR / f"all_doc_rules_{len(selected)}.pkl"
-    # Resume from partial cache if exists
-    need_parse = True
-    if rules_cache.exists():
-        cache_t = time.time()
-        with open(rules_cache, "rb") as f:
-            saved = pickle.load(f)
-        cached_rules = saved["rules"]
-        cached_offset = saved["offset"]
-        if len(cached_rules) >= n_total:
-            # Cache 已经覆盖当前 cohort 全量, 跳过 parse loop 避免 30s+ 冗余 pickle 写盘
-            all_doc_rules = cached_rules[:n_total]
-            log(f"  full cache hit: {n_total} sents ready "
-                f"({time.time()-cache_t:.1f}s), skip parse loop")
-            need_parse = False
-        else:
-            all_doc_rules = cached_rules
-            sent_offset = cached_offset
-            log(f"  loaded partial parse cache: {sent_offset}/{n_total} sents "
-                f"({time.time()-cache_t:.1f}s)")
-    for ci in range(0, len(selected), CHUNK_USERS):
-        if not need_parse:
-            break
-        chunk_users = selected[ci:ci+CHUNK_USERS]
-        chunk_n = sum(user_n_sents[ci + j] for j in range(len(chunk_users)))
-        chunk_sents = all_sents[sent_offset:sent_offset + chunk_n]
-        if chunk_n == 0:
+    for start_user in range(0, len(selected), CHUNK_USERS):
+        end_user = min(start_user + CHUNK_USERS, len(selected))
+        start_sent = int(user_offsets[start_user])
+        end_sent = int(user_offsets[end_user])
+        path = rules_dir / f"chunk_{start_user}_{end_user}.pkl"
+        if path.exists():
+            _load_rules_chunk(path, cohort_manifest, start_user, end_user,
+                               start_sent, end_sent)
+            log(f"  chunk {start_user}-{end_user}: cache hit "
+                f"({end_sent - start_sent} sents)")
             continue
-        log(f"  chunk {ci}-{ci+len(chunk_users)}: {chunk_n} sents ...")
+        chunk_sents = []
+        for uid in selected[start_user:end_user]:
+            chunk_sents.extend(uid_to_sents[uid])
+        if len(chunk_sents) != end_sent - start_sent:
+            raise ValueError(
+                f"chunk sentence layout mismatch: {start_user}-{end_user}; "
+                f"got={len(chunk_sents)}, expected={end_sent - start_sent}")
+        log(f"  chunk {start_user}-{end_user}: {len(chunk_sents)} sents ...")
         rules_flat = [extract_struct_rules(d)
                       for d in nlp.pipe(chunk_sents,
                                         batch_size=PARSE_BATCH_SIZE,
                                         n_process=PARSE_N_PROCESS)]
-        all_doc_rules.extend(rules_flat)
-        sent_offset += chunk_n
-        del rules_flat
-        # Save partial cache every chunk (resume-safe)
-        with open(rules_cache, "wb") as f:
-            pickle.dump({"rules": all_doc_rules, "offset": sent_offset}, f,
-                        protocol=pickle.HIGHEST_PROTOCOL)
+        if len(rules_flat) != end_sent - start_sent:
+            raise RuntimeError(
+                f"spaCy returned {len(rules_flat)} rows for "
+                f"{end_sent - start_sent} sentences")
+        payload = dict(cohort_manifest)
+        payload.update({"start_user": start_user, "end_user": end_user,
+                        "start_sent": start_sent, "end_sent": end_sent,
+                        "rules": rules_flat})
+        _atomic_pickle_dump(payload, path)
+        del chunk_sents, rules_flat
         log(f"    {time.time()-t_parse:.0f}s elapsed, "
-            f"{sent_offset}/{n_total}")
+            f"{end_sent}/{n_total}")
     log(f"parse done ({time.time()-t_parse:.0f}s)")
 
     log("building vocab (with min_doc_freq filter) ...")
     doc_counts: Counter = Counter()
-    for rs in all_doc_rules:
-        for r in set(rs):  # per-doc count, not per-occurrence
-            doc_counts[r] += 1
+    for _, _, _, _, rules in _iter_rules_chunks(
+            rules_dir, selected, user_offsets, cohort_manifest):
+        for rs in rules:
+            doc_counts.update(set(rs))
     vocab_full = sorted(doc_counts.keys())
     vocab = [r for r in vocab_full if doc_counts[r] >= MIN_DOC_FREQ]
     V = len(vocab)
+    if V <= 0:
+        raise RuntimeError("vocabulary is empty after min_doc_freq filtering")
     rule_to_id = {r: i for i, r in enumerate(vocab)}
     log(f"vocab: {V} (filtered from {len(vocab_full)}, "
         f"min_doc_freq={MIN_DOC_FREQ})")
 
-    log("building per-sentence CSR (filter rare rules) ...")
-    sent_rows, sent_cols, sent_data = [], [], []
-    for si, rs in enumerate(all_doc_rules):
-        c = Counter(rs)
-        for r, cnt in c.items():
-            if r not in rule_to_id:
-                continue
-            sent_rows.append(si)
-            sent_cols.append(rule_to_id[r])
-            sent_data.append(cnt)
-    sent_sparse = csr_matrix(
-        (np.asarray(sent_data, dtype=np.int16),
-         (np.asarray(sent_rows, dtype=np.int32),
-          np.asarray(sent_cols, dtype=np.int32))),
-        shape=(len(all_doc_rules), V),
-    )
-    log(f"per-sent CSR: {sent_sparse.shape}, density "
-        f"{sent_sparse.nnz/(len(all_doc_rules)*V)*100:.3f}%")
-
-    log("building per-user CSR (filter rare rules) ...")
+    log("building per-sentence CSR and per-user counters ...")
+    row_nnz = np.zeros(n_total, dtype=np.int64)
     user_counters: list[Counter] = [Counter() for _ in selected]
-    sent_idx = 0
-    for ui, n in enumerate(user_n_sents):
-        for rs in all_doc_rules[sent_idx:sent_idx + n]:
-            filtered = [r for r in rs if r in rule_to_id]
-            user_counters[ui].update(filtered)
-        sent_idx += n
-    del all_doc_rules
+    for start_user, end_user, start_sent, _, rules in _iter_rules_chunks(
+            rules_dir, selected, user_offsets, cohort_manifest):
+        for local_i, rs in enumerate(rules):
+            filtered = [(r, cnt) for r, cnt in Counter(rs).items()
+                        if r in rule_to_id]
+            row_nnz[start_sent + local_i] = len(filtered)
+            global_i = start_sent + local_i
+            owner = int(np.searchsorted(user_offsets[1:], global_i,
+                                        side="right"))
+            user_counters[owner].update(dict(filtered))
+    indptr = np.concatenate(([0], np.cumsum(row_nnz, dtype=np.int64)))
+    indices = np.empty(int(indptr[-1]), dtype=np.int32)
+    data = np.empty(int(indptr[-1]), dtype=np.int16)
+    for _, _, start_sent, _, rules in _iter_rules_chunks(
+            rules_dir, selected, user_offsets, cohort_manifest):
+        for local_i, rs in enumerate(rules):
+            row = start_sent + local_i
+            cursor = int(indptr[row])
+            for rule, cnt in Counter(rs).items():
+                rule_id = rule_to_id.get(rule)
+                if rule_id is None:
+                    continue
+                if cnt > np.iinfo(np.int16).max:
+                    raise ValueError(f"sentence rule count exceeds int16: {cnt}")
+                indices[cursor] = rule_id
+                data[cursor] = cnt
+                cursor += 1
+            if cursor != int(indptr[row + 1]):
+                raise RuntimeError(f"CSR row fill mismatch at sentence {row}")
+    sent_sparse = csr_matrix((data, indices, indptr),
+                             shape=(n_total, V), dtype=np.int16)
+    sent_sparse.sort_indices()
+    log(f"per-sent CSR: {sent_sparse.shape}, density "
+        f"{sent_sparse.nnz/(n_total*V)*100:.3f}%")
 
-    rows, cols, data = [], [], []
+    rows, cols, user_data = [], [], []
     for ui, cnt in enumerate(user_counters):
-        for r, c in cnt.items():
-            if r not in rule_to_id:
+        for rule, value in cnt.items():
+            rule_id = rule_to_id.get(rule)
+            if rule_id is None:
                 continue
             rows.append(ui)
-            cols.append(rule_to_id[r])
-            data.append(c)
+            cols.append(rule_id)
+            user_data.append(value)
     counts_sparse = csr_matrix(
-        (np.asarray(data, dtype=np.int32),
+        (np.asarray(user_data, dtype=np.int32),
          (np.asarray(rows, dtype=np.int32),
           np.asarray(cols, dtype=np.int32))),
-        shape=(len(selected), V),
+        shape=(len(selected), V), dtype=np.int32,
     )
+    counts_sparse.sort_indices()
     log(f"per-user CSR: {counts_sparse.shape}, density "
         f"{counts_sparse.nnz/(len(selected)*V)*100:.3f}%")
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    save_npz(CACHE_DIR / "counts.npz", counts_sparse)
-    save_npz(CACHE_DIR / "sent_vectors.npz", sent_sparse)
-    with open(CACHE_DIR / "uid_list.json", "w") as f:
-        json.dump(selected, f)
-    with open(CACHE_DIR / "user_n_sents.json", "w") as f:
-        json.dump(user_n_sents, f)
-    with open(CACHE_DIR / "vocab.json", "w") as f:
-        json.dump(vocab, f)
+    vocab_fingerprint = _string_list_fingerprint(vocab, "vocab-v1")
     meta = {
+        **cohort_manifest,
         "mode": ("LIMITED" if N_USERS_LIMIT else "FULL"),
-        "n_users": len(selected),
-        "n_users_limit": N_USERS_LIMIT,
-        "n_total_sents": int(sent_sparse.shape[0]),
-        "vocab_size": V,
-        "min_sents_per_user": MIN_SENTS_PER_USER,
-        "seed": SEED,
         "spacy_model": SPACY_MODEL,
+        "vocab_size": V,
+        "vocab_fingerprint": vocab_fingerprint,
         "user_csr_nnz": int(counts_sparse.nnz),
         "user_csr_density_pct": round(
             counts_sparse.nnz / (len(selected) * V) * 100, 4),
         "sent_csr_nnz": int(sent_sparse.nnz),
         "sent_csr_density_pct": round(
-            sent_sparse.nnz / (sent_sparse.shape[0] * V) * 100, 4),
+            sent_sparse.nnz / (n_total * V) * 100, 4),
+        "sent_vectors_fingerprint": _sparse_fingerprint(sent_sparse),
+        "counts_fingerprint": _sparse_fingerprint(counts_sparse),
+        "rules_cache": str(rules_dir),
     }
-    with open(CACHE_DIR / "meta.json", "w") as f:
-        json.dump(meta, f, indent=2)
+    _atomic_save_npz(CACHE_DIR / "counts.npz", counts_sparse)
+    _atomic_save_npz(CACHE_DIR / "sent_vectors.npz", sent_sparse)
+    _atomic_json_dump(selected, CACHE_DIR / "uid_list.json")
+    _atomic_json_dump(user_n_sents, CACHE_DIR / "user_n_sents.json")
+    _atomic_json_dump(vocab, CACHE_DIR / "vocab.json")
+    _atomic_json_dump(meta, CACHE_DIR / "meta.json")
+    # ready manifest 最后写入；下游只有看到它才能消费本轮完整 cache。
+    _atomic_json_dump(meta, CACHE_DIR / "cache_ready.json")
     log(f"wrote → {CACHE_DIR}/")
     log(f"=== Total: {time.time()-t0:.0f}s ===")
 
@@ -617,6 +1052,8 @@ def stage_strict(out_path: Path = None):
                     (logits.argmax(dim=1) == yb).sum().detach())
         v_acc = v_correct / max(len(val_idx_global), 1)
         t_acc = ep_correct / max(n_train, 1)
+        if n_batches <= 0:
+            raise RuntimeError("encoder produced zero training batches")
         avg_loss = ep_loss / n_batches
         history.append({"epoch": epoch, "loss": avg_loss,
                         "train_acc": t_acc, "val_acc": v_acc})
@@ -857,47 +1294,80 @@ def stage_strict3(out_path: Path = None):
     t0 = time.time()
     canonical_npz = CACHE_DIR / "strict3_embeddings.npz"
     canonical_pt = CACHE_DIR / "strict3_encoder.pt"
+    strict3_manifest_path = CACHE_DIR / "strict3_manifest.json"
     legacy_npz = CACHE_DIR / "strict_embeddings.npz"
     legacy_pt = CACHE_DIR / "strict_encoder.pt"
-    # 兼容 legacy strict_embeddings.npz 已有 → 直接报错, 强制用户走 strict3
-    if legacy_npz.exists() and not canonical_npz.exists():
-        raise FileExistsError(
-            f"found legacy {legacy_npz.name} but no strict3_embeddings.npz; "
-            f"per unified-encoder migration (2026-09-11), strict3 is canonical. "
-            f"Delete {legacy_npz.name} and rerun, or rename it if you "
-            f"intentionally want to keep the 2-way split.")
+    # legacy 2-way artifacts 不得阻塞 canonical strict3；它们不会被任何下游消费。
+    if legacy_npz.exists() or legacy_pt.exists():
+        log("  legacy strict encoder artifact(s) detected; ignoring them")
+    summary_path = out_path or OUT_DIR / "syntax_pcfg_strict_attr.json"
     cached = [canonical_npz, canonical_pt,
-              CACHE_DIR / "supervised_embeddings.npy"]
+              CACHE_DIR / "supervised_embeddings.npy", strict3_manifest_path]
     missing = [p for p in cached if not p.exists()]
-    if not missing:
-        cache_meta = json.loads((CACHE_DIR / "meta.json").read_text())
-        npz = np.load(canonical_npz)
-        n_p = int(npz["z_profile"].shape[0])
-        n_v = int(npz["z_val"].shape[0])
-        n_t = int(npz["z_test"].shape[0])
-        n_users_cached = int(len(npz["uid_list"]))
-        if (n_p + n_v + n_t != cache_meta["n_total_sents"]
-                or n_users_cached != cache_meta["n_users"]):
-            raise ValueError(
-                f"stage_strict3 cache cohort mismatch: cached "
-                f"profile={n_p} val={n_v} test={n_t} users="
-                f"{n_users_cached} vs current n_sents="
-                f"{cache_meta['n_total_sents']} n_users="
-                f"{cache_meta['n_users']}; delete {canonical_npz} and rerun")
-        _verify_cached_embeddings_cohort(
-            CACHE_DIR / "supervised_embeddings.npy",
-            cache_meta["n_total_sents"], SUP_Z_DIM, "stage_strict3")
-        log(f"skip stage_strict3: {len(cached)} cached output(s) exist, "
-            f"cohort match (n_sents={cache_meta['n_total_sents']}, "
-            f"n_users={cache_meta['n_users']})")
-        return
-
     cache = load_cache()
+    if not missing:
+        npz = np.load(canonical_npz, allow_pickle=False)
+        manifest = json.loads(strict3_manifest_path.read_text())
+        source_keys = ("cohort_fingerprint", "uid_layout_fingerprint",
+                       "vocab_fingerprint")
+        source_matches = all(
+            manifest.get(key) == cache["meta"][
+                {"cohort_fingerprint": "sentence_source_fingerprint",
+                 "uid_layout_fingerprint": "uid_layout_fingerprint",
+                 "vocab_fingerprint": "vocab_fingerprint"}[key]]
+            for key in source_keys)
+        npz_source_matches = all(
+            key in npz and _npz_text(npz, key) == manifest.get(key)
+            for key in source_keys)
+        if source_matches and npz_source_matches:
+            _validate_strict3_artifact(npz, cache)
+            z_all = np.load(CACHE_DIR / "supervised_embeddings.npy",
+                            allow_pickle=False)
+            _verify_cached_embeddings_cohort(
+                CACHE_DIR / "supervised_embeddings.npy",
+                cache["meta"]["n_total_sents"], SUP_Z_DIM, "stage_strict3")
+            if _array_fingerprint(z_all) != manifest.get("z_all_fingerprint"):
+                raise ValueError("strict3 supervised embedding fingerprint mismatch")
+            checkpoint = torch.load(canonical_pt, map_location="cpu")
+            if not isinstance(checkpoint, dict) or not isinstance(
+                    checkpoint.get("config"), dict):
+                raise ValueError("strict3 checkpoint missing config")
+            config = checkpoint["config"]
+            expected_config = {
+                "vocab_size": int(cache["sent_csr"].shape[1]),
+                "z_dim": SUP_Z_DIM,
+                "hidden": list(SUP_HIDDEN),
+                "dropout": SUP_DROPOUT,
+                "n_users": len(cache["uid_list"]),
+            }
+            for key, expected_value in expected_config.items():
+                if config.get(key) != expected_value:
+                    raise ValueError(
+                        f"strict3 checkpoint mismatch at {key}: "
+                        f"cached={config.get(key)!r}, current={expected_value!r}")
+            for key in source_keys:
+                if checkpoint.get(key) != manifest.get(key):
+                    raise ValueError(
+                        f"strict3 checkpoint source mismatch at {key}")
+            log(f"skip stage_strict3: {len(cached)} cached output(s) exist, "
+                f"validated cohort={cache['meta']['sentence_source_fingerprint'][:12]}...")
+            return
+        log("  stale strict3 artifacts detected; rebuilding for current cohort")
+
+    if missing:
+        log(f"  strict3 missing outputs: {[p.name for p in missing]}")
     sent_csr = cache["sent_csr"]
     V = sent_csr.shape[1]
     n_sents = sent_csr.shape[0]
-    user_n_sents = cache["user_n_sents"]
-    uid_list = cache["uid_list"]
+    user_n_sents = list(cache["user_n_sents"])
+    uid_list = list(cache["uid_list"])
+    if _EFFECTIVE_TRAIN_LIMIT is not None:
+        uid_list = uid_list[:_EFFECTIVE_TRAIN_LIMIT]
+        user_n_sents = user_n_sents[:_EFFECTIVE_TRAIN_LIMIT]
+        n_smoke_sents = sum(user_n_sents)
+        sent_csr = sent_csr[:n_smoke_sents]
+        n_sents = n_smoke_sents
+        log(f"  [SMOKE] limited to {len(uid_list)} users, {n_sents} sents")
     n_users = len(uid_list)
     log(f"strict3: V={V}, n_sents={n_sents}, n_users={n_users}")
 
@@ -951,11 +1421,13 @@ def stage_strict3(out_path: Path = None):
                            weight_decay=SUP_WEIGHT_DECAY)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=SUP_EPOCHS)
 
-    best_val = 0.0
+    best_val = -1.0
     best_state = None
     epochs_since_best = 0
     history = []
     n_train = len(profile_train_inner)
+    if n_train <= 0 or len(profile_val_inner) <= 0:
+        raise ValueError("strict3 requires non-empty train and validation splits")
     for epoch in range(1, SUP_EPOCHS + 1):
         model.train()
         perm_epoch = np.random.permutation(profile_train_inner)
@@ -994,6 +1466,8 @@ def stage_strict3(out_path: Path = None):
                     (logits.argmax(dim=1) == yb).sum().detach())
         v_acc = v_correct / max(len(profile_val_inner), 1)
         t_acc = ep_correct / max(n_train, 1)
+        if n_batches <= 0:
+            raise RuntimeError("encoder produced zero training batches")
         avg_loss = ep_loss / n_batches
         history.append({"epoch": epoch, "loss": avg_loss,
                         "train_acc": t_acc, "val_acc": v_acc})
@@ -1038,21 +1512,45 @@ def stage_strict3(out_path: Path = None):
     # === Step 4: 用同一 encoder 编码全部 n_sents → z_all (给 04_gaussian 消费) ===
     all_idx = np.arange(n_sents, dtype=np.int64)
     z_all = encode_all(all_idx)
-    np.save(CACHE_DIR / "supervised_embeddings.npy", z_all)
+    # === Step 5: 持久化（所有来源字段写入同一 artifact，最后才原子提交） ===
+    cohort_fingerprint = cache["meta"]["sentence_source_fingerprint"]
+    uid_layout_fingerprint = cache["meta"]["uid_layout_fingerprint"]
+    vocab_fingerprint = cache["meta"]["vocab_fingerprint"]
+    _atomic_save_npy(CACHE_DIR / "supervised_embeddings.npy", z_all)
     log(f"encoded all (供 04_gaussian 消费): z_all {z_all.shape} → "
         f"supervised_embeddings.npy")
-
-    # === Step 5: 持久化 ===
-    torch.save({"model_state": best_state,
-                "config": {"vocab_size": V, "z_dim": SUP_Z_DIM,
-                           "hidden": list(SUP_HIDDEN), "dropout": SUP_DROPOUT,
-                           "n_users": n_users}},
-               canonical_pt)
-    np.savez(canonical_npz,
-             z_profile=z_profile, z_val=z_val, z_test=z_test,
-             profile_idx=profile_idx, val_idx=val_idx, test_idx=test_idx,
-             uid_list=np.asarray(uid_list))
-    log(f"wrote → {canonical_npz.name} + {canonical_pt.name}")
+    _atomic_torch_save({"model_state": best_state,
+                        "config": {"vocab_size": V, "z_dim": SUP_Z_DIM,
+                                   "hidden": list(SUP_HIDDEN), "dropout": SUP_DROPOUT,
+                                   "n_users": n_users},
+                        "cohort_fingerprint": cohort_fingerprint,
+                        "uid_layout_fingerprint": uid_layout_fingerprint,
+                        "vocab_fingerprint": vocab_fingerprint},
+                       canonical_pt)
+    _atomic_save_npz_arrays(
+        canonical_npz,
+        z_profile=z_profile, z_val=z_val, z_test=z_test,
+        profile_idx=profile_idx, val_idx=val_idx, test_idx=test_idx,
+        uid_list=np.asarray(uid_list),
+        cohort_fingerprint=np.asarray(cohort_fingerprint),
+        uid_layout_fingerprint=np.asarray(uid_layout_fingerprint),
+        vocab_fingerprint=np.asarray(vocab_fingerprint))
+    strict3_manifest = {
+        "schema_version": 1,
+        "cohort_fingerprint": cohort_fingerprint,
+        "uid_layout_fingerprint": uid_layout_fingerprint,
+        "vocab_fingerprint": vocab_fingerprint,
+        "n_users": n_users,
+        "n_total_sents": n_sents,
+        "z_dim": SUP_Z_DIM,
+        "vocab_size": V,
+        "z_all_fingerprint": _array_fingerprint(z_all),
+        "strict3_npz": str(canonical_npz),
+        "strict3_checkpoint": str(canonical_pt),
+    }
+    _atomic_json_dump(strict3_manifest, strict3_manifest_path)
+    log(f"wrote → {canonical_npz.name} + {canonical_pt.name} + "
+        f"{strict3_manifest_path.name}")
 
     log(f"\n=== STRICT3 (3-way 50/20/30) SUMMARY "
         f"(z={SUP_Z_DIM}, N={n_users}) ===")
@@ -1080,11 +1578,30 @@ def main_pipeline():
     假设 cache 已有产物则可跳过 stage_cache() (resume);
     任意 stage 抛错会立即终止, 不做 fallback (per Rule 7)。
     """
+    global N_USERS_LIMIT, SUP_EPOCHS, STRICT_PATIENCE, _EFFECTIVE_TRAIN_LIMIT
     t_total = time.time()
     log(f"=== main_pipeline: canonical chain start ===")
 
+    # --- Smoke overrides: only affect training stage, NOT cache ---
+    if SMOKE:
+        _EFFECTIVE_TRAIN_LIMIT = N_USERS_LIMIT_SMOKE
+        log(f"  [SMOKE MODE] training will use: "
+            f"train_limit={_EFFECTIVE_TRAIN_LIMIT}, "
+            f"SUP_EPOCHS={SMOKE_EPOCHS}, STRICT_PATIENCE={SMOKE_PATIENCE}")
+        orig_epochs = SUP_EPOCHS
+        orig_patience = STRICT_PATIENCE
+        SUP_EPOCHS = SMOKE_EPOCHS
+        STRICT_PATIENCE = SMOKE_PATIENCE
+        # N_USERS_LIMIT still None → cache builds full cohort (resume-friendly)
+
     stage_cache()
     stage_strict3()  # 统一 3-way encoder,产出 strict3_embeddings.npz + supervised_embeddings.npy
+
+    if SMOKE:
+        SUP_EPOCHS = orig_epochs
+        STRICT_PATIENCE = orig_patience
+        _EFFECTIVE_TRAIN_LIMIT = None
+        log(f"  [SMOKE MODE] restored training globals")
 
     log(f"\n=== ALL DONE ({time.time()-t_total:.0f}s) ===")
 
