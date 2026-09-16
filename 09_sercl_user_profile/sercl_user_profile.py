@@ -43,7 +43,7 @@ SERCL_SEED = 42
 # 2026-09-06: vLLM BART → GECToR-2024 RoBERTa-large via subprocess to gector_env
 # (BART 把品牌名/产品词当语法错改, GECToR 的 token-level confidence gate 保留 review 域特异性)
 SERCL_GEC_MODEL = "gector-2024-roberta-large"  # 355M RoBERTa-large, Write&Improve+CoNLL14+JFLEG
-SERCL_GEC_SUBPROCESS_PY = "/home/wlia0047/hj82_scratch2/wenyu/venvs/gector_env/bin/python"
+SERCL_GEC_SUBPROCESS_PY = "/home/wlia0047/ar57_scratch/wenyu/gector_env/bin/python"
 SERCL_GEC_SUBPROCESS_SCRIPT = str(REPO_ROOT / "09_sercl_user_profile/gector_subprocess.py")
 SERCL_GEC_IN_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl")
 SERCL_GEC_OUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl")

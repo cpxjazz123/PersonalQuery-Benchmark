@@ -115,8 +115,8 @@ def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
         if not path.exists():
             raise FileNotFoundError(
                 f"missing: {path} (run 03_spacy_encode.stage_strict3() first)")
-    required = ("z_profile", "z_val", "z_test",
-                "profile_idx", "val_idx", "test_idx", "uid_list",
+    required = ("z_profile", "z_val",
+                "profile_idx", "val_idx", "uid_list",
                 "cohort_fingerprint", "uid_layout_fingerprint",
                 "vocab_fingerprint")
     for key in required:
@@ -129,7 +129,7 @@ def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
             f"strict3 uid_list ({len(artifact_uids)}) != user_n_sents "
             f"({len(n_sents)})")
     n_total = int(sum(n_sents))
-    for key in ("profile_idx", "val_idx", "test_idx"):
+    for key in ("profile_idx", "val_idx"):
         index = np.asarray(npz[key], dtype=np.int64)
         if index.ndim != 1:
             raise ValueError(f"strict3 {key} must be 1-D")
@@ -141,16 +141,27 @@ def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
             raise ValueError(f"strict3 {key} contains duplicate indices")
     merged = np.concatenate(
         [np.asarray(npz[k], dtype=np.int64) for k in
-         ("profile_idx", "val_idx", "test_idx")])
+         ("profile_idx", "val_idx")])
     if len(np.unique(merged)) != n_total or not np.array_equal(
             np.sort(merged), np.arange(n_total, dtype=np.int64)):
         raise ValueError("strict3 split indices do not partition all sentences")
-    for key in ("z_profile", "z_val", "z_test"):
+    for key in ("z_profile", "z_val"):
         z = np.asarray(npz[key])
         if z.ndim != 2 or z.shape[1] not in (16, 32):
             raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
         if not np.isfinite(z).all():
             raise ValueError(f"strict3 {key} contains NaN/Inf")
+    # 2026-09-15: 接受 test=val 别名 (Stage 03 strict3 80/20 no test)
+    if "z_test" in npz and "test_idx" in npz:
+        z_test = np.asarray(npz["z_test"])
+        test_idx = np.asarray(npz["test_idx"], dtype=np.int64)
+        val_idx = np.asarray(npz["val_idx"], dtype=np.int64)
+        if z_test.shape != np.asarray(npz["z_val"]).shape:
+            raise ValueError("strict3 z_test must equal z_val shape (alias)")
+        if not np.array_equal(test_idx, val_idx):
+            raise ValueError("strict3 test_idx must equal val_idx (alias)")
+        if not np.isfinite(z_test).all():
+            raise ValueError("strict3 z_test contains NaN/Inf")
 
     with open(MANIFEST_PATH) as f:
         manifest = json.load(f)

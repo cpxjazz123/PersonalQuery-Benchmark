@@ -69,3 +69,8 @@ result/**/*.gz
 !result/10_typo_injection/*.json
 !result/11_syntactic_evaluation/*.json
 !result/12_typo_evaluation/*.json
+
+# Local-only scratch (2026-09-16)
+=0.23.1
+slurm-*.out
+.codex/

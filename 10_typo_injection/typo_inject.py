@@ -62,10 +62,8 @@ SMOKE = False                   # full run over all selected query pairs
 N_SMOKE_USERS = 50
 SEED_BASE = 42
 
-# D² threshold quantile (per-user). We use Q_95 = self-distance at 95th percentile
-# of the user's own profile sentences — anything ≤ Q_95 is "within the user's
-# style envelope". Tighter than Q_99, looser than Q_50.
-D2_THRESHOLD_QUANTILE = "q95"
+# D² threshold quantile (per-user). Set dynamically from Stage 04 config.
+D2_THRESHOLD_QUANTILE = None  # set in main() after load_inputs()
 
 
 def log(msg: str) -> None:
@@ -92,8 +90,12 @@ def load_inputs():
         raise ValueError("Stage 04 artifact requires non-empty users")
     if not isinstance(cohort, dict) or not cohort:
         raise ValueError("Stage 04 artifact requires non-empty cohort_gates")
-    if not isinstance(config, dict) or config.get("gate_quantile") not in (0.05, 0.95):
-        raise ValueError(f"Stage 04 artifact must use gate_quantile in (0.05, 0.95), got {config.get('gate_quantile')}")
+    gate_q = config.get("gate_quantile") if isinstance(config, dict) else None
+    if gate_q is None:
+        raise ValueError("Stage 04 config missing gate_quantile")
+    # 2026-09-15: 读理论 χ²(d, gate_quantile) = d2_q{nn}_theoretical
+    # Stage 10 用低侧 rejection: gate_quantile=0.05 → d2_q05_theoretical = χ²(16, 0.05)
+    d2_key = f"d2_q{int(gate_q * 100):02d}_theoretical"
     expanded_cohort = {}
     for asin, gates in cohort.items():
         if not isinstance(gates, dict) or len(gates) < 2:
@@ -102,19 +104,23 @@ def load_inputs():
         for uid, gate in gates.items():
             if uid not in mahal:
                 raise ValueError(f"cohort {asin} references missing user {uid}")
-            if not isinstance(gate, dict) or "gate_T" not in gate:
-                raise ValueError(f"cohort {asin}/{uid} missing gate_T")
+            # 2026-09-15: 严格只读 gate_T_theoretical
+            if not isinstance(gate, dict) or "gate_T_theoretical" not in gate:
+                raise ValueError(
+                    f"cohort {asin}/{uid} missing gate_T_theoretical — "
+                    "rerun 04_gaussian/rewrite_gaussian_with_theoretical_gate.py")
             user_stats = mahal[uid]
-            if "d2_q95" not in user_stats or "mu" not in user_stats \
+            if d2_key not in user_stats or "mu" not in user_stats \
                     or "sigma_inv" not in user_stats:
-                raise ValueError(f"Stage 04 user {uid} is missing Gaussian fields")
-            if not np.isclose(float(gate["gate_T"]), float(user_stats["d2_q95"]),
+                raise ValueError(f"Stage 04 user {uid} is missing Gaussian field {d2_key}")
+            if not np.isclose(float(gate["gate_T_low_theoretical"]),
+                              float(user_stats[d2_key]),
                               rtol=0.0, atol=1e-5):
                 raise ValueError(f"cohort gate mismatch for {asin}/{uid}")
             expanded_cohort[asin][uid] = {
                 "mu": user_stats["mu"],
                 "sigma_inv": user_stats["sigma_inv"],
-                "gate_T": float(gate["gate_T"]),
+                "gate_T": float(gate["gate_T_low_theoretical"]),
                 "n": int(gate.get("n_profile", user_stats["n"])),
                 "n_val": int(gate.get("n_val", user_stats.get("n_val", 0))),
             }
@@ -136,7 +142,7 @@ def load_inputs():
     log(f"  loaded Stage 04: {len(mahal)} users, {len(expanded_cohort)} ASIN cohort gates, "
         f"{n_pairs} pairs")
 
-    return profiles, mahal, sel, expanded_cohort
+    return profiles, mahal, sel, expanded_cohort, gate_q
 
 
 def collect_pairs(selections, mahal):
@@ -152,8 +158,10 @@ def collect_pairs(selections, mahal):
 
 
 def main():
+    global D2_THRESHOLD_QUANTILE
     t0 = time.time()
-    profiles, mahal, sel, cohort = load_inputs()
+    profiles, mahal, sel, cohort, gate_q = load_inputs()
+    D2_THRESHOLD_QUANTILE = f"q{int(gate_q * 100):02d}_theoretical"
 
     pairs = collect_pairs(sel["selections"], mahal)
     for uid, asin, _ in pairs:

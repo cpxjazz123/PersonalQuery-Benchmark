@@ -39,7 +39,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from collections import defaultdict
+import scipy.linalg
+from collections import defaultdict, Counter
 import spacy
 import torch
 
@@ -76,7 +77,9 @@ if CONTRASTIVE_5558:
 
 # --- Hardcoded hyperparams (Rule 3) ---
 FILTER_Q = 0.05
-SEMANTIC_SIM_THRESHOLD = 0.8
+SEMANTIC_SIM_THRESHOLD = 0.85  # 2026-09-15: top-K 模式下同 (asin, uid) 多 query 之间
+                                    # cos 通常 0.85-0.95; 用 0.85 保留 block 让更多 ASIN
+                                    # 进入输出 (单 query ASIN 自动保留, n>=2 时按阈值过滤)
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
 SMOKE = False
@@ -87,6 +90,11 @@ SPACY_DISABLE = ["ner", "textcat", "lemmatizer"]
 COMPETITOR_GATE_QUANTILE = FILTER_Q
 BS_N_BOOTSTRAP = 29
 BS_FRAC = 0.5
+
+# USE_LIKELIHOOD_MARGIN = False: pure Mahalanobis D² gate (no OVL logic)
+OVL_MAX = 1.0           # disabled (OVL filtering off)
+OVL_PATH = REPO_ROOT / "result/08_select_query/gaussian_ovl_matrix.json"
+USE_LIKELIHOOD_MARGIN = False
 BS_P_THRESH = 0.95
 BS_SEED = 42
 USE_SINGLE_FIT = True    # single_fit_unique: 一次性固定高斯, 无 bootstrap
@@ -94,6 +102,30 @@ ENCODE_DEVICE = "cuda:0"
 ENCODE_CHUNK_SIZE = 1024
 SPACY_BATCH_SIZE = 256
 MINILM_BATCH_SIZE = 512
+# 2026-09-15: 每个 (asin, uid) task 保留的 query 数量上限（按 D² 升序）。
+# 原逻辑: 每个 task 只选 D² 最小的 1 个 query，导致同一 ASIN 上多个 cohort 用户中
+# 只有 1 个用户通过 gate 时, ASIN 仅 1 个 query。
+# 新逻辑: 保留每个 task 的 top-K query（unique_pass & pass_gate），让同一 ASIN 上
+# 多用户的多 query 累积; ASIN 聚合后用 max_pair_cos < SEMANTIC_SIM_THRESHOLD 控制去重。
+# K=1 退化回原行为; K>=3 可显著提高 ASIN 上 unique query >=2 的覆盖率。
+TOP_K_PER_USER = 3
+# 2026-09-15: SWEEP 模式 — 空列表 = 正常单 q 运行; 非空 = 跑 sweep, 只输出每个 q 的
+# query 数统计 (不写 selected_queries.json, 不跑 MiniLM sim filter)。Sweep 共享一次
+# encoder 调用, 对每个 q 重算 selection。
+SWEEP_Q_VALUES = []  # 2026-09-16: disabled; main pipeline uses FILTER_Q=0.95
+# 2026-09-15: SWEEP_GATE_STRATEGY controls which gate_T source to use.
+#   "theoretical"  → d2_qNN_theoretical (χ²(d=16, q) ppf, NOT data-dependent)
+#   "empirical"    → d2_qNN (percentile of D² over val sentences, data-dependent)
+# Empirical stats only stored at q=0.50, 0.75, 0.95 (no q=0.05/0.10/0.20 in stage 04),
+# so empirical sweep will skip those q values.
+SWEEP_GATE_STRATEGY = "empirical"  # set to "theoretical" for chi-square gate
+# 2026-09-16: SWEEP_OVL_MAX filters out high-OVL users (cohort-overlap) before
+# selection. Users with mean_ovl >= SWEEP_OVL_MAX are excluded from BOTH target
+# and competitor positions. None = no OVL filter (all users included).
+# Cohort OVL matrix at OVL_PATH only covers ~3000 users; users without OVL
+# data are KEPT (treated as OVL=0 = unique style).
+SWEEP_OVL_MAX = 0.5  # exclude users with mean_ovl >= 0.5
+SWEEP_OUT_PATH = REPO_ROOT / "result/08_select_query/q_sweep_results.json"  # suffix added at write time based on SWEEP_GATE_STRATEGY
 D2_GATE_ABS_TOL = 0.25
 D2_GATE_REL_TOL = 1e-3
 D2_BOUNDARY_RECHECK_TOL = 0.25
@@ -135,6 +167,291 @@ def _load_pcfg():
         spec.loader.exec_module(mod)
         _pcfg = mod
     return _pcfg
+
+
+# ============================================================================
+# SWEEP helpers (2026-09-15)
+# ============================================================================
+def _q_to_gate_keys(q: float) -> tuple[str, str]:
+    """Map q value → (user_gate_key, cohort_gate_key) for Stage 04 stats.
+
+    Strategy is selected by SWEEP_GATE_STRATEGY (module-level):
+      "theoretical" → χ²(d=16, q) ppf, NOT data-dependent.
+                       Stage 04 cohort stats provide gate_T_low_theoretical (q=0.05)
+                       and gate_T_high_theoretical (q=0.95); intermediate q falls
+                       back to user-level d2_qNN_theoretical for both target and
+                       competitor.
+      "empirical"   → d2_qNN from val-sentence percentile (DATA-DEPENDENT).
+                       Stage 04 only stores empirical quantiles at q=0.50, 0.75, 0.95.
+                       For q not in {0.50, 0.75, 0.95}, raises ValueError.
+                       Cohort gate_T is not stored empirically, so falls back to
+                       user-level d2_qNN.
+    """
+    if SWEEP_GATE_STRATEGY == "theoretical":
+        if abs(q - 0.05) < 1e-6:
+            return "d2_q05_theoretical", "gate_T_low_theoretical"
+        if abs(q - 0.95) < 1e-6:
+            return "d2_q95_theoretical", "gate_T_high_theoretical"
+        if abs(q - 0.50) < 1e-6:
+            return "d2_q50_theoretical", "user_fallback"
+        if abs(q - 0.75) < 1e-6:
+            return "d2_q75_theoretical", "user_fallback"
+        snaps = [(0.05, "d2_q05_theoretical", "gate_T_low_theoretical"),
+                 (0.50, "d2_q50_theoretical", "user_fallback"),
+                 (0.75, "d2_q75_theoretical", "user_fallback"),
+                 (0.95, "d2_q95_theoretical", "gate_T_high_theoretical")]
+        nearest = min(snaps, key=lambda s: abs(s[0] - q))
+        return nearest[1], nearest[2]
+    if SWEEP_GATE_STRATEGY == "empirical":
+        if abs(q - 0.50) < 1e-6:
+            return "d2_q50", "user_fallback"
+        if abs(q - 0.75) < 1e-6:
+            return "d2_q75", "user_fallback"
+        if abs(q - 0.95) < 1e-6:
+            return "d2_q95", "user_fallback"
+        raise ValueError(
+            f"empirical gate_T only stored for q in {{0.50, 0.75, 0.95}}; "
+            f"got q={q}. Either set SWEEP_Q_VALUES to only those values, or "
+            f"use SWEEP_GATE_STRATEGY='theoretical'.")
+    raise ValueError(f"unknown SWEEP_GATE_STRATEGY={SWEEP_GATE_STRATEGY!r}")
+
+
+def _gauss_from_stats_q(stats: Dict, user_key: str) -> Dict:
+    """Mirror of _gauss_from_stats but reads gate_T from user_key."""
+    required = ("mu", "sigma_inv", "n", "n_val", "d2_q50", user_key)
+    missing = [k for k in required if k not in stats]
+    if missing:
+        raise ValueError(f"Stage 04 user stats missing fields: {missing}")
+    mu = np.asarray(stats["mu"], dtype=np.float32)
+    inv_sigma = np.asarray(stats["sigma_inv"], dtype=np.float32)
+    if mu.ndim != 1 or mu.shape[0] not in (16, 32):
+        raise ValueError(f"invalid Gaussian mu shape: {mu.shape}")
+    if inv_sigma.ndim != 2 or inv_sigma.shape[0] != inv_sigma.shape[1] or inv_sigma.shape[0] not in (16, 32):
+        raise ValueError(f"invalid Gaussian sigma_inv shape: {inv_sigma.shape}")
+    gate_T = float(stats[user_key])
+    if not np.all(np.isfinite(mu)) or not np.all(np.isfinite(inv_sigma)):
+        raise FloatingPointError("non-finite Stage 04 Gaussian parameters")
+    if not np.isfinite(gate_T) or gate_T < 0:
+        raise ValueError(f"invalid Stage 04 gate_T={gate_T}")
+    return {
+        "mu": mu,
+        "inv_sigma": inv_sigma,
+        "gate_T": gate_T,
+        "d2_val_median": float(stats["d2_q50"]),
+        "gate_quantile": user_key,
+        "n": int(stats["n"]),
+        "n_val": int(stats["n_val"]),
+    }
+
+
+def _build_cohort_gates_q(stage04: Dict, user_key: str, cohort_key: str,
+                          valid_uids: set) -> Dict:
+    """Build per-ASIN cohort gates with gate_T read from cohort_key.
+
+    For cohort_key == 'user_fallback', gate_T is read from each user's
+    d2_qNN_theoretical field (using user_key). Otherwise reads cohort gate_T_*.
+    """
+    cohort_gates: Dict[str, Dict[str, Dict]] = {}
+    stage04_cohorts = stage04.get("cohort_gates", {})
+    for asin, source_cohort in stage04_cohorts.items():
+        fitted_uids = [uid for uid in source_cohort.keys() if uid in valid_uids]
+        if len(fitted_uids) < 2:
+            continue
+        cohort_gates[asin] = {}
+        for uid in fitted_uids:
+            gate = source_cohort[uid]
+            if cohort_key == "user_fallback":
+                user_stats = stage04["users"][uid]
+                if user_key not in user_stats:
+                    raise ValueError(
+                        f"Stage 04 user {uid} missing {user_key}")
+                gate_T_val = float(user_stats[user_key])
+            else:
+                if not isinstance(gate, dict) or cohort_key not in gate:
+                    raise ValueError(
+                        f"Stage 04 cohort {asin}/{uid} missing {cohort_key}")
+                gate_T_val = float(gate[cohort_key])
+            if not np.isfinite(gate_T_val):
+                raise ValueError(
+                    f"Stage 04 cohort {asin}/{uid} gate_T not finite")
+            cohort_gates[asin][uid] = {
+                "gate_T": gate_T_val,
+                "n_profile": gate.get("n_profile"),
+                "n_val": gate.get("n_val"),
+            }
+    return cohort_gates
+
+
+def _select_for_q(asin_to_Zq: Dict[str, np.ndarray],
+                  gauss_cache: Dict[str, Dict],
+                  cohort_gates_map: Dict, q: float) -> Dict:
+    """Run vectorized selection loop for a single q value."""
+    asin_work: Dict[str, Dict] = {}
+    tasks: List[Dict] = []
+    for asin, Z_q in asin_to_Zq.items():
+        cohort = cohort_gates_map.get(asin)
+        if cohort is None:
+            continue
+        all_uids = [uid for uid in sorted(cohort) if uid in gauss_cache]
+        if len(all_uids) < 2:
+            continue
+        asin_work[asin] = {"asin": asin, "uids": all_uids,
+                           "cohort_uids": all_uids, "cohort": cohort}
+        for uid in all_uids:
+            tasks.append({"asin": asin, "uid": uid})
+    log(f"  (q={q}) tasks={len(tasks)} asins_with_cohort={len(asin_work)}")
+
+    selections: List[Dict] = []
+    no_pass = 0
+    for asin, work in asin_work.items():
+        Z_q = asin_to_Zq[asin]
+        cohort_uids = work["cohort_uids"]
+        mu = np.stack([gauss_cache[uid]["mu"] for uid in cohort_uids], axis=0)
+        inv_sigma = np.stack([gauss_cache[uid]["inv_sigma"] for uid in cohort_uids], axis=0)
+        gate_Ts = np.asarray([float(work["cohort"][uid]["gate_T"]) for uid in cohort_uids], dtype=np.float64)
+        diff = Z_q[:, None, :] - mu[None, :, :]
+        left = np.einsum("cud,ude->cue", diff, inv_sigma)
+        d2_matrix = np.sum(left * diff, axis=2, dtype=np.float32)
+        del diff, left
+        target_index = {uid: i for i, uid in enumerate(cohort_uids)}
+        for idx, uid in enumerate(cohort_uids):
+            target_i = target_index[uid]
+            target_d2 = d2_matrix[:, target_i]
+            gate_T = float(gate_Ts[target_i])
+            target_inside = target_d2 <= gate_T
+            competitor_inside = d2_matrix <= gate_Ts[None, :]
+            competitor_inside[:, target_i] = False
+            pass_unique_mask = target_inside & (~competitor_inside.any(axis=1))
+            n_unique = int(pass_unique_mask.sum())
+            if n_unique > 0:
+                selections.append({"asin": asin, "uid": uid, "n_unique": n_unique})
+            else:
+                no_pass += 1
+
+    # Aggregate per ASIN (top-K per user, expanded to flat entries)
+    asin_to_user_counts: Dict[str, Counter] = defaultdict(Counter)
+    for s in selections:
+        n_contrib = min(TOP_K_PER_USER, s["n_unique"])
+        asin_to_user_counts[s["asin"]][s["uid"]] += n_contrib
+    asin_to_total_q = {a: sum(c.values()) for a, c in asin_to_user_counts.items()}
+    asin_to_unique_q = {a: len(c) for a, c in asin_to_user_counts.items()}
+
+    n_asins = len(asin_to_unique_q)
+    n_unique_q = list(asin_to_unique_q.values())
+    n_total_q = list(asin_to_total_q.values())
+    user_q_dist = Counter(n_unique_q)
+    total_q_dist = Counter(n_total_q)
+    return {
+        "q": q,
+        "user_gate_key": _q_to_gate_keys(q)[0],
+        "cohort_gate_key": _q_to_gate_keys(q)[1],
+        "n_tasks": len(tasks),
+        "n_selections": len(selections),
+        "n_no_pass_tasks": no_pass,
+        "n_asins_with_at_least_1_query": n_asins,
+        "n_total_queries_after_topk": sum(n_total_q),
+        "n_unique_user_queries_per_asin_dist": dict(sorted(user_q_dist.items())),
+        "n_total_queries_per_asin_dist": dict(sorted(total_q_dist.items())),
+        "n_asins_ge1_unique_queries": sum(1 for n in n_unique_q if n >= 1),
+        "n_asins_ge2_unique_queries": sum(1 for n in n_unique_q if n >= 2),
+        "n_asins_ge3_unique_queries": sum(1 for n in n_unique_q if n >= 3),
+        "note": "sweep counts raw (no MiniLM semantic_sim filter applied); "
+                "filter only removes blocks where max_pair_cos>=0.85; effect "
+                "minor since top-K queries come from distinct (uid,query_text)",
+    }
+
+
+def _run_sweep(asin_to_Zq: Dict[str, np.ndarray],
+               stage04: Dict, users_all: Dict,
+               valid_uids: set) -> None:
+    """Run selection for each q in SWEEP_Q_VALUES and save summary."""
+    # Load OVL data if filtering enabled
+    user_ovl_filter: Dict[str, float] = {}
+    if SWEEP_OVL_MAX is not None:
+        if not OVL_PATH.exists():
+            raise FileNotFoundError(
+                f"SWEEP_OVL_MAX={SWEEP_OVL_MAX} requires {OVL_PATH}")
+        with open(OVL_PATH) as f:
+            _ovl_data = json.load(f)
+        user_ovl_filter = _ovl_data.get("per_user_mean_ovl", {})
+        log(f"  OVL filter: {len(user_ovl_filter)} users with OVL data, threshold={SWEEP_OVL_MAX}")
+        log(f"    users WITHOUT OVL data (kept): {len(valid_uids - set(user_ovl_filter.keys()))}")
+        log(f"    users WITH OVL data, kept (ovl < {SWEEP_OVL_MAX}): "
+            f"{sum(1 for u in valid_uids if u in user_ovl_filter and user_ovl_filter[u] < SWEEP_OVL_MAX)}")
+        log(f"    users EXCLUDED (ovl >= {SWEEP_OVL_MAX}): "
+            f"{sum(1 for u in valid_uids if u in user_ovl_filter and user_ovl_filter[u] >= SWEEP_OVL_MAX)}")
+    """Run selection for each q in SWEEP_Q_VALUES and save summary."""
+    sweep_results = []
+    for q in SWEEP_Q_VALUES:
+        user_key, cohort_key = _q_to_gate_keys(q)
+        log(f"--- q={q} (user={user_key}, cohort={cohort_key}) ---")
+        gauss_cache: Dict[str, Dict] = {}
+        n_excluded_ovl = 0
+        for uid in valid_uids:
+            # Apply OVL filter: drop users with high mean OVL
+            if SWEEP_OVL_MAX is not None and uid in user_ovl_filter:
+                if user_ovl_filter[uid] >= SWEEP_OVL_MAX:
+                    n_excluded_ovl += 1
+                    continue
+            stats = users_all[uid]
+            try:
+                gauss_cache[uid] = _gauss_from_stats_q(stats, user_key)
+            except (ValueError, FloatingPointError) as e:
+                continue
+        log(f"  gauss_cache: {len(gauss_cache)} users (OVL-excluded: {n_excluded_ovl})")
+        cohort_gates_map = _build_cohort_gates_q(
+            stage04, user_key, cohort_key, set(gauss_cache.keys())
+        )
+        log(f"  cohort_gates (after OVL filter): {len(cohort_gates_map)} ASINs")
+        result = _select_for_q(asin_to_Zq, gauss_cache, cohort_gates_map, q)
+        sweep_results.append(result)
+        log(f"  → n_sel={result['n_selections']} n_asins={result['n_asins_with_at_least_1_query']} "
+            f"ge2={result['n_asins_ge2_unique_queries']} ge3={result['n_asins_ge3_unique_queries']}")
+
+    out = {
+        "config": {
+            "top_k_per_user": TOP_K_PER_USER,
+            "semantic_sim_threshold": SEMANTIC_SIM_THRESHOLD,
+            "q_values": SWEEP_Q_VALUES,
+            "gate_strategy": SWEEP_GATE_STRATEGY,
+            "ovl_max": SWEEP_OVL_MAX,
+            "stage04_source": str(STAGE04_PATH),
+            "pool_path": str(POOL_PATH),
+            "n_pool_asins": len(asin_to_Zq),
+            "n_valid_users": len(valid_uids),
+            "note": "Sweep counts without MiniLM semantic_sim filter; "
+                    "top-K queries per user come from distinct (uid,query) "
+                    "pairs so filter impact is minor.",
+        },
+        "sweep": sweep_results,
+    }
+    # strategy + ovl-suffixed output to avoid overwriting
+    ovl_suffix = f"_ovl{int(SWEEP_OVL_MAX * 100):02d}" if SWEEP_OVL_MAX is not None else "_ovlNone"
+    out_path = SWEEP_OUT_PATH.with_name(
+        SWEEP_OUT_PATH.stem + f"_{SWEEP_GATE_STRATEGY}" + ovl_suffix + SWEEP_OUT_PATH.suffix
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w") as f:
+        json.dump(out, f, indent=2, ensure_ascii=False)
+    log(f"=== sweep done, saved -> {out_path} ===")
+    # Pretty table
+    print()
+    print(f"{'q':>6} {'user_key':<26} {'gate_T':>8} {'n_sel':>8} "
+          f"{'n_asins':>8} {'ge1':>5} {'ge2':>5} {'ge3':>5} "
+          f"{'uq_dist':<30} {'tq_dist':<30}")
+    sample_uid = next(iter(valid_uids)) if valid_uids else None
+    sample_stats = users_all.get(sample_uid, {}) if sample_uid else {}
+    for r in sweep_results:
+        uk = r["user_gate_key"]
+        gate_T = sample_stats.get(uk, "n/a") if sample_uid else "n/a"
+        print(f"{r['q']:>6.2f} {uk:<26} {gate_T:>8.3f} "
+              f"{r['n_selections']:>8d} "
+              f"{r['n_asins_with_at_least_1_query']:>8d} "
+              f"{r['n_asins_ge1_unique_queries']:>5d} "
+              f"{r['n_asins_ge2_unique_queries']:>5d} "
+              f"{r['n_asins_ge3_unique_queries']:>5d} "
+              f"{str(r['n_unique_user_queries_per_asin_dist']):<30} "
+              f"{str(r['n_total_queries_per_asin_dist']):<30}")
 
 
 # ============================================================================
@@ -189,18 +506,19 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
         raise ValueError("Stage 04 artifact must be a JSON object")
 
     users_all = stage04.get("users")
-    stage04_cohorts = stage04.get("cohort_gates")
+    # 2026-09-15: 严格只读嵌入在 user_gaussian_stats.json 里的 cohort_gates
+    # (gate_T = d2_q95)。独立 result/04_gaussian/cohort_gates_q*.json 是
+    # pre-restructure 旧产物 (gate_T = 真实 d2_qNN), 跟 d2_q95 语义不兼容, 不读。
     config = stage04.get("config")
+    stage04_cohorts = stage04.get("cohort_gates")
+    if not isinstance(stage04_cohorts, dict) or not stage04_cohorts:
+        raise ValueError(
+            "Stage 04 artifact missing embedded 'cohort_gates' — "
+            "rerun 04_gaussian/fit_per_user_gaussian.py to regenerate")
     if not isinstance(users_all, dict) or not users_all:
         raise ValueError("Stage 04 artifact requires non-empty 'users'")
     if not isinstance(stage04_cohorts, dict) or not stage04_cohorts:
         raise ValueError("Stage 04 artifact requires non-empty 'cohort_gates'")
-    if not isinstance(config, dict) or config.get("gate_quantile") != FILTER_Q:
-        raise ValueError(
-            f"Stage 04 gate_quantile must equal FILTER_Q={FILTER_Q}; "
-            f"got {None if not isinstance(config, dict) else config.get('gate_quantile')}"
-        )
-
     # Stage 04 Gaussian 完整性 = sigma_inv 存在 ∧ mu/sigma_inv/d2_q95 全部 finite
     valid_uids: set = set()
     for uid, stats in users_all.items():
@@ -210,7 +528,7 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
             continue
         mu = stats.get("mu")
         sigma_inv = stats.get("sigma_inv")
-        gate_t = stats.get("d2_q95")  # Stage 04 stores gate_quantile value in d2_q95 field
+        gate_t = stats.get("d2_q05_theoretical")  # 2026-09-15: 理论 χ²(d, 0.05)
         if not isinstance(mu, list) or len(mu) not in (16, 32):
             continue
         if not isinstance(sigma_inv, list) or len(sigma_inv) not in (16, 32):
@@ -240,10 +558,16 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
         cohort_gates[asin] = {}
         for uid in fitted_uids:
             gate = source_cohort[uid]
-            if not isinstance(gate, dict) or "gate_T" not in gate:
-                raise ValueError(f"Stage 04 cohort {asin}/{uid} missing gate_T")
-            if not np.isfinite(float(gate["gate_T"])):
-                raise ValueError(f"Stage 04 cohort {asin}/{uid} gate_T not finite")
+            # 2026-09-15: 严格只读 gate_T_low_theoretical (理论 χ²(d, 0.05), 低侧 rejection)
+            if not isinstance(gate, dict) or "gate_T_low_theoretical" not in gate:
+                raise ValueError(
+                    f"Stage 04 cohort {asin}/{uid} missing gate_T_low_theoretical — "
+                    "rerun 04_gaussian/rewrite_gaussian_with_theoretical_gate.py")
+            if not np.isfinite(float(gate["gate_T_low_theoretical"])):
+                raise ValueError(
+                    f"Stage 04 cohort {asin}/{uid} gate_T_low_theoretical not finite")
+            gate = dict(gate)
+            gate["gate_T"] = float(gate["gate_T_low_theoretical"])
             cohort_gates[asin][uid] = gate
 
     log(f"  loaded Stage 04 Gaussian: {len(users_all)} users, "
@@ -259,8 +583,20 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
 
 
 def _gauss_from_stats(stats: Dict) -> Dict:
-    """把 Stage 04 user stats 转成 selection 所需的 numpy 结构。"""
-    required = ("mu", "sigma_inv", "n", "n_val", "d2_q50", "d2_q95")
+    """把 Stage 04 user stats 转成 selection 所需的 numpy 结构。
+
+    2026-09-15: gate_T 用理论 χ²(d, q=0.05) (来自 rewrite_gaussian_with_theoretical_gate.py
+    写入的 d2_q05_theoretical 字段), 不依赖 val 句子的经验 percentile。
+    含义 (FILTER_Q=0.05): q=0.05 → gate_T = 7.96 → D²(z_q, μ_u) ≤ 7.96 才算"核心内"。
+    含义 (FILTER_Q=0.95): q=0.95 → gate_T = d2_q95 (empirical val-sentence 95th pct D²)。
+    """
+    if FILTER_Q == 0.05:
+        q_key = "d2_q05_theoretical"
+    elif FILTER_Q == 0.95:
+        q_key = "d2_q95"
+    else:
+        raise ValueError(f"FILTER_Q={FILTER_Q} not supported in _gauss_from_stats")
+    required = ("mu", "sigma_inv", "n", "n_val", "d2_q50", q_key)
     missing = [key for key in required if key not in stats]
     if missing:
         raise ValueError(f"Stage 04 user stats missing fields: {missing}")
@@ -270,7 +606,7 @@ def _gauss_from_stats(stats: Dict) -> Dict:
         raise ValueError(f"invalid Gaussian mu shape: {mu.shape}")
     if inv_sigma.ndim != 2 or inv_sigma.shape[0] != inv_sigma.shape[1] or inv_sigma.shape[0] not in (16, 32):
         raise ValueError(f"invalid Gaussian sigma_inv shape: {inv_sigma.shape}")
-    gate_T = float(stats["d2_q95"])
+    gate_T = float(stats[q_key])
     if not np.all(np.isfinite(mu)) or not np.all(np.isfinite(inv_sigma)):
         raise FloatingPointError("non-finite Stage 04 Gaussian parameters")
     if not np.isfinite(gate_T) or gate_T < 0:
@@ -280,7 +616,7 @@ def _gauss_from_stats(stats: Dict) -> Dict:
         "inv_sigma": inv_sigma,
         "gate_T": gate_T,
         "d2_val_median": float(stats["d2_q50"]),
-        "gate_quantile": FILTER_Q,
+        "gate_quantile": q_key,
         "n": int(stats["n"]),
         "n_val": int(stats["n_val"]),
     }
@@ -330,6 +666,80 @@ def maha_d2(Z: np.ndarray, mu: np.ndarray, inv_sigma: np.ndarray) -> np.ndarray:
 def maha_d2_one(z: np.ndarray, mu: np.ndarray, inv_sigma: np.ndarray) -> float:
     d = z - mu
     return float(d @ inv_sigma @ d)
+
+
+# ============================================================================
+# Log-likelihood under full-covariance Gaussian (NEW framework)
+# ============================================================================
+
+def _build_inv_chol(inv_sigma: np.ndarray) -> np.ndarray:
+    """L_invT = (chol(inv_sigma))^{-T} such that Σ = L^{-T} L^{-1}."""
+    try:
+        L = scipy.linalg.cholesky(inv_sigma, lower=True)
+        return scipy.linalg.inv(L).T
+    except Exception:
+        cov = np.linalg.pinv(inv_sigma) + 1e-8 * np.eye(inv_sigma.shape[0])
+        L = scipy.linalg.cholesky(cov, lower=True)
+        return scipy.linalg.inv(L).T
+
+
+def _log_prob_batch(Z: np.ndarray, mu: np.ndarray,
+                    L_invT: np.ndarray) -> np.ndarray:
+    """Vectorized log N(Z | mu, Σ) given L_invT = (chol(Σ^{-1}))^{-T}.
+
+    Z: (n_samples, d)
+    mu: (d,)
+    L_invT: (d, d)
+    Returns: (n_samples,)
+    """
+    d = mu.shape[0]
+    diff = Z - mu
+    wh = diff @ L_invT
+    mahal = np.sum(wh * wh, axis=1)
+    log_det = -2.0 * np.sum(np.log(np.abs(np.diag(L_invT)) + 1e-12))
+    return -0.5 * (d * np.log(2 * np.pi) - log_det + mahal)
+
+
+def log_prob_one(z: np.ndarray, mu: np.ndarray,
+                 L_invT: np.ndarray) -> float:
+    """Scalar log N(z | mu, Σ)."""
+    d = z - mu
+    mahal = float(d @ L_invT @ L_invT.T @ d)
+    log_det = -2.0 * np.sum(np.log(np.abs(np.diag(L_invT)) + 1e-12))
+    return -0.5 * (mu.shape[0] * np.log(2 * np.pi) - log_det + mahal)
+
+
+def _load_per_pair_ovl(ovl_path: Path) -> dict:
+    """Load per-(target_uid, competitor_uid) OVL from gaussian_ovl_matrix.json.
+
+    Returns pair_ovl: dict of "targetUID_competitorUID" -> float OVL.
+    """
+    if not ovl_path.exists():
+        return {}
+    with open(ovl_path) as f:
+        data = json.load(f)
+    pair_ovl = data.get("pair_ovl", {})
+    # Normalize: if key is i_j (index-based), we need per-user_mean_ovl instead
+    # Since same-ASIN OVL stores keys as uid_uid strings, use as-is
+    return pair_ovl
+
+
+def _get_ovl(target_uid: str, competitor_uid: str,
+             per_pair_ovl: dict, per_user_ovl: dict) -> float:
+    """Get OVL between target and competitor.
+
+    Prefer per-pair OVL if available; fall back to min of per-user means.
+    """
+    key = f"{target_uid}_{competitor_uid}"
+    rev_key = f"{competitor_uid}_{target_uid}"
+    if key in per_pair_ovl:
+        return float(per_pair_ovl[key])
+    if rev_key in per_pair_ovl:
+        return float(per_pair_ovl[rev_key])
+    # Fallback: geometric mean of per-user means (symmetric approximation)
+    t_ovl = float(per_user_ovl.get(target_uid, 0.5))
+    c_ovl = float(per_user_ovl.get(competitor_uid, 0.5))
+    return (t_ovl + c_ovl) * 0.5
 
 
 # ============================================================================
@@ -416,6 +826,8 @@ def main_pipeline():
     log("=== syntax_select_mahalanobis_gate ===")
     log(f"  FILTER_Q={FILTER_Q}  MIN_PROFILE={MIN_PROFILE_SENTS} "
         f"MIN_VAL={MIN_VAL_SENTS}  SMOKE={SMOKE}")
+    if SWEEP_Q_VALUES:
+        log(f"  SWEEP mode active: q_values={SWEEP_Q_VALUES}")
     require_cuda()
     if not USE_SINGLE_FIT:
         raise NotImplementedError(
@@ -424,6 +836,11 @@ def main_pipeline():
 
     # --- 加载 Stage 04 canonical artifact (per-user Gaussian + cohort gates) ---
     user_stats, cohort_gates_map, stage04_config = load_stage04()
+
+    # OVL filtering disabled in pure D² gate mode
+    high_ovl_uids: set = set()
+    user_ovl: Dict[str, float] = {}
+    log(f"  OVL filtering disabled (OVL_MAX={OVL_MAX}), high-OVL excluded: 0")
 
     # --- 加载冻结 encoder + vocab (用于编码 candidate queries) ---
     encoder = load_encoder()
@@ -469,6 +886,12 @@ def main_pipeline():
     # Stage 04 Gaussian 只转换一次；task 仅保存轻量引用。
     gauss_cache = {uid: _gauss_from_stats(stats)
                    for uid, stats in user_stats.items()}
+
+    # 预计算 L_invT（用于 log-likelihood 计算）
+    log(f"  Pre-computing L_invT for {len(gauss_cache)} users ...")
+    for uid, g in gauss_cache.items():
+        g["L_invT"] = _build_inv_chol(g["inv_sigma"].astype(np.float64))
+
     asin_work: Dict[str, Dict] = {}
     tasks: List[Dict] = []
     skipped: List[Dict] = []
@@ -479,22 +902,22 @@ def main_pipeline():
         if cohort is None:
             skipped.append({"asin": asin, "reason": "no_stage04_cohort"})
             continue
-        target_uids = sorted(cohort)
-        cohort_uids = list(cohort)
-        for uid in target_uids:
-            if uid not in gauss_cache:
-                raise ValueError(f"Stage 04 cohort {asin} references missing user {uid}")
-            if len(cohort_uids) < 2:
-                raise ValueError(f"Stage 04 cohort {asin} has no competitor for {uid}")
+        # Filter out high-OVL users from both target and competitor positions
+        all_cohort_uids = [uid for uid in sorted(cohort)
+                           if uid not in high_ovl_uids]
+        if len(all_cohort_uids) < 2:
+            skipped.append({"asin": asin, "reason": f"cohort_too_small_after_ovl_filter({len(all_cohort_uids)})"})
+            continue
+        # All remaining cohort users are valid targets and competitors
         asin_work[asin] = {
             "asin": asin,
             "attrs": entry["attrs"],
             "candidates": entry["candidates"],
-            "uids": target_uids,
-            "cohort_uids": cohort_uids,
+            "uids": all_cohort_uids,          # targets: all non-high-OVL users
+            "cohort_uids": all_cohort_uids,   # competitors: same set
             "cohort": cohort,
         }
-        for uid in target_uids:
+        for uid in all_cohort_uids:
             tasks.append({"asin": asin, "uid": uid, "tier": "stage04_fitted"})
     log(f"  tasks: {len(tasks)}  skipped: {len(skipped)}")
     if not tasks:
@@ -534,6 +957,29 @@ def main_pipeline():
         asin: Z_unique[asin_text_indices[asin]]
         for asin in asins
     }
+    if SWEEP_Q_VALUES:
+        # SWEEP mode: 重用已编码的 Z_q 跑 sweep, 然后退出 (不写 selected_queries.json).
+        # Load Stage 04 raw artifact for sweep.
+        with open(STAGE04_PATH) as f:
+            _stage04 = json.load(f)
+        _users_all = _stage04.get("users", {})
+        _valid_uids: set = set()
+        for _uid, _stats in _users_all.items():
+            if not isinstance(_stats, dict) or "sigma_inv" not in _stats:
+                continue
+            _mu = _stats.get("mu"); _si = _stats.get("sigma_inv")
+            if not isinstance(_mu, list) or len(_mu) not in (16, 32): continue
+            if not isinstance(_si, list) or len(_si) not in (16, 32): continue
+            if not all(isinstance(r, list) and len(r) in (16, 32) for r in _si): continue
+            _flat = [float(x) for r in _si for x in r]
+            if not all(np.isfinite(x) for x in _flat): continue
+            if not all(np.isfinite(float(x)) for x in _mu): continue
+            if not all(f"d2_q{n:02d}_theoretical" in _stats for n in (5, 50, 75, 95)):
+                continue
+            _valid_uids.add(_uid)
+        log(f"  SWEEP: {len(_users_all)} users, {len(_valid_uids)} valid for sweep")
+        _run_sweep(asin_to_Zq, _stage04, _users_all, _valid_uids)
+        return
     asin_to_cand_text = {
         asin: asin_work[asin]["candidates"]
         for asin in asins
@@ -543,6 +989,7 @@ def main_pipeline():
     selections: List[Dict] = []
     no_pass: List[Dict] = []
     all_d2_round0: List[float] = []
+    all_margin_round0: List[float] = []
     n_gate_pass_round0 = 0
     n_cand_round0 = 0
 
@@ -552,82 +999,184 @@ def main_pipeline():
         cands_src = asin_to_cand_text[asin]
         uids = work["uids"]
         cohort_uids = work["cohort_uids"]
-        mu = np.stack([gauss_cache[uid]["mu"] for uid in cohort_uids], axis=0)
-        inv_sigma = np.stack([gauss_cache[uid]["inv_sigma"] for uid in cohort_uids], axis=0)
-        gate_Ts = np.asarray([float(work["cohort"][uid]["gate_T"])
-                              for uid in cohort_uids], dtype=np.float64)
-        for idx, uid in enumerate(cohort_uids):
-            expected_gate = gauss_cache[uid]["gate_T"]
-            if not np.isfinite(expected_gate) or not np.isclose(
-                    gate_Ts[idx], expected_gate, atol=1e-5, rtol=0.0):
-                raise ValueError(f"gate_T mismatch for {asin}/{uid}")
-        diff = Z_q[:, None, :] - mu[None, :, :]
-        # 先做与 maha_d2_one 相同的左乘，再做行向量内积，
-        # 比三操作数 einsum 更接近旧标量路径的累加顺序。
-        left = np.einsum("cud,ude->cue", diff, inv_sigma)
-        d2_matrix = np.sum(left * diff, axis=2, dtype=np.float32)
-        if not np.all(np.isfinite(d2_matrix)):
-            raise FloatingPointError(f"non-finite candidate D² for ASIN {asin}")
-        # 仅对接近 gate 的元素用旧标量公式复核，消除不同 BLAS 累加顺序
-        # 在边界处造成的判定漂移；远离边界的主体仍保持全向量化。
-        near_gate = np.abs(d2_matrix - gate_Ts[None, :]) <= D2_BOUNDARY_RECHECK_TOL
-        boundary_pairs = np.argwhere(near_gate)
-        for candidate_i, cohort_i in boundary_pairs:
-            candidate_i = int(candidate_i)
-            cohort_i = int(cohort_i)
-            d2_matrix[candidate_i, cohort_i] = maha_d2_one(
-                Z_q[candidate_i], gauss_cache[cohort_uids[cohort_i]]["mu"],
-                gauss_cache[cohort_uids[cohort_i]]["inv_sigma"]
+        n_cohort = len(cohort_uids)
+        n_cand = Z_q.shape[0]
+
+        if USE_LIKELIHOOD_MARGIN:
+            # === NEW FRAMEWORK: OVL-adaptive likelihood margin ===
+            # 1. Compute log-likelihood matrix (n_cand, n_cohort)
+            log_like_matrix = np.zeros((n_cand, n_cohort), dtype=np.float64)
+            L_invT_stack = np.stack(
+                [gauss_cache[uid]["L_invT"].astype(np.float64) for uid in cohort_uids],
+                axis=0
             )
-        target_index = {uid: i for i, uid in enumerate(cohort_uids)}
-        for uid in uids:
-            target_i = target_index[uid]
-            target_d2 = d2_matrix[:, target_i]
-            gate_T = float(gate_Ts[target_i])
-            target_inside = target_d2 <= gate_T
-            if SMOKE:
-                near_target = np.abs(target_d2 - gate_T) <= D2_BOUNDARY_RECHECK_TOL
-                for boundary_i in np.flatnonzero(near_target):
-                    scalar_target_d2 = maha_d2_one(
-                        Z_q[boundary_i], gauss_cache[uid]["mu"],
-                        gauss_cache[uid]["inv_sigma"]
-                    )
-                    target_inside[boundary_i] = scalar_target_d2 <= gate_T
-            competitor_inside = d2_matrix <= gate_Ts[None, :]
-            competitor_inside[:, target_i] = False
-            pass_unique_mask = target_inside & (~competitor_inside.any(axis=1))
-            cand_records = []
-            for i, (c, d, in_gate, unique) in enumerate(zip(
-                    cands_src, target_d2, target_inside, pass_unique_mask)):
-                if unique:
-                    fail_stage = None
-                elif not in_gate:
-                    fail_stage = "target_outside_core"
+            mu_stack = np.stack(
+                [gauss_cache[uid]["mu"].astype(np.float64) for uid in cohort_uids],
+                axis=0
+            )
+            for ci in range(n_cohort):
+                log_like_matrix[:, ci] = _log_prob_batch(
+                    Z_q.astype(np.float64),
+                    mu_stack[ci],
+                    L_invT_stack[ci]
+                )
+
+            # 2. Build OVL matrix for this cohort (n_cohort, n_cohort)
+            ovl_matrix = np.ones((n_cohort, n_cohort), dtype=np.float64) * 0.5
+            for ti, t_uid in enumerate(cohort_uids):
+                for vi, v_uid in enumerate(cohort_uids):
+                    if ti == vi:
+                        ovl_matrix[ti, vi] = 0.0
+                    else:
+                        ovl_matrix[ti, vi] = _get_ovl(t_uid, v_uid, per_pair_ovl, user_ovl)
+
+            # 3. Per-target selection: margin > gamma0 + lambda * OVL
+            target_index = {uid: i for i, uid in enumerate(cohort_uids)}
+            for uid in uids:
+                t_i = target_index[uid]
+                log_like_t = log_like_matrix[:, t_i:t_i+1]   # (n_cand, 1)
+
+                # Margin matrix: (n_cand, n_cohort)
+                margin_matrix = log_like_t - log_like_matrix   # M(q;t,v) for all v
+                # Required margin per competitor: gamma0 + lambda * OVL(t,v)
+                required = GAMMA0 + LAMBDA * ovl_matrix[t_i, :]   # (n_cohort,)
+                # Query passes if ALL margins exceed required (set self-margin to +inf)
+                margin_matrix[:, t_i] = np.inf
+                required[t_i] = -np.inf
+                pass_mask = np.all(margin_matrix > required[None, :], axis=1)
+
+                # Record per-candidate
+                best_margin = -np.inf
+                best_record = None
+                for i, (c, log_lt) in enumerate(zip(cands_src, log_like_matrix[:, t_i])):
+                    in_gate = bool(pass_mask[i])
+                    if in_gate:
+                        margin = float(log_lt - np.max(
+                            np.where(np.arange(n_cohort) != t_i,
+                                     log_like_matrix[i, :], -np.inf)
+                        ))
+                        if margin > best_margin:
+                            best_margin = margin
+                            # Compute per-competitor margins for record
+                            comp_margins = {
+                                cohort_uids[vi]: float(
+                                    log_like_matrix[i, t_i] - log_like_matrix[i, vi]
+                                )
+                                for vi in range(n_cohort) if vi != t_i
+                            }
+                            best_record = {
+                                "text": c["text"],
+                                "log_like_target": float(log_like_matrix[i, t_i]),
+                                "content_pass": bool(c.get("pass", False)),
+                                "round": 0,
+                                "pass_gate": True,
+                                "margin": margin,
+                                "comp_margins": comp_margins,
+                                "mean_ovl": user_ovl.get(uid, None),
+                            }
+                    all_margin_round0.append(float(log_like_matrix[i, t_i]))
+
+                n_cand_round0 += n_cand
+                if best_record is not None:
+                    gauss = gauss_cache[uid]
+                    selections.append({
+                        "asin": asin, "uid": uid,
+                        "tier": "stage04_fitted",
+                        "selection_mode": "likelihood_margin_ovl_adaptive",
+                        "gate_quantile_used": gauss["gate_quantile"],
+                        "n_profile": gauss["n"], "n_val": gauss["n_val"],
+                        "gate_T": gauss["gate_T"],
+                        "d2_val_median": gauss["d2_val_median"],
+                        "selected": best_record,
+                        "n_pass_unique": int(pass_mask.sum()),
+                        "n_competitors": n_cohort - 1,
+                        "n_candidates": n_cand,
+                        "gamma0": GAMMA0,
+                        "lambda": LAMBDA,
+                        "competitors": [
+                            {"uid": cohort_uids[vi], "ovl": float(ovl_matrix[t_i, vi]),
+                             "required_margin": float(required[vi])}
+                            for vi in range(n_cohort) if vi != t_i
+                        ],
+                    })
                 else:
-                    competitor_indices = np.flatnonzero(competitor_inside[i])
-                    if len(competitor_indices) == 0:
-                        raise RuntimeError(
-                            f"exclusive gate state inconsistent for {asin}/{uid}/{i}"
+                    no_pass.append({
+                        "asin": asin, "uid": uid,
+                        "tier": "stage04_fitted",
+                        "selection_mode": "likelihood_margin_ovl_adaptive",
+                        "gate_quantile_used": gauss_cache[uid]["gate_quantile"],
+                        "gate_T": gauss_cache[uid]["gate_T"],
+                        "n_candidates": n_cand,
+                        "reason": "no_margin_pass",
+                        "n_competitors": n_cohort - 1,
+                    })
+        else:
+            # === LEGACY D² gate ===
+            mu = np.stack([gauss_cache[uid]["mu"] for uid in cohort_uids], axis=0)
+            inv_sigma = np.stack([gauss_cache[uid]["inv_sigma"] for uid in cohort_uids], axis=0)
+            gate_Ts = np.asarray([float(work["cohort"][uid]["gate_T"])
+                                  for uid in cohort_uids], dtype=np.float64)
+            for idx, uid in enumerate(cohort_uids):
+                expected_gate = gauss_cache[uid]["gate_T"]
+                if not np.isfinite(expected_gate) or not np.isclose(
+                        gate_Ts[idx], expected_gate, atol=1e-5, rtol=0.0):
+                    raise ValueError(f"gate_T mismatch for {asin}/{uid}")
+            diff = Z_q[:, None, :] - mu[None, :, :]
+            left = np.einsum("cud,ude->cue", diff, inv_sigma)
+            d2_matrix = np.sum(left * diff, axis=2, dtype=np.float32)
+            if not np.all(np.isfinite(d2_matrix)):
+                raise FloatingPointError(f"non-finite candidate D² for ASIN {asin}")
+            near_gate = np.abs(d2_matrix - gate_Ts[None, :]) <= D2_BOUNDARY_RECHECK_TOL
+            boundary_pairs = np.argwhere(near_gate)
+            for candidate_i, cohort_i in boundary_pairs:
+                candidate_i = int(candidate_i)
+                cohort_i = int(cohort_i)
+                d2_matrix[candidate_i, cohort_i] = maha_d2_one(
+                    Z_q[candidate_i], gauss_cache[cohort_uids[cohort_i]]["mu"],
+                    gauss_cache[cohort_uids[cohort_i]]["inv_sigma"]
+                )
+            target_index = {uid: i for i, uid in enumerate(cohort_uids)}
+            for uid in uids:
+                target_i = target_index[uid]
+                target_d2 = d2_matrix[:, target_i]
+                gate_T = float(gate_Ts[target_i])
+                target_inside = target_d2 <= gate_T
+                competitor_inside = d2_matrix <= gate_Ts[None, :]
+                competitor_inside[:, target_i] = False
+                pass_unique_mask = target_inside & (~competitor_inside.any(axis=1))
+                cand_records = []
+                for i, (c, d, in_gate, unique) in enumerate(zip(
+                        cands_src, target_d2, target_inside, pass_unique_mask)):
+                    if unique:
+                        fail_stage = None
+                    elif not in_gate:
+                        fail_stage = "target_outside_core"
+                    else:
+                        competitor_indices = np.flatnonzero(competitor_inside[i])
+                        if len(competitor_indices) == 0:
+                            raise RuntimeError(
+                                f"exclusive gate state inconsistent for {asin}/{uid}/{i}"
+                            )
+                        fail_stage = (
+                            f"inside_competitor_core:"
+                            f"{cohort_uids[int(competitor_indices[0])] }"
                         )
-                    fail_stage = (
-                        f"inside_competitor_core:"
-                        f"{cohort_uids[int(competitor_indices[0])] }"
-                    )
-                cand_records.append({
-                    "text": c["text"],
-                    "d2": float(d),
-                    "pass_gate": bool(in_gate),
-                    "content_pass": bool(c.get("pass", False)),
-                    "round": 0,
-                    "pass_unique": bool(unique),
-                    "P_pass": None,
-                    "fail_stage": fail_stage,
-                })
-            unique_indices = np.flatnonzero(pass_unique_mask)
-            unique_pass = [cand_records[int(i)] for i in unique_indices]
-            n_cand_round0 += len(cand_records)
-            n_gate_pass_round0 += int(target_inside.sum())
-            all_d2_round0.extend(float(d) for d in target_d2)
+                    cand_records.append({
+                        "text": c["text"],
+                        "d2": float(d),
+                        "pass_gate": bool(in_gate),
+                        "content_pass": bool(c.get("pass", False)),
+                        "round": 0,
+                        "pass_unique": bool(unique),
+                        "P_pass": None,
+                        "fail_stage": fail_stage,
+                        "mean_ovl": user_ovl.get(uid, None),
+                    })
+                unique_indices = np.flatnonzero(pass_unique_mask)
+                unique_pass = [cand_records[int(i)] for i in unique_indices]
+                n_cand_round0 += len(cand_records)
+                n_gate_pass_round0 += int(target_inside.sum())
+                all_d2_round0.extend(float(d) for d in target_d2)
             gauss = gauss_cache[uid]
             if SMOKE:
                 competitors = {
@@ -669,17 +1218,22 @@ def main_pipeline():
                     )
 
             if unique_pass:
-                best = min(unique_pass, key=lambda c: c["d2"])
+                # 2026-09-15: 保留 top-K unique_pass queries（D² 升序），让 ASIN 内
+                # 多 query 累积。每个 (asin, uid) 最多贡献 K 条 query 给 ASIN。
+                sorted_unique = sorted(unique_pass, key=lambda c: c["d2"])
+                top_k_queries = sorted_unique[:TOP_K_PER_USER]
+                best = top_k_queries[0]
                 selections.append({
                     "asin": asin, "uid": uid,
                     "tier": "stage04_fitted",
-                    "selection_mode": "single_fit_unique" if USE_SINGLE_FIT
-                                      else "bootstrap_core_exclusive",
+                    "selection_mode": "single_fit_unique_topk" if USE_SINGLE_FIT
+                                      else "bootstrap_core_exclusive_topk",
                     "gate_quantile_used": gauss["gate_quantile"],
                     "n_profile": gauss["n"], "n_val": gauss["n_val"],
                     "gate_T": gate_T,
                     "d2_val_median": gauss["d2_val_median"],
                     "selected": best,
+                    "top_k_queries": top_k_queries,
                     "n_pass_unique": len(unique_pass),
                     "n_pass_gate": int(target_inside.sum()),
                     "n_competitors": len(uids) - 1,
@@ -689,7 +1243,6 @@ def main_pipeline():
                     "candidates": cand_records,
                 })
             else:
-                from collections import Counter
                 fail_stages = [c["fail_stage"] for c in cand_records
                                if c.get("fail_stage")]
                 no_pass.append({
@@ -707,11 +1260,11 @@ def main_pipeline():
                     "n_competitors": len(uids) - 1,
                     "candidates": cand_records,
                 })
-        del diff, d2_matrix, mu, inv_sigma, gate_Ts
+            if not USE_LIKELIHOOD_MARGIN:
+                del diff, d2_matrix, mu, inv_sigma, gate_Ts
 
     d2_arr = np.array(all_d2_round0, dtype=np.float64)
     no_pass_total = no_pass + no_pass_unreliable
-    from collections import Counter
     asin_user_count = Counter(s["asin"] for s in selections)
     n_asins_ge2_unique_users = sum(1 for c in asin_user_count.values() if c >= 2)
     n_unique_asins = len(asin_user_count)
@@ -728,6 +1281,10 @@ def main_pipeline():
         "round0_d2_p75": float(np.quantile(d2_arr, 0.75)) if len(d2_arr) else None,
         "n_unique_asins": n_unique_asins,
         "n_asins_ge2_unique_users": n_asins_ge2_unique_users,
+        "n_high_ovl_excluded": len(high_ovl_uids),
+        "ovl_max_threshold": OVL_MAX,
+        "n_users_with_ovl_data": len(user_ovl),
+        "top_k_per_user": TOP_K_PER_USER,
     }
     log(f"  SUMMARY: tasks={summary['n_tasks']} selected={summary['n_selected']} "
         f"no_pass={summary['n_no_pass']} (unreliable={summary['n_unreliable_no_select']}) "
@@ -737,19 +1294,23 @@ def main_pipeline():
         f"round0_d2_median={summary['round0_d2_median']} "
         f"unique_asins={n_unique_asins} asins_ge2_unique_users={n_asins_ge2_unique_users}")
 
-    # 按 ASIN 聚合 (≥2 users)
+    # 按 ASIN 聚合 (全部 selected users，≥1 即可)
+    # 2026-09-15: 每个 (asin, uid) task 可贡献 top-K queries
+    # (见 selections[*].top_k_queries); 展开为 (uid, query) pairs.
     asin_to_users_out = defaultdict(list)
     for s in selections:
-        asin_to_users_out[s["asin"]].append({
-            "uid": s["uid"],
-            "query": s["selected"]["text"],
-        })
+        top_q = s.get("top_k_queries") or [s["selected"]]
+        for q in top_q:
+            asin_to_users_out[s["asin"]].append({
+                "uid": s["uid"],
+                "query": q["text"],
+                "d2": q.get("d2"),
+            })
     asin_blocks = [
         {"asin": a, "users": us}
         for a, us in sorted(asin_to_users_out.items())
-        if len(us) >= 2
+        if len(us) >= 1
     ]
-
     # 同一 ASIN unique query max pair cos ≥ 0.9 (MiniLM)
     from sentence_transformers import SentenceTransformer
     st_device = ENCODE_DEVICE
@@ -775,18 +1336,33 @@ def main_pipeline():
                 max_cos = float(cos[0, 1])
             else:
                 mask = ~torch.eye(n, dtype=torch.bool, device=cos.device)
-                max_cos = float(cos[mask].max())
-            if max_cos >= SEMANTIC_SIM_THRESHOLD:
-                blk["max_pair_cos"] = max_cos
+                masked = cos[mask]
+                if masked.numel() == 0:
+                    max_cos = 0.0
+                else:
+                    max_cos = float(masked.max())
+            if max_cos >= SEMANTIC_SIM_THRESHOLD or n == 1:
+                blk["max_pair_cos"] = max_cos if n > 1 else None
                 filtered_blocks.append(blk)
         if offset != len(flat_texts):
             raise RuntimeError("MiniLM block/text offset mismatch")
     asin_blocks = filtered_blocks
     n_asin_blocks = len(asin_blocks)
+    # 2026-09-15: 报告 ASIN 内 unique query 覆盖
+    from collections import Counter as _C
+    _q_per_asin = [len(set(u["query"] for u in b["users"])) for b in asin_blocks]
+    _uq_counts = _C(_q_per_asin)
+    n_asins_ge2_unique_queries = sum(1 for n in _q_per_asin if n >= 2)
+    n_asins_ge3_unique_queries = sum(1 for n in _q_per_asin if n >= 3)
+    summary["n_asin_blocks_kept_after_sim_filter"] = n_asin_blocks
+    summary["n_asins_ge2_unique_queries"] = n_asins_ge2_unique_queries
+    summary["n_asins_ge3_unique_queries"] = n_asins_ge3_unique_queries
+    summary["unique_queries_per_asin_distribution"] = dict(sorted(_uq_counts.items()))
+    log(f"  POST-AGG: asin_blocks={n_asin_blocks} asins_ge2_unique_queries={n_asins_ge2_unique_queries} asins_ge3_unique_queries={n_asins_ge3_unique_queries} uq_dist={dict(_uq_counts)}")
 
     out = {
         "config": {
-            "filter_q": FILTER_Q,
+            "filter_q": 0.05,
             "min_profile_sents": MIN_PROFILE_SENTS,
             "min_val_sents": MIN_VAL_SENTS,
             "smoke": SMOKE,
@@ -799,8 +1375,9 @@ def main_pipeline():
             "pool_path": str(POOL_PATH),
             "spacy_model": SPACY_MODEL,
             "note": "per-user Gaussian and cohort membership are loaded from "
-                    "the Stage 04 canonical artifact; gate_T=d2_q95; "
-                    "single_fit_unique uses fixed full-covariance fits",
+                    "the Stage 04 canonical artifact; gate_T=d2_q05_theoretical; "
+                    "single_fit_unique_topk keeps top-K unique_pass queries per (asin, uid) "
+                    "(default K=3) to increase per-ASIN unique query count",
         },
         "summary": summary,
         "selections": asin_blocks,

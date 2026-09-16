@@ -89,7 +89,7 @@ MIN_DOC_FREQ = 2              # vocab filter: rule must appear in ≥ N docs
 
 # Smoke mode: 200 users, 5 epochs — 验证 16d encoder 训练能收敛
 # smoke=True 时 N_USERS_LIMIT=200, SUP_EPOCHS=5, STRICT_PATIENCE=3
-SMOKE = False                 # 2026-09-14: 16d full run — 验证 q20 gate 后 O_u ≤ 0.05
+SMOKE = False                # 2026-09-15: 80/20 full run (smoke 验证已通过)
 N_USERS_LIMIT_SMOKE = 200
 SMOKE_EPOCHS = 5
 SMOKE_PATIENCE = 3
@@ -108,9 +108,11 @@ SUP_LOG_EVERY = 5
 SUP_TRAIN_FRAC = 0.8       # per-user train/val split (hash-based)
 
 # Stage: strict (no-leakage supervised encoder + 早停)
-STRICT_VAL_FRAC = 0.15      # 从 profile 中再留 15% 做早停 validation
+STRICT_VAL_FRAC = 0.15      # LEGACY: 仅 stage_strict() 从 profile 内切 15% 早停 val
 STRICT_SEED = 42
 STRICT_PATIENCE = 10        # val_acc plateau N epochs → early stop
+# (2026-09-15: stage_strict3 改为 2-way 80/20, val(20%) 直接作为早停 + held-out,
+#  不再从 profile 内切 15%; z_test/test_idx 字段保留为 val 别名以维持下游契约)
 
 
 def log(msg: str) -> None:
@@ -348,7 +350,11 @@ def _npz_text(npz, key: str) -> str:
 
 
 def _validate_strict3_artifact(npz, cache: dict) -> dict:
-    """严格验证 strict3 的 UID、分区、shape、finite 和来源 manifest。"""
+    """严格验证 strict3 的 UID、分区、shape、finite 和来源 manifest (2-way 80/20)。
+
+    2026-09-15: strict3 改为 2-way 80/20, z_test/test_idx 是 z_val/val_idx 的别名,
+    partition 验证只看 profile+val, test 字段要求存在但形状需与 val 对齐。
+    """
     uid_list = cache["uid_list"]
     user_n_sents = cache["user_n_sents"]
     meta = cache["meta"]
@@ -358,7 +364,7 @@ def _validate_strict3_artifact(npz, cache: dict) -> dict:
     artifact_uids = [str(uid) for uid in np.asarray(npz["uid_list"]).tolist()]
     if artifact_uids != uid_list:
         raise ValueError("strict3 artifact UID order/content differs from cache")
-    for key in ("z_profile", "z_val", "z_test"):
+    for key in ("z_profile", "z_val"):
         if key not in npz:
             raise ValueError(f"strict3 artifact missing {key}")
         z = np.asarray(npz[key])
@@ -366,10 +372,23 @@ def _validate_strict3_artifact(npz, cache: dict) -> dict:
             raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
         if not np.isfinite(z).all():
             raise ValueError(f"strict3 {key} contains NaN/Inf")
+    # z_test 是 z_val 别名, 校验形状对齐
+    if "z_test" not in npz or "test_idx" not in npz:
+        raise ValueError("strict3 artifact missing z_test/test_idx alias fields")
+    z_test = np.asarray(npz["z_test"])
+    if (z_test.ndim != 2 or z_test.shape[1] != SUP_Z_DIM
+            or z_test.shape[0] != np.asarray(npz["z_val"]).shape[0]):
+        raise ValueError(f"strict3 z_test must equal z_val shape, "
+                         f"got z_test {z_test.shape} vs z_val "
+                         f"{np.asarray(npz['z_val']).shape}")
+    if not np.array_equal(np.asarray(npz["test_idx"], dtype=np.int64),
+                          np.asarray(npz["val_idx"], dtype=np.int64)):
+        raise ValueError("strict3 test_idx must equal val_idx (alias)")
+    if not np.isfinite(z_test).all():
+        raise ValueError("strict3 z_test contains NaN/Inf")
     _validate_split_indices(npz, uid_list, user_n_sents)
     for z_key, idx_key in (("z_profile", "profile_idx"),
-                           ("z_val", "val_idx"),
-                           ("z_test", "test_idx")):
+                           ("z_val", "val_idx")):
         if np.asarray(npz[z_key]).shape[0] != np.asarray(npz[idx_key]).size:
             raise ValueError(f"strict3 {z_key}/{idx_key} row count mismatch")
     if _npz_text(npz, "cohort_fingerprint") != meta["sentence_source_fingerprint"]:
@@ -378,9 +397,9 @@ def _validate_strict3_artifact(npz, cache: dict) -> dict:
         raise ValueError("strict3 UID layout fingerprint mismatch")
     if _npz_text(npz, "vocab_fingerprint") != meta["vocab_fingerprint"]:
         raise ValueError("strict3 vocabulary fingerprint mismatch")
-    expected_split = _three_way_split(uid_list, SENT_CACHE)
-    for key, expected_dict in zip(("profile_idx", "val_idx", "test_idx"),
-                                  expected_split):
+    expected_train, expected_val = _two_way_split(uid_list, SENT_CACHE)
+    for key, expected_dict in (("profile_idx", expected_train),
+                               ("val_idx", expected_val)):
         expected_idx = np.asarray(sorted(i for values in expected_dict.values()
                                          for i in values), dtype=np.int64)
         actual_idx = np.asarray(npz[key], dtype=np.int64)
@@ -480,10 +499,13 @@ def _validate_cache_manifest(meta: dict, expected_manifest: dict) -> None:
 
 def _validate_split_indices(npz: dict, uid_list: list[str],
                             user_n_sents: list[int]) -> None:
-    """验证 strict3 三路索引非负、互斥且完整覆盖句子。"""
+    """验证 strict3 索引非负、无重复且 profile+val 完整覆盖句子。
+    2026-09-15: strict3 改为 2-way 80/20, test_idx 是 val_idx 别名,
+    partition 验证只看 profile+val (互斥且穷尽), test 字段不参与。
+    """
     n_total = int(sum(user_n_sents))
     arrays = []
-    for key in ("profile_idx", "val_idx", "test_idx"):
+    for key in ("profile_idx", "val_idx"):
         if key not in npz:
             raise ValueError(f"strict3 artifact missing {key}")
         index = np.asarray(npz[key], dtype=np.int64)
@@ -857,32 +879,29 @@ def _profile_test_split(uid_list, cache, sent_cache_path):
     return profile_idx, test_idx
 
 
-def _three_way_split(uid_list, sent_cache_path,
-                     profile_cut=5, val_cut=7, mod=10, salt: str = None):
-    """SHA1 hash 3-way split: profile (b<5) / val (5≤b<7) / test (7≤b<10)。
+def _two_way_split(uid_list, sent_cache_path,
+                    train_cut=8, mod=10, salt: str = None):
+    """SHA1 hash 2-way split: train (b<8) / val (b≥8)。
 
-    默认 50/20/30 (profile/val/test)。三个桶互斥且穷尽,encoder 只见过
-    profile (内部 15% 早停),val 完全未参与训练,test 完全未参与 encoder 训
-    练或阈值选择。
+    默认 80/20 (train/val)。两个桶互斥且穷尽,encoder 只见过 train,
+    val 完全未参与训练并作为早停 + 下游 held-out eval (per user 2026-09-15:
+    不需要 test, val 直接作 held-out)。
     """
     with open(sent_cache_path, "rb") as f:
         uid_to_sents = pickle.load(f)
-    profile_dict = {u: [] for u in uid_list}
+    train_dict = {u: [] for u in uid_list}
     val_dict = {u: [] for u in uid_list}
-    test_dict = {u: [] for u in uid_list}
     sent_off = 0
     for ui, uid in enumerate(uid_list):
         sents = list(uid_to_sents[uid])
         for si, s in enumerate(sents):
             b = hash_bucket(s, mod=mod, salt=salt)
-            if b < profile_cut:
-                profile_dict[uid].append(sent_off + si)
-            elif b < val_cut:
-                val_dict[uid].append(sent_off + si)
+            if b < train_cut:
+                train_dict[uid].append(sent_off + si)
             else:
-                test_dict[uid].append(sent_off + si)
+                val_dict[uid].append(sent_off + si)
         sent_off += len(sents)
-    return profile_dict, val_dict, test_dict
+    return train_dict, val_dict
 
 
 # ============================================================================
@@ -1267,20 +1286,22 @@ STRICT3_TEST_FRAC = 0.30
 
 
 def stage_strict3(out_path: Path = None):
-    """统一 3-way strict encoder — Stage 03/04 合并后唯一 encoder。
+    """统一 2-way strict encoder (80/20, no separate test) — Stage 03/04 合并后唯一 encoder。
 
-    协议 (与 stage_strict 完全同 encoder 架构, 唯一变化是 split 维度):
-      1. SHA1 hash mod=10 三段 split → profile (b<5) / val (5≤b<7) / test (b≥7)
-         = 50% / 20% / 30%
-      2. encoder 只用 profile 训练 (内部 15% hash 做早停)
-      3. freeze encoder, 编码 profile + val + test
+    协议 (per user 2026-09-15: 80% 拟合 / 20% val, 不需要 test):
+      1. SHA1 hash mod=10 两段 split → profile (b<8, 80%) / val (b≥8, 20%)
+      2. encoder 用 profile 训练, val(20%) 直接作早停 + 下游 held-out
+         (不再从 profile 内切 15% inner val)
+      3. freeze encoder, 编码 profile + val (no separate test)
       4. 用 strict3 encoder 再编码全部 n_sents 句子 → z_all (供 04_gaussian 消费)
       5. 输出 strict3_embeddings.npz + strict3_encoder.pt
+         (z_test / test_idx 字段保留为 val 别名, 以维持下游 04_gaussian/analysis
+          既有契约不破; 这些脚本读到的 test 实质就是 val held-out)
 
     输出:
       pcfg_cache/strict3_embeddings.npz
-        z_profile (n_p, 32) + z_val (n_v, 32) + z_test (n_t, 32)
-        profile_idx / val_idx / test_idx (global sent indices)
+        z_profile (n_p, z_dim) + z_val (n_v, z_dim) + z_test (=z_val 别名)
+        profile_idx / val_idx / test_idx (=val_idx 别名)
         uid_list (cohort uids)
       pcfg_cache/strict3_encoder.pt (best ckpt)
       pcfg_cache/supervised_embeddings.npy (full z_all, 兼容旧 consumer)
@@ -1289,7 +1310,7 @@ def stage_strict3(out_path: Path = None):
       04_gaussian/fit_per_user_gaussian.py 读 strict3_embeddings.npz
         → fit raw full Σ_u + ASIN cohort gates → user_gaussian_stats.json
       analysis/syntax_pcfg_adaptive_eval.py 读 strict3_embeddings.npz
-        → τ sweep + held-out eval → syntax_pcfg_adaptive.json
+        → τ sweep + val held-out eval → syntax_pcfg_adaptive.json
     """
     t0 = time.time()
     canonical_npz = CACHE_DIR / "strict3_embeddings.npz"
@@ -1320,38 +1341,44 @@ def stage_strict3(out_path: Path = None):
             key in npz and _npz_text(npz, key) == manifest.get(key)
             for key in source_keys)
         if source_matches and npz_source_matches:
-            _validate_strict3_artifact(npz, cache)
-            z_all = np.load(CACHE_DIR / "supervised_embeddings.npy",
-                            allow_pickle=False)
-            _verify_cached_embeddings_cohort(
-                CACHE_DIR / "supervised_embeddings.npy",
-                cache["meta"]["n_total_sents"], SUP_Z_DIM, "stage_strict3")
-            if _array_fingerprint(z_all) != manifest.get("z_all_fingerprint"):
-                raise ValueError("strict3 supervised embedding fingerprint mismatch")
-            checkpoint = torch.load(canonical_pt, map_location="cpu")
-            if not isinstance(checkpoint, dict) or not isinstance(
-                    checkpoint.get("config"), dict):
-                raise ValueError("strict3 checkpoint missing config")
-            config = checkpoint["config"]
-            expected_config = {
-                "vocab_size": int(cache["sent_csr"].shape[1]),
-                "z_dim": SUP_Z_DIM,
-                "hidden": list(SUP_HIDDEN),
-                "dropout": SUP_DROPOUT,
-                "n_users": len(cache["uid_list"]),
-            }
-            for key, expected_value in expected_config.items():
-                if config.get(key) != expected_value:
-                    raise ValueError(
-                        f"strict3 checkpoint mismatch at {key}: "
-                        f"cached={config.get(key)!r}, current={expected_value!r}")
-            for key in source_keys:
-                if checkpoint.get(key) != manifest.get(key):
-                    raise ValueError(
-                        f"strict3 checkpoint source mismatch at {key}")
-            log(f"skip stage_strict3: {len(cached)} cached output(s) exist, "
-                f"validated cohort={cache['meta']['sentence_source_fingerprint'][:12]}...")
-            return
+            try:
+                _validate_strict3_artifact(npz, cache)
+            except ValueError as ve:
+                log(f"  strict3 cached artifact validation failed "
+                    f"(contract drift, likely 50/20/30 → 80/20): {ve}")
+                log("  forcing rebuild for current cohort contract")
+            else:
+                z_all = np.load(CACHE_DIR / "supervised_embeddings.npy",
+                                allow_pickle=False)
+                _verify_cached_embeddings_cohort(
+                    CACHE_DIR / "supervised_embeddings.npy",
+                    cache["meta"]["n_total_sents"], SUP_Z_DIM, "stage_strict3")
+                if _array_fingerprint(z_all) != manifest.get("z_all_fingerprint"):
+                    raise ValueError("strict3 supervised embedding fingerprint mismatch")
+                checkpoint = torch.load(canonical_pt, map_location="cpu")
+                if not isinstance(checkpoint, dict) or not isinstance(
+                        checkpoint.get("config"), dict):
+                    raise ValueError("strict3 checkpoint missing config")
+                config = checkpoint["config"]
+                expected_config = {
+                    "vocab_size": int(cache["sent_csr"].shape[1]),
+                    "z_dim": SUP_Z_DIM,
+                    "hidden": list(SUP_HIDDEN),
+                    "dropout": SUP_DROPOUT,
+                    "n_users": len(cache["uid_list"]),
+                }
+                for key, expected_value in expected_config.items():
+                    if config.get(key) != expected_value:
+                        raise ValueError(
+                            f"strict3 checkpoint mismatch at {key}: "
+                            f"cached={config.get(key)!r}, current={expected_value!r}")
+                for key in source_keys:
+                    if checkpoint.get(key) != manifest.get(key):
+                        raise ValueError(
+                            f"strict3 checkpoint source mismatch at {key}")
+                log(f"skip stage_strict3: {len(cached)} cached output(s) exist, "
+                    f"validated cohort={cache['meta']['sentence_source_fingerprint'][:12]}...")
+                return
         log("  stale strict3 artifacts detected; rebuilding for current cohort")
 
     if missing:
@@ -1378,18 +1405,17 @@ def stage_strict3(out_path: Path = None):
         return torch.tensor(rows.toarray(), dtype=torch.float32,
                             device=device)
 
-    # === Step 1: 3-way split (50/20/30) ===
-    profile_dict, val_dict, test_dict = _three_way_split(
-        uid_list, SENT_CACHE)
+    # === Step 1: 2-way split (80% train / 20% val, no separate test) ===
+    train_dict, val_dict = _two_way_split(uid_list, SENT_CACHE)
     profile_idx = np.asarray(
-        sorted(i for v in profile_dict.values() for i in v),
+        sorted(i for v in train_dict.values() for i in v),
         dtype=np.int64)
     val_idx = np.asarray(
         sorted(i for v in val_dict.values() for i in v), dtype=np.int64)
-    test_idx = np.asarray(
-        sorted(i for v in test_dict.values() for i in v), dtype=np.int64)
-    log(f"profile={len(profile_idx)}, val={len(val_idx)}, "
-        f"test={len(test_idx)} (50/20/30 hash)")
+    # test 字段作为 val 别名保留, 下游契约不变
+    test_idx = val_idx
+    log(f"profile={len(profile_idx)} (80%), val={len(val_idx)} (20%), "
+        f"test=val_alias (no separate test split)")
 
     # per-sentence user labels
     user_labels = np.zeros(n_sents, dtype=np.int64)
@@ -1404,12 +1430,12 @@ def stage_strict3(out_path: Path = None):
     np.random.seed(STRICT_SEED)
 
     rng_local = np.random.default_rng(STRICT_SEED)
-    perm = rng_local.permutation(len(profile_idx))
-    n_val_inner = int(len(profile_idx) * STRICT_VAL_FRAC)
-    profile_val_inner = profile_idx[perm[:n_val_inner]]
-    profile_train_inner = profile_idx[perm[n_val_inner:]]
-    log(f"encoder train: {len(profile_train_inner)} train + "
-        f"{len(profile_val_inner)} inner val (来自 profile)")
+    # 2026-09-15: 2-way 80/20, profile 直接作 encoder 训练数据,
+    # val (20%) 直接作早停 + held-out, 不再从 profile 内部切 15% inner val
+    profile_train_inner = profile_idx
+    profile_val_inner = val_idx
+    log(f"encoder train: {len(profile_train_inner)} train (80%) + "
+        f"{len(profile_val_inner)} held-out val (20%)")
 
     model = _SupEncoder(V, SUP_Z_DIM, SUP_HIDDEN, n_users,
                         SUP_DROPOUT).to(device)
@@ -1505,9 +1531,10 @@ def stage_strict3(out_path: Path = None):
 
     z_profile = encode_all(profile_idx)
     z_val = encode_all(val_idx)
-    z_test = encode_all(test_idx)
+    # test = val 别名, 复用同一嵌入以维持下游契约
+    z_test = z_val
     log(f"encoded: z_profile {z_profile.shape}, z_val {z_val.shape}, "
-        f"z_test {z_test.shape}")
+        f"z_test = z_val (alias, no separate test split)")
 
     # === Step 4: 用同一 encoder 编码全部 n_sents → z_all (给 04_gaussian 消费) ===
     all_idx = np.arange(n_sents, dtype=np.int64)
@@ -1552,12 +1579,12 @@ def stage_strict3(out_path: Path = None):
     log(f"wrote → {canonical_npz.name} + {canonical_pt.name} + "
         f"{strict3_manifest_path.name}")
 
-    log(f"\n=== STRICT3 (3-way 50/20/30) SUMMARY "
+    log(f"\n=== STRICT3 (2-way 80/20, test=val alias) SUMMARY "
         f"(z={SUP_Z_DIM}, N={n_users}) ===")
-    log(f"  profile sents: {len(profile_idx)}")
-    log(f"  val sents:     {len(val_idx)}")
-    log(f"  test sents:    {len(test_idx)}")
-    log(f"  z_all sents:   {n_sents}")
+    log(f"  profile (train) sents: {len(profile_idx)} (80%)")
+    log(f"  val sents:              {len(val_idx)} (20%, held-out)")
+    log(f"  test sents:             {len(test_idx)} (=val alias)")
+    log(f"  z_all sents:            {n_sents}")
     log(f"=== Total: {time.time()-t0:.1f}s ===")
 
 
@@ -1570,7 +1597,7 @@ def stage_strict3(out_path: Path = None):
 def main_pipeline():
     """Canonical pipeline: 串行执行全部 stage (统一 encoder, 单次训练)。
 
-    链路: cache → strict3 (3-way 50/20/30 split + CE encoder, 唯一一次训练)
+    链路: cache → strict3 (2-way 80/20 split + CE encoder, 唯一一次训练, 无独立 test)
     Gaussian fitting / adaptive eval 一律外迁:
       - 04_gaussian/fit_per_user_gaussian.py   per-user raw full Σ + ASIN cohort gates
       - analysis/syntax_pcfg_adaptive_eval.py  τ sweep + held-out eval (读 strict3)

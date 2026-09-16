@@ -814,8 +814,11 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
     rr_key = f"{retr_name}_RR"
     if q_embeds is None:
         raise ValueError(f"q_embeds must not be None for {retr_name} (canonical sim09 reference required)")
+    n_total_asins = len(by_asin)
+    n_asins_with_ge2 = sum(1 for qs in by_asin.values() if len(qs) >= 2)
+    n_asins_with_ge3 = sum(1 for qs in by_asin.values() if len(qs) >= 3)
     n = sum(len(qs) for qs in by_asin.values())
-    log(f"  ({retr_name}) computing sim09 pairs on {n} queries...")
+    log(f"  ({retr_name}) {n_total_asins} ASINs ({n_asins_with_ge2} with >=2 queries, {n_asins_with_ge3} with >=3 queries) ...")
     selected_qs = [q for qs in by_asin.values() for q in qs]
     qid_to_embed = {id(q): q_embeds[i] for i, q in enumerate(selected_qs)}
     f1_list, f5_list, f10_list, f20_list = [], [], [], []
@@ -858,6 +861,9 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
             rr_std_list.append(rr_std)
         n_asins_used += 1
     return {
+        "n_total_asins": n_total_asins,
+        "n_asins_with_ge2_queries": n_asins_with_ge2,
+        "n_asins_with_ge3_queries": n_asins_with_ge3,
         "n_asins": n_asins_used,
         "Hit@1_FlipRate_mean": float(np.mean(f1_list)) if f1_list else None,
         "Hit@5_FlipRate_mean": float(np.mean(f5_list)) if f5_list else None,
