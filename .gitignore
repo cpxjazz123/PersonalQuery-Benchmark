@@ -74,3 +74,4 @@ result/**/*.gz
 =0.23.1
 slurm-*.out
 .codex/
+result/**/*.pre_theoretical_gate
