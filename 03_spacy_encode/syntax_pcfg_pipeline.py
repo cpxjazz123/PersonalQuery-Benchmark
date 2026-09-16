@@ -57,6 +57,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from scipy.sparse import csr_matrix, load_npz, save_npz
+import scipy.sparse as sp
+from sklearn.decomposition import TruncatedSVD
 
 # ============================================================================
 # 常量 (硬编码, per Rule 3)
@@ -1634,4 +1636,289 @@ def main_pipeline():
 
 
 if __name__ == "__main__":
-    main_pipeline()
+    # 2026-09-16: dispatch between canonical Stage 03a (strict3 encoder)
+    # and Stage 03b (trainable SVD+MLP encoder)
+    if os.environ.get("TG_STAGE") == "03b":
+        _svdmlp_main()
+    else:
+        main_pipeline()
+
+
+# ===========================================================================
+# Stage 03b: trainable SVD+MLP encoder (merged from train_svd_mlp_encoder.py)
+# 通过 TG_STAGE=03b 环境变量激活
+# ===========================================================================
+
+
+def _svdmlp_log(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def _svdmlp_set_seed(seed: int) -> None:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _svdmlp_load_sparse() -> tuple[sp.csr_matrix, np.ndarray, list[str]]:
+    log(f"loading {SENT_VECTORS_NPZ}")
+    X = sp.load_npz(SENT_VECTORS_NPZ).astype(np.float32)
+    log(f"  X: {X.shape} nnz={X.nnz} density={X.nnz/(X.shape[0]*X.shape[1]):.5f}")
+    strict3 = np.load(STRICT3_NPZ, allow_pickle=False)
+    uid_list = [str(u) for u in strict3["uid_list"]]
+    with open(CACHE_DIR / "user_n_sents.json") as f:
+        user_n_sents = [int(n) for n in json.load(f)]
+    uid_per_row = np.repeat(
+        np.arange(len(uid_list), dtype=np.int64), user_n_sents
+    )
+    assert uid_per_row.shape[0] == X.shape[0]
+    return X, uid_per_row, uid_list
+
+
+def _svdmlp_fit_svd(X: sp.csr_matrix, sample_n: int) -> tuple[np.ndarray, np.ndarray]:
+    set_seed(SEED)
+    rng = np.random.default_rng(SEED)
+    if sample_n < X.shape[0]:
+        idx = rng.choice(X.shape[0], size=sample_n, replace=False)
+        Xs = X[idx]
+        log(f"  SVD fit on subsample: {Xs.shape}")
+    else:
+        Xs = X
+    if ROW_NORMALIZE:
+        t0 = time.time()
+        norms = np.asarray(sp.linalg.norm(Xs, axis=1)).ravel()
+        norms[norms == 0] = 1.0
+        Xs = sp.diags(1.0 / norms) @ Xs
+        log(f"    normalize done {time.time() - t0:.1f}s")
+    svd = TruncatedSVD(
+        n_components=SVD_DIM, n_iter=SVD_N_ITER,
+        algorithm="randomized", random_state=SEED,
+    )
+    t0 = time.time()
+    svd.fit(Xs)
+    log(f"  SVD fit: components={svd.components_.shape} "
+        f"evr_sum={svd.explained_variance_ratio_.sum():.4f} "
+        f"elapsed={time.time() - t0:.1f}s")
+    return svd.components_.astype(np.float32), svd.explained_variance_ratio_.astype(np.float32)
+
+
+def _svdmlp_project_to_svd(X: sp.csr_matrix, Vt: np.ndarray,
+                   batch_rows: int = 500_000) -> np.ndarray:
+    N = X.shape[0]
+    out = np.empty((N, SVD_DIM), dtype=np.float32)
+    t0 = time.time()
+    if ROW_NORMALIZE:
+        norms = np.asarray(sp.linalg.norm(X, axis=1)).ravel()
+        norms[norms == 0] = 1.0
+    for s in range(0, N, batch_rows):
+        e = min(s + batch_rows, N)
+        chunk = X[s:e]
+        if ROW_NORMALIZE:
+            chunk = sp.diags(1.0 / norms[s:e]) @ chunk
+        out[s:e] = (chunk @ Vt.T).astype(np.float32)
+    log(f"  full projection: {out.shape}  total={time.time() - t0:.1f}s")
+    return out
+
+
+class _svdmlp_StyleMLP(nn.Module):
+    def __init__(self, in_dim: int, hidden: int, out_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden, out_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        z = self.net(x)
+        return F.normalize(z, dim=-1)
+
+
+def _svdmlp_info_nce_loss(anchor, positive, negative, temperature):
+    pos_sim = (anchor * positive).sum(dim=-1, keepdim=True) / temperature
+    neg_sim = torch.einsum("bd,bnd->bn", anchor, negative) / temperature
+    logits = torch.cat([pos_sim, neg_sim], dim=-1)
+    targets = torch.zeros(logits.size(0), dtype=torch.long, device=logits.device)
+    return F.cross_entropy(logits, targets)
+
+
+def _svdmlp_encode_all(mlp: StyleMLP, z_svd_all: np.ndarray,
+               batch_size: int = 16_384) -> np.ndarray:
+    mlp.eval()
+    out = np.empty((z_svd_all.shape[0], MLP_OUT), dtype=np.float32)
+    with torch.no_grad():
+        for s in range(0, z_svd_all.shape[0], batch_size):
+            e = min(s + batch_size, z_svd_all.shape[0])
+            x = torch.from_numpy(z_svd_all[s:e]).to(DEVICE)
+            out[s:e] = mlp(x).cpu().numpy()
+    return out
+
+
+def _svdmlp_main() -> None:
+    _svdmlp_set_seed(SEED)
+    _svdmlp_log(f"device={DEVICE}  SVD_DIM={SVD_DIM}  MLP_OUT={MLP_OUT}")
+
+    X, uid_per_row, uid_list = _svdmlp_load_sparse()
+
+    _svdmlp_log("=== Step 1: TruncatedSVD on profile rows ===")
+    t0 = time.time()
+    Vt, evr = _svdmlp_fit_svd(X, sample_n=SVD_SAMPLE_N)
+    np.savez_compressed(
+        OUT_SVD, Vt=Vt, explained_variance_ratio=evr,
+        svd_dim=SVD_DIM, row_normalize=ROW_NORMALIZE,
+    )
+    _svdmlp_log(f"  saved {OUT_SVD}")
+
+    _svdmlp_log("=== Step 2: project all 4.34M rows through SVD ===")
+    z_svd_all = _svdmlp_project_to_svd(X, Vt)
+    del X
+    _svdmlp_log(f"  z_svd_all: {z_svd_all.shape}  total={time.time()-t0:.1f}s")
+
+    _svdmlp_log("=== Step 3: train contrastive MLP ===")
+    strict3 = np.load(STRICT3_NPZ, allow_pickle=False)
+    profile_idx = np.asarray(strict3["profile_idx"], dtype=np.int64)
+    val_idx = np.asarray(strict3["val_idx"], dtype=np.int64)
+    test_idx = np.asarray(strict3["test_idx"], dtype=np.int64)
+
+    z_svd_profile = z_svd_all[profile_idx]
+    uid_profile = uid_per_row[profile_idx]
+    _svdmlp_log(f"  z_svd_profile: {z_svd_profile.shape}  uid unique={len(np.unique(uid_profile))}")
+
+    mlp = StyleMLP(SVD_DIM, MLP_HIDDEN, MLP_OUT).to(DEVICE)
+    optimizer = torch.optim.Adam(mlp.parameters(), lr=LR)
+    rng = np.random.default_rng(SEED)
+
+    for epoch in range(N_EPOCHS):
+        if MLP_SAMPLE_N < z_svd_profile.shape[0]:
+            sample_idx = rng.choice(
+                z_svd_profile.shape[0], size=MLP_SAMPLE_N, replace=False
+            )
+            zp_sub = z_svd_profile[sample_idx]
+            uid_sub = uid_profile[sample_idx]
+        else:
+            zp_sub = z_svd_profile
+            uid_sub = uid_profile
+        _svdmlp_log(f"  epoch {epoch+1}/{N_EPOCHS}  sample_z={zp_sub.shape}")
+
+        # 按 uid 聚合
+        uid_to_rows_sub: dict[int, np.ndarray] = {}
+        order = np.argsort(uid_sub, kind="stable")
+        sorted_uids = uid_sub[order]
+        offsets = np.concatenate(
+            ([0], np.cumsum(np.bincount(sorted_uids, minlength=len(uid_list))))
+        )
+        for u in range(len(uid_list)):
+            if offsets[u + 1] > offsets[u]:
+                uid_to_rows_sub[u] = order[offsets[u]:offsets[u + 1]]
+        valid = np.array(
+            [u for u, rs in uid_to_rows_sub.items() if len(rs) >= 2],
+            dtype=np.int64,
+        )
+        _svdmlp_log(f"    trainable users: {len(valid)}")
+
+        # === 全向量化: flat row table + schedule ===
+        valid_arr = valid
+        row_per_uid = uid_to_rows_sub
+        flat_offsets = np.concatenate(
+            ([0], np.cumsum([len(row_per_uid[int(u)]) for u in valid_arr]))
+        )
+        total_rows = int(flat_offsets[-1])
+        flat_rows = np.empty(total_rows, dtype=np.int64)
+        for i, u in enumerate(valid_arr):
+            flat_rows[flat_offsets[i]:flat_offsets[i + 1]] = row_per_uid[int(u)]
+        row_lens_valid = np.diff(flat_offsets).astype(np.int64)
+
+        # schedule: 整 epoch 的 anchor/neg uid (一次生成, 整 epoch 复用)
+        schedule_anchor_uids = rng.integers(
+            0, len(valid_arr), size=(BATCHES_PER_EPOCH, BATCH_SENTS)
+        ).astype(np.int64)
+        schedule_neg_uids = rng.integers(
+            0, len(valid_arr),
+            size=(BATCHES_PER_EPOCH, BATCH_SENTS, N_NEG),
+        ).astype(np.int64)
+        eq_mask = (schedule_neg_uids == schedule_anchor_uids[:, :, None])
+        schedule_neg_uids = np.where(
+            eq_mask, (schedule_neg_uids + 1) % len(valid_arr), schedule_neg_uids
+        )
+
+        epoch_loss = 0.0
+        n_batches = 0
+        t_ep = time.time()
+
+        for bi in range(BATCHES_PER_EPOCH):
+            anchor_uids = schedule_anchor_uids[bi]                # (B,)
+            neg_uid_idx = schedule_neg_uids[bi]                   # (B, N_NEG)
+
+            # anchor/positive: 同 uid 抽 2 个不同 row (vectorized)
+            u_lens = row_lens_valid[anchor_uids]
+            seg_offsets = flat_offsets[anchor_uids]
+            u_lens_safe = np.maximum(u_lens, 1)
+            r1 = rng.integers(0, u_lens_safe)
+            r2 = (r1 + 1 + rng.integers(0, np.maximum(u_lens - 1, 1))) % u_lens_safe
+            anchor_rows = flat_rows[seg_offsets + r1]
+            positive_rows = flat_rows[seg_offsets + r2]
+
+            # neg rows
+            neg_u_lens = row_lens_valid[neg_uid_idx]
+            neg_seg_offsets = flat_offsets[neg_uid_idx]
+            neg_u_lens_safe = np.maximum(neg_u_lens, 1)
+            neg_r = rng.integers(0, neg_u_lens_safe)
+            neg_rows = flat_rows[neg_seg_offsets + neg_r]
+
+            z_anchor = torch.from_numpy(zp_sub[anchor_rows]).to(DEVICE)
+            z_pos = torch.from_numpy(zp_sub[positive_rows]).to(DEVICE)
+            z_neg_svd = torch.from_numpy(
+                zp_sub[neg_rows.reshape(-1)]
+            ).to(DEVICE).view(BATCH_SENTS, N_NEG, SVD_DIM)
+
+            anchor_emb = mlp(z_anchor)
+            pos_emb = mlp(z_pos)
+            neg_emb = mlp(z_neg_svd.view(-1, SVD_DIM)).view(
+                BATCH_SENTS, N_NEG, MLP_OUT
+            )
+
+            loss = info_nce_loss(anchor_emb, pos_emb, neg_emb, TEMPERATURE)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += float(loss.detach())
+            n_batches += 1
+        _svdmlp_log(f"    avg loss={epoch_loss/max(n_batches,1):.4f}  "
+            f"elapsed={time.time()-t_ep:.1f}s")
+
+    _svdmlp_log("=== Step 4: encode all rows through MLP ===")
+    z_all = encode_all(mlp, z_svd_all)
+    _svdmlp_log(f"  z_all: {z_all.shape}")
+
+    _svdmlp_log("=== Step 5: save svd_mlp_embeddings.npz ===")
+    z_profile = z_all[profile_idx]
+    z_val = z_all[val_idx]
+    z_test = z_all[test_idx]
+    np.savez_compressed(
+        OUT_EMB_NPZ,
+        z_profile=z_profile.astype(np.float32),
+        z_val=z_val.astype(np.float32),
+        z_test=z_test.astype(np.float32),
+        profile_idx=profile_idx,
+        val_idx=val_idx,
+        test_idx=test_idx,
+        uid_list=np.asarray(uid_list, dtype=object),
+        z_dim=np.int64(MLP_OUT),
+        svd_dim=np.int64(SVD_DIM),
+        cohort_fingerprint=strict3["cohort_fingerprint"],
+        uid_layout_fingerprint=strict3["uid_layout_fingerprint"],
+        vocab_fingerprint=strict3["vocab_fingerprint"],
+    )
+    _svdmlp_log(f"  wrote {OUT_EMB_NPZ}")
+
+    torch.save({
+        "state_dict": mlp.state_dict(),
+        "config": {
+            "in_dim": SVD_DIM, "hidden": MLP_HIDDEN, "out_dim": MLP_OUT,
+            "n_epochs": N_EPOCHS, "temperature": TEMPERATURE, "lr": LR,
+        },
+    }, OUT_MLP_PT)
+    _svdmlp_log(f"  wrote {OUT_MLP_PT}")
+    _svdmlp_log(f"DONE  total_time={time.time()-t0:.1f}s")
+

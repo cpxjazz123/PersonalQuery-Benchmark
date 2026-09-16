@@ -43,6 +43,11 @@ import scipy.linalg
 from collections import defaultdict, Counter
 import spacy
 import torch
+import os
+import os
+import scipy.sparse as sp
+import torch.nn as nn
+import torch.nn.functional as F
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 sys.path.insert(0, str(REPO_ROOT))
@@ -562,7 +567,7 @@ def load_stage04() -> tuple[Dict[str, Dict], Dict[str, Dict[str, Dict]], dict]:
             if not isinstance(gate, dict) or "gate_T_low_theoretical" not in gate:
                 raise ValueError(
                     f"Stage 04 cohort {asin}/{uid} missing gate_T_low_theoretical — "
-                    "rerun 04_gaussian/rewrite_gaussian_with_theoretical_gate.py")
+                    "rerun 04_gaussian/fit_per_user_gaussian.py (auto-adds theoretical gates at end of Stage 04)")
             if not np.isfinite(float(gate["gate_T_low_theoretical"])):
                 raise ValueError(
                     f"Stage 04 cohort {asin}/{uid} gate_T_low_theoretical not finite")
@@ -1394,5 +1399,356 @@ def main_pipeline():
     log("=== syntax_select_mahalanobis_gate DONE ===")
 
 
+
+
+# ===========================================================================
+# Stage 08b: trainable svd_mlp Gaussian selection (merged from svdmlp_select_demo.py)
+# 通过 TG_GAUSSIAN_SOURCE=trainable_svdmlp 环境变量激活
+# ===========================================================================
+
+
+def _svdmlp_log(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+# ============================================================================
+# Stage 03b 同款规则提取器 + StyleMLP
+# ============================================================================
+
+def _svdmlp_extract_struct_rules(doc):
+    """从 spaCy Doc 提取 dependency + POS rules (D4/D3/P3), 与 syntax_pcfg_pipeline.py 同源。"""
+    n = len(doc)
+    if n < 3:
+        return []
+    pos = [t.pos_ for t in doc]
+    heads_abs = [t.head.i for t in doc]
+    deps = [t.dep_ for t in doc]
+    rs = set()
+    for i in range(n):
+        h = heads_abs[i]
+        if h == i:
+            continue
+        gh = heads_abs[h]
+        gp_pos = pos[gh] if gh != h else "ROOT"
+        rs.add(f"D4|{gp_pos}|{pos[h]}|{deps[i]}|{pos[i]}")
+        rs.add(f"D3|{pos[h]}|{deps[i]}|{pos[i]}")
+    for i in range(n - 2):
+        rs.add(f"P3|{pos[i]}|{pos[i+1]}|{pos[i+2]}")
+    return list(rs)
+
+
+class _svdmlp_StyleMLP(nn.Module):
+    def __init__(self, in_dim: int, hidden: int, out_dim: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden, out_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        z = self.net(x)
+        return F.normalize(z, dim=-1)
+
+
+def _svdmlp_encode_queries(
+    queries: list[str],
+    vocab: list[str],
+    Vt: np.ndarray,
+    mlp: StyleMLP,
+    nlp,
+) -> np.ndarray:
+    """queries -> 64d z (svd_mlp encoder 完整流程).
+
+    流程:
+      1) spaCy.pipe (batch=BATCH_SIZE) -> docs
+      2) extract_struct_rules -> 每句 set of rule_strs
+      3) rule_str -> vocab index -> sparse row (1, V)
+      4) row-normalize -> SVD 投影 (256d) -> MLP (64d) -> L2 norm
+    """
+    V = len(vocab)
+    rule2idx = {r: i for i, r in enumerate(vocab)}
+    N = len(queries)
+    log(f"  encoding {N} queries with spaCy batch={BATCH_SIZE}")
+    t0 = time.time()
+    rows_data: list[tuple[int, dict[int, float]]] = []
+    for batch_start in range(0, N, BATCH_SIZE):
+        batch_texts = queries[batch_start:batch_start + BATCH_SIZE]
+        for di, doc in enumerate(nlp.pipe(batch_texts, batch_size=BATCH_SIZE)):
+            rules = extract_struct_rules(doc)
+            counts: dict[int, float] = {}
+            for r in rules:
+                idx = rule2idx.get(r)
+                if idx is None:
+                    continue
+                counts[idx] = counts.get(idx, 0) + 1.0
+            if counts:
+                rows_data.append((batch_start + di, counts))
+        if (batch_start // BATCH_SIZE) % 20 == 0:
+            log(f"    spacy {batch_start + len(batch_texts)}/{N}  "
+                f"elapsed={time.time() - t0:.1f}s")
+    log(f"  spacy + rule extraction: {len(rows_data)}/{N} non-empty "
+        f"elapsed={time.time() - t0:.1f}s")
+
+    # build sparse matrix
+    data, indices, indptr = [], [], [0]
+    for _, counts in rows_data:
+        for k, v in counts.items():
+            indices.append(k)
+            data.append(v)
+        indptr.append(len(indices))
+    X = sp.csr_matrix(
+        (np.asarray(data, dtype=np.float32),
+         np.asarray(indices, dtype=np.int32),
+         np.asarray(indptr, dtype=np.int32)),
+        shape=(len(rows_data), V),
+    )
+    log(f"  sparse X: {X.shape} nnz={X.nnz}")
+
+    # row normalize
+    if ROW_NORMALIZE:
+        norms = np.asarray(sp.linalg.norm(X, axis=1)).ravel()
+        norms[norms == 0] = 1.0
+        inv = sp.diags(1.0 / norms)
+        Xn = inv @ X
+    else:
+        Xn = X
+
+    # SVD 投影
+    z_svd = (Xn @ Vt.T).astype(np.float32)
+    log(f"  SVD projection: {z_svd.shape}")
+
+    # MLP encode (batch)
+    z_all = np.zeros((z_svd.shape[0], LATENT_DIM), dtype=np.float32)
+    mlp.eval()
+    with torch.no_grad():
+        for s in range(0, z_svd.shape[0], 1024):
+            e = min(s + 1024, z_svd.shape[0])
+            xb = torch.from_numpy(z_svd[s:e]).to(DEVICE)
+            z_all[s:e] = mlp(xb).cpu().numpy()
+    log(f"  MLP encode done, shape {z_all.shape}, elapsed={time.time() - t0:.1f}s")
+    return z_all, rows_data
+
+
+def _svdmlp_load_gaussian() -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]:
+    """加载 svd_mlp trainable Gaussian; 预计算 mu(N,64), sigma2(N,64), uid_order(N,)."""
+    log(f"loading {GAUSSIAN_PATH}")
+    with open(GAUSSIAN_PATH) as f:
+        d = json.load(f)
+    cfg = d["config"]
+    if cfg.get("source") != "svd_mlp":
+        raise ValueError(
+            f"gaussian cfg source={cfg.get('source')}, expected svd_mlp. "
+            "rerun 04_gaussian/trainable_per_user_gaussian.py with TG_SOURCE=svd_mlp"
+        )
+    if cfg["latent_dim"] != LATENT_DIM:
+        raise ValueError(
+            f"gaussian latent_dim={cfg['latent_dim']}, script LATENT_DIM={LATENT_DIM}"
+        )
+    users = d["users"]
+    uid_order = sorted(users.keys())
+    N = len(uid_order)
+    mu = np.zeros((N, LATENT_DIM), dtype=np.float32)
+    sigma2 = np.zeros((N, LATENT_DIM), dtype=np.float32)
+    d2_q = np.zeros(N, dtype=np.float32)
+    for i, uid in enumerate(uid_order):
+        u = users[uid]
+        mu[i] = np.asarray(u["mu"], dtype=np.float32)
+        sigma2[i] = np.asarray(u["sigma_diag"], dtype=np.float32)
+        d2_q[i] = float(u["d2_q95"])  # 经验 val 95% 分位
+    uid_idx = {uid: i for i, uid in enumerate(uid_order)}
+    return uid_idx, uid_order, mu, sigma2, d2_q
+
+
+def _svdmlp_main() -> None:
+    _svdmlp_log(f"device={DEVICE}  GATE_MODE={GATE_MODE}  "
+        f"LOGP_DELTA={LOGP_DELTA}  GATE_Q={GATE_Q}  LATENT_DIM={LATENT_DIM}")
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    _svdmlp_log("loading vocab, svd components, mlp encoder")
+    vocab = json.load(open(VOCAB_PATH))
+    _svdmlp_log(f"  vocab: {len(vocab)} rules")
+    with np.load(SVD_COMPONENTS) as npz:
+        Vt = np.asarray(npz["Vt"], dtype=np.float32)
+    _svdmlp_log(f"  Vt: {Vt.shape}  row_normalize={ROW_NORMALIZE}")
+    ckpt = torch.load(MLP_ENCODER, map_location=DEVICE, weights_only=False)
+    mlp_cfg = ckpt.get("config", {})
+    mlp = StyleMLP(
+        in_dim=mlp_cfg.get("svd_dim") or mlp_cfg.get("in_dim") or SVD_DIM,
+        hidden=mlp_cfg.get("hidden") or 128,
+        out_dim=mlp_cfg.get("out_dim") or LATENT_DIM,
+    ).to(DEVICE)
+    mlp.load_state_dict(ckpt["state_dict"])
+    _svdmlp_log(f"  mlp: in={mlp_cfg.get('svd_dim')} hidden={mlp_cfg.get('hidden')} "
+        f"out={mlp_cfg.get('out_dim')}")
+
+    _svdmlp_log("loading pool queries")
+    pool = json.load(open(POOL_PATH))["pool"]
+    asin_to_users = json.load(open(ASIN_USERS_PATH))
+    _svdmlp_log(f"  pool: {len(pool)} ASINs")
+
+    _svdmlp_log("loading trainable svd_mlp Gaussian")
+    uid_idx, uid_order, mu, sigma2, d2_q95 = _svdmlp_load_gaussian()
+    _svdmlp_log(f"  fitted users: {len(uid_idx)}")
+
+    # 把所有 query 收集起来一起编码
+    _svdmlp_log("flattening queries")
+    flat_records: list[tuple[str, str, int, str]] = []  # (asin, query, local_idx, qstr)
+    for asin, queries in pool.items():
+        for li, q in enumerate(queries):
+            flat_records.append((asin, q, li, q))
+    _svdmlp_log(f"  total queries: {len(flat_records)}")
+
+    nlp = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
+    queries_text = [r[1] for r in flat_records]
+    z_all, rows_data = _svdmlp_encode_queries(queries_text, vocab, Vt, mlp, nlp)
+
+    # 还原 row -> flat_records index
+    flat_idx_for_row = [rec_idx for rec_idx, _ in rows_data]
+
+    # 预计算每用户的 log-norm 常数: 0.5 * [Σ log σ² + d log 2π]
+    log_norm_per_user = 0.5 * (
+        np._svdmlp_log(sigma2).sum(axis=-1) + LATENT_DIM * np._svdmlp_log(2 * np.pi)
+    )
+
+    _svdmlp_log(f"per-query best-fit user + selection (mode={GATE_MODE})")
+    per_asin_records: dict[str, list[tuple[float, float, str]]] = {}
+    # 每个 query -> (asin, logp, d2, query_text)
+    n_no_user = 0
+    for ri, (z_row, flat_idx) in enumerate(zip(z_all, flat_idx_for_row)):
+        asin, q_text, local_idx, _ = flat_records[flat_idx]
+        user_list = asin_to_users.get(asin, [])
+        cand_idx = [uid_idx[u] for u in user_list if u in uid_idx]
+        if not cand_idx:
+            n_no_user += 1
+            continue
+        cand_idx_arr = np.asarray(cand_idx, dtype=np.int64)
+        diff = z_row[None, :] - mu[cand_idx_arr]
+        d2 = (diff ** 2 / sigma2[cand_idx_arr]).sum(axis=-1)
+        log_p = -0.5 * (d2 + log_norm_per_user[cand_idx_arr])
+        best_k = int(np.argmax(log_p))
+        per_asin_records.setdefault(asin, []).append({
+            "logp": float(log_p[best_k]),
+            "d2": float(d2[best_k]),
+            "user_idx": int(cand_idx_arr[best_k]),
+            "query": q_text,
+        })
+
+    _svdmlp_log(f"  queries with candidate: {sum(len(v) for v in per_asin_records.values())}/{len(flat_records)}")
+
+    # Per-ASIN selection
+    kept: dict[str, list[str]] = {}
+    selections_block: list = []
+    drops = {"logp_below_delta": 0, "above_d2": 0}
+    if GATE_MODE == "logp_delta":
+        for asin, cands in per_asin_records.items():
+            cands_sorted = sorted(cands, key=lambda c: -c["logp"])
+            max_logp = cands_sorted[0]["logp"]
+            kept_for_asin = [
+                c["query"] for c in cands_sorted if c["logp"] >= max_logp - LOGP_DELTA
+            ]
+            drops["logp_below_delta"] += sum(
+                1 for c in cands_sorted if c["logp"] < max_logp - LOGP_DELTA
+            )
+            kept[asin] = kept_for_asin
+            # build selections block (for stage11 compatibility)
+            users_block = [
+                {
+                    "uid": uid_order[c["user_idx"]],
+                    "query": c["query"],
+                    "logp": c["logp"],
+                    "d2": c["d2"],
+                }
+                for c in cands_sorted if c["logp"] >= max_logp - LOGP_DELTA
+            ]
+            if users_block:
+                selections_block.append({
+                    "asin": asin,
+                    "users": users_block,
+                    "max_pair_cos": None,
+                })
+    elif GATE_MODE == "d2":
+        # Fallback: 经验 d2_q95 × GATE_Q 阈值 (保留向后兼容, 不推荐)
+        _svdmlp_log("  d2 mode: per-query best-fit d2 + d2_q95 threshold")
+        kept = {}
+        drops = {"above_d2": 0}
+        for ri, (z_row, flat_idx) in enumerate(zip(z_all, flat_idx_for_row)):
+            asin, q_text, local_idx, _ = flat_records[flat_idx]
+            user_list = asin_to_users.get(asin, [])
+            cand_idx = [uid_idx[u] for u in user_list if u in uid_idx]
+            if not cand_idx:
+                continue
+            cand_idx_arr = np.asarray(cand_idx, dtype=np.int64)
+            diff = z_row[None, :] - mu[cand_idx_arr]
+            d2 = (diff ** 2 / sigma2[cand_idx_arr]).sum(axis=-1)
+            best_k = int(np.argmin(d2))
+            best_d2_val = float(d2[best_k])
+            threshold = float(d2_q95[cand_idx_arr[best_k]]) * GATE_Q
+            if best_d2_val > threshold:
+                drops["above_d2"] += 1
+                continue
+            kept.setdefault(asin, []).append(q_text)
+    else:
+        raise ValueError(f"unknown GATE_MODE={GATE_MODE!r}")
+
+    _svdmlp_log(f"  selected: {sum(len(v) for v in kept.values())}/{len(flat_records)} queries")
+    _svdmlp_log(f"  ASIN with >=1 kept: {len(kept)}/{len(pool)}")
+    _svdmlp_log(f"  drops: {drops}, n_no_user={n_no_user}")
+
+    # ASIN>=K 分布
+    counts = [len(v) for v in kept.values()]
+    n_ge1 = sum(1 for c in counts if c >= 1)
+    n_ge2 = sum(1 for c in counts if c >= 2)
+    n_ge3 = sum(1 for c in counts if c >= 3)
+    n_ge5 = sum(1 for c in counts if c >= 5)
+
+    out = {
+        "config": {
+            "source": "svd_mlp",
+            "latent_dim": LATENT_DIM,
+            "gate_mode": GATE_MODE,
+            "logp_delta": LOGP_DELTA if GATE_MODE == "logp_delta" else None,
+            "gate_q": GATE_Q if GATE_MODE == "d2" else None,
+            "gaussian_path": str(GAUSSIAN_PATH),
+            "svd_components": str(SVD_COMPONENTS),
+            "mlp_encoder": str(MLP_ENCODER),
+            "n_pool_asin": len(pool),
+            "n_total_queries": len(flat_records),
+            "n_fitted_users": len(uid_idx),
+            "device": DEVICE,
+        },
+        "kept": kept,
+        "selections": selections_block,
+    }
+    with open(OUT_PATH, "w") as f:
+        json.dump(out, f)
+    _svdmlp_log(f"DONE wrote {OUT_PATH}")
+
+    stats = {
+        "gate_mode": GATE_MODE,
+        "n_kept_queries": sum(len(v) for v in kept.values()),
+        "n_total_queries": len(flat_records),
+        "n_total_asin": len(pool),
+        "n_asin_ge1": n_ge1,
+        "n_asin_ge2": n_ge2,
+        "n_asin_ge3": n_ge3,
+        "n_asin_ge5": n_ge5,
+        "drops": drops,
+    }
+    if GATE_MODE == "logp_delta":
+        stats["logp_delta"] = LOGP_DELTA
+    else:
+        stats["gate_q"] = GATE_Q
+    with open(OUT_STATS_PATH, "w") as f:
+        json.dump(stats, f, indent=2)
+    _svdmlp_log(f"DONE wrote {OUT_STATS_PATH}")
+
+
 if __name__ == "__main__":
-    main_pipeline()
+    # 2026-09-16: dispatch between canonical (full Σ + frozen strict3 encoder)
+    # and trainable svd_mlp (diagonal σ + StyleMLP encoder)
+    import os as _os
+    if _os.environ.get("TG_GAUSSIAN_SOURCE") == "trainable_svdmlp":
+        _svdmlp_main()
+    else:
+        main_pipeline()

@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from pathlib import Path
+from scipy.stats import chi2
 
 import numpy as np
 
@@ -47,6 +49,11 @@ MIN_VAL_SENTS = 10
 MIN_EIGEN_RATIO = 1e-8
 PSD_FLOOR = 1e-6          # 数值 PSD clip, 覆盖 n≈40-50 in 32d 的 fp64 roundoff 负特征值 (~1e-7)
 GATE_QUANTILE = 0.05       # 2026-09-14: q=0.20→0.05 目标 O_u≤0.05
+# 2026-09-15: theoretical gate (χ²(d, q)) — Stage 08 high-side (q=0.95) inclusion,
+# Stage 10 low-side (q=0.05) rejection. Replaces empirical d2_qXX from val sentences.
+THEORETICAL_QS = (0.05, 0.50, 0.75, 0.95)
+THEORETICAL_HIGH_Q = 0.95
+THEORETICAL_LOW_Q = 0.05
 # Rank1+residual regularization (per L8.25): σ_res floor
 RANK1_SR_FLOOR = 1e-3
 
@@ -466,6 +473,55 @@ def _build_cohort_gates(
     return cohort_gates
 
 
+
+def _add_theoretical_gates(stats_path: Path, label: str, z_dim: int) -> None:
+    """后处理: 给已有 user_gaussian_stats.json 加 d2_qXX_theoretical 字段 + cohort theo gate。
+
+    等价于 rewrite_gaussian_with_theoretical_gate.py (已被合并)。
+    """
+    log(f"=== theoretical gate postprocess: {label} ===")
+    if not stats_path.exists():
+        log(f"  missing, skip")
+        return
+    bak = stats_path.with_suffix(stats_path.suffix + ".pre_theoretical_gate")
+    if not bak.exists():
+        shutil.copy2(stats_path, bak)
+        log(f"  backup → {bak.name}")
+    d = json.loads(stats_path.read_text())
+    cfg = d.get("config", {})
+    cfg["theoretical_gate_quantiles"] = list(THEORETICAL_QS)
+    cfg["theoretical_gate_values"] = {
+        f"q{int(q*100):02d}": float(chi2.ppf(q, df=z_dim))
+        for q in THEORETICAL_QS
+    }
+    cfg["gate_source_note"] = (
+        f"theoretical gate_T = chi2({z_dim}, q) for q in {THEORETICAL_QS}; "
+        "Stage 08 high q=0.95 inclusion, Stage 10 low q=0.05 rejection; "
+        "replaces empirical d2_qXX from val sentences"
+    )
+    high_val = float(chi2.ppf(THEORETICAL_HIGH_Q, df=z_dim))
+    low_val = float(chi2.ppf(THEORETICAL_LOW_Q, df=z_dim))
+    n_users = 0
+    n_pairs = 0
+    for uid, u in d.get("users", {}).items():
+        if not isinstance(u, dict):
+            continue
+        for q in THEORETICAL_QS:
+            u[f"d2_q{int(q*100):02d}_theoretical"] = float(chi2.ppf(q, df=z_dim))
+        n_users += 1
+    for asin, cohort in d.get("cohort_gates", {}).items():
+        for uid, gate in cohort.items():
+            if isinstance(gate, dict):
+                gate["gate_T_high_theoretical"] = high_val
+                gate["gate_T_low_theoretical"] = low_val
+                n_pairs += 1
+    d["config"] = cfg
+    stats_path.write_text(json.dumps(d))
+    log(f"  wrote {n_users} users × {len(THEORETICAL_QS)} quantiles + {n_pairs} cohort pairs")
+    log(f"  cohort gate_T_high_theoretical = {high_val:.4f} (Stage 08)")
+    log(f"  cohort gate_T_low_theoretical  = {low_val:.4f} (Stage 10)")
+
+
 def main() -> None:
     t0 = time.time()
     log("=== Stage 04 — Per-User 32d Gaussian (full + rank1+residual) ===")
@@ -670,6 +726,11 @@ def main() -> None:
         f"{len(cohort_gates_rank1)} ASINs, {OUT_PATH_RANK1.stat().st_size // 1024} KB)"
     )
     log(f"=== Stage 04 DONE in {time.time() - t0:.1f}s ===")
+
+    # 2026-09-15: 自动 post-process 给两个产物加 theoretical gate 字段
+    # (等价于旧 rewrite_gaussian_with_theoretical_gate.py, 已被合并)
+    _add_theoretical_gates(OUT_PATH, "full Σ schema", z_dim=int(z_profile.shape[1]))
+    _add_theoretical_gates(OUT_PATH_RANK1, "rank1+residual schema", z_dim=int(z_profile.shape[1]))
 
 
 if __name__ == "__main__":

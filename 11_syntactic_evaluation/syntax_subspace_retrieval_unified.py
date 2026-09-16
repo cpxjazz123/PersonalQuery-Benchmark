@@ -48,7 +48,7 @@ _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
 META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl"
-SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-06: 用户指向新 schema
+SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries_svdmlp.json")  # 2026-09-16: canonical default = svdmlp trainable Gaussian logp_delta=2.0
 RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
 PER_QUERY_OUT = RESULT_DIR / f"per_query{_SEL_SUFFIX}.json"
 SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
