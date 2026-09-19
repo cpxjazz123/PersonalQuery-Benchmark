@@ -44,7 +44,7 @@ TOPK_DIR_TYPO = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
 TOPK_SAVE_K = 100
 
 # Hardcoded (Rule 3)
-SMOKE = False  # 2026-09-19: smoke 5 pairs passed (typ-only + Stage 11 cache load); full 1912 pairs
+SMOKE = False  # full run over all Stage 10 typo pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 

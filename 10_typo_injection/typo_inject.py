@@ -30,7 +30,7 @@ import json
 import random
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -42,7 +42,7 @@ import spacy
 import importlib.util
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import torch
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
@@ -55,14 +55,18 @@ def classify_mechanism(incorrect: str, corrected: str) -> str:
 
 CHAR_LEVEL_MECHANISMS = {
     "keyboard_adjacent",
+    "keyboard_layout",
     "letter_swap",
     "letter_repetition",
-    "case_error",
-    "apostrophe_error",
+    "letter_insertion",
+    "letter_deletion",
+    "homophone_substitution",
 }
 SURFACE_FORM_MECHANISMS = {
     "user_historical",
     "semantic_substitution",
+    "case_error",
+    "apostrophe_error",
 }
 
 
@@ -90,11 +94,51 @@ _QWERTY_ADJ = {
     "n": "bhjm", "m": "njk",
 }
 
-MIN_FREQ = 0.0005                # word_frequency threshold (zipf)
+# QWERTY physical keys interpreted with a Dvorak layout. Punctuation outputs
+# are omitted so the generated token remains alphabetic.
+_QWERTY_TO_DVORAK_ALPHA = {
+    "w": ",", "e": ".", "r": "p", "t": "y", "y": "f",
+    "u": "g", "i": "c", "o": "r", "p": "l", "a": "a",
+    "s": "o", "d": "e", "f": "u", "g": "i", "h": "d",
+    "j": "h", "k": "t", "l": "n", "x": "q", "c": "j",
+    "v": "k", "b": "x", "n": "b", "m": "m",
+}
+
+# Common English homophone alternatives used for controlled substitution.
+_HOMOPHONE_ALTERNATIVES = {
+    "their": ("there", "theyre"), "there": ("their", "theyre"),
+    "theyre": ("their", "there"), "to": ("too", "two"),
+    "too": ("to", "two"), "two": ("to", "too"),
+    "your": ("youre",), "youre": ("your",),
+    "hear": ("here",), "here": ("hear",), "write": ("right", "rite"),
+    "right": ("write", "rite"), "rite": ("write", "right"),
+    "new": ("knew",), "knew": ("new",), "no": ("know",),
+    "know": ("no",), "one": ("won",), "won": ("one",),
+    "be": ("bee",), "bee": ("be",), "by": ("buy", "bye"),
+    "buy": ("by", "bye"), "bye": ("by", "buy"),
+    "brake": ("break",), "break": ("brake",), "wait": ("weight",),
+    "weight": ("wait",), "week": ("weak",), "weak": ("week",),
+    "hole": ("whole",), "whole": ("hole",), "peace": ("piece",),
+    "piece": ("peace",), "meet": ("meat",), "meat": ("meet",),
+    "male": ("mail",), "mail": ("male",), "sale": ("sail",),
+    "sail": ("sale",), "allowed": ("aloud",), "aloud": ("allowed",),
+    "flower": ("flour",), "flour": ("flower",), "for": ("four",),
+    "four": ("for",), "which": ("witch",), "witch": ("which",),
+    "road": ("rode",), "rode": ("road",), "sun": ("son",),
+    "son": ("sun",), "some": ("sum",), "sum": ("some",),
+    "bare": ("bear",), "bear": ("bare",), "dear": ("deer",),
+    "deer": ("dear",), "fair": ("fare",), "fare": ("fair",),
+    "great": ("grate",), "grate": ("great",), "heal": ("heel",),
+    "heel": ("heal",), "main": ("mane",), "mane": ("main",),
+    "plain": ("plane",), "plane": ("plain",), "scene": ("seen",),
+    "seen": ("scene",), "stair": ("stare",), "stare": ("stair",),
+    "steal": ("steel",), "steel": ("steal",), "tail": ("tale",),
+    "tale": ("tail",),
+}
+
 MIN_TOKEN_LEN = 3                # minimum word length for typo candidate
-MAX_EDIT_DISTANCE = 2            # max edit distance for "similar" word
-MAX_LEN_DELTA = 1                # |len(typo) - len(orig)| upper bound
-NEAR_WORD_THRESHOLD = 0.65       # similarity threshold
+MAX_EDIT_DISTANCE = 5            # max edit distance for stress-test typo injection
+MAX_LEN_DELTA = 3                # |len(typo) - len(orig)| upper bound for stress-test injection
 
 ENCODER_DEVICE = "cpu"           # CPU for spaCy-based encoder
 ENCODER_PT = "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"
@@ -125,8 +169,8 @@ if CONTRASTIVE_5558:
     OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary_5558.json"
 
 # Hardcoded hyperparams
-SMOKE = False                   # full run over all selected query pairs
-N_SMOKE_USERS = 50
+SMOKE = False                   # full run after 250-query span/multi-edit smoke passed
+N_SMOKE_USERS = 250
 SEED_BASE = 42
 
 # D² threshold quantile (per-user). Set dynamically from Stage 04 config.
@@ -278,7 +322,8 @@ def _tc_strip_apostrophe(w: str) -> str:
 def _tc_classify_mechanism(incorrect: str, corrected: str) -> str:
     """Classify typo mechanism from (incorrect, corrected) pair.
 
-    Returns one of: keyboard_adjacent, letter_swap, letter_repetition,
+    Returns one of: keyboard_adjacent, keyboard_layout, letter_swap,
+    letter_repetition, letter_insertion, letter_deletion, homophone_substitution,
     case_error, apostrophe_error, user_historical, semantic_substitution.
 
     Args:
@@ -302,11 +347,17 @@ def _tc_classify_mechanism(incorrect: str, corrected: str) -> str:
     if inc_l.replace("'", "") == cor_l.replace("'", "") and inc_l != cor_l:
         return "apostrophe_error"
 
-    # Same length: check letter substitution or swap
+    # Controlled lexical substitutions (e.g. their → there).
+    if cor_l in _HOMOPHONE_ALTERNATIVES.get(inc_l, ()):
+        return "homophone_substitution"
+
+    # Same length: check keyboard-layout substitution or adjacent-key typo.
     if len(inc_l) == len(cor_l):
         diffs = [(i, inc_l[i], cor_l[i]) for i in range(len(inc_l)) if inc_l[i] != cor_l[i]]
         if len(diffs) == 1:
             i, a, b = diffs[0]
+            if _QWERTY_TO_DVORAK_ALPHA.get(a) == b:
+                return "keyboard_layout"
             if (a in _QWERTY_ADJ) and (b in _QWERTY_ADJ):
                 if b in _QWERTY_ADJ[a] and a in _QWERTY_ADJ[b]:
                     return "keyboard_adjacent"
@@ -366,9 +417,8 @@ def _tc_reverse_mechanism(correct_word: str, mechanism: str, rng_seed: int | Non
 
     Args:
         correct_word: clean word (typo-free)
-        mechanism: one of keyboard_adjacent/letter_swap/letter_repetition/
-                   case_error/apostrophe_error/semantic_substitution
-        rng_seed: unused (deterministic for now; can be replaced with rng)
+        mechanism: one of the active CHAR_LEVEL_MECHANISMS
+        rng_seed: seed for selecting a deterministic candidate
     """
     import random
     rng = random.Random(rng_seed) if rng_seed is not None else None
@@ -404,18 +454,21 @@ def _tc_reverse_mechanism(correct_word: str, mechanism: str, rng_seed: int | Non
         return w[:i+1] + w[i] + w[i+1:]
 
     if mechanism == "letter_insertion":
-        # Insert an extra letter at a position where it doesn't match neighbors
-        # (e.g. apple[2]+l → applle but l doesn't match neighbors, prefer repetition).
-        # Fallback: pick any alpha position not adjacent to same letter.
-        candidates = [i for i in range(len(w)) if w[i].isalpha()]
-        # Avoid positions adjacent to same letter (those are better for repetition)
-        non_repeat = [i for i in candidates
-                      if (i == 0 or w[i] != w[i-1]) and (i + 1 >= len(w) or w[i] != w[i+1])]
-        pool = non_repeat if non_repeat else candidates
-        if not pool:
-            return w + w[-1] if w else w
-        i = rng.choice(pool) if rng else pool[0]
-        return w[:i+1] + w[i] + w[i+1:]
+        # Insert a different alphabetic character, excluding adjacent duplicates.
+        gaps = list(range(len(w) + 1))
+        if not gaps:
+            return w
+        i = rng.choice(gaps) if rng else gaps[0]
+        left = wl[i - 1] if i > 0 else ""
+        right = wl[i] if i < len(wl) else ""
+        alphabet = [chr(c) for c in range(ord("a"), ord("z") + 1)
+                    if chr(c) != left and chr(c) != right]
+        if not alphabet:
+            return w
+        new_c = rng.choice(alphabet) if rng else alphabet[0]
+        if i > 0 and w[i - 1].isupper():
+            new_c = new_c.upper()
+        return w[:i] + new_c + w[i:]
 
     if mechanism == "letter_deletion":
         # Remove one letter (e.g. the → te)
@@ -447,6 +500,28 @@ def _tc_reverse_mechanism(correct_word: str, mechanism: str, rng_seed: int | Non
         new_char = new_c.upper() if w[i].isupper() else new_c
         return w[:i] + new_char + w[i+1:]
 
+    if mechanism == "keyboard_layout":
+        candidates = [i for i in range(len(w))
+                      if w[i].isalpha() and wl[i] in _QWERTY_TO_DVORAK_ALPHA
+                      and _QWERTY_TO_DVORAK_ALPHA[wl[i]].isalpha()]
+        if not candidates:
+            return w
+        i = rng.choice(candidates) if rng else candidates[0]
+        new_c = _QWERTY_TO_DVORAK_ALPHA[wl[i]]
+        new_char = new_c.upper() if w[i].isupper() else new_c
+        return w[:i] + new_char + w[i+1:]
+
+    if mechanism == "homophone_substitution":
+        alternatives = list(_HOMOPHONE_ALTERNATIVES.get(wl, ()))
+        if not alternatives:
+            return w
+        typo = rng.choice(alternatives) if rng else alternatives[0]
+        if w.isupper():
+            return typo.upper()
+        if w[0].isupper():
+            return typo.capitalize()
+        return typo
+
     if mechanism == "apostrophe_error":
         # Add or remove apostrophe
         if "'" in wl:
@@ -474,78 +549,6 @@ def _vw_strip(t: str) -> str:
     """Strip surrounding non-alpha/non-apostrophe punctuation."""
     return re.sub(r"^[^a-zA-Z0-9']+|[^a-zA-Z0-9']+$", "", t)
 
-
-def _vw_shared_prefix(a: str, b: str) -> int:
-    """Length of longest common prefix."""
-    n = min(len(a), len(b))
-    for i in range(n):
-        if a[i] != b[i]:
-            return i
-    return n
-
-
-def _vw_shared_suffix(a: str, b: str) -> int:
-    """Length of longest common suffix (excluding prefix overlap)."""
-    n = min(len(a), len(b))
-    for i in range(1, n + 1):
-        if a[-i] != b[-i]:
-            return i - 1
-    return n
-
-
-@lru_cache(maxsize=65536)
-def _vw_closeness_score(a_lower: str, b_lower: str) -> float:
-    """Simple 'close form' score: shared_prefix + shared_suffix, normalized by
-    max length. Range 0-1; > 0.3 means 'close form' (likely typo, not different word).
-
-    Examples (close=1 means identical, close=0 means totally different):
-      really / reallly  -> 1.0 (identical up to extra 'l')
-      baby   / babby    -> 0.86 ('ba' prefix + 'bby' suffix / 5 chars)
-      baby   / bady     -> 0.75 ('ba' prefix + 'y' suffix / 4)
-      form   / from     -> 0.0 (no shared prefix or suffix)
-      so     / to       -> 0.0 (no shared chars)
-      cat    / bat      -> 0.5 ('at' suffix / 4)
-      the    / teh      -> 0.67 ('t' prefix + 'e' suffix / 3)
-    """
-    if not a_lower or not b_lower:
-        return 0.0
-    if a_lower == b_lower:
-        return 1.0
-    p = _vw_shared_prefix(a_lower, b_lower)
-    s = _vw_shared_suffix(a_lower, b_lower)
-    # Avoid double-counting overlap when one string is a prefix of the other
-    overlap = max(0, p + s - min(len(a_lower), len(b_lower)))
-    total = p + s - overlap
-    return total / max(len(a_lower), len(b_lower))
-
-
-def _vw_is_english_word(token: str) -> bool:
-    """True iff token (stripped) appears in wordfreq's English wordlist."""
-    if not token:
-        return False
-    t = _vw_strip(token)
-    if not t:
-        return False
-    return _vw_word_frequency(t.lower()) > MIN_FREQ
-
-
-def _vw_is_meaningful_change(orig_token: str, typo_token: str) -> bool:
-    """True iff typo is (a) a real English word AND (b) closeness_score with
-    orig < NEAR_WORD_THRESHOLD. Use this to reject typo candidates that
-    accidentally form a different real English word (e.g. form→from).
-
-    Pure typos (orig→reallly, baby→babby, really→realily) all return False.
-    """
-    if not typo_token:
-        return True
-    typo_clean = _vw_strip(typo_token).lower()
-    if not typo_clean:
-        return True
-    if not _vw_is_english_word(typo_clean):
-        return False  # not a real word, accept
-    orig_clean = _vw_strip(orig_token).lower() if orig_token else ""
-    score = _vw_closeness_score(orig_clean, typo_clean)
-    return score < NEAR_WORD_THRESHOLD
 
 
 # === tools merged from 10_typo_injection/error_location.py ===
@@ -770,8 +773,8 @@ def _el_build_user_history(user_word_edits: List[dict]) -> Tuple[Dict[str, Dict[
                __surface_form__ tracking total tokens, char-level edits, and
                surface-form edits per signature level.
       transformation_history: dict[(orig_token_lower, sig) → [(typo_token, mechanism, count), ...]]
-        Only char-level typos are recorded (case_error and apostrophe_error are
-        surface-form and excluded from reuse).
+        Only enabled injectable mechanisms are recorded; case_error remains
+        surface-form-only and is excluded from reuse.
     """
     nlp = _el_ensure_spacy()
 
@@ -823,7 +826,7 @@ def _el_build_user_history(user_word_edits: List[dict]) -> Tuple[Dict[str, Dict[
                         history[sig]["__surface_form__"] += 1
                 history[sig]["__total__"] += 1
 
-            # Record transformation only for char-level typos at fine-grained sigs
+            # Record transformation only for enabled char-level typos at fine-grained sigs
             if matched_mech in CHAR_LEVEL_MECHANISMS and matched_typo:
                 for level in ("full", "d3", "coarse"):
                     sig = sigs[level]
@@ -927,7 +930,7 @@ def _el_load_sercl_profile(path: Path) -> Dict[str, dict]:
 
 @dataclass
 class _is_InjectionMeta:
-    position: int            # 0-indexed position in the query
+    position: int            # alpha-token ordinal in the current query
     original_token: str
     typo_token: str
     mechanism: str           # one of CHAR_LEVEL_MECHANISMS
@@ -946,6 +949,11 @@ class _is_InjectionMeta:
     min_d_competitor: float = -1.0
     n_competitors: int = 0
     exclusive_pass: bool = True
+    char_start: int = -1
+    char_end: int = -1
+    query_before: str = ""
+    query_after: str = ""
+    edit_index: int = -1
 
 
 # Lazy-loaded encoder + rule_to_id
@@ -1061,22 +1069,44 @@ def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str,
 
 
 def _is_spacy_token_contexts(query: str) -> List[Tuple]:
-    """Token-level contexts with multi-level structural signatures."""
+    """Return alpha-token contexts with character spans in ``query``.
+
+    ``tok.i`` is spaCy's document-token index and must not be used to index
+    whitespace-separated query tokens.  ``token.idx`` is the authoritative
+    character offset used by the replacement path.
+    """
     nlp = _el_ensure_spacy()
     doc = nlp(query)
     out = []
+    alpha_index = 0
     for tok in doc:
         if not tok.is_alpha:
             continue
+        char_start = int(tok.idx)
+        char_end = char_start + len(tok.text)
+        if query[char_start:char_end] != tok.text:
+            raise ValueError(
+                f"spaCy span mismatch at {char_start}:{char_end}: "
+                f"{query[char_start:char_end]!r} != {tok.text!r}")
         sigs = _el_rich_signatures(tok, doc)
-        out.append((tok.i, tok.text, tok.pos_, tok.dep_, tok.head.pos_,
-                    len(tok.text), _el_word_shape(tok.text), sigs))
+        out.append((alpha_index, tok.text, tok.pos_, tok.dep_, tok.head.pos_,
+                    len(tok.text), _el_word_shape(tok.text), sigs,
+                    char_start, char_end))
+        alpha_index += 1
     return out
 
 
-def _is_split_query_tokens(query: str) -> List[str]:
-    """Return list of whitespace-separated tokens preserving original word order."""
-    return query.split(" ")
+def _is_apply_typo_to_query(
+    query: str, char_start: int, char_end: int, original: str, typo: str,
+) -> Optional[str]:
+    """Replace exactly one spaCy token using its character span."""
+    if not (0 <= char_start <= char_end <= len(query)):
+        return None
+    if query[char_start:char_end] != original:
+        return None
+    if not typo or typo == original:
+        return None
+    return query[:char_start] + typo + query[char_end:]
 
 
 def _is_levenshtein(a: str, b: str) -> int:
@@ -1153,15 +1183,34 @@ def _is_semantic_cosine(texts_a: List[str], texts_b: List[str]) -> np.ndarray:
     return (ea * eb).sum(axis=1)
 
 
-def _is_apply_typo_to_query(query: str, position: int, typo: str) -> Optional[str]:
-    """Replace the position-th whitespace token in query with typo."""
-    tokens = _is_split_query_tokens(query)
-    if position >= len(tokens):
-        return None
-    if not any(c.isalpha() for c in tokens[position]):
-        return None
-    tokens[position] = typo
-    return " ".join(tokens)
+def _is_replay_edits(clean_query: str, edits: List[Dict]) -> str:
+    """Replay serialized character-span edits and return the final query."""
+    current = clean_query
+    for expected_index, edit in enumerate(edits):
+        if edit["edit_index"] != expected_index:
+            raise ValueError(
+                f"edit_index is not contiguous: expected {expected_index}, "
+                f"got {edit['edit_index']}"
+            )
+        if edit["query_before"] != current:
+            raise ValueError(
+                f"edit {expected_index} query_before does not match replay state"
+            )
+        start = int(edit["char_start"])
+        end = int(edit["char_end"])
+        original = edit["original_token"]
+        if current[start:end] != original:
+            raise ValueError(
+                f"edit {expected_index} span mismatch: "
+                f"{current[start:end]!r} != {original!r}"
+            )
+        replayed = _is_apply_typo_to_query(
+            current, start, end, original, edit["typo_token"]
+        )
+        if replayed is None or replayed != edit["query_after"]:
+            raise ValueError(f"edit {expected_index} query_after replay mismatch")
+        current = replayed
+    return current
 
 
 def _is_validate_minimality(orig: str, typo: str) -> Tuple[bool, int, int]:
@@ -1183,8 +1232,6 @@ def _is_validate_minimality(orig: str, typo: str) -> Tuple[bool, int, int]:
     if ed > MAX_EDIT_DISTANCE:
         return False, ed, ld
     if abs(ld) > MAX_LEN_DELTA:
-        return False, ed, ld
-    if _vw_is_meaningful_change(orig, typo):
         return False, ed, ld
     return True, ed, ld
 
@@ -1257,10 +1304,13 @@ def _is_sample_typo(
     uid: str,
     user_model: Dict,
     seed: int = 42,
+    exclude_positions: Optional[Set[int]] = None,
 ) -> Tuple[Optional[str], Optional[InjectionMeta], Dict]:
     """Phase-1 sampler: pick position + generate typo (NO encoding, NO gating).
     Returns (injected_string_or_None, meta_partial, ctx_info).
     ctx_info holds {mu, sigma_inv_or_user_stats, d2_threshold, competitors_asin, position, sigs, ...}
+
+    exclude_positions: skip these token positions (used for chaining multiple typos).
     """
     rng = random.Random(seed)
     contexts = _is_spacy_token_contexts(query)
@@ -1271,15 +1321,17 @@ def _is_sample_typo(
 
     scored = []
     for ctx in contexts:
-        alpha_idx, word, pos, dep, parent_pos, length, shape, sigs = ctx
+        alpha_idx, word, pos, dep, parent_pos, length, shape, sigs, char_start, char_end = ctx
         if len(word) < MIN_TOKEN_LEN:
             continue
+        if exclude_positions and alpha_idx in exclude_positions:
+            continue
         rate = _el_char_level_rate_hierarchical(user_model, sigs)
-        scored.append((alpha_idx, word, rate, sigs))
+        scored.append((alpha_idx, word, rate, sigs, char_start, char_end))
     if not scored:
         return None, None, {"reason": "no_scored_tokens"}
     scored.sort(key=lambda x: (-x[2], x[0]))
-    ws_pos, word, w_i, sigs = scored[0]
+    ws_pos, word, w_i, sigs, char_start, char_end = scored[0]
 
     picked = _is_sample_user_historical_typo(user_model, word, sigs, rng)
     if picked is not None:
@@ -1295,14 +1347,16 @@ def _is_sample_typo(
     if not ok:
         return None, None, {"reason": "minimality_fail"}
 
-    injected = _is_apply_typo_to_query(query, ws_pos, typo)
+    injected = _is_apply_typo_to_query(query, char_start, char_end, word, typo)
     if injected is None:
         return None, None, {"reason": "apply_fail"}
 
     return injected, {
         "word": word, "typo": typo, "mech": mech, "source": source,
         "edit_dist": edit_dist, "len_delta": len_delta,
-        "ws_pos": ws_pos, "w_i": w_i, "sigs": sigs,
+        "ws_pos": ws_pos, "char_start": char_start, "char_end": char_end,
+        "w_i": w_i, "sigs": sigs,
+        "query_before": query, "query_after": injected,
     }, {"reason": "ok"}
 
 
@@ -1343,7 +1397,9 @@ def _is_batch_gate(
         it["z_inj_aligned"] = z_inj_aligned
         it["d2_before"] = d2_before
         it["d2_after"] = d2_after
-        it["gaussian_pass"] = bool(d2_after <= d2_threshold)
+        # Mahalanobis is diagnostic-only for this stress test; do not reject typo
+        # candidates based on the user Gaussian threshold.
+        it["gaussian_pass"] = True
     return items
 
 
@@ -1423,8 +1479,9 @@ def _is_sample_injection(
     asin: Optional[str] = None,
     vocab_size: Optional[int] = None,
 ) -> Tuple[Optional[str], Optional[InjectionMeta]]:
-    """Apply at most one char-level typo injection to `query`.
+    """Apply one char-level typo injection to `query`.
 
+    The main loop may chain this helper up to ``N_TYPOS_PER_QUERY`` times.
     Position selection: rank alpha tokens by P_u(char_level_error | sig).
     Transformation selection: reuse user-historical char-level typo at this
     (orig_token, sig) if available; otherwise generic char-level mechanism.
@@ -1492,11 +1549,11 @@ def _is_sample_injection(
     # but the global p_u_char_level_err is used as fallback (already 0).
     scored = []
     for ctx in contexts:
-        alpha_idx, word, pos, dep, parent_pos, length, shape, sigs = ctx
+        alpha_idx, word, pos, dep, parent_pos, length, shape, sigs, char_start, char_end = ctx
         if len(word) < MIN_TOKEN_LEN:  # 2026-09-19: skip short words (I, a, Where) → generic typo fails
             continue
         rate = _el_char_level_rate_hierarchical(user_model, sigs)
-        scored.append((alpha_idx, word, rate, sigs))
+        scored.append((alpha_idx, word, rate, sigs, char_start, char_end))
     if not scored:
         meta = _is_InjectionMeta(
             position=-1, original_token="", typo_token="",
@@ -1509,7 +1566,7 @@ def _is_sample_injection(
 
     # Pick top-scored token; tie-break by query order (left-to-right)
     scored.sort(key=lambda x: (-x[2], x[0]))
-    ws_pos, word, w_i, sigs = scored[0]
+    ws_pos, word, w_i, sigs, char_start, char_end = scored[0]
 
     # Look up user-historical char-level typo for (orig_word, sigs)
     picked = _is_sample_user_historical_typo(user_model, word, sigs, rng)
@@ -1552,7 +1609,7 @@ def _is_sample_injection(
         )
         return None, meta
 
-    injected = _is_apply_typo_to_query(query, ws_pos, typo)
+    injected = _is_apply_typo_to_query(query, char_start, char_end, word, typo)
     if injected is None:
         meta = _is_InjectionMeta(
             position=ws_pos, original_token=word, typo_token=typo,
@@ -1561,7 +1618,8 @@ def _is_sample_injection(
             transformation_source=source,
             edit_distance=edit_dist, len_delta=len_delta,
             d_mahalanobis_before=d2_before, d_mahalanobis_after=d2_before,
-            gaussian_pass=False,
+            gaussian_pass=False, char_start=char_start, char_end=char_end,
+            query_before=query, query_after="",
         )
         return None, meta
 
@@ -1638,15 +1696,11 @@ def main():
     if SMOKE:
         rng = random.Random(SEED_BASE)
         rng.shuffle(pairs)
-        seen_uids = set()
-        smoke_pairs = []
-        for p in pairs:
-            if p[0] not in seen_uids:
-                smoke_pairs.append(p)
-                seen_uids.add(p[0])
-            if len(seen_uids) >= N_SMOKE_USERS:
-                break
-        pairs = smoke_pairs
+        if len(pairs) < N_SMOKE_USERS:
+            raise ValueError(
+                f"smoke requires {N_SMOKE_USERS} query pairs, found {len(pairs)}"
+            )
+        pairs = pairs[:N_SMOKE_USERS]
     log(f"running on {len(pairs)} (uid, asin, query) pairs (SMOKE={SMOKE})")
 
     # Pre-load encoder + rule_to_id (for batch encoding)
@@ -1691,8 +1745,9 @@ def main():
     if "__generic__" not in profiles:
         # 构造 generic fallback profile: 各 mechanism 概率均匀 (1/n_mechanisms)
         from collections import defaultdict as _dd
-        _char_mechs = ["keyboard_adjacent", "letter_swap", "letter_repetition",
-                      "letter_insertion", "letter_deletion", "case_error"]
+        _char_mechs = ["keyboard_adjacent", "keyboard_layout", "letter_swap",
+                      "letter_repetition", "letter_insertion", "letter_deletion",
+                      "homophone_substitution"]
         _generic_profile["__generic__"] = {
             "p_u_err": 0.5,
             "n_tokens": 0,
@@ -1707,6 +1762,8 @@ def main():
             "transformation_history": {},
         }
 
+    # 2026-09-19: N_TYPOS_PER_QUERY = 3 (每个 query 注入 3 个独立 typo, 不同位置)
+    N_TYPOS_PER_QUERY = 3
     for i, (uid, asin, query) in enumerate(pairs):
         if uid not in mahal or asin not in cohort:
             continue   # 2026-09-19: skip pair 不在 cohort3mlp16_30 pre_theoretical_gate 子集
@@ -1714,26 +1771,78 @@ def main():
         stats = mahal[uid]
         d2_threshold = stats[f"d2_{D2_THRESHOLD_QUANTILE}"]
 
-        # Phase 1: sample typo (no encoder, no gating)
-        injected, sampler_info, ctx = _is_sample_typo(query, uid, user_model, seed=SEED_BASE + i)
         s = per_user_stats[uid]
         s["n_total"] += 1
         n_total_processed += 1
-        if injected is None:
-            s["n_no_candidate"] += 1
-            if ctx.get("reason") == "no_char_history":
-                s["n_surface_form_only_skip"] += 1
-            continue
-        # Sampler produced a candidate — track Bernoulli pass
-        s["n_bernoulli_pass"] += 1
-        bernoulli_pass_total += 1
 
-        # Stage item for batch gate
+        # Phase 1: sample up to N_TYPOS_PER_QUERY typos, each excluding already-used positions.
+        current_query = query
+        used_positions: set[int] = set()
+        pair_typos: list[dict] = []  # list of {injected, sampler_info, position}
+        for t_idx in range(N_TYPOS_PER_QUERY):
+            injected, sampler_info, ctx = _is_sample_typo(
+                current_query, uid, user_model, seed=SEED_BASE + i * N_TYPOS_PER_QUERY + t_idx,
+                exclude_positions=used_positions,
+            )
+            if injected is None:
+                if t_idx == 0:
+                    s["n_no_candidate"] += 1
+                    if ctx.get("reason") == "no_char_history":
+                        s["n_surface_form_only_skip"] += 1
+                break
+            s["n_bernoulli_pass"] += 1
+            bernoulli_pass_total += 1
+            ws_pos = sampler_info["ws_pos"]
+            used_positions.add(ws_pos)
+            pair_typos.append({
+                "edit_index": t_idx,
+                "injected": injected,
+                "sampler_info": sampler_info,
+                "position": ws_pos,
+                "char_start": sampler_info["char_start"],
+                "char_end": sampler_info["char_end"],
+                "query_before": sampler_info["query_before"],
+                "query_after": sampler_info["query_after"],
+            })
+            current_query = injected  # chain: 第 2 个 typo 应用到第 1 个 typo 后
+
+        if not pair_typos:
+            continue
+
+        # Final injected = last chained injection
+        final_injected = pair_typos[-1]["injected"]
+        # Use first typo as primary meta (original typo)
+        primary = pair_typos[0]
+        sampler_info = primary["sampler_info"]
+
+        edit_records = []
+        for edit_index, pair_typo in enumerate(pair_typos):
+            info = pair_typo["sampler_info"]
+            edit_records.append({
+                "edit_index": edit_index,
+                "mechanism": info["mech"],
+                "original_token": info["word"],
+                "typo_token": info["typo"],
+                "char_start": info["char_start"],
+                "char_end": info["char_end"],
+                "query_before": info["query_before"],
+                "query_after": info["query_after"],
+                "edit_distance": info["edit_dist"],
+                "len_delta": info["len_delta"],
+                "transformation_source": info["source"],
+                "context_sig": info["sigs"].get("full", ""),
+                "confidence": info["w_i"],
+            })
+        replayed = _is_replay_edits(query, edit_records)
+        if replayed != final_injected:
+            raise ValueError("serialized edits do not reproduce final injected query")
+
+        # Stage item for batch gate with the complete edit chain.
         items.append({
             "uid": uid,
             "asin": asin,
             "query": query,
-            "injected": injected,
+            "injected": final_injected,
             "user_model": user_model,
             "stats": stats,
             "user_stats": stats,
@@ -1742,6 +1851,8 @@ def main():
             "d2_threshold": d2_threshold,
             "competitors": cohort.get(asin, {}),
             "sampler_info": sampler_info,
+            "edits": edit_records,
+            "n_typos_applied": len(edit_records),
         })
         if (i + 1) % 50 == 0:
             log(f"  prepared {i+1}/{len(pairs)} pairs (sampled={len(items)})")
@@ -1771,16 +1882,17 @@ def main():
         exclusive_pass = it["exclusive_pass"]
         if gaussian_pass and semantic_pass and exclusive_pass:
             s["n_injected"] += 1
-            s["mechanisms"][meta_partial["mech"]] += 1
-            s["typo_count"] += 1
-            typo_total += 1
+            s["typo_count"] += len(it["edits"])
+            typo_total += len(it["edits"])
             s["d2_deltas"].append(d2_after - d2_before)
             s["sem_sims"].append(it["semantic_sim"])
             if it["min_d_competitor"] > 0:
                 s["min_d_competitors"].append(it["min_d_competitor"])
-            mech_total[meta_partial["mech"]] += 1
-            s["transformation_sources"][meta_partial["source"]] += 1
-            s["edit_distances"].append(meta_partial["edit_dist"])
+            for edit in it["edits"]:
+                s["mechanisms"][edit["mechanism"]] += 1
+                mech_total[edit["mechanism"]] += 1
+                s["transformation_sources"][edit["transformation_source"]] += 1
+                s["edit_distances"].append(edit["edit_distance"])
         else:
             if not gaussian_pass:
                 s["n_gate_fail"] += 1
@@ -1794,43 +1906,39 @@ def main():
             else:
                 s["n_minimality_fail"] = s.get("n_minimality_fail", 0) + 1
         if gaussian_pass:
+            replayed = _is_replay_edits(it["query"], it["edits"])
+            if replayed != it["injected"]:
+                raise ValueError("final result failed edit replay consistency check")
             results.append({
                 "uid": it["uid"],
                 "asin": it["asin"],
                 "original_query": it["query"],
                 "typo_query": it["injected"],
-                "original_token": meta_partial["word"],
-                "typo_token": meta_partial["typo"],
-                "mechanism": meta_partial["mech"],
-                "transformation_source": meta_partial["source"],
-                "edit_distance": meta_partial["edit_dist"],
-                "len_delta": meta_partial["len_delta"],
-                "context_sig": meta_partial["sigs"].get("full", ""),
-                "confidence": meta_partial["w_i"],
+                "edits": it["edits"],
+                "n_typos_applied": len(it["edits"]),
                 "semantic_sim": it["semantic_sim"],
+                "d2_before": d2_before,
+                "d2_after": d2_after,
             })
 
-        # SMOKE: keep all meta for diagnosis
-        if SMOKE and meta is not None:
+        # SMOKE: retain the complete edit chain for audit and examples.
+        if SMOKE:
             debug_metas.append({
-                "uid": uid,
-                "asin": asin,
-                "position": meta.position,
-                "original_token": meta.original_token,
-                "typo_token": meta.typo_token,
-                "mechanism": meta.mechanism,
-                "transformation_source": meta.transformation_source,
-                "edit_distance": meta.edit_distance,
-                "len_delta": meta.len_delta,
-                "d2_before": meta.d_mahalanobis_before,
-                "d2_after": meta.d_mahalanobis_after,
-                "d2_threshold": stats.get(f"d2_{D2_THRESHOLD_QUANTILE}"),
-                "gaussian_pass": meta.gaussian_pass,
-                "semantic_sim": meta.semantic_sim,
-                "semantic_pass": meta.semantic_pass,
-                "min_d_competitor": meta.min_d_competitor,
-                "n_competitors": meta.n_competitors,
-                "exclusive_pass": meta.exclusive_pass,
+                "uid": it["uid"],
+                "asin": it["asin"],
+                "original_query": it["query"],
+                "typo_query": it["injected"],
+                "edits": it["edits"],
+                "n_typos_applied": len(it["edits"]),
+                "d2_before": d2_before,
+                "d2_after": d2_after,
+                "d2_threshold": it["d2_threshold"],
+                "gaussian_pass": gaussian_pass,
+                "semantic_sim": it["semantic_sim"],
+                "semantic_pass": semantic_pass,
+                "min_d_competitor": it["min_d_competitor"],
+                "n_competitors": it["n_competitors"],
+                "exclusive_pass": exclusive_pass,
             })
 
         if (i + 1) % 50 == 0:
@@ -1844,25 +1952,28 @@ def main():
         "config": {
             "smoke": SMOKE,
             "all_selected_queries": True,
-            "single_shot": True,
+            "single_shot": False,
             "d2_threshold_quantile": D2_THRESHOLD_QUANTILE,
             "mahal_stats_source": str(STAGE04_PATH),
             "cohort_gates_source": str(STAGE04_PATH),
             "semantic_threshold": 0.9,
             "semantic_model": "sentence-transformers/all-MiniLM-L6-v2",
-            "char_level_mechanisms": ["keyboard_adjacent", "letter_swap", "letter_repetition",
-                                       "letter_insertion", "letter_deletion"],
+            "char_level_mechanisms": ["keyboard_adjacent", "keyboard_layout", "letter_swap",
+                                       "letter_repetition", "letter_insertion", "letter_deletion",
+                                       "homophone_substitution"],
             "min_token_len": 3,
-            "max_edit_distance": 2,
-            "max_len_delta": 1,
+            "max_edit_distance": MAX_EDIT_DISTANCE,
+            "max_len_delta": MAX_LEN_DELTA,
+            "mahalanobis_gate": False,
             "valid_word_check": True,
-            "note": "char-level-only single-shot injection. Position ranked by P_u(char_level_error|context). "
-                    "Transformation reuses user-historical char-level typo at the same (orig_token, sig) "
-                    "if available, else generic char-level mechanism. Gates: minimality (ed≤2, |Δlen|≤1, "
-                    "len≥3, not a different English word) → Mahalanobis D²(target Q_95) → exclusive cohort "
-                    "(∀comp: d²>comp Q_95) → MiniLM cosine ≥ 0.9. Surface-form errors (case_error / "
-                    "apostrophe_error) are NOT emitted — they are tracked separately via "
-                    "n_surface_form_only_skip when user has only surface-form history.",
+            "note": "char-level-only stress-test injection with up to three edits per query. "
+                    "Each edit is applied to a fresh character span and serialized for exact replay. "
+                    "Position ranked by P_u(char_level_error|context). Transformation reuses user-historical char-level "
+                    "typo at the same (orig_token, sig) if available, else generic char-level mechanism. "
+                    "Gates: minimality (ed≤5, |Δlen|≤3, len≥3, not a different English word) → "
+                    "diagnostic-only Mahalanobis d² (not a rejection gate) → MiniLM cosine ≥ 0.9. "
+                    "case_error is excluded from injection; it is tracked separately via "
+                    "n_surface_form_only_skip when the user has only case-error history.",
         },
         "totals": {
             "n_attempted": n_total_processed,
