@@ -7,5 +7,6 @@ library_name: peft
 
 - PEFT 0.4.0
 - PEFT 0.4.0
+- PEFT 0.4.0
 
 - PEFT 0.4.0

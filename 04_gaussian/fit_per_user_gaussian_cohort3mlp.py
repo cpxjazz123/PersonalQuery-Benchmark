@@ -49,10 +49,15 @@ from fit_per_user_gaussian import (
     OUT_PATH_RANK1,
     ASIN_USERS_PATH,
 )
-from train_real_asin_cohort3 import StyleMLP  # in 03_spacy_encode/
+from syntax_encoder import StyleMLP  # in 03_spacy_encode/
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ENCODER_WEIGHTS_CANDIDATES = [
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
@@ -60,8 +65,8 @@ ENCODER_WEIGHTS_CANDIDATES = [
 COHORT3_TRAINED_UIDS = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
-OUT_VARIANT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp32.json")
-OUT_VARIANT_RANK1 = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp32_rank1.json")
+OUT_VARIANT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp16_30.json")
+OUT_VARIANT_RANK1 = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_rank1.json")
 OUT_VARIANT.parent.mkdir(parents=True, exist_ok=True)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 SEED = 42
@@ -110,7 +115,7 @@ def main() -> None:
 
     # Encode profile rows and val rows in chunks
     def encode_rows(rows: np.ndarray, bs: int = 4096) -> np.ndarray:
-        out = np.empty((len(rows), 32), dtype=np.float32)
+        out = np.empty((len(rows), 16), dtype=np.float32)
         with torch.no_grad():
             for s in range(0, len(rows), bs):
                 idx = rows[s:s + bs]
@@ -229,8 +234,8 @@ def main() -> None:
             "covariance": "raw_full",
             "gate_quantile": GATE_QUANTILE,
             "gate_quantiles": [0.50, 0.75, 0.95],
-            "syntax_dim": 32,
-            "encoder_source": "cohort3_mlp32_30ep",
+            "syntax_dim": 16,
+            "encoder_source": "cohort2_mlp16_30_30ep",
             "encoder_weights": str(weights_path),
             "trained_uids_path": str(COHORT3_TRAINED_UIDS),
             "strict3_source": str(CACHE_DIR / "strict3_embeddings.npz"),
@@ -279,8 +284,8 @@ def main() -> None:
             "d2_formula": "D^2 = (v1^T (z-mu))^2 / lambda1 + ||r||^2 / sigma_res^2, r = (z-mu) - a*v1",
             "gate_quantile": GATE_QUANTILE,
             "gate_quantiles": [0.50, 0.75, 0.95],
-            "syntax_dim": 32,
-            "encoder_source": "cohort3_mlp32_30ep",
+            "syntax_dim": 16,
+            "encoder_source": "cohort2_mlp16_30_30ep",
             "encoder_weights": str(weights_path),
             "trained_uids_path": str(COHORT3_TRAINED_UIDS),
             "strict3_source": str(CACHE_DIR / "strict3_embeddings.npz"),
@@ -306,8 +311,8 @@ def main() -> None:
         f"{len(cohort_gates_rank1)} ASINs, {OUT_VARIANT_RANK1.stat().st_size // 1024} KB)"
     )
 
-    _add_theoretical_gates(OUT_VARIANT, "cohort3mlp full Σ schema", z_dim=32)
-    _add_theoretical_gates(OUT_VARIANT_RANK1, "cohort3mlp rank1 schema", z_dim=32)
+    _add_theoretical_gates(OUT_VARIANT, "cohort3mlp full Σ schema", z_dim=16)
+    _add_theoretical_gates(OUT_VARIANT_RANK1, "cohort3mlp rank1 schema", z_dim=16)
     log(f"=== Stage 04 cohort3mlp variant DONE in {time.time() - t0:.1f}s ===")
 
 

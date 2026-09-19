@@ -1,6 +1,0 @@
-/lake-packages/
-/.lake/
-/build/
-lake-manifest.json
-*.olean
-*.olean.trace

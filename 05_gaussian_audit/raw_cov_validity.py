@@ -1,37 +1,21 @@
 #!/usr/bin/env python3
-"""不加 λI, 看用户原始 Σ_u 能否建立真正有效的 32 维高斯.
+"""Stage 05 audit — A1+A2+A3 hard rule on cohort-3 MLP 16d encoder.
 
-有效高斯定义 (3 项 AND, E3 降为软约束报告):
-  E2: 留出预测能力 — 同一用户 ≥5 条 val 句子上:
-       E2a: full log-P 全部为有限值 (无 -inf / NaN)
-       E2b: full log-P mean ≥ 对角高斯 log-P mean (full cov 必须胜过
-             diagonal baseline, 否则 off-diagonal 信息无泛化能力)
-  E3: 有效维度 (软约束, 仅报告) — 三种**尺度无关**相对定义:
-       - eff_dim_rel = #{λ_i > λ_max · 1e-3}
-       - effective_rank = exp(-Σ p_i log p_i),  p_i = λ_i/Σλ
-       - participation_ratio = (Σλ)² / Σλ²
-       原绝对阈值 eigval > 1e-6 在不同 z 尺度下结论不一致 (×100 → ×1e4 eigval),
-       不能直接比较 cohort; 相对阈值在 z 整体放大或缩小时保持稳定。
-       **不**再阻断 valid_gaussian, 仅作诊断。
-  E4: 重采样稳定性 — 50% bootstrap B=29 次重拟合:
-       ≥90% 重采样仍同时通过 (PD + val log-P 有限 + full≥diag)
-       且 val 句子距离排序与 full-fit 相关 ρ ≥ 0.9 (spearman)
+Σ = rank1 v v^T + diag(σ_d²), D² via Sylvester:
+  D² = (v^T (z-μ))² / λ + Σ_d r_d² / σ_d²,  r = (I - v v^T)(z-μ)
 
-(E1 样本量 ≥2K=64 门槛已移除:full cov 在 n_p ≥ K+1=33 时即可估计,样本
-越小越能反映 strict encoder 的真实 per-user 拟合质量.)
+  A1 Numerical Validity:  λ>0, σ_d²>0, log|Σ| finite, all val D² finite
+  A2 Held-out Calibration: coverage95 ≥ 0.8  AND  median(val D²) ≤ chi²_{16,0.95}=26.30
+  A3 Stability:           20 × 80% subsampling → valid_fit_rate ≥ 0.9,
+                          median Spearman ρ ≥ 0.8, median gate-decision agreement ≥ 0.8
 
-E4 专门检查 "当前结果是不是偶然的", 筛掉 cond~4e4、对样本扰动敏感的
-用户. 阈值预注册, 不允许后调.
+valid_gaussian = A1 ∧ A2 ∧ A3.
 
-附加报告:
-  - 单独看每项失败的用户数
-  - E3 eff_dim 分布 (软约束, 不阻断)
-  - "不能建立高斯"的并集 (E2 ∪ E4)
-  - 有效维度分布直方图
-  - full-vs-diag log-P margin 分布
-  - E4 重采样通过率 + val ρ 分布
+数据源: strict3 profile/val z × SVD-z × cohort3 MLP → 16d,
+       用户限定在 cohort3-trained uids (与 Stage 04 cohort3mlp 一致)。
 
-输出: result/05_gaussian_audit/raw_cov_validity.json
+输出:
+  result/05_gaussian_audit/raw_cov_validity.json  (A1/A2/A3 schema)
 """
 from __future__ import annotations
 
@@ -42,37 +26,61 @@ import time
 from pathlib import Path
 
 import numpy as np
+import scipy.sparse as sp
+
+sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
+sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode")
+
+import torch
+from scipy.stats import chi2 as _chi2
 from scipy.stats import spearmanr  # noqa: E402  (avoid local import in hot loop)
+from syntax_encoder import StyleMLP
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
-
 EMBED_PATH = CACHE_DIR / "strict3_embeddings.npz"
 MANIFEST_PATH = CACHE_DIR / "strict3_manifest.json"
 READY_PATH = CACHE_DIR / "cache_ready.json"
 N_SENTS_PATH = CACHE_DIR / "user_n_sents.json"
+SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
+SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 
 OUT_DIR = REPO_ROOT / "result/05_gaussian_audit"
 OUT_PATH = OUT_DIR / "raw_cov_validity.json"
-ASIN_USERS_PATH = (
-    REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users.json"
-)
-ASIN_COVERAGE_PATH = OUT_DIR / "asin_coverage_valid_ge2.json"
 
-K_DIM = 16
-N_USERS_EXPECTED = None  # 不再硬编码: 由 len(uid_list) 动态确定
+ENCODER_WEIGHTS_CANDIDATES = [
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
+]
+TRAINED_UIDS_PATH = Path(
+    "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
+DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 SEED = 42
-MIN_VAL_SENTS = 5          # E2a: 至少 5 条 val 句
-DIAG_LAMBDA = 1e-3         # 对角基线 shrinkage (避免单维 var=0)
-SUB_B = 29                 # E4: bootstrap 重采样次数
-SUB_FRAC = 0.5             # E4: 每次采样比例 (50% half-sampling)
-E4_PASS_RATE = 0.90        # E4: 至少 90% 重采样通过 (PD + finite + beats_diag + full_rank)
-E4_RHO_THRESHOLD = 0.9     # E4: val 距离排序 spearman ρ ≥ 0.9
+
+# ----- A1/A2/A3 thresholds -----
+K_DIM = 16
+MIN_VAL_SENTS = 1
+K_RANK_LR = 1
+PSD_FLOOR_LR = 1e-4
+DIAG_FLOOR_LR = 1e-4
+CHI2_Q95 = 0.95
+COVERAGE95_MIN = 0.8
+SUB_B = 20
+SUB_FRAC = 0.8
+SUBSAMPLE_FIT_RATE_MIN = 0.9
+SUBSAMPLE_SPEARMAN_MIN = 0.8
+SUBSAMPLE_GATE_AGREE_MIN = 0.8
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
+# ---------------------------------------------------------------------------
+# Atomic JSON / cache fingerprint / NaN sanitize / strict3 validate
+# ---------------------------------------------------------------------------
 
 def _atomic_json_dump(payload, path) -> None:
     tmp = Path(str(path) + ".tmp")
@@ -84,7 +92,6 @@ def _atomic_json_dump(payload, path) -> None:
 
 
 def _extract_cache_fingerprint() -> str:
-    """从 cache_ready.json 读取 sentence_source_fingerprint 以在 audit 结果上记录。"""
     if not READY_PATH.exists():
         return ""
     with open(READY_PATH) as f:
@@ -92,7 +99,6 @@ def _extract_cache_fingerprint() -> str:
 
 
 def _sanitize_json(value):
-    """替换 NaN/Inf 为 None,确保 JSON 严格合法。"""
     if isinstance(value, dict):
         return {k: _sanitize_json(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -151,7 +157,6 @@ def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
             raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
         if not np.isfinite(z).all():
             raise ValueError(f"strict3 {key} contains NaN/Inf")
-    # 2026-09-15: 接受 test=val 别名 (Stage 03 strict3 80/20 no test)
     if "z_test" in npz and "test_idx" in npz:
         z_test = np.asarray(npz["z_test"])
         test_idx = np.asarray(npz["test_idx"], dtype=np.int64)
@@ -192,30 +197,269 @@ def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
         raise ValueError("cache_ready n_total_sents mismatch")
 
 
-def load_assets():
-    for path in (EMBED_PATH, N_SENTS_PATH):
-        if not path.exists():
-            raise FileNotFoundError(
-                f"missing: {path} (run 03_spacy_encode first)")
+# ---------------------------------------------------------------------------
+# Stage 05 protocol: A1 ∧ A2 ∧ A3
+# ---------------------------------------------------------------------------
+
+def _chi2_thr_for_K(K: int) -> float:
+    return float(_chi2.ppf(CHI2_Q95, K))
+
+
+def fit_lowrank_diag(P: np.ndarray,
+                     k_rank: int = K_RANK_LR,
+                     z_dim: int | None = None) -> dict | None:
+    """Low-rank + per-dim-diagonal Σ_u fit. Returns None when n_p < z_dim+k_rank+1."""
+    P = np.ascontiguousarray(P, dtype=np.float64)
+    n_p, _ = P.shape
+    if z_dim is None:
+        z_dim = P.shape[1]
+    min_n = z_dim + k_rank + 1
+    if n_p < min_n:
+        return None
+
+    mu = P.mean(axis=0)
+    P_c = P - mu
+    cov = (P_c.T @ P_c) / (n_p - 1)
+    eigvals_all, eigvecs = np.linalg.eigh(cov)
+    idx = np.argsort(eigvals_all)[::-1][:k_rank]
+    lambdas = eigvals_all[idx]
+    V_eig = eigvecs[:, idx]
+    lambdas = np.clip(lambdas, PSD_FLOOR_LR, None)
+
+    rank_cov = (V_eig * lambdas) @ V_eig.T
+    diag_cov = np.clip(np.diag(cov - rank_cov), DIAG_FLOOR_LR, None)
+    sigma_diag_sq = diag_cov
+    return {
+        "mu": mu,
+        "lambdas": lambdas,
+        "V_eig": V_eig,
+        "sigma_diag_sq": sigma_diag_sq,
+        "eigvals_all": eigvals_all,
+    }
+
+
+def maha_d2_lowrank_diag(X: np.ndarray,
+                         mu: np.ndarray,
+                         V_eig: np.ndarray,
+                         lambdas: np.ndarray,
+                         sigma_diag_sq: np.ndarray) -> np.ndarray:
+    """Vectorized Mahalanobis D² for Σ = λ v v^T + diag(σ_d²). +inf on bad input."""
+    diff = np.asarray(X, dtype=np.float64) - mu[None, :]
+    if not np.all(np.isfinite(diff)):
+        return np.full(len(X), np.inf, dtype=np.float64)
+    if np.any(lambdas <= 0) or np.any(sigma_diag_sq <= 0):
+        return np.full(len(X), np.inf, dtype=np.float64)
+
+    low_proj = diff @ V_eig
+    low_d2 = np.sum(low_proj ** 2 / lambdas, axis=1)
+    residual = diff - low_proj @ V_eig.T
+    diag_d2 = np.sum(residual ** 2 / sigma_diag_sq, axis=1)
+    return low_d2 + diag_d2
+
+
+def spearman_rho(a: np.ndarray, b: np.ndarray) -> float:
+    try:
+        rho, _ = spearmanr(a, b)
+        return float(rho) if np.isfinite(rho) else 0.0
+    except Exception:
+        return 0.0
+
+
+def _a1_pass(fit: dict, d2_v: np.ndarray, n_v: int) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if fit is None:
+        reasons.append("A1 fit failed (n_p too small)")
+        return False, reasons
+    lambdas = fit["lambdas"]
+    sigma_diag_sq = fit["sigma_diag_sq"]
+    if np.any(lambdas <= 0):
+        reasons.append(f"A1 λ≤0 (λ_min={float(lambdas.min()):.3e})")
+    if np.any(sigma_diag_sq <= 0):
+        reasons.append(
+            f"A1 σ_d²≤0 (σ_d²_min={float(sigma_diag_sq.min()):.3e})")
+    logdet = (float(np.log(np.clip(lambdas, 1e-30, None)).sum()
+                    + np.log(np.clip(sigma_diag_sq, 1e-30, None)).sum()))
+    if not np.isfinite(logdet):
+        reasons.append(f"A1 log|Σ| 非有限 (logdet={logdet:.3e})")
+    if n_v < MIN_VAL_SENTS:
+        reasons.append(f"A1 n_v<{MIN_VAL_SENTS} (n_v={n_v})")
+    if len(d2_v) and not bool(np.all(np.isfinite(d2_v))):
+        reasons.append("A1 val D² 包含非有限值")
+    bad_lambda = bool(np.any(lambdas <= 0))
+    bad_sigma = bool(np.any(sigma_diag_sq <= 0))
+    bad_logdet = not np.isfinite(logdet)
+    bad_d2 = len(d2_v) and not bool(np.all(np.isfinite(d2_v)))
+    bad_nv = n_v < MIN_VAL_SENTS
+    return not (bad_lambda or bad_sigma or bad_logdet or bad_d2 or bad_nv), reasons
+
+
+def _a2_pass(d2_v: np.ndarray, chi2_thr: float) -> tuple[bool, float, float]:
+    if len(d2_v) == 0:
+        return False, 0.0, float("inf")
+    coverage = float(np.mean(d2_v <= chi2_thr))
+    median_d2 = float(np.median(d2_v))
+    return (coverage >= COVERAGE95_MIN and median_d2 <= chi2_thr,
+            coverage, median_d2)
+
+
+def _a3_stability(P: np.ndarray, V: np.ndarray, K: int,
+                  chi2_thr: float,
+                  d2_full: np.ndarray,
+                  rng: np.random.Generator) -> dict:
+    n_p = len(P)
+    if len(V) == 0 or n_p < K + 2:
+        return {"valid_fit_rate": 0.0,
+                "rho_med": 0.0,
+                "gate_agreement_med": 0.0,
+                "n_subs": 0}
+
+    sub_size = max(int(SUB_FRAC * n_p), K + 2)
+    sub_size = min(sub_size, n_p)
+
+    n_pass_fit = 0
+    rhos: list[float] = []
+    agreements: list[float] = []
+    gate_full = d2_full <= chi2_thr
+
+    for _ in range(SUB_B):
+        idx = rng.choice(n_p, size=sub_size, replace=False)
+        P_sub = P[idx]
+        fit_sub = fit_lowrank_diag(P_sub)
+        if fit_sub is None:
+            continue
+        d2_sub = maha_d2_lowrank_diag(V, fit_sub["mu"], fit_sub["V_eig"],
+                                       fit_sub["lambdas"], fit_sub["sigma_diag_sq"])
+        if not bool(np.all(np.isfinite(d2_sub))):
+            continue
+        n_pass_fit += 1
+        rho = spearman_rho(d2_full, d2_sub)
+        rhos.append(rho)
+        gate_sub = d2_sub <= chi2_thr
+        agree = float(np.mean(gate_full == gate_sub))
+        agreements.append(agree)
+
+    valid_fit_rate = n_pass_fit / SUB_B if SUB_B else 0.0
+    rho_med = float(np.median(rhos)) if rhos else 0.0
+    agree_med = float(np.median(agreements)) if agreements else 0.0
+    return {"valid_fit_rate": valid_fit_rate,
+            "rho_med": rho_med,
+            "gate_agreement_med": agree_med,
+            "n_subs": n_pass_fit}
+
+
+def evaluate_one(P: np.ndarray, V: np.ndarray, K: int,
+                 rng: np.random.Generator,
+                 chi2_thr: float | None = None) -> dict:
+    """A1 ∧ A2 ∧ A3 三项 hard rule 评估."""
+    if chi2_thr is None:
+        chi2_thr = _chi2_thr_for_K(K)
+
+    n_p = len(P)
+    n_v = len(V)
+
+    fit_full = fit_lowrank_diag(P)
+    if fit_full is None:
+        return {
+            "n_p": n_p, "n_v": n_v,
+            "a1_pass": False, "a2_pass": False, "a3_pass": False,
+            "valid_gaussian": False,
+            "a1_reasons": [f"n_p<{K + K_RANK_LR + 1} cannot fit lowrank Σ"],
+            "a2_coverage95": 0.0,
+            "a2_val_d2_p50": float("inf"),
+            "a2_val_d2_p95": float("inf"),
+            "a3_valid_fit_rate": 0.0,
+            "a3_spearman_rho_med": 0.0,
+            "a3_gate_agreement_med": 0.0,
+            "a3_n_subs": 0,
+            "lambdas": [], "sigma_diag_sq_min": 0.0,
+        }
+
+    d2_v_full = maha_d2_lowrank_diag(V, fit_full["mu"], fit_full["V_eig"],
+                                     fit_full["lambdas"], fit_full["sigma_diag_sq"])
+
+    a1_ok, a1_reasons = _a1_pass(fit_full, d2_v_full, n_v)
+    a2_ok, coverage95, median_d2 = _a2_pass(d2_v_full, chi2_thr)
+    val_d2_p95 = float(np.percentile(d2_v_full, 95)) if n_v else float("inf")
+    a3 = _a3_stability(P, V, K, chi2_thr, d2_v_full, rng)
+    a3_ok = (a3["valid_fit_rate"] >= SUBSAMPLE_FIT_RATE_MIN
+             and a3["rho_med"] >= SUBSAMPLE_SPEARMAN_MIN
+             and a3["gate_agreement_med"] >= SUBSAMPLE_GATE_AGREE_MIN)
+
+    valid = a1_ok and a2_ok and a3_ok
+
+    return {
+        "n_p": n_p, "n_v": n_v,
+        "a1_pass": a1_ok,
+        "a2_pass": a2_ok,
+        "a3_pass": a3_ok,
+        "valid_gaussian": valid,
+        "a1_reasons": a1_reasons,
+        "a2_coverage95": coverage95,
+        "a2_val_d2_p50": median_d2,
+        "a2_val_d2_p95": val_d2_p95,
+        "a3_valid_fit_rate": a3["valid_fit_rate"],
+        "a3_spearman_rho_med": a3["rho_med"],
+        "a3_gate_agreement_med": a3["gate_agreement_med"],
+        "a3_n_subs": a3["n_subs"],
+        "lambdas": fit_full["lambdas"].astype(float).tolist(),
+        "sigma_diag_sq_min": float(fit_full["sigma_diag_sq"].min()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Asset loader: strict3 indices × SVD-z × cohort3 MLP → 16d
+# ---------------------------------------------------------------------------
+
+def load_assets() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str], int]:
     d = np.load(EMBED_PATH, allow_pickle=True)
-    n_sents = json.load(open(N_SENTS_PATH))
-    n_sents = [int(n) for n in n_sents]
+    n_sents = [int(n) for n in json.load(open(N_SENTS_PATH))]
     uid_list = [str(u) for u in d["uid_list"]]
     n_users_actual = len(uid_list)
     if len(n_sents) != n_users_actual:
         raise ValueError(
             f"user_n_sents ({len(n_sents)}) != uid_list ({n_users_actual})")
-    if any(n < 0 for n in n_sents):
-        raise ValueError("user_n_sents contains a negative count")
     _validate_strict3_artifact(d, n_sents)
 
-    z_p = d["z_profile"]
-    z_v = d["z_val"]
-    pid = d["profile_idx"]
-    vid = d["val_idx"]
+    pid = np.asarray(d["profile_idx"], dtype=np.int64)
+    vid = np.asarray(d["val_idx"], dtype=np.int64)
     row2uid = np.repeat(np.arange(n_users_actual), n_sents)
     prof_uid = row2uid[pid]
     val_uid = row2uid[vid]
+
+    with np.load(SVD_COMPONENTS) as npz_svd:
+        Vt = np.asarray(npz_svd["Vt"], dtype=np.float32)
+    sd = np.load(SENT_VECTORS, allow_pickle=True)
+    X = sp.csr_matrix(
+        (sd["data"].astype(np.float32), sd["indices"].astype(np.int32),
+         sd["indptr"].astype(np.int32)),
+        shape=tuple(sd["shape"]),
+    )
+    z_all = (X @ Vt.T).astype(np.float32)
+    del X
+
+    enc = StyleMLP().to(DEVICE)
+    weights_path = next((p for p in ENCODER_WEIGHTS_CANDIDATES if p.exists()), None)
+    if weights_path is None:
+        raise FileNotFoundError(
+            f"no encoder weights found in {ENCODER_WEIGHTS_CANDIDATES}")
+    enc.load_state_dict(torch.load(weights_path, map_location=DEVICE))
+    enc.eval()
+    log(f"  loaded encoder weights from {weights_path}")
+
+    def encode_rows(rows: np.ndarray, bs: int = 4096) -> np.ndarray:
+        out = np.empty((len(rows), K_DIM), dtype=np.float32)
+        with torch.no_grad():
+            for s in range(0, len(rows), bs):
+                idx = rows[s:s + bs]
+                z_t = torch.from_numpy(z_all[idx]).to(DEVICE)
+                out[s:s + bs] = enc(z_t).cpu().numpy()
+        return out
+
+    log(f"  encoding {len(pid)} profile rows + {len(vid)} val rows via cohort3 MLP...")
+    z_p = encode_rows(pid)
+    z_v = encode_rows(vid)
+    del z_all
+
     op = np.argsort(prof_uid, kind="stable")
     ov = np.argsort(val_uid, kind="stable")
     z_p_sorted = z_p[op]
@@ -224,449 +468,168 @@ def load_assets():
     v_uid_sorted = val_uid[ov]
     cp = np.bincount(p_uid_sorted, minlength=n_users_actual)
     cv = np.bincount(v_uid_sorted, minlength=n_users_actual)
-    sp = np.concatenate([[0], np.cumsum(cp)])
+    sp_off = np.concatenate([[0], np.cumsum(cp)])
     sv = np.concatenate([[0], np.cumsum(cv)])
-    return z_p_sorted, z_v_sorted, sp, sv, uid_list, n_users_actual
+    return z_p_sorted, z_v_sorted, sp_off, sv, uid_list, n_users_actual
 
 
 # ---------------------------------------------------------------------------
-# log-pdf 工具
+# Entry point
 # ---------------------------------------------------------------------------
 
-_K_CACHE: dict = {}
+def log(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def _k_log2pi(K: int) -> float:
-    if K not in _K_CACHE:
-        _K_CACHE[K] = K * float(np.log(2 * np.pi))
-    return _K_CACHE[K]
-
-
-# ---------------------------------------------------------------------------
-# E3 有效维数 (尺度无关相对定义)
-# ---------------------------------------------------------------------------
-
-E3_REL_THR = 1e-3  # λ_i / λ_max > 1e-3 计为有效
-
-
-def eff_dim_relative(eigs: np.ndarray, rel_thr: float = E3_REL_THR) -> int:
-    """相对阈值有效维数: #{λ_i > λ_max · rel_thr}。尺度无关。"""
-    if len(eigs) == 0:
-        return 0
-    lam_max = float(eigs[-1])
-    if not np.isfinite(lam_max) or lam_max <= 0:
-        return 0
-    return int((eigs > lam_max * rel_thr).sum())
-
-
-def effective_rank(eigs: np.ndarray) -> float:
-    """Effective rank = exp(H(p))，H 为 Shannon entropy，p_i = λ_i/Σλ。
-    衡量 variance 在多少个方向上"实质均匀"分布。"""
-    pos = eigs[eigs > 0]
-    if len(pos) == 0:
-        return 0.0
-    p = pos / pos.sum()
-    H = -float(np.sum(p * np.log(p)))
-    return float(np.exp(H))
-
-
-def participation_ratio(eigs: np.ndarray) -> float:
-    """Participation ratio d_PR = (Σλ)² / Σλ²。1 ≤ d_PR ≤ K，等同性指示。"""
-    pos = eigs[eigs > 0]
-    if len(pos) == 0:
-        return 0.0
-    s1 = float(pos.sum())
-    s2 = float((pos ** 2).sum())
-    if s2 <= 0:
-        return 0.0
-    return float(s1 * s1 / s2)
-
-
-def full_logpdf(X: np.ndarray, mu: np.ndarray, cov: np.ndarray) -> np.ndarray:
-    """Multivariate Gaussian log-pdf per row. cov + 0·I (no ridge).
-
-    矩阵奇异 → 返回 -inf (调用方负责判 E2a).
-    """
-    try:
-        L = np.linalg.cholesky(cov)
-        log_det = 2.0 * np.log(np.diag(L)).sum()
-        diff = X - mu
-        # solve L y = diff  →  y = L^{-1} diff  →  ||y||² row-wise
-        z = np.linalg.solve(L, diff.T).T  # (n, K)
-        quad = (z ** 2).sum(axis=1)
-        return -0.5 * (quad + log_det + _k_log2pi(cov.shape[0]))
-    except np.linalg.LinAlgError:
-        return np.full(len(X), -np.inf, dtype=np.float64)
-
-
-def diag_logpdf(X: np.ndarray, mu: np.ndarray, var: np.ndarray) -> np.ndarray:
-    """Diagonal Gaussian log-pdf per row."""
-    K = X.shape[1]
-    quad = (((X - mu) ** 2) / var).sum(axis=1)
-    return -0.5 * (quad + K * np.log(2 * np.pi) + np.log(var).sum())
-
-
-# ---------------------------------------------------------------------------
-# 单用户评估
-# ---------------------------------------------------------------------------
-
-def maha_d2_order(X: np.ndarray, mu: np.ndarray, cov: np.ndarray) -> np.ndarray:
-    """Mahalanobis D² per row. cov 奇异返回 +inf (排名破坏)."""
-    try:
-        L = np.linalg.cholesky(cov)
-        diff = X - mu
-        z = np.linalg.solve(L, diff.T).T
-        return (z ** 2).sum(axis=1)
-    except np.linalg.LinAlgError:
-        return np.full(len(X), np.inf, dtype=np.float64)
-
-
-def spearman_rho(a: np.ndarray, b: np.ndarray) -> float:
-    """Spearman ρ between two 1D arrays."""
-    try:
-        rho, _ = spearmanr(a, b)
-        return float(rho) if np.isfinite(rho) else 0.0
-    except Exception:
-        return 0.0
-
-
-def bootstrap_stability(P: np.ndarray, V: np.ndarray, K: int,
-                        rng: np.random.Generator) -> dict:
-    """50% bootstrap B=29 次重拟合 + val 距离排序 ρ."""
-    n_p = len(P)
-    # full-fit reference D² 排序
-    mu_full = P.mean(axis=0)
-    cov_full = np.cov(P.T)
-    d2_full = maha_d2_order(V, mu_full, cov_full)
-    valid_full = bool(np.all(np.isfinite(d2_full)))
-
-    # var diag baseline for full-fit
-    var_full = P.var(axis=0, ddof=1) + DIAG_LAMBDA
-    mu_d_full = P.mean(axis=0)
-    ll_diag_full = diag_logpdf(V, mu_d_full, var_full)
-    ll_full = full_logpdf(V, mu_full, cov_full)
-    full_lp_full = float(ll_full.mean())
-    diag_lp_full = float(ll_diag_full.mean())
-
-    n_pass_sub = 0
-    rhos = []
-    for _ in range(SUB_B):
-        idx = rng.choice(n_p,
-                         size=min(n_p, max(int(SUB_FRAC * n_p), K + 1)),
-                         replace=False)
-        P_sub = P[idx]
-        if len(P_sub) < K + 1:
-            continue
-        mu_s = P_sub.mean(axis=0)
-        cov_s = np.cov(P_sub.T)
-        # PD
-        eigs_s = np.linalg.eigvalsh(cov_s)
-        if eigs_s[0] <= 0:
-            continue
-        # finite val log-P
-        ll_s = full_logpdf(V, mu_s, cov_s)
-        if not np.all(np.isfinite(ll_s)):
-            continue
-        # beats diag
-        var_s = P_sub.var(axis=0, ddof=1) + DIAG_LAMBDA
-        ll_d_s = diag_logpdf(V, mu_s, var_s)
-        if ll_s.mean() < ll_d_s.mean():
-            continue
-        n_pass_sub += 1
-        # ρ 排序 (与 full D²)
-        d2_s = maha_d2_order(V, mu_s, cov_s)
-        if valid_full and np.all(np.isfinite(d2_s)):
-            rho = spearman_rho(d2_full, d2_s)
-            rhos.append(rho)
-
-    pass_rate = n_pass_sub / SUB_B
-    rho_med = float(np.median(rhos)) if rhos else 0.0
-    return {
-        "e4_pass_rate": pass_rate,
-        "e4_rho_med": rho_med,
-        "e4_n_rho": len(rhos),
-        "e4_pass": bool(pass_rate >= E4_PASS_RATE and rho_med >= E4_RHO_THRESHOLD
-                        and valid_full),
-        "e4_full_lp_mean": full_lp_full,
-        "e4_diag_lp_mean": diag_lp_full,
-    }
-
-
-def evaluate_one(P: np.ndarray, V: np.ndarray, K: int,
-                 rng: np.random.Generator) -> dict:
-    n_p = len(P)
-    n_v = len(V)
-    e1_sample = True  # E1 已移除 (n_p ≥ 33 即可估计 full cov)
-
-    # n_p < K+1 直接跳过 cov 估计
-    if n_p < K + 1:
-        return {
-            "n_p": n_p, "n_v": n_v,
-            "e1_sample": e1_sample,
-            "e2a_finite": False, "e2b_beats_diag": False, "e2_predict": False,
-            "e3_full_rank": False, "e3_eff_dim": 0,
-            "e3_eff_dim_rel": 0, "e3_effective_rank": 0.0,
-            "e3_participation_ratio": 0.0, "e3_rel_threshold": E3_REL_THR,
-            "e4_pass": False, "e4_pass_rate": 0.0,
-            "e4_rho_med": 0.0, "e4_n_pass": 0,
-            "min_eigval": float("nan"),
-            "max_eigval": float("nan"),
-            "cond_ratio": float("inf"),
-            "full_logp_mean": float("nan"),
-            "diag_logp_mean": float("nan"),
-            "logp_margin": float("nan"),
-            "valid_gaussian": False,
-            "fail_reasons": ["n_p<33 无法估计 full cov"],
-        }
-
-    mu = P.mean(axis=0)
-    cov = np.cov(P.T)
-    eigs = np.linalg.eigvalsh(cov)
-    min_e = float(eigs[0])
-    max_e = float(eigs[-1])
-    n_eff_rel = eff_dim_relative(eigs, E3_REL_THR)
-    eff_rank = effective_rank(eigs)
-    d_pr = participation_ratio(eigs)
-    e3_full_rank = bool(n_eff_rel == K)  # 保留字段名供兼容, 实际指相对阈值全秩
-
-    # E2 留出预测能力
-    e2a_finite = False
-    e2b_beats_diag = False
-    full_lp_mean = float("nan")
-    diag_lp_mean = float("nan")
-    logp_margin = float("nan")
-
-    if n_v >= MIN_VAL_SENTS:
-        # full Gaussian (无 ridge, 奇异返回 -inf)
-        ll_full = full_logpdf(V, mu, cov)
-        e2a_finite = bool(np.all(np.isfinite(ll_full)))
-        if e2a_finite:
-            full_lp_mean = float(ll_full.mean())
-            # 对角基线 (per-dim var + DIAG_LAMBDA)
-            var_d = P.var(axis=0, ddof=1) + DIAG_LAMBDA
-            mu_d = P.mean(axis=0)
-            ll_diag = diag_logpdf(V, mu_d, var_d)
-            diag_lp_mean = float(ll_diag.mean())
-            e2b_beats_diag = bool(full_lp_mean >= diag_lp_mean)
-            logp_margin = full_lp_mean - diag_lp_mean
-    e2_predict = e2a_finite and e2b_beats_diag
-
-    # E4 重采样稳定性 — 仅当 E2 通过时计算 (成本高, 提前 fail 直接跳过)
-    e4_pass = False
-    e4_pass_rate = 0.0
-    e4_rho_med = 0.0
-    e4_n_pass = 0
-    if e2_predict:
-        e4 = bootstrap_stability(P, V, K, rng)
-        e4_pass = e4["e4_pass"]
-        e4_pass_rate = e4["e4_pass_rate"]
-        e4_rho_med = e4["e4_rho_med"]
-        e4_n_pass = int(round(e4_pass_rate * SUB_B))
-
-    fail_reasons = []
-    if not e2a_finite:
-        fail_reasons.append(
-            f"E2a val<{MIN_VAL_SENTS} or full log-P 非有限"
-            + (f" (n_v={n_v})" if n_v < MIN_VAL_SENTS else ""))
-    if not e2b_beats_diag:
-        fail_reasons.append(
-            f"E2b full log-P ({full_lp_mean:.3f}) < diag log-P ({diag_lp_mean:.3f})"
-            if e2a_finite else "E2b 不可计算 (E2a fail)")
-    if e2_predict and not e4_pass:
-        fail_reasons.append(
-            f"E4 pass_rate={e4_pass_rate:.2f} < {E4_PASS_RATE} or "
-            f"rho_med={e4_rho_med:.3f} < {E4_RHO_THRESHOLD}")
-
-    valid = e2_predict and e4_pass
-    return {
-        "n_p": n_p, "n_v": n_v,
-        "e1_sample": e1_sample,
-        "e2a_finite": e2a_finite,
-        "e2b_beats_diag": e2b_beats_diag,
-        "e2_predict": e2_predict,
-        "e3_full_rank": e3_full_rank,
-        "e3_eff_dim": n_eff_rel,
-        "e3_eff_dim_rel": n_eff_rel,
-        "e3_effective_rank": eff_rank,
-        "e3_participation_ratio": d_pr,
-        "e3_rel_threshold": E3_REL_THR,
-        "e4_pass": e4_pass,
-        "e4_pass_rate": e4_pass_rate,
-        "e4_rho_med": e4_rho_med,
-        "e4_n_pass": e4_n_pass,
-        "min_eigval": min_e,
-        "max_eigval": max_e,
-        "cond_ratio": float(max_e / max(min_e, 1e-12)),
-        "full_logp_mean": full_lp_mean,
-        "diag_logp_mean": diag_lp_mean,
-        "logp_margin": logp_margin,
-        "valid_gaussian": valid,
-        "fail_reasons": fail_reasons,
-    }
-
-
-def main():
+def main() -> None:
     t0 = time.time()
-    log("=== raw_cov_validity (no λI ridge, val predictive E2 + bootstrap E4) ===")
-
+    log("=== Stage 05 audit: A1+A2+A3 on 16d lowrank+diag Σ_u (cohort3mlp encoder) ===")
     z_p_s, z_v_s, sp, sv, uid_list, n_users_actual = load_assets()
-    log(f"  K={K_DIM}  N_USERS={n_users_actual}  "
+    chi2_thr = _chi2_thr_for_K(K_DIM)
+    log(f"  K={K_DIM}  chi²_{{{K_DIM},{CHI2_Q95}}}={chi2_thr:.3f}  "
         f"MIN_VAL_SENTS={MIN_VAL_SENTS}  SUB_B={SUB_B}  SUB_FRAC={SUB_FRAC}  "
-        f"E4_THR=pass>={E4_PASS_RATE}, rho>={E4_RHO_THRESHOLD}")
+        f"COVERAGE95_MIN={COVERAGE95_MIN}  "
+        f"A3_THR=fit>={SUBSAMPLE_FIT_RATE_MIN}, ρ>={SUBSAMPLE_SPEARMAN_MIN}, "
+        f"agree>={SUBSAMPLE_GATE_AGREE_MIN}")
     log(f"  loaded z_profile={z_p_s.shape}  z_val={z_v_s.shape}")
 
+    if not TRAINED_UIDS_PATH.exists():
+        raise FileNotFoundError(
+            f"missing cohort3-trained uid whitelist: {TRAINED_UIDS_PATH}")
+    with open(TRAINED_UIDS_PATH) as f:
+        trained_uid_set = set(json.load(f))
+    trained_uid_index_set = {
+        i for i, u in enumerate(uid_list) if u in trained_uid_set
+    }
+    eligible = sorted(trained_uid_index_set)
+    log(
+        f"  eligible users: {len(eligible)} "
+        f"(cohort3-trained uid whitelist; raw strict3={n_users_actual})"
+    )
+
     per_user: dict = {}
-    fail_counts = {"E2a_finite": 0, "E2b_beats_diag": 0, "E4_stability": 0}
+    fail_counts = {"A1_num_invalid": 0,
+                   "A2_calibration": 0,
+                   "A3_stability": 0}
     fail_union: set = set()
-    eff_dim_hist: dict = {}
-    eff_dim_per_user: list = []
-    eff_rank_list: list = []
-    d_pr_list: list = []
+    a2_coverages: list = []
+    a2_d2_p50s: list = []
+    a2_d2_p95s: list = []
+    a3_fit_rates: list = []
+    a3_rhos: list = []
+    a3_agrees: list = []
     valid_users = 0
-    min_eigs: list = []
-    conds: list = []
-    margins: list = []
-    e4_pass_rates: list = []
-    e4_rhos: list = []
     rng = np.random.default_rng(SEED)
 
-    for u in range(n_users_actual):
+    for k, u in enumerate(eligible):
         P = z_p_s[sp[u]:sp[u + 1]]
         V = z_v_s[sv[u]:sv[u + 1]]
-        r = evaluate_one(P, V, K_DIM, rng)
+        r = evaluate_one(P, V, K_DIM, rng, chi2_thr=chi2_thr)
         per_user[uid_list[u]] = r
-        eff_dim_hist[r["e3_eff_dim_rel"]] = eff_dim_hist.get(r["e3_eff_dim_rel"], 0) + 1
-        eff_dim_per_user.append(int(r["e3_eff_dim_rel"]))
-        eff_rank_list.append(r["e3_effective_rank"])
-        d_pr_list.append(r["e3_participation_ratio"])
+        a2_coverages.append(r["a2_coverage95"])
+        a2_d2_p50s.append(r["a2_val_d2_p50"])
+        a2_d2_p95s.append(r["a2_val_d2_p95"])
+        a3_fit_rates.append(r["a3_valid_fit_rate"])
+        a3_rhos.append(r["a3_spearman_rho_med"])
+        a3_agrees.append(r["a3_gate_agreement_med"])
         if not r["valid_gaussian"]:
             fail_union.add(u)
-            if not r["e2a_finite"]:
-                fail_counts["E2a_finite"] += 1
-            if not r["e2b_beats_diag"]:
-                fail_counts["E2b_beats_diag"] += 1
-            if r["e1_sample"] and r["e2_predict"] and not r["e4_pass"]:
-                fail_counts["E4_stability"] += 1
+            if not r["a1_pass"]:
+                fail_counts["A1_num_invalid"] += 1
+            if not r["a2_pass"]:
+                fail_counts["A2_calibration"] += 1
+            if not r["a3_pass"]:
+                fail_counts["A3_stability"] += 1
         else:
             valid_users += 1
-            min_eigs.append(r["min_eigval"])
-            conds.append(r["cond_ratio"])
-            margins.append(r["logp_margin"])
-            e4_pass_rates.append(r["e4_pass_rate"])
-            e4_rhos.append(r["e4_rho_med"])
-        if (u + 1) % 500 == 0:
-            log(f"  {u + 1}/{n_users_actual}  valid={valid_users}  "
+        if (k + 1) % 500 == 0 or k == len(eligible) - 1:
+            log(f"  {k + 1}/{len(eligible)}  valid={valid_users}  "
                 f"fail_union={len(fail_union)}  t={time.time()-t0:.1f}s")
 
-    n_total = n_users_actual
+    n_total = len(eligible)
     n_fail_union = len(fail_union)
     log(f"  FINAL:")
-    log(f"    valid_gaussian     = {valid_users}/{n_total} ({valid_users/n_total*100:.2f}%)")
-    log(f"    invalid (union)    = {n_fail_union}/{n_total} ({n_fail_union/n_total*100:.2f}%)")
-    log(f"    fail by E2a finite = {fail_counts['E2a_finite']}")
-    log(f"    fail by E2b diag   = {fail_counts['E2b_beats_diag']}")
-    log(f"    fail by E4 stability = {fail_counts['E4_stability']}")
+    log(f"    valid_gaussian        = {valid_users}/{n_total} "
+        f"({valid_users/n_total*100:.2f}%)")
+    log(f"    invalid (union)       = {n_fail_union}/{n_total} "
+        f"({n_fail_union/n_total*100:.2f}%)")
+    log(f"    fail by A1 numerical = {fail_counts['A1_num_invalid']}")
+    log(f"    fail by A2 calibration = {fail_counts['A2_calibration']}")
+    log(f"    fail by A3 stability  = {fail_counts['A3_stability']}")
 
-    if min_eigs:
-        log(f"    valid min_eigval P10/50/90 = "
-            f"{np.percentile(min_eigs,[10,50,90]).tolist()}")
-        log(f"    valid cond_ratio P50/90/99 = "
-            f"{np.percentile(conds,[50,90,99]).tolist()}")
-        log(f"    valid logp_margin P10/50/90 = "
-            f"{np.percentile(margins,[10,50,90]).tolist()}")
-        log(f"    valid E4 pass_rate P10/50/90 = "
-            f"{np.percentile(e4_pass_rates,[10,50,90]).tolist()}")
-        log(f"    valid E4 rho_med P10/50/90 = "
-            f"{np.percentile(e4_rhos,[10,50,90]).tolist()}")
-    eff_dim_pct = (np.percentile(eff_dim_per_user, [10, 50, 90]).tolist()
-                   if eff_dim_per_user else None)
-    log(f"    E3 eff_dim_rel (λ/λ_max>{E3_REL_THR:g}) P10/50/90 = "
-        f"{eff_dim_pct}")
-    log(f"    E3 eff_dim_rel hist (全体) = "
-        f"{sorted(eff_dim_hist.items())[:20]}...")
-    log(f"    E3 effective_rank (全体) P10/50/90 = "
-        f"{np.percentile(eff_rank_list,[10,50,90]).tolist()}")
-    log(f"    E3 participation_ratio (全体) P10/50/90 = "
-        f"{np.percentile(d_pr_list,[10,50,90]).tolist()}")
+    def _pct(arr, qs):
+        arr = [x for x in arr if np.isfinite(x)]
+        return np.percentile(arr, qs).tolist() if arr else None
+
+    log(f"    A2 coverage95 (全体)   P25/50/75 = "
+        f"{_pct(a2_coverages, [25, 50, 75])}")
+    log(f"    A2 val_d2_p50 (全体)   P25/50/90 = "
+        f"{_pct(a2_d2_p50s, [25, 50, 90])}")
+    log(f"    A2 val_d2_p95 (全体)   P50/90/99 = "
+        f"{_pct(a2_d2_p95s, [50, 90, 99])}")
+    log(f"    A3 valid_fit_rate (全体) P10/50/90 = "
+        f"{_pct(a3_fit_rates, [10, 50, 90])}")
+    log(f"    A3 spearman_rho (全体) P10/50/90 = "
+        f"{_pct(a3_rhos, [10, 50, 90])}")
+    log(f"    A3 gate_agreement (全体) P10/50/90 = "
+        f"{_pct(a3_agrees, [10, 50, 90])}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = {
+    summary = {
         "config": {
-            "K_dim": K_DIM, "n_users": n_users_actual,
-            "criteria": (f"E2a: val>={MIN_VAL_SENTS} 且 full log-P 有限; "
-                         "E2b: full log-P mean >= diag log-P mean; "
-                         f"E3: 尺度无关软约束 (eff_dim_rel: λ/λ_max>{E3_REL_THR:g}, "
-                         "effective_rank, participation_ratio, 仅报告不阻断); "
-                         f"E4: bootstrap B={SUB_B} frac={SUB_FRAC} "
-                         f"pass_rate>={E4_PASS_RATE} AND rho_med>={E4_RHO_THRESHOLD}"),
-            "ridge": "NONE (raw np.cov, no λI for full; diag baseline +1e-3)",
+            "K_dim": K_DIM,
+            "chi2_q95": CHI2_Q95,
+            "chi2_threshold": chi2_thr,
+            "covariance_formula": (
+                f"Sigma = lambda * v v^T + diag(sigma_d^2), "
+                f"lambda from top-{K_RANK_LR} eig of full Sigma, "
+                "sigma_d^2 = diag(Sigma - v lambda v^T) clipped."),
+            "d2_formula": (
+                "D^2 = (v^T (z-mu))^2 / lambda + sum_d r_d^2 / sigma_d^2, "
+                "r = (I - v v^T)(z-mu) residual."),
+            "criteria": (
+                "valid_gaussian = A1 AND A2 AND A3. "
+                "A1: lambda>0, sigma_d^2>0, log|Σ| finite, all val D² finite; "
+                f"A2: coverage95 (val D² <= chi²_{{{K_DIM},{CHI2_Q95}}}={chi2_thr:.3f}) "
+                f">= {COVERAGE95_MIN} AND median(val D²) <= {chi2_thr:.3f}; "
+                f"A3: {SUB_B} x {SUB_FRAC:.0%} subsampling → "
+                f"valid_fit_rate >= {SUBSAMPLE_FIT_RATE_MIN}, "
+                f"median Spearman ρ >= {SUBSAMPLE_SPEARMAN_MIN}, "
+                f"median gate-decision agreement >= {SUBSAMPLE_GATE_AGREE_MIN}."),
             "min_val_sents": MIN_VAL_SENTS,
-            "diag_lambda": DIAG_LAMBDA,
+            "k_rank": K_RANK_LR,
+            "psd_floor": PSD_FLOOR_LR,
+            "diag_floor": DIAG_FLOOR_LR,
+            "coverage95_min": COVERAGE95_MIN,
             "sub_B": SUB_B, "sub_frac": SUB_FRAC,
-            "e4_pass_rate_threshold": E4_PASS_RATE,
-            "e4_rho_threshold": E4_RHO_THRESHOLD,
+            "subsample_fit_rate_min": SUBSAMPLE_FIT_RATE_MIN,
+            "subsample_spearman_min": SUBSAMPLE_SPEARMAN_MIN,
+            "subsample_gate_agree_min": SUBSAMPLE_GATE_AGREE_MIN,
+            "encoder_source": "cohort2_mlp16_30_30ep",
+            "trained_uids_path": str(TRAINED_UIDS_PATH),
             "seed": SEED,
-            "cache_schema_version": 2,
             "cohort_fingerprint": _extract_cache_fingerprint(),
         },
         "summary": {
             "n_total": n_total,
             "n_valid": valid_users,
             "n_invalid_union": n_fail_union,
-            "invalid_rate": n_fail_union / n_total,
-            "fail_by_E2a_finite": fail_counts["E2a_finite"],
-            "fail_by_E2b_beats_diag": fail_counts["E2b_beats_diag"],
-            "fail_by_E4_stability": fail_counts["E4_stability"],
-            "valid_min_eigval_pct": np.percentile(min_eigs,[10,50,90]).tolist() if min_eigs else None,
-            "valid_cond_ratio_pct": np.percentile(conds,[50,90,99]).tolist() if conds else None,
-            "valid_logp_margin_pct": np.percentile(margins,[10,50,90]).tolist() if margins else None,
-            "valid_e4_pass_rate_pct": np.percentile(e4_pass_rates,[10,50,90]).tolist() if e4_pass_rates else None,
-            "valid_e4_rho_pct": np.percentile(e4_rhos,[10,50,90]).tolist() if e4_rhos else None,
-            "e3_eff_dim_rel_hist_all": {str(k): v for k, v in sorted(eff_dim_hist.items())},
-            "e3_eff_dim_rel_all_pct": eff_dim_pct,
-            "e3_effective_rank_all_pct": np.percentile(eff_rank_list,[10,50,90]).tolist(),
-            "e3_participation_ratio_all_pct": np.percentile(d_pr_list,[10,50,90]).tolist(),
-            "e3_rel_threshold": E3_REL_THR,
+            "valid_rate": valid_users / n_total,
+            "fail_counts": fail_counts,
+            "A2_coverage95_all_pct": _pct(a2_coverages, [25, 50, 75]),
+            "A2_val_d2_p50_all_pct": _pct(a2_d2_p50s, [25, 50, 90]),
+            "A2_val_d2_p95_all_pct": _pct(a2_d2_p95s, [50, 90, 99]),
+            "A3_valid_fit_rate_all_pct": _pct(a3_fit_rates, [10, 50, 90]),
+            "A3_spearman_rho_all_pct": _pct(a3_rhos, [10, 50, 90]),
+            "A3_gate_agreement_all_pct": _pct(a3_agrees, [10, 50, 90]),
         },
         "per_user": per_user,
     }
-    out = _sanitize_json(out)
-    _atomic_json_dump(out, OUT_PATH)
-    log(f"  saved -> {OUT_PATH} ({os.path.getsize(OUT_PATH)//1024} KB)")
-
-    # ---- ASIN 覆盖分析: valid uid 覆盖的 ASIN (≥2 valid users) ----
-    log(f"=== ASIN coverage (valid uids → ASIN ≥2 users) ===")
-    valid_uids = set(uid for uid, r in per_user.items() if r["valid_gaussian"])
-    with open(ASIN_USERS_PATH) as f:
-        asin_to_users = json.load(f)
-    asin_to_valid = {a: [u for u in uids if u in valid_uids]
-                     for a, uids in asin_to_users.items()}
-    asin_to_valid = {a: v for a, v in asin_to_valid.items() if len(v) >= 2}
-    n_valid_users_used = len({u for v in asin_to_valid.values() for u in v})
-    log(f"  valid uids total        = {len(valid_uids)}")
-    log(f"  ASINs with ≥2 valid uids = {len(asin_to_valid)}")
-    log(f"  valid uids involved      = {n_valid_users_used}")
-    n_per = [len(v) for v in asin_to_valid.values()]
-    if n_per:
-        log(f"  users/ASIN P10/50/90/99  = "
-            f"{np.percentile(n_per,[10,50,90,99]).astype(int).tolist()}")
-        log(f"  users/ASIN max           = {max(n_per)}")
-    coverage_out = {
-        "config": {
-            "criteria": "valid_gaussian == True (E2 + E4 pass; E3 软约束不阻断; E1 已移除)",
-            "min_users_per_asin": 2,
-            "n_valid_uids_total": len(valid_uids),
-            "n_valid_uids_used_in_coverage": n_valid_users_used,
-            "n_asins_meeting_threshold": len(asin_to_valid),
-        },
-        "asin_to_valid_uids": asin_to_valid,
-    }
-    with open(ASIN_COVERAGE_PATH, "w") as f:
-        json.dump(coverage_out, f, indent=2, ensure_ascii=False)
-    log(f"  saved -> {ASIN_COVERAGE_PATH} "
-        f"({os.path.getsize(ASIN_COVERAGE_PATH)//1024} KB)")
-
-    log(f"=== DONE in {time.time()-t0:.1f}s ===")
+    _atomic_json_dump(_sanitize_json(summary), OUT_PATH)
+    log(f"  wrote → {OUT_PATH} ({OUT_PATH.stat().st_size // 1024} KB)")
+    log(f"  FINAL: valid_gaussian={valid_users}/{n_total} "
+        f"({valid_users/n_total*100:.2f}%)  "
+        f"fail_union={n_fail_union}  t={time.time()-t0:.1f}s")
 
 
 if __name__ == "__main__":

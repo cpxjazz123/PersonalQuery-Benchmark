@@ -55,7 +55,7 @@ SERCL_OPS = ("R:", "M:", "U:")      # replacement / missing / unnecessary
 SERCL_TOP_ERROR_TYPES = None        # None = 不限; v1 不限, 看分布
 
 UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences.json"
-SELECTED_QUERIES = REPO_ROOT / "result/08_select_query/selected_queries.json"  # 2026-09-06: cohort 必须从此选
+SELECTED_QUERIES = REPO_ROOT / "result/08_select_query/selected_queries.json"  # 2026-09-19: Stage 8 canonical output
 
 
 def log(msg: str) -> None:
@@ -209,62 +209,60 @@ def extract_error_records(orig_sents: List[str], cor_sents: List[str]
     """
     nlp, ann = _load_spacy_errant()
     records = []
-    for si, (x, x_prime) in enumerate(zip(orig_sents, cor_sents)):
-        if x.strip() == x_prime.strip():
-            continue  # no edits
-        try:
-            orig = ann.parse(x)
-            cor = ann.parse(x_prime)
-            edits = ann.annotate(orig, cor)
-        except Exception:
-            continue
-        # Build token arrays for morph lookup
-        orig_tokens = [t for t in orig]
-        cor_tokens = [t for t in cor]
-        for e in edits:
-            op = e.type[0] + ":"  # 'R:', 'M:', 'U:'
-            if op not in SERCL_OPS:
+    BATCH = 256
+    for batch_start in range(0, len(orig_sents), BATCH):
+        batch_o = orig_sents[batch_start:batch_start + BATCH]
+        batch_c = cor_sents[batch_start:batch_start + BATCH]
+        orig_docs = list(nlp.pipe(batch_o, batch_size=BATCH))
+        cor_docs = list(nlp.pipe(batch_c, batch_size=BATCH))
+        for di, (x, x_prime, orig, cor) in enumerate(zip(batch_o, batch_c, orig_docs, cor_docs)):
+            si = batch_start + di
+            if x.strip() == x_prime.strip():
                 continue
-            if op == "R:":
-                t_o = orig_tokens[e.o_start] if e.o_start < len(orig_tokens) else None
-                t_c = cor_tokens[e.c_start] if e.c_start < len(cor_tokens) else None
-                upos_b = t_o.pos_ if t_o else "_"
-                upos_a = t_c.pos_ if t_c else "_"
-                dep_b = t_o.dep_ if t_o else "_"
-                dep_a = t_c.dep_ if t_c else "_"
-                morph_diff = _morph_diff(t_o, t_c)
-                err_type = f"R:{upos_b}→{upos_a}|{dep_b}→{dep_a}"
-                if morph_diff:
-                    err_type += f"|{morph_diff}"
-                # D3 from the orig-token (which carries the dep relations in orig parse)
-                ctx = _d3_context(t_o) if t_o is not None else "_|_|_"
-                incorrect_word = t_o.text if t_o else ""
-                corrected_word = t_c.text if t_c else ""
-            elif op == "M:":
-                # Missing token: use the position right after edit in cor
-                anchor_idx = min(e.c_start, len(cor_tokens) - 1)
-                t_c = cor_tokens[anchor_idx]
-                upos_a = t_c.pos_
-                dep_a = t_c.dep_
-                err_type = f"M:{upos_a}|{dep_a}"
-                ctx = _d3_context(t_c)
-                incorrect_word = ""
-                corrected_word = t_c.text
-            else:  # U:
-                anchor_idx = min(e.o_start, len(orig_tokens) - 1)
-                t_o = orig_tokens[anchor_idx]
-                upos_b = t_o.pos_
-                dep_b = t_o.dep_
-                err_type = f"U:{upos_b}|{dep_b}"
-                ctx = _d3_context(t_o)
-                incorrect_word = t_o.text
-                corrected_word = ""
-            word_pair = {
-                "op": op,
-                "incorrect_word": incorrect_word,
-                "corrected_word": corrected_word,
-            }
-            records.append((err_type, ctx, si, word_pair))
+            try:
+                edits = ann.annotate(orig, cor)
+            except Exception:
+                continue
+            orig_tokens = [t for t in orig]
+            cor_tokens = [t for t in cor]
+            for e in edits:
+                op = e.type[0] + ":"
+                if op not in SERCL_OPS:
+                    continue
+                if op == "R:":
+                    t_o = orig_tokens[e.o_start] if e.o_start < len(orig_tokens) else None
+                    t_c = cor_tokens[e.c_start] if e.c_start < len(cor_tokens) else None
+                    upos_b = t_o.pos_ if t_o else "_"
+                    upos_a = t_c.pos_ if t_c else "_"
+                    dep_b = t_o.dep_ if t_o else "_"
+                    dep_a = t_c.dep_ if t_c else "_"
+                    morph_diff = _morph_diff(t_o, t_c)
+                    err_type = f"R:{upos_b}→{upos_a}|{dep_b}→{dep_a}"
+                    if morph_diff:
+                        err_type += f"|{morph_diff}"
+                    ctx = _d3_context(t_o) if t_o is not None else "_|_|_"
+                    incorrect_word = t_o.text if t_o else ""
+                    corrected_word = t_c.text if t_c else ""
+                elif op == "M:":
+                    anchor_idx = min(e.c_start, len(cor_tokens) - 1)
+                    t_c = cor_tokens[anchor_idx]
+                    upos_a = t_c.pos_
+                    dep_a = t_c.dep_
+                    err_type = f"M:{upos_a}|{dep_a}"
+                    ctx = _d3_context(t_c)
+                    incorrect_word = ""
+                    corrected_word = t_c.text
+                else:  # U:
+                    anchor_idx = min(e.o_start, len(orig_tokens) - 1)
+                    t_o = orig_tokens[anchor_idx]
+                    upos_b = t_o.pos_
+                    dep_b = t_o.dep_
+                    err_type = f"U:{upos_b}|{dep_b}"
+                    ctx = _d3_context(t_o)
+                    incorrect_word = t_o.text
+                    corrected_word = ""
+                word_pair = {"op": op, "incorrect_word": incorrect_word, "corrected_word": corrected_word}
+                records.append((err_type, ctx, si, word_pair))
     return records
 
 
@@ -346,20 +344,37 @@ def main_pipeline():
     uid_to_records: Dict[str, List[Tuple[str, str]]] = collections.defaultdict(list)
     user_word_edits: Dict[str, List[Dict]] = {uid: [] for uid in uids}
     n_no_edit = 0
-    for uid, x, x_prime in zip(all_idx, all_orig, corrected):
-        recs = extract_error_records([x], [x_prime])
-        if not recs:
-            n_no_edit += 1
-        sent_edits: List[Dict[str, str]] = []
-        for et, ctx, _si, wp in recs:
-            uid_to_records[uid].append((et, ctx, uid))
-            sent_edits.append(wp)
-        if sent_edits:
-            user_word_edits[uid].append({
-                "orig_sent": x,
-                "cor_sent": x_prime,
-                "edits": sent_edits,
-            })
+    # ERRANT batch processing (256 sentences / call)
+    BATCH_ERRANT = 256
+    t_errant0 = time.time()
+    n_records_total = 0
+    for batch_start in range(0, len(all_orig), BATCH_ERRANT):
+        batch_o = all_orig[batch_start:batch_start + BATCH_ERRANT]
+        batch_c = corrected[batch_start:batch_start + BATCH_ERRANT]
+        batch_uids = all_idx[batch_start:batch_start + BATCH_ERRANT]
+        recs_per_sent = extract_error_records(batch_o, batch_c)
+        # recs_per_sent: flat list of (err_type, ctx, sent_idx, word_pair)
+        # group by sent_idx
+        per_sent: Dict[int, List[Tuple]] = {}
+        for et, ctx, si, wp in recs_per_sent:
+            per_sent.setdefault(si, []).append((et, ctx, si, wp))
+        for di, (uid, x, x_prime) in enumerate(zip(batch_uids, batch_o, batch_c)):
+            sent_edits: List[Dict[str, str]] = []
+            for et, ctx, _si, wp in per_sent.get(batch_start + di, []):
+                uid_to_records[uid].append((et, ctx, uid))
+                sent_edits.append(wp)
+            if sent_edits:
+                user_word_edits[uid].append({
+                    "orig_sent": x,
+                    "cor_sent": x_prime,
+                    "edits": sent_edits,
+                })
+            else:
+                n_no_edit += 1
+            n_records_total += len(sent_edits)
+        if (batch_start // BATCH_ERRANT) % 20 == 0:
+            log(f"    errant {batch_start + len(batch_o)}/{len(all_orig)}  "
+                f"elapsed={time.time() - t_errant0:.1f}s  edits={n_records_total}")
     total_edits = sum(len(v) for v in uid_to_records.values())
     n_users_with_edits = sum(1 for v in uid_to_records.values() if v)
     log(f"  total edits: {total_edits}  (no-edit sents: {n_no_edit}/{len(all_orig)})")
@@ -418,24 +433,26 @@ def main_pipeline():
 
     # Sanity: user-specific signal (off-diag cosine sim of L_u vectors)
     log("\n=== Sanity: user-specific signal ===")
-    all_cells = sorted({(ctx, et) for ctx in P_global for et in P_global[ctx]})
     import numpy as np
-    vecs = {}
-    for uid, p in user_profiles.items():
-        v = np.zeros(len(all_cells))
-        for i, (ctx, et) in enumerate(all_cells):
-            v[i] = p["L_u"].get(ctx, {}).get(et, 0.0)
-        vecs[uid] = v
-    uids = list(vecs.keys())
-    sim = np.zeros((len(uids), len(uids)))
-    for i, u1 in enumerate(uids):
-        for j, u2 in enumerate(uids):
-            v1, v2 = vecs[u1], vecs[u2]
-            n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
-            sim[i, j] = (v1 @ v2) / (n1 * n2 + 1e-12)
+    all_cells = sorted({(ctx, et) for ctx in P_global for et in P_global[ctx]})
+    cell_index = {(ctx, et): i for i, (ctx, et) in enumerate(all_cells)}
+    D = len(all_cells)
+    uids = list(user_profiles.keys())
+    V = np.zeros((len(uids), D), dtype=np.float32)
+    for ri, uid in enumerate(uids):
+        p = user_profiles[uid]
+        for ctx, et_map in p["L_u"].items():
+            for et, val in et_map.items():
+                ci = cell_index.get((ctx, et))
+                if ci is not None:
+                    V[ri, ci] = val
+    norms = np.linalg.norm(V, axis=1, keepdims=True)
+    Vn = V / (norms + 1e-12)
+    sim = Vn @ Vn.T
     mask = ~np.eye(len(uids), dtype=bool)
-    log(f"  off-diag L_u cosine sim: mean={sim[mask].mean():.4f}  "
-        f"median={np.median(sim[mask]):.4f}  std={sim[mask].std():.4f}")
+    off = sim[mask]
+    log(f"  off-diag L_u cosine sim: mean={off.mean():.4f}  "
+        f"median={np.median(off):.4f}  std={off.std():.4f}")
     log(f"  (low → user-specific signal present; target < 0.5)")
 
     log(f"\n=== SErCL run complete ({time.time()-t_start:.1f}s) ===")

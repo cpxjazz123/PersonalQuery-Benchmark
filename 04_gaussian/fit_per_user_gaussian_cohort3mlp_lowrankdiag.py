@@ -48,10 +48,15 @@ from fit_per_user_gaussian import (
     N_SMOKE_USERS,
     N_SMOKE_ASINS,
 )
-from train_real_asin_cohort3 import StyleMLP
+from syntax_encoder import StyleMLP
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ENCODER_WEIGHTS_CANDIDATES = [
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
+    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
     Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
@@ -60,13 +65,13 @@ TRAINED_UIDS_PATH = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spac
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 
-K_DIM = 32        # cohort3 MLP output dim (current run)
+K_DIM = 16        # cohort3 MLP output dim (current run)
 K_RANK = 1         # low-rank dimension; 1 → rank1 + per-dim diag residual
 DIAG_FLOOR = 1e-4  # floor on per-dim residual sigma^2 (avoids /0)
 
 OUT_VARIANT = Path(
     f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/"
-    f"user_gaussian_stats_cohort3mlp32_lowrankdiag_rank{K_RANK}.json"
+    f"user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank{K_RANK}.json"
 )
 OUT_VARIANT.parent.mkdir(parents=True, exist_ok=True)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -263,7 +268,7 @@ def main() -> None:
             "gate_quantile": GATE_QUANTILE,
             "gate_quantiles": [0.50, 0.75, 0.95],
             "syntax_dim": K_DIM,
-            "encoder_source": "cohort3_mlp32_30ep",
+            "encoder_source": "cohort2_mlp16_30_30ep",
             "encoder_weights": str(weights_path),
             "trained_uids_path": str(TRAINED_UIDS_PATH),
             "strict3_source": str(CACHE_DIR / "strict3_embeddings.npz"),
