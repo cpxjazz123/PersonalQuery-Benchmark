@@ -402,14 +402,18 @@ def run_stage12_typo_paired_degradation(smoke=False):
 
 if __name__ == "__main__":
     SMOKE = "--smoke" in sys.argv
+    # Default: run BOTH Stage 11 (orig LLM rerank) and Stage 12 (typo paired degradation).
+    # Skip flags: --no-stage11 / --no-stage12 to run only one.
     RUN_STAGE11 = "--no-stage11" not in sys.argv
     RUN_STAGE12 = "--no-stage12" not in sys.argv
+    log(f"=== Stage 13 LLM rerank pipeline ===")
+    log(f"  SMOKE={SMOKE}  RUN_STAGE11={RUN_STAGE11}  RUN_STAGE12={RUN_STAGE12}")
     t0 = time.time()
     if RUN_STAGE11:
         s11 = run_stage11_llm_rerank(smoke=SMOKE)
         log(f"=== Stage 11 done in {time.time()-t0:.1f}s ===")
-    t1 = time.time()
     if RUN_STAGE12:
+        t1 = time.time()
         s12 = run_stage12_typo_paired_degradation(smoke=SMOKE)
         log(f"=== Stage 12 done in {time.time()-t1:.1f}s ===")
     log(f"=== total: {time.time()-t0:.1f}s ===")
