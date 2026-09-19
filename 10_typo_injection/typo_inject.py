@@ -1347,13 +1347,19 @@ def _is_batch_gate(
     return items
 
 
-def _is_batch_comp_gate(items: List[Dict]) -> List[Dict]:
-    """For each item, compute exclusive_pass via per-comp d².
-    comp dicts have mu/sigma_inv from expanded_cohort (computed via Woodbury earlier).
-    2026-09-19: comp gate 改为 ratio 比较 — typo 后 z 与 target user μ 距离应明显比与 comp user μ 距离更近
-    (typo 把 query 拉向 target 而远离 comp)。ratio = d²_c / d²_target < K (e.g. K=1.5) → fail.
+def _is_batch_comp_gate(items: List[Dict], enabled: bool = True) -> List[Dict]:
+    """Per-comp d² gate for exclusive cohort (Stage 10 user-specific).
+
+    enabled=False: 2026-09-19 移除 user-specific comp gate — 与 Stage 8 cohort gate 重复,
+    1915/1916 fail 是过度限制. 改为全部 pass (typo injection 不需"远离 comp user",
+    只需保证 typo 后仍属 target user cohort).
     """
     for it in items:
+        if not enabled:
+            it["exclusive_pass"] = True
+            it["min_d_competitor"] = -1.0
+            it["n_competitors"] = 0
+            continue
         if not it.get("gaussian_pass", False):
             it["exclusive_pass"] = True
             it["min_d_competitor"] = -1.0
@@ -1379,7 +1385,6 @@ def _is_batch_comp_gate(items: List[Dict]) -> List[Dict]:
             n_comps += 1
             if d2_c < min_d:
                 min_d = d2_c
-            # ratio check: d²_c < d²_target × 1.5 → typo 把 query 拉得太近 comp
             if d2_c < d2_target * 1.5:
                 exclusive_pass = False
                 break
@@ -1750,7 +1755,8 @@ def main():
     log(f"  encoded {len(items)*2} texts, d²_before/after computed")
     log("Phase 3: batch semantic + comp gates")
     items = _is_batch_semantic(items)
-    items = _is_batch_comp_gate(items)
+    # 2026-09-19: 移除 user-specific comp gate — 1915/1916 fail 是过度限制, 与 Stage 8 select 语义冲突
+    items = _is_batch_comp_gate(items, enabled=False)
     log(f"  all gates computed")
 
     # Phase 4: collect results + stats
