@@ -55,6 +55,11 @@ SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
 VOLATILITY_OUT = RESULT_DIR / f"volatility{_SEL_SUFFIX}.json"
 EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
 
+# 2026-09-19: Top-100 candidates cache for each retriever (used by Stage 11/12 LLM rerank).
+# Each retriever writes <topk_save_dir>/<retr_name>_top100.npz with key 'topk_asins' (n_queries, 100).
+TOPK_SAVE_DIR = RESULT_DIR / "top100_cache"
+TOPK_SAVE_K = 100
+
 # 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
 SMOKE = False
 N_SMOKE_QUERIES = 5
@@ -238,7 +243,9 @@ def rank_target_in_sorted(target_idx: int, sorted_docs: np.ndarray, max_k: int) 
 # BM25 (lexical sparse)
 # ===========================================================================
 def bm25_retrieve(queries: list[str], corpus_texts: list[str],
-                  target_indices: np.ndarray, bm25_k: int = 20000) -> list[dict]:
+                  target_indices: np.ndarray, bm25_k: int = 20000,
+                  save_topk_path: Path | None = None,
+                  topk_k: int = TOPK_SAVE_K) -> list[dict]:
     import bm25s
     log("\n=== BM25 (lexical_sparse) ===")
 
@@ -311,6 +318,7 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
     query_tokens = bm25s.tokenize(queries, stopwords="en", show_progress=False)
     BM25_BATCH = 1000
     results = [None] * len(queries)
+    topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
 
     def _slice_tok(tok, s, e):
         return type(tok)(tok.ids[s:e], tok.vocab)
@@ -325,7 +333,14 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
             sorted_docs = sub_res.documents[i]
             rank = rank_target_in_sorted(tgt_idx, sorted_docs, bm25_k)
             results[gi] = rr_hit_from_rank(rank)
+            if topk_buffer is not None:
+                topk_buffer.append(np.asarray(sorted_docs[:topk_k], dtype=np.int32))
     log(f"  retrieved in {time.time() - t0:.1f}s")
+    if save_topk_path is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        topk_arr = np.stack(topk_buffer, axis=0) if topk_buffer else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=topk_arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={topk_arr.shape})")
     return results
 
 
@@ -397,7 +412,9 @@ def splade_encode_stream(model, tok, texts: list[str], cache_dir: Path,
 
 def splade_retrieve(queries: list[str], corpus_texts: list[str],
                     target_indices: np.ndarray, *,
-                    corpus_sig: str, query_sig: str) -> list[dict]:
+                    corpus_sig: str, query_sig: str,
+                    save_topk_path: Path | None = None,
+                    topk_k: int = TOPK_SAVE_K) -> list[dict]:
     from transformers import AutoModelForMaskedLM, AutoTokenizer
     log("\n=== SPLADE (learned_sparse, chunked-streaming) ===")
     cache_dir = EMBED_CACHE_DIR / "splade"
@@ -506,14 +523,23 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
     log(f"  computing target ranks...")
     t_rank = time.time()
     tgt_all = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
+    topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
     for gi in range(n_query):
         tgt_idx = int(tgt_all[gi].item())
         if tgt_idx < 0:
             results[gi] = rr_hit_from_rank(-1)
+            if topk_buffer is not None:
+                topk_buffer.append(np.zeros(topk_k, dtype=np.int32))
             continue
         sc = scores_gpu[gi]
         rank = int((sc > sc[tgt_idx]).sum().item()) + 1
         results[gi] = rr_hit_from_rank(rank)
+        if topk_buffer is not None:
+            top_idx = torch.topk(sc, k=min(topk_k, sc.shape[0])).indices.cpu().numpy().astype(np.int32)
+            if top_idx.shape[0] < topk_k:
+                pad = np.full(topk_k - top_idx.shape[0], -1, dtype=np.int32)
+                top_idx = np.concatenate([top_idx, pad])
+            topk_buffer.append(top_idx)
     log(f"  rank computation done in {time.time() - t_rank:.1f}s")
     log(f"  full matmul done in {time.time() - t0:.1f}s")
 
@@ -521,6 +547,11 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
     torch.cuda.empty_cache()
     del model, tok
     torch.cuda.empty_cache()
+    if save_topk_path is not None and topk_buffer is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        topk_arr = np.stack(topk_buffer, axis=0) if topk_buffer else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=topk_arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={topk_arr.shape})")
     return results
 
 
@@ -529,7 +560,9 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
 # ===========================================================================
 def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
                    target_indices: np.ndarray, *,
-                   corpus_sig: str, query_sig: str) -> tuple[list[dict], np.ndarray]:
+                   corpus_sig: str, query_sig: str,
+                   save_topk_path: Path | None = None,
+                   topk_k: int = TOPK_SAVE_K) -> tuple[list[dict], np.ndarray]:
     from sentence_transformers import SentenceTransformer
     log(f"\n=== {retr_name} (dense, {hf_id}) ===")
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -600,22 +633,40 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
     results = []
     BATCH = 4000 if retr_name == "minilm" else 2000
     tgt_all = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
+    topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
     for s in range(0, q_gpu.shape[0], BATCH):
         e = min(s + BATCH, q_gpu.shape[0])
         sims = q_gpu[s:e] @ corpus_gpu.T
         tgt_chunk = tgt_all[s:e]
         for j in range(sims.shape[0]):
             tgt_idx = int(tgt_chunk[j].item())
+            sc = sims[j]
             if tgt_idx < 0:
                 results.append(rr_hit_from_rank(-1))
+                if topk_buffer is not None:
+                    top_idx = torch.topk(sc, k=min(topk_k, sc.shape[0])).indices.cpu().numpy().astype(np.int32)
+                    if top_idx.shape[0] < topk_k:
+                        pad = np.full(topk_k - top_idx.shape[0], -1, dtype=np.int32)
+                        top_idx = np.concatenate([top_idx, pad])
+                    topk_buffer.append(top_idx)
                 continue
-            sc = sims[j]
             rank = int((sc > sc[tgt_idx]).sum().item()) + 1
             results.append(rr_hit_from_rank(rank))
+            if topk_buffer is not None:
+                top_idx = torch.topk(sc, k=min(topk_k, sc.shape[0])).indices.cpu().numpy().astype(np.int32)
+                if top_idx.shape[0] < topk_k:
+                    pad = np.full(topk_k - top_idx.shape[0], -1, dtype=np.int32)
+                    top_idx = np.concatenate([top_idx, pad])
+                topk_buffer.append(top_idx)
         del sims
     del corpus_gpu, q_gpu, tgt_all
     torch.cuda.empty_cache()
     log(f"  matmul done in {time.time() - t0:.1f}s")
+    if save_topk_path is not None and topk_buffer is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        topk_arr = np.stack(topk_buffer, axis=0) if topk_buffer else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=topk_arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={topk_arr.shape})")
     return results, q_embeds
 
 
@@ -670,7 +721,9 @@ def _colbert_encode_all(model, tok, proj_weight: torch.Tensor, texts: list[str],
 
 def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
                        target_indices: np.ndarray, *,
-                       corpus_sig: str, query_sig: str) -> tuple[list[dict], np.ndarray]:
+                       corpus_sig: str, query_sig: str,
+                       save_topk_path: Path | None = None,
+                       topk_k: int = TOPK_SAVE_K) -> tuple[list[dict], np.ndarray]:
     from transformers import AutoModel, AutoTokenizer
     log("\n=== ColBERTv2 (late_interaction, 768→128) ===")
     cache_dir = EMBED_CACHE_DIR / "colbertv2"
@@ -747,10 +800,13 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
         log(f"  ⚠ cache has {Q_cache} query reps but only {len(target_indices)} target indices; truncating to Q={Q}")
     N = corpus_reps.shape[0]
     CHUNK_N = 4096
+    topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
     for qi in range(Q):
         tgt_idx = int(target_indices[qi])
         if tgt_idx < 0:
             results.append(rr_hit_from_rank(-1))
+            if topk_buffer is not None:
+                topk_buffer.append(np.zeros(topk_k, dtype=np.int32))
             continue
         Lq = int(query_lens[qi])
         qt = torch.from_numpy(query_reps[qi, :Lq]).cuda().float()
@@ -767,10 +823,16 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
             all_scores[s:e] = max_per_q.sum(dim=-1).cpu().numpy()
             del d_chunk, sim, max_per_q, mask
         tgt_score = all_scores[tgt_idx]
-        all_scores[tgt_idx] = -np.inf
-        better = int((all_scores > tgt_score).sum())
+        all_scores_for_rank = all_scores.copy()
+        all_scores_for_rank[tgt_idx] = -np.inf
+        better = int((all_scores_for_rank > tgt_score).sum())
         rank = better + 1
         results.append(rr_hit_from_rank(rank))
+        if topk_buffer is not None:
+            top_idx = np.argpartition(-all_scores, topk_k)[:topk_k]
+            # sort within top_k by score desc
+            top_idx = top_idx[np.argsort(-all_scores[top_idx])]
+            topk_buffer.append(top_idx.astype(np.int32))
         if (qi + 1) % 500 == 0 or qi == Q - 1:
             elapsed = time.time() - t0
             rate = (qi + 1) / elapsed if elapsed > 0 else 0
@@ -791,6 +853,11 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
         q_embeds_pooled[qi] = query_reps[qi, :Lq].mean(axis=0).astype(np.float32)
     norms = np.linalg.norm(q_embeds_pooled, axis=1, keepdims=True).clip(min=1e-9)
     q_embeds_pooled = q_embeds_pooled / norms
+    if save_topk_path is not None and topk_buffer is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        topk_arr = np.stack(topk_buffer, axis=0) if topk_buffer else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=topk_arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={topk_arr.shape})")
     return results, q_embeds_pooled
 
 
@@ -938,6 +1005,13 @@ def main():
                 f"minilm q_embeds cache not found at {minilm_q_cache}; "
                 f"cannot build canonical sim09 reference"
             )
+        # 2026-09-19: top-100 cache 已被 fresh-run 路径保存 (主循环中所有 retriever
+        # 都调用 save_topk_path=topk_path). 这里是 cache-hit 路径, top-100 应已存在.
+        missing_topk = [n for n in RETR_NAMES
+                        if not (TOPK_SAVE_DIR / f"{n}_top100.npz").exists()]
+        if missing_topk:
+            log(f"  ⚠ top-100 cache missing for {missing_topk}, "
+                f"delete {PER_QUERY_OUT} to re-run retrievers and populate top-100 cache")
         _build_aggregates_and_save(query_records, asins_count, t_start,
                                    retr_q_embeds_cached, canonical_name)
         return
@@ -979,21 +1053,27 @@ def main():
 
     for retr in RETRIEVERS:
         kind = retr["kind"]
+        # 2026-09-19: Top-100 candidates cache for LLM rerank on all 7 retrievers.
+        topk_path = TOPK_SAVE_DIR / f"{retr['name']}_top100.npz"
         if kind == "sparse_lexical":
-            results = bm25_retrieve(queries, corpus_texts, target_indices)
+            results = bm25_retrieve(queries, corpus_texts, target_indices,
+                                   save_topk_path=topk_path)
             retr_q_embeds[retr["name"]] = None
         elif kind == "sparse_learned":
             results = splade_retrieve(queries, corpus_texts, target_indices,
-                                      corpus_sig=corpus_sig, query_sig=query_sig)
+                                      corpus_sig=corpus_sig, query_sig=query_sig,
+                                      save_topk_path=topk_path)
             retr_q_embeds[retr["name"]] = None  # SPLADE sparse, no pooled embed for sim09
         elif kind == "dense":
             results, q_embeds = dense_retrieve(retr["name"], retr["hf_id"], queries,
                                               target_indices, corpus_sig=corpus_sig,
-                                              query_sig=query_sig)
+                                              query_sig=query_sig,
+                                              save_topk_path=topk_path)
             retr_q_embeds[retr["name"]] = q_embeds
         elif kind == "late_interaction":
             results, q_embeds = colbertv2_retrieve(queries, corpus_texts, target_indices,
-                                                  corpus_sig=corpus_sig, query_sig=query_sig)
+                                                  corpus_sig=corpus_sig, query_sig=query_sig,
+                                                  save_topk_path=topk_path)
             retr_q_embeds[retr["name"]] = q_embeds
         else:
             raise ValueError(f"Unknown retriever kind: {kind}")

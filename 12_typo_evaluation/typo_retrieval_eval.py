@@ -37,8 +37,14 @@ sys.path.insert(0, str(EVAL_DIR))
 OUT_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
 OUT_DEGRADATION = REPO_ROOT / "result/12_typo_evaluation/retrieval_degradation.json"
 
+# 2026-09-19: top-100 cache for orig and typo queries (used by Stage 12 LLM rerank).
+# Two parallel directories keyed by query type (orig vs typo).
+TOPK_DIR_ORIG = REPO_ROOT / "result/12_typo_evaluation/top100_cache_orig"
+TOPK_DIR_TYPO = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
+TOPK_SAVE_K = 100
+
 # Hardcoded (Rule 3)
-SMOKE = False  # smoke 5 pairs passed; run full 1013 pairs
+SMOKE = False  # 2026-09-19: smoke 5 pairs passed (typ-only + Stage 11 cache load); full 1912 pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 
@@ -128,72 +134,141 @@ def main():
     corpus_sig = retr_mod._corpus_signature(meta_file=retr_mod.META_FILE)
     log(f"  corpus: {len(asins)} ASINs  sig={corpus_sig}")
 
-    # ---- Build combined query list: original_i, typo_i ----
+    # ---- Build records and typo queries (orig will be loaded from Stage 11 cache) ----
     records = []
-    combined_queries = []
-    combined_types = []   # "orig" or "typo"
-    combined_targets = []
+    typo_queries = []
+    typo_targets = []
     for p in pairs:
         asin = p["asin"]
         if asin not in asin_to_idx:
             log(f"  skip {asin}: not in corpus")
             continue
         ti = asin_to_idx[asin]
-        combined_queries.append(p["original_query"])
-        combined_queries.append(p["typo_query"])
-        combined_types.append("orig")
-        combined_types.append("typo")
-        combined_targets.append(ti)
-        combined_targets.append(ti)
+        typo_queries.append(p["typo_query"])
+        typo_targets.append(ti)
         records.append({
             "uid": p["uid"],
             "asin": asin,
             "original_query": p["original_query"],
             "typo_query": p["typo_query"],
         })
-    target_indices = np.array(combined_targets)
-    log(f"  combined queries: {len(combined_queries)} ({len(records)} pairs × 2)")
+    typo_target_indices = np.array(typo_targets)
+    log(f"  typo queries: {len(typo_queries)} (orig will be loaded from Stage 11 cache)")
     query_sig = _queries_sig(records)
     log(f"  query_sig={query_sig}")
 
-    # ---- Run each retriever ----
-    retr_results: dict[str, list[dict]] = {}
+    # ---- Load Stage 11 clean query top-100 cache for orig side ----
+    # Stage 11 selection has 1947 entries (asin, query); Stage 10 typo has 1912 (subset).
+    # Need to map each typo pair's original_query → its position in Stage 11 selection
+    # to load the right row from Stage 11 top-100 cache.
+    STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
+    STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
+    with open(STAGE11_SEL_PATH) as f:
+        sel = json.load(f)
+    sel_entries = []  # [(asin, query_text), ...] in Stage 11 retrieval order
+    for e in sel.get("selections", []):
+        for u in e.get("users", []):
+            q = u.get("query")
+            if q:
+                sel_entries.append((e["asin"], q))
+    sel_lookup = {(a, q): i for i, (a, q) in enumerate(sel_entries)}
+    sel_to_typo = []  # for each record, the index into sel_entries (or -1)
+    for rec in records:
+        key = (rec["asin"], rec["original_query"])
+        sel_to_typo.append(sel_lookup.get(key, -1))
+    n_unmatched = sum(1 for x in sel_to_typo if x < 0)
+    if n_unmatched:
+        log(f"  ⚠ {n_unmatched}/{len(records)} typo pairs not found in Stage 11 selection "
+            f"(Stage 11 has {len(sel_entries)} entries, Stage 10 has {len(records)})")
+    else:
+        log(f"  ✓ all {len(records)} typo pairs matched against Stage 11 selection "
+            f"({len(sel_entries)} entries)")
+
+    # ---- Run each retriever ONCE for typo, save top-100 → TOPK_DIR_TYPO ----
+    # Orig top-100 will be loaded from Stage 11 cache below.
+    retr_typo: dict[str, list[dict]] = {}
+    TOPK_DIR_TYPO.mkdir(parents=True, exist_ok=True)
+
     for retr in retr_mod.RETRIEVERS:
         kind = retr["kind"]
         name = retr["name"]
+        topk_typo = TOPK_DIR_TYPO / f"{name}_top100.npz"
+        query_sig_typo = query_sig + "_typo"
+
         if kind == "sparse_lexical":
-            results = retr_mod.bm25_retrieve(combined_queries, corpus_texts, target_indices)
+            typo_results = retr_mod.bm25_retrieve(typo_queries, corpus_texts,
+                                                 typo_target_indices,
+                                                 save_topk_path=topk_typo)
         elif kind == "sparse_learned":
-            results = retr_mod.splade_retrieve(
-                combined_queries, corpus_texts, target_indices,
-                corpus_sig=corpus_sig, query_sig=query_sig,
+            typo_results = retr_mod.splade_retrieve(
+                typo_queries, corpus_texts, typo_target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig_typo,
+                save_topk_path=topk_typo,
             )
         elif kind == "dense":
-            results, _q_embeds = retr_mod.dense_retrieve(
-                name, retr["hf_id"], combined_queries, target_indices,
-                corpus_sig=corpus_sig, query_sig=query_sig,
+            typo_results, _q_embeds = retr_mod.dense_retrieve(
+                name, retr["hf_id"], typo_queries, typo_target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig_typo,
+                save_topk_path=topk_typo,
             )
         elif kind == "late_interaction":
-            results, _q_embeds = retr_mod.colbertv2_retrieve(
-                combined_queries, corpus_texts, target_indices,
-                corpus_sig=corpus_sig, query_sig=query_sig,
+            typo_results, _q_embeds = retr_mod.colbertv2_retrieve(
+                typo_queries, corpus_texts, typo_target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig_typo,
+                save_topk_path=topk_typo,
             )
         else:
             raise ValueError(f"Unknown retriever kind: {kind}")
-        retr_results[name] = results
+        log(f"  [{name}] typo done (top-100 cached)")
+        retr_typo[name] = typo_results
 
-    # ---- Pair back: orig_records[i], typo_records[i+1] for each record ----
+    # ---- Pair back: orig = Stage 11 cache rows, typo = fresh run above ----
+    retr_results: dict[str, tuple[list[dict], list[dict]]] = {}
+    for retr in retr_mod.RETRIEVERS:
+        name = retr["name"]
+        topk_orig_path = STAGE11_TOPK_DIR / f"{name}_top100.npz"
+        if not topk_orig_path.exists():
+            raise RuntimeError(
+                f"Stage 11 top-100 cache missing for {name}: {topk_orig_path}. "
+                f"Run syntax_subspace_retrieval_unified.py first."
+            )
+        orig_topk = np.load(topk_orig_path)["topk_asins"]  # (n_sel, 100)
+        # For each record, look up the corresponding orig top-100 row by sel index.
+        # Convert idx → synthetic result dict so the pair-back code below works unchanged.
+        orig_results = []
+        for ri, rec in enumerate(records):
+            sel_idx = sel_to_typo[ri]
+            if sel_idx < 0:
+                # Record not in Stage 11 selection: use empty placeholders
+                orig_results.append({
+                    "rank": None, "RR": 0.0, "hit1": 0, "hit5": 0, "hit10": 0,
+                })
+            else:
+                tgt = asin_to_idx[rec["asin"]]
+                top_idx_row = orig_topk[sel_idx]
+                # Find target in top-100 row
+                positions = np.where(top_idx_row == tgt)[0]
+                rank = int(positions[0]) + 1 if len(positions) else 1001
+                orig_results.append({
+                    "rank": rank if rank <= 100 else None,
+                    "RR": 1.0 / rank if rank <= 100 else 0.0,
+                    "hit1": int(rank == 1),
+                    "hit5": int(rank <= 5),
+                    "hit10": int(rank <= 10),
+                })
+        retr_results[name] = (orig_results, retr_typo[name])
+
+    # ---- Pair back: orig_records[i], typo_records[i] for each record ----
     for ri, rec in enumerate(records):
         for retr in retr_mod.RETR_NAMES:
-            res_orig = retr_results[retr][2 * ri]
-            res_typo = retr_results[retr][2 * ri + 1]
+            res_orig, res_typo = retr_results[retr]
             for k in KS:
-                rec[f"{retr}_hit{k}_orig"] = bool(res_orig[f"hit{k}"])
-                rec[f"{retr}_hit{k}_typo"] = bool(res_typo[f"hit{k}"])
-                rec[f"{retr}_rank_orig"] = res_orig["rank"]
-                rec[f"{retr}_rank_typo"] = res_typo["rank"]
-                rec[f"{retr}_RR_orig"] = res_orig["RR"]
-                rec[f"{retr}_RR_typo"] = res_typo["RR"]
+                rec[f"{retr}_hit{k}_orig"] = bool(res_orig[ri][f"hit{k}"])
+                rec[f"{retr}_hit{k}_typo"] = bool(res_typo[ri][f"hit{k}"])
+                rec[f"{retr}_rank_orig"] = res_orig[ri]["rank"]
+                rec[f"{retr}_rank_typo"] = res_typo[ri]["rank"]
+                rec[f"{retr}_RR_orig"] = res_orig[ri]["RR"]
+                rec[f"{retr}_RR_typo"] = res_typo[ri]["RR"]
 
     # ---- Aggregate: per retriever × per k, mean orig/typo hit@k + degradation ----
     summary = {
