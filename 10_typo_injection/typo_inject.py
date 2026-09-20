@@ -169,7 +169,7 @@ if CONTRASTIVE_5558:
     OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary_5558.json"
 
 # Hardcoded hyperparams
-SMOKE = False                   # full run after 250-query span/multi-edit smoke passed
+SMOKE = False                   # full three-typo run after smoke passed
 N_SMOKE_USERS = 250
 SEED_BASE = 42
 
@@ -1762,7 +1762,7 @@ def main():
             "transformation_history": {},
         }
 
-    # 2026-09-19: N_TYPOS_PER_QUERY = 3 (每个 query 注入 3 个独立 typo, 不同位置)
+    # 每个 query 最多注入 3 个独立 typo。
     N_TYPOS_PER_QUERY = 3
     for i, (uid, asin, query) in enumerate(pairs):
         if uid not in mahal or asin not in cohort:
