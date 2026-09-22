@@ -56,6 +56,7 @@ STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank/llm_rerank_results.json"
 TYPO_TOPK_DIR = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
 
 
 def load_typo_pairs(smoke: bool = False) -> list[dict]:
@@ -67,32 +68,49 @@ def load_typo_pairs(smoke: bool = False) -> list[dict]:
     return pairs
 
 
-def run_typo_paired_degradation(smoke: bool = False, orig_rerank: dict | None = None) -> dict:
-    if orig_rerank is None:
-        raise ValueError("Typo paired rerank requires the original Stage 11 rerank result")
-    log("=== Stage 14 / Stage 12 LLM rerank (typo paired P(Yes)) ===")
-    stage11 = orig_rerank
-    stage11_top10_by_retr = stage11["per_query_top10_by_retriever"]
-    orig_lookup_by_retr = {
-        retr: {(record["target_asin"], record["query"]): record
-               for record in records}
-        for retr, records in stage11_top10_by_retr.items()
-    }
-    log(f"  Stage 11 rerank loaded for {len(stage11_top10_by_retr)} retrievers "
-        f"({len(next(iter(stage11_top10_by_retr.values())))} queries each)")
+def load_stage12_orig_baseline() -> dict:
+    """Stage 12 typo evaluation holds per-retriever orig/typo hit@k for each pair.
+
+    Used as the orig-side baseline for Stage 14 paired degradation: we measure
+    ``Stage12_orig_hit@k - Stage14_LLM_rerank_typo_hit@k`` directly, no Stage 13
+    rerank intermediate needed. Returns a lookup keyed by
+    ``(asin, original_query)`` -> per-retriever dict with hit@{1,5,10}_orig,
+    rank_orig, RR_orig fields (per retriever).
+    """
+    if not STAGE12_PER_QUERY.exists():
+        raise FileNotFoundError(
+            f"Stage 12 per_query.json missing: {STAGE12_PER_QUERY}")
+    with open(STAGE12_PER_QUERY) as f:
+        d = json.load(f)
+    records = d["records"]
+    lookup = {}
+    for rec in records:
+        key = (rec["asin"], rec["original_query"])
+        lookup[key] = rec
+    return lookup
+
+
+def run_typo_paired_degradation(smoke: bool = False) -> dict:
+    """Stage 14 typo paired degradation with Stage 12 baseline (no Stage 13 needed).
+
+    For each retriever in RETRIEVERS:
+      orig_hit@k  = Stage 12 per_query.json orig hit@k (clean retriever on clean query)
+      typo_hit@k  = Stage 14 LLM rerank on typo query
+      deg_hit@k   = orig_hit@k - typo_hit@k
+      MRR_deg     = orig_MRR - typo_MRR (using 1/rank)
+    """
+    log("=== Stage 14 / Stage 12 LLM rerank (typo paired) ===")
 
     pairs = load_typo_pairs(smoke=smoke)
     log(f"  typo pairs: {len(pairs)}")
 
-    missing = []
-    for p in pairs:
-        key = (p["asin"], p["original_query"])
-        if not any(key in orig_lookup_by_retr.get(retr, {})
-                   for retr in RETRIEVERS):
-            missing.append(key)
+    stage12_lookup = load_stage12_orig_baseline()
+    missing = [p for p in pairs
+               if (p["asin"], p["original_query"]) not in stage12_lookup]
     if missing:
-        raise KeyError(f"Original rerank record missing for typo pair: {missing[:3]}")
-    log(f"  ✓ all {len(pairs)} typo pairs matched to current original rerank")
+        raise KeyError(f"Stage 12 record missing for typo pair: {missing[:3]}")
+    log(f"  ✓ all {len(pairs)} typo pairs matched to Stage 12 baseline "
+        f"({len(stage12_lookup)} records)")
 
     asin_to_doc, asins = load_corpus()
 
@@ -158,10 +176,10 @@ def run_typo_paired_degradation(smoke: bool = False, orig_rerank: dict | None = 
             f"Kendall={typo_diagnostics['average_kendall_tau_a']:.4f} "
             f"Spearman={typo_diagnostics['average_spearman_rho']:.4f}")
 
-        if retr not in orig_lookup_by_retr:
-            raise KeyError(f"Original rerank records missing retriever: {retr}")
-        orig_lookup = orig_lookup_by_retr[retr]
-
+        if retr not in RETRIEVERS:
+            raise KeyError(f"Unknown retriever: {retr}")
+        # Stage 12 baseline: orig hit@k / rank_orig / RR_orig are 0/1 bool /
+        # None / float per query, looked up via per_query.json (no LLM rerank).
         orig_hits = {k: [] for k in KS}
         typo_hits = {k: [] for k in KS}
         deg_per_k = {k: [] for k in KS}
@@ -171,28 +189,26 @@ def run_typo_paired_degradation(smoke: bool = False, orig_rerank: dict | None = 
         for pi in range(rerank_n):
             p = pairs[pi]
             key = (p["asin"], p["original_query"])
-            if key not in orig_lookup:
-                raise KeyError(f"Original rerank record missing: {retr} {key!r}")
-            orig_top10 = orig_lookup[key]["top10"]
+            if key not in stage12_lookup:
+                raise KeyError(f"Stage 12 record missing: {retr} {key!r}")
+            s12 = stage12_lookup[key]
             target = p["asin"]
-            try:
-                orig_rank = orig_top10.index(target) + 1
-            except ValueError:
-                orig_rank = None
-            try:
-                typo_rank = typo_reranked[pi]["top10"].index(target) + 1
-            except ValueError:
-                typo_rank = None
+            # Stage 12 orig rank → hit@k and MRR (1/rank) per query.
+            orig_rank = s12.get(f"{retr}_rank_orig")
             for k in KS:
                 orig_hit = 1 if (orig_rank is not None and orig_rank <= k) else 0
+                typo_rank = typo_reranked[pi]["top10"].index(target) + 1 \
+                    if target in typo_reranked[pi]["top10"] else None
                 typo_hit = 1 if (typo_rank is not None and typo_rank <= k) else 0
                 orig_hits[k].append(orig_hit)
                 typo_hits[k].append(typo_hit)
                 deg_per_k[k].append(orig_hit - typo_hit)
             if orig_rank is not None:
                 orig_rrs.append(1.0 / orig_rank)
-            if typo_rank is not None:
-                typo_rrs.append(1.0 / typo_rank)
+            typo_rank_final = typo_reranked[pi]["top10"].index(target) + 1 \
+                if target in typo_reranked[pi]["top10"] else None
+            if typo_rank_final is not None:
+                typo_rrs.append(1.0 / typo_rank_final)
             n_paired += 1
         paired = {"n_paired": n_paired}
         for k in KS:
@@ -272,40 +288,33 @@ def run_typo_paired_degradation(smoke: bool = False, orig_rerank: dict | None = 
 
 
 def build_and_save_stage14_paired_table(stage14_out: dict,
-                                         out_path: Path,
-                                         orig_rerank: dict) -> dict:
-    """Build the Stage 11/13/14 side-by-side table + save to JSON.
+                                         out_path: Path) -> dict:
+    """Build the Stage 12 / Stage 14 side-by-side table + save to JSON.
 
-    Stage 11 baseline: full n=1947
-    Stage 13 (orig rerank): typo-pair subset (n varies per retr)
-    Stage 14 (typo rerank): typo-pair subset (n varies per retr)
+    Stage 12 baseline: typo-pair subset, BM25 (or other retriever) orig hit@k
+                      read directly from result/12_typo_evaluation/per_query.json
+    Stage 14 (typo rerank): typo-pair subset, LLM rerank hit@k
 
-    Stage14 reports paired DEGRADATION only (deg_hit@k = orig - typo, MRR_deg =
-    orig_MRR - typo_MRR) over the typo-paired subset; no flip rate is computed
-    at Stage14 — flip rate is the Stage13 rerank-vs-baseline signal.
+    Stage14 reports paired DEGRADATION only (deg_hit@k = Stage12_orig - Stage14_typo,
+    MRR_deg = Stage12_orig_MRR - Stage14_typo_MRR) over the typo-paired subset;
+    no flip rate is computed at Stage14.
     """
     stage11_metrics = load_stage11_baseline_metrics()
-    stage13_metrics = orig_rerank.get("metrics_by_retriever", {})
-    stage13_flip = orig_rerank.get("flip_rate_by_retriever", {})
     paired = stage14_out.get("paired_degradation_by_retriever", {})
-    log("\n=== Stage 11 baseline (full n=1947) | Stage 13 orig (typo-pair subset) | "
-        "Stage 14 typo (typo-pair subset) ===")
+    log("\n=== Stage 12 baseline (typo-pair subset, BM25 etc.) | "
+        "Stage 14 typo rerank (typo-pair subset) ===")
     log("  retr         hit@10                                          MRR")
     log("  " + "-" * 76)
     rows = []
-    for retr in sorted(set(stage11_metrics) | set(stage13_metrics) | set(paired)):
+    for retr in sorted(set(stage11_metrics) | set(paired)):
         s11 = stage11_metrics.get(retr, {})
-        s13 = stage13_metrics.get(retr, {})
         sp = paired.get(retr, {})
-        s13f = stage13_flip.get(retr, {})
         row = {
             "retriever": retr,
             "stage11_hit@10_full_n1947": s11.get("hit@10"),
             "stage11_MRR_full_n1947": s11.get("MRR"),
-            "stage13_hit@10_paired": s13.get("hit@10"),
-            "stage13_MRR_paired": sp.get("orig_MRR"),
-            "stage13_flip_at10_full_n1947": s13f.get("Hit@10_FlipRate_mean"),
-            "stage13_flip_at1_full_n1947": s13f.get("Hit@1_FlipRate_mean"),
+            "stage12_orig_hit@10_paired": sp.get("orig_hit@10"),
+            "stage12_orig_MRR_paired": sp.get("orig_MRR"),
             "stage14_typo_hit@10_paired": sp.get("typo_hit@10"),
             "stage14_typo_MRR_paired": sp.get("typo_MRR"),
             "stage14_deg_hit@10_paired": sp.get("deg_hit@10"),
@@ -318,34 +327,27 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
             return f"{v*100:6.2f}%" if v is not None else "   N/A"
         sign = lambda v: (f"{v*100:+5.2f}%" if v is not None else "   N/A")
         n_str = f"n={row['n_paired']}" if row['n_paired'] is not None else ""
-        flip10 = cell(s13f.get("Hit@10_FlipRate_mean"))
         log(f"  {retr:12s}  "
-            f"{cell(row['stage11_hit@10_full_n1947'])} (full)  "
-            f"flip10={flip10} |  "
-            f"{cell(row['stage13_hit@10_paired'])} → "
-            f"{cell(row['stage14_typo_hit@10_paired'])} "
+            f"S12_orig={cell(row['stage12_orig_hit@10_paired'])}  "
+            f"S14_typo={cell(row['stage14_typo_hit@10_paired'])} "
             f"(deg {sign(row['stage14_deg_hit@10_paired'])})  "
-            f"  MRR {cell(row['stage13_MRR_paired'])} → "
+            f"  MRR {cell(row['stage12_orig_MRR_paired'])} → "
             f"{cell(row['stage14_typo_MRR_paired'])} "
             f"(deg {sign(row['stage14_MRR_deg_paired'])})  {n_str}")
     payload = {
         "config": {
             "stage11_source": "result/11_syntactic_evaluation/per_query.json",
             "stage11_denominator": "full cohort (n=1947)",
-            "stage13_source": str(STAGE11_OUT),
-            "stage13_denominator": "typo-paired subset (n varies per retr)",
+            "stage12_source": str(STAGE12_PER_QUERY),
+            "stage12_baseline": "Per-retriever orig hit@k / rank / RR on clean queries",
+            "stage13_denominator": "NOT USED — Stage 14 baseline is Stage 12 (no Stage 13 dependency)",
             "stage14_source": str(STAGE12_OUT),
-            "stage14_denominator": "typo-paired subset (n varies per retr)",
-            "stage13_flip_definition": (
-                "Per-ASIN query-pair Hit@K disagreement rate among Stage13 rerank "
-                "Top-K vs Stage11 baseline Top-K (mean over ASINs with >=2 queries); "
-                "uses Stage11 llm_rerank as the comparison baseline."
-            ),
+            "stage14_denominator": "typo-paired subset (n=1635)",
             "stage14_metric_definition": (
-                "Stage14 reports paired DEGRADATION only (deg_hit@k = orig - typo, "
-                "MRR_deg = orig_MRR - typo_MRR) over the typo-paired subset. No flip "
-                "rate is computed at Stage14; flip rate is the Stage13 rerank-vs-"
-                "baseline signal, not a Stage14 metric."
+                "Stage14 reports paired DEGRADATION only: "
+                "deg_hit@k = Stage12_orig_hit@k - Stage14_LLM_rerank_typo_hit@k; "
+                "MRR_deg = Stage12_orig_MRR - Stage14_LLM_rerank_typo_MRR. "
+                "No flip rate is computed at Stage14."
             ),
             "rerank_weights": "final_score = 1.0 * LLM_score + 0.1 * rank_prior",
         },
@@ -364,49 +366,39 @@ if __name__ == "__main__":
     #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma
     #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
     #                   (SequenceClassification on Llama-2-7b-hf)
-    RERANKER_VARIANT = "bge_gemma2"
-    if RERANKER_VARIANT == "qwen3":
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"
-        llm_client.DEFAULT_PEFT_ADAPTER = None
-        llm_client.reset_client()
-        import syntactic_rerank_eval as base_mod  # noqa: E402
-        base_mod.RERANKER_VARIANT = "qwen3"
-    elif RERANKER_VARIANT == "bge_gemma2":
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B"
-        llm_client.DEFAULT_PEFT_ADAPTER = None
-        llm_client.reset_client()
-        import syntactic_rerank_eval as base_mod  # noqa: E402
-        base_mod.RERANKER_VARIANT = "bge_gemma2"
-    elif RERANKER_VARIANT == "rankllama":
-        # RankLLaMA = Llama-2-7b base + PEFT LoRA merged into a
-        # SequenceClassification head (num_labels=1). Forces transformers.
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = (
-            "/fs04/scratch2/hj82/wenyu/RAG/Llama-2-7b-hf"
-        )
-        llm_client.DEFAULT_PEFT_ADAPTER = (
-            "/fs04/scratch2/hj82/wenyu/RAG/rankllama-v1-7b-lora-passage"
-        )
-        llm_client.reset_client()
-        import syntactic_rerank_eval as base_mod  # noqa: E402
-        base_mod.RERANKER_VARIANT = "rankllama"
-    else:
-        raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
+    RERANKER_VARIANTS = [
+        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
+        ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
+        ("rankllama",  "/fs04/scratch2/hj82/wenyu/RAG/Llama-2-7b-hf",
+                       "/fs04/scratch2/hj82/wenyu/RAG/rankllama-v1-7b-lora-passage"),
+    ]
 
-    log("=== Stage 14 typo paired rerank ===")
-    log(f"  SMOKE={SMOKE}  RERANKER_VARIANT={RERANKER_VARIANT}")
-    t0 = time.time()
-    if not STAGE11_OUT.exists():
-        raise FileNotFoundError(f"Required Stage 11 rerank result missing: {STAGE11_OUT}")
-    with open(STAGE11_OUT, encoding="utf-8") as f:
-        s11 = json.load(f)
-    if "per_query_top10_by_retriever" not in s11:
-        raise ValueError("Stage 11 result lacks per_query_top10_by_retriever")
-    out14 = run_typo_paired_degradation(smoke=SMOKE, orig_rerank=s11)
-    print_and_save_stage11_vs_stage13(s11, OUT_DIR / "stage11_vs_stage14.json",
-                                      label="Stage 14")
-    build_and_save_stage14_paired_table(out14, OUT_DIR / "stage11_stage13_stage14_paired.json",
-                                        orig_rerank=s11)
-    log(f"=== total: {time.time()-t0:.1f}s ===")
+    log("=== Stage 14 typo paired rerank (loops over 3 rerankers) ===")
+    log(f"  SMOKE={SMOKE}  variants={[v[0] for v in RERANKER_VARIANTS]}")
+    t_global = time.time()
+    for variant, model_path, peft_adapter in RERANKER_VARIANTS:
+        log(f"\n--- [{variant}] ---")
+        import llm_client  # noqa: E402
+        llm_client.DEFAULT_QWEN_MODEL = model_path
+        llm_client.DEFAULT_PEFT_ADAPTER = peft_adapter
+        llm_client.reset_client()
+        import syntactic_rerank_eval as base_mod  # noqa: E402
+        base_mod.RERANKER_VARIANT = variant
+
+        t0 = time.time()
+        out14 = run_typo_paired_degradation(smoke=SMOKE)
+        variant_out = OUT_DIR / f"llm_rerank_typo_results_{variant}.json"
+        with open(variant_out, "w") as f:
+            json.dump(out14, f, indent=2)
+        with open(STAGE12_OUT, "w") as f:
+            json.dump(out14, f, indent=2)
+        log(f"  wrote → {variant_out} + {STAGE12_OUT}")
+        print_and_save_stage11_vs_stage13(
+            {"metrics_by_retriever": out14.get("typo_metrics_by_retriever", {})},
+            OUT_DIR / f"stage11_vs_stage14_{variant}.json",
+            label=f"Stage 14 ({variant})")
+        build_and_save_stage14_paired_table(
+            out14,
+            OUT_DIR / f"stage11_stage13_stage14_paired_{variant}.json")
+        log(f"  [{variant}] done in {time.time()-t0:.1f}s")
+    log(f"\n=== total: {time.time()-t_global:.1f}s ===")

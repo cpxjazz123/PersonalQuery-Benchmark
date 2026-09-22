@@ -904,45 +904,39 @@ if __name__ == "__main__":
     RUN_STAGE12 = False
 
     # === reranker selection ===
-    # Hardcode the active reranker here. Switch ``RERANKER_VARIANT`` and the
-    # llm_client model path together. Supported variants:
-    #   "qwen3"      -> Qwen3-Reranker (default; uses Qwen chat template)
+    # Hardcoded list of 3 supported rerankers; the script loops over all of
+    # them in one nohup invocation. Supported variants:
+    #   "qwen3"      -> Qwen3-Reranker (Qwen chat template)
     #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma (Gemma2 chat template)
     #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
     #                   (SequenceClassification on Llama-2-7b-hf)
-    RERANKER_VARIANT = "bge_gemma2"
-    if RERANKER_VARIANT == "qwen3":
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"
-        llm_client.DEFAULT_PEFT_ADAPTER = None
-        llm_client.reset_client()
-    elif RERANKER_VARIANT == "bge_gemma2":
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B"
-        llm_client.DEFAULT_PEFT_ADAPTER = None
-        llm_client.reset_client()
-    elif RERANKER_VARIANT == "rankllama":
-        # RankLLaMA = Llama-2-7b base + PEFT LoRA merged into a
-        # SequenceClassification head (num_labels=1). Forces transformers.
-        import llm_client  # noqa: E402
-        llm_client.DEFAULT_QWEN_MODEL = _RANKLLAMA_BASE
-        llm_client.DEFAULT_PEFT_ADAPTER = _RANKLLAMA_PEFT
-        llm_client.reset_client()
-    else:
-        raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
+    RERANKER_VARIANTS = [
+        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
+        ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
+        ("rankllama",  _RANKLLAMA_BASE, _RANKLLAMA_PEFT),
+    ]
 
-    log(f"=== Stage 13 / Stage 11 syntactic rerank (per-retriever P(Yes)) ===")
+    log(f"=== Stage 13 / Stage 11 syntactic rerank (loops over 3 rerankers) ===")
     log(f"  SMOKE={SMOKE}  RUN_STAGE11={RUN_STAGE11}  RUN_STAGE12={RUN_STAGE12}  "
-        f"RERANKER_VARIANT={RERANKER_VARIANT}")
-    t0 = time.time()
-    if RUN_STAGE11:
+        f"variants={[v[0] for v in RERANKER_VARIANTS]}")
+    t_global = time.time()
+    for variant, model_path, peft_adapter in RERANKER_VARIANTS:
+        log(f"\n--- [{variant}] ---")
+        import llm_client  # noqa: E402
+        llm_client.DEFAULT_QWEN_MODEL = model_path
+        llm_client.DEFAULT_PEFT_ADAPTER = peft_adapter
+        llm_client.reset_client()
+        globals()["RERANKER_VARIANT"] = variant
+
+        t0 = time.time()
         out13 = run_stage11_llm_rerank(smoke=SMOKE)
-        log(f"=== Stage 11 syntactic rerank done in {time.time()-t0:.1f}s ===")
-        print_and_save_stage11_vs_stage13(out13, OUT_DIR / "stage11_vs_stage13.json",
-                                         label="Stage 13")
-    if RUN_STAGE12:
-        raise RuntimeError(
-            "Typo rerank moved to 14_typo_rerank/typo_rerank_eval.py; "
-            "do not invoke from this script."
-        )
-    log(f"=== total: {time.time()-t0:.1f}s ===")
+        variant_out = OUT_DIR / f"llm_rerank_results_{variant}.json"
+        with open(variant_out, "w") as f:
+            json.dump(out13, f, indent=2)
+        with open(STAGE11_OUT, "w") as f:
+            json.dump(out13, f, indent=2)
+        log(f"  wrote → {variant_out} + {STAGE11_OUT}")
+        print_and_save_stage11_vs_stage13(out13, OUT_DIR / f"stage11_vs_stage13_{variant}.json",
+                                          label=f"Stage 13 ({variant})")
+        log(f"  [{variant}] done in {time.time()-t0:.1f}s")
+    log(f"\n=== total: {time.time()-t_global:.1f}s ===")
