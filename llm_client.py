@@ -14,15 +14,22 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 
+# 禁止 vLLM/Outlines 向 /home 写 telemetry 或 SQLite cache；统一写入 scratch。
+os.environ["VLLM_USAGE_STATS"] = "0"
+os.environ["OUTLINES_CACHE_DIR"] = "/fs04/scratch2/hj82/wenyu/outlines_cache"
+
+
 # ---------- 默认 backend 配置 (Rule 9: 仅本地 Qwen) ----------
-DEFAULT_QWEN_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"
+DEFAULT_PEFT_ADAPTER: Optional[Path] = None  # set by rerank dispatcher for RankLLaMA-style LoRA rerankers
 DEFAULT_SFT_ADAPTER = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/06_training_model/sft_lora")
-DEFAULT_BACKEND = "vllm"     # 'vllm' 或 'transformers'
-DEFAULT_MAX_MODEL_LEN = 2048  # rerank 时需要更长 prompt
-DEFAULT_MAX_NUM_SEQS = 1024   # 2026-09-19: vLLM 并发从 256 提升到 1024 (Stage 11/12 LLM rerank)
-DEFAULT_GPU_MEM_UTIL = 0.90   # 2026-09-19: 0.85→0.90 提速 (更多 GPU mem 给 vLLM KV cache)
+DEFAULT_BACKEND = "transformers"  # 2026-09-22: dropped vLLM; all rerankers (Qwen3 / BGE / RankLLaMA) run on transformers
+DEFAULT_MAX_MODEL_LEN = 2048  # Qwen3-Reranker 0.6B strict
+DEFAULT_MAX_NUM_SEQS = 32  # placeholder, unused under transformers backend
+DEFAULT_MAX_BATCHED_TOKENS = 4096  # placeholder
+DEFAULT_GPU_MEM_UTIL = 0.85  # unused under transformers backend
 DEFAULT_DTYPE = "bfloat16"
-DEFAULT_ENABLE_PREFIX_CACHING = True   # 2026-09-19: 共享 prompt prefix cache
+DEFAULT_ENABLE_PREFIX_CACHING = False  # 2026-09-20: 关掉 prefix caching 避免 KV 重建开销
 
 
 class QwenLocalClient:
@@ -37,8 +44,10 @@ class QwenLocalClient:
                  model: str = DEFAULT_QWEN_MODEL,
                  backend: str = DEFAULT_BACKEND,
                  lora_adapter: Optional[Path] = None,
+                 peft_adapter: Optional[Path] = None,
                  max_model_len: int = DEFAULT_MAX_MODEL_LEN,
                  max_num_seqs: int = DEFAULT_MAX_NUM_SEQS,
+                 max_num_batched_tokens: int = DEFAULT_MAX_BATCHED_TOKENS,
                  gpu_memory_utilization: float = DEFAULT_GPU_MEM_UTIL,
                  dtype: str = DEFAULT_DTYPE,
                  enforce_eager: bool = False,
@@ -46,8 +55,10 @@ class QwenLocalClient:
         self.model = model
         self.backend = backend
         self.lora_adapter = Path(lora_adapter) if lora_adapter else None
+        self.peft_adapter = Path(peft_adapter) if peft_adapter else None
         self.max_model_len = max_model_len
         self.max_num_seqs = max_num_seqs
+        self.max_num_batched_tokens = max_num_batched_tokens
         self.gpu_memory_utilization = gpu_memory_utilization
         self.dtype = dtype
         self.enforce_eager = enforce_eager
@@ -57,34 +68,45 @@ class QwenLocalClient:
     def _init_backend(self):
         if self._backend is not None:
             return
-        if self.backend == "vllm":
-            from vllm import LLM
-            print(f"[llm_client] loading vLLM {self.model} (lora={self.lora_adapter}) ...", flush=True)
-            kwargs = dict(
-                model=self.model,
-                max_model_len=self.max_model_len,
-                max_num_seqs=self.max_num_seqs,
-                gpu_memory_utilization=self.gpu_memory_utilization,
-                dtype=self.dtype,
-                enforce_eager=self.enforce_eager,
-                trust_remote_code=True,
-                enable_prefix_caching=self.enable_prefix_caching,
-            )
-            if self.lora_adapter is not None and self.lora_adapter.exists():
-                kwargs["enable_lora"] = True
-                kwargs["max_lora_rank"] = 8
-            self._backend = LLM(**kwargs)
-        elif self.backend == "transformers":
+        backend = self.backend
+        if backend == "transformers":
             import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-            print(f"[llm_client] loading transformers {self.model} ...", flush=True)
+            from transformers import AutoModel, AutoTokenizer
+            print(f"[llm_client] loading transformers (auto) {self.model} ...", flush=True)
             tok = AutoTokenizer.from_pretrained(self.model, trust_remote_code=True)
-            model = AutoModelForCausalLM.from_pretrained(
-                self.model, torch_dtype=getattr(torch, self.dtype), device_map="auto",
-                trust_remote_code=True)
+            if self.peft_adapter is not None:
+                # SequenceClassification base + PEFT LoRA merge path.
+                # Used by RankLLaMA (castorini/rankllama-v1-7b-lora-passage on
+                # top of Llama-2-7b with num_labels=1 classification head).
+                from transformers import AutoModelForSequenceClassification
+                print(f"[llm_client] peft_adapter={self.peft_adapter} "
+                      f"(SequenceClassification num_labels=1)", flush=True)
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model, num_labels=1,
+                    torch_dtype=getattr(torch, self.dtype),
+                    device_map="auto", trust_remote_code=True)
+                from peft import PeftModel
+                model = PeftModel.from_pretrained(model, str(self.peft_adapter))
+                # NOTE: skip model.merge_and_unload() — copy on CPU is
+                # ~2 minutes for the 320MB RankLLaMA adapter; PEFT wrapper
+                # supports forward() and .eval() so merge is unnecessary for
+                # inference.
+            elif _is_qwen3_checkpoint(self.model):
+                from transformers import AutoConfig
+                cfg = AutoConfig.from_pretrained(self.model, trust_remote_code=True)
+                model = AutoModel.from_pretrained(
+                    self.model, config=cfg, torch_dtype=getattr(torch, self.dtype),
+                    device_map="auto", trust_remote_code=True)
+            else:
+                from transformers import AutoModelForCausalLM
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model, torch_dtype=getattr(torch, self.dtype), device_map="auto",
+                    trust_remote_code=True)
+            model.eval()
             self._backend = (model, tok)
+            self.backend_kind = "transformers"
         else:
-            raise ValueError(f"unknown backend: {self.backend}")
+            raise ValueError(f"unknown backend: {backend}")
 
     def generate(self,
                  prompts: List[str],
@@ -97,50 +119,198 @@ class QwenLocalClient:
         self._init_backend()
         if not prompts:
             return []
-        if self.backend == "vllm":
-            from vllm import SamplingParams
-            from vllm.lora.request import LoRARequest
-            sp = SamplingParams(n=n, temperature=temperature, top_p=top_p,
-                                max_tokens=max_tokens, stop=stop or [])
-            kwargs = {}
-            if self.lora_adapter is not None and self.lora_adapter.exists():
-                kwargs["lora_request"] = LoRARequest("sft_adapter", 1, str(self.lora_adapter))
-            outputs = self._backend.generate(prompts, sp, use_tqdm=False, **kwargs)
-            return [[o.text for o in out.outputs] for out in outputs]
-        else:  # transformers
-            import torch
-            model, tok = self._backend
-            results = []
-            for prompt in prompts:
-                inputs = tok(prompt, return_tensors="pt", truncation=True,
-                             max_length=self.max_model_len - max_tokens).to(model.device)
-                gen = model.generate(
-                    **inputs, do_sample=(temperature > 0), temperature=max(temperature, 1e-5),
-                    top_p=top_p, max_new_tokens=max_tokens, num_return_sequences=n,
-                    pad_token_id=tok.pad_token_id or tok.eos_token_id,
+        import torch
+        model, tok = self._backend
+        results = []
+        for prompt in prompts:
+            inputs = tok(prompt, return_tensors="pt", truncation=True,
+                         max_length=self.max_model_len - max_tokens).to(model.device)
+            gen = model.generate(
+                **inputs, do_sample=(temperature > 0), temperature=max(temperature, 1e-5),
+                top_p=top_p, max_new_tokens=max_tokens, num_return_sequences=n,
+                pad_token_id=tok.pad_token_id or tok.eos_token_id,
+            )
+            texts = []
+            for g in gen:
+                txt = tok.decode(g[inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                if stop:
+                    for s in stop:
+                        if s in txt:
+                            txt = txt.split(s)[0]
+                texts.append(txt)
+            results.append(texts)
+        return results
+
+    def score_pairs(self,
+                    pairs: List[tuple[str, str]],
+                    prompt_style: str = "bge_gemma2",
+                    batch_size: int = 8,
+                    yes_tokens: List[int] | None = None,
+                    no_tokens: List[int] | None = None) -> List[float]:
+        """Score query-passage pairs using a cross-encoder reranker.
+
+        Implements the official scoring heads for causal-LM-based rerankers
+        whose Yes/No logit difference sits at the **last** (or first
+        generated) position of the prompt — never the generation tail.
+
+        Supported prompt_styles:
+          ``"bge_gemma2"`` (default): ``"<bos>{query}</s>\\n{paragraph}"`` —
+            the format verified to work for BAAI/bge-reranker-v2-gemma in
+            BAAI issue #1674. Chat template is intentionally NOT used.
+          ``"qwen3"``: Qwen3-Reranker chat template ending in
+            ``"assistant\\n<think>\\n</think>\\n\\n"``. The yes/no logit
+            is read at the LAST non-padding position (where generation
+            would start), which matches the official Qwen3-Reranker scoring
+            convention when served via transformers.
+
+        Returns sigmoid-normalised relevance scores in [0, 1], one per pair.
+
+        Forces the ``transformers`` backend. vLLM has been removed from the
+        whitelist per Rule 9 — Qwen3-Reranker no longer relies on vLLM's
+        next-token logprob path.
+        """
+        import math
+        import torch
+        self._init_backend()
+        if self.backend_kind != "transformers":
+            raise RuntimeError(
+                f"score_pairs requires the transformers backend; "
+                f"backend_kind={self.backend_kind}"
+            )
+        model, tok = self._backend
+        if yes_tokens is None or no_tokens is None:
+            yes_tokens = tok.encode("Yes", add_special_tokens=False)
+            no_tokens = tok.encode("No", add_special_tokens=False)
+        if prompt_style not in ("bge_gemma2", "qwen3"):
+            raise ValueError(f"Unknown prompt_style: {prompt_style}")
+
+        model.eval()
+        scores: List[float] = []
+        eos_id = tok.eos_token_id
+        pad_id = tok.pad_token_id or eos_id
+
+        with torch.inference_mode():
+            for start in range(0, len(pairs), batch_size):
+                batch = pairs[start:start + batch_size]
+                prompts = []
+                for q, d in batch:
+                    q_clean = q.strip()
+                    d_clean = d.strip()
+                    if prompt_style == "bge_gemma2":
+                        prompts.append(f"<bos>{q_clean}</s>\n{d_clean}")
+                    elif prompt_style == "qwen3":
+                        # Official Qwen3-Reranker chat template.
+                        prompts.append(
+                            "<|im_start|>system\n"
+                            "You are Qwen, created by Alibaba Cloud. "
+                            "You are a helpful assistant.<|im_end|>\n"
+                            "<|im_start|>user\n"
+                            "<Instruct>: Given a web search query, "
+                            "retrieve relevant passages that answer the query\n"
+                            f"<Query>: {q_clean}\n"
+                            f"<Document>: {d_clean}<|im_end|>\n"
+                            "<|im_start|>assistant\n"
+                            "<think>\n</think>\n\n"
+                        )
+                enc = tok(
+                    prompts,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=self.max_model_len - 1,
+                ).to(model.device)
+                logits = model(**enc).logits
+                # Use the LAST NON-PADDING position of each sequence (cross-encoder
+                # convention: logit at the document-tail position encodes relevance).
+                attn = enc["attention_mask"]
+                seq_lens = attn.sum(dim=1) - 1
+                last_idx = seq_lens.to(logits.device)
+                batch_idx = torch.arange(logits.shape[0], device=logits.device)
+                last_logits = logits[batch_idx, last_idx, :]
+                z_yes = last_logits[:, yes_tokens].max(dim=-1).values
+                z_no = last_logits[:, no_tokens].max(dim=-1).values
+                m = torch.maximum(z_yes, z_no)
+                p_yes = torch.exp(z_yes - m) / (
+                    torch.exp(z_yes - m) + torch.exp(z_no - m)
                 )
-                texts = []
-                for g in gen:
-                    txt = tok.decode(g[inputs.input_ids.shape[1]:], skip_special_tokens=True)
-                    if stop:
-                        for s in stop:
-                            if s in txt:
-                                txt = txt.split(s)[0]
-                    texts.append(txt)
-                results.append(texts)
-            return results
+                scores.extend(p_yes.float().cpu().tolist())
+        return scores
+
+    def score_seqcls(self,
+                     pairs: List[tuple[str, str]],
+                     batch_size: int = 8,
+                     query_prefix: str = "query: ",
+                     doc_prefix: str = "document: ") -> List[float]:
+        """Score (query, doc) pairs via a SequenceClassification reranker head.
+
+        Used by RankLLoMA (castorini/rankllama-v1-7b-lora-passage) and
+        ``cross-encoder/ms-marco-*`` style rerankers that expose a single
+        ``logits`` scalar per input pair (i.e. ``num_labels=1``). The base
+        model must be loaded as ``AutoModelForSequenceClassification`` with
+        a PEFT LoRA adapter merged via ``merge_and_unload()`` — see the
+        ``peft_adapter`` constructor parameter.
+
+        The official RankLLoMA scoring convention is::
+
+            tokenizer("query: {q}", "document: {title} {passage}",
+                      return_tensors="pt")
+            outputs = model(**inputs)
+            score = outputs.logits[i][0]   # raw logit, no sigmoid needed
+                                               # for ranking purposes
+
+        Returns a list of raw logit floats, one per pair, in input order.
+        Larger score = more relevant. Forces the ``transformers`` backend.
+        """
+        import torch
+        self._init_backend()
+        if self.backend_kind != "transformers":
+            raise RuntimeError(
+                f"score_seqcls requires the transformers backend; "
+                f"got backend_kind={self.backend_kind}"
+            )
+        model, tok = self._backend
+        # Llama-2's tokenizer ships without a pad_token; fall back to eos_token
+        # so ``padding=True`` doesn't raise inside ``score_seqcls``.
+        # Both the tokenizer attr AND ``model.config.pad_token_id`` must be set
+        # — LlamaForSequenceClassification checks ``self.config.pad_token_id``
+        # before allowing ``batch_size > 1``.
+        if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = tok.pad_token_id
+        model.eval()
+        scores: List[float] = []
+        with torch.inference_mode():
+            for start in range(0, len(pairs), batch_size):
+                batch = pairs[start:start + batch_size]
+                qs = [query_prefix + q.strip() for q, _ in batch]
+                ds = [doc_prefix + d.strip() for _, d in batch]
+                # RankLLoMA uses SentencePair tokenization (text=text pair).
+                enc = tok(
+                    qs, ds,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=self.max_model_len - 2,
+                ).to(model.device)
+                logits = model(**enc).logits
+                # num_labels=1 → shape (B, 1); take [:, 0] as the score.
+                if logits.ndim != 2 or logits.shape[-1] != 1:
+                    raise RuntimeError(
+                        f"score_seqcls expects num_labels=1 logits, "
+                        f"got shape {tuple(logits.shape)}"
+                    )
+                scores.extend(logits[:, 0].float().cpu().tolist())
+        return scores
 
     def shutdown(self):
-        """释放 vLLM / transformers GPU 资源."""
+        """释放 transformers GPU 资源."""
         if self._backend is None:
             return
         try:
-            if self.backend == "vllm":
-                del self._backend
-            else:
-                model, tok = self._backend
-                del model
-                del tok
+            model, tok = self._backend
+            del model
+            del tok
         finally:
             self._backend = None
 
@@ -149,10 +319,36 @@ class QwenLocalClient:
 _client_singleton: Optional[QwenLocalClient] = None
 
 
+def _is_qwen3_checkpoint(model_path: str) -> bool:
+    import json as _json
+    import os as _os
+    cfg_path = _os.path.join(model_path, "config.json")
+    if not _os.path.isfile(cfg_path):
+        return False
+    with open(cfg_path) as _f:
+        cfg = _json.load(_f)
+    return cfg.get("model_type") == "qwen3"
+
+
+def _maybe_make_qwen2_alias(model_path: str) -> str:
+    """Deprecated no-op alias builder kept for backwards compatibility.
+
+    Earlier (vllm 0.5.5 + transformers 4.40) needed a qwen2 config rewrite
+    because vLLM did not know qwen3. vLLM>=0.10 + transformers>=4.54 ship
+    first-class qwen3 support, so we just return the original model path.
+    """
+    return model_path
+
+
 def get_client(**kwargs) -> QwenLocalClient:
     """Get or create singleton client."""
     global _client_singleton
     if _client_singleton is None:
+        # Ensure the current module-level DEFAULT_QWEN_MODEL is honored when caller
+        # does not explicitly pass `model=...` (Python default args bind at def-time,
+        # not at call-time, so we re-inject from the module attr here).
+        kwargs.setdefault("model", DEFAULT_QWEN_MODEL)
+        kwargs.setdefault("peft_adapter", DEFAULT_PEFT_ADAPTER)
         _client_singleton = QwenLocalClient(**kwargs)
     return _client_singleton
 
@@ -172,46 +368,173 @@ def llm_rerank_pointwise(query: str,
                          top_k: int = 10,
                          client: Optional[QwenLocalClient] = None,
                          max_chars: int = 200) -> List[int]:
-    """对 query + 每个 candidate doc 拼 prompt → Qwen 输出相关度分数 → top_k 排序.
+    """批量打分并按原检索 rank 与 Qwen 分数的加权分数排序.
 
-    candidates: list of dict, must contain 'asin' field. Document text 从 asin_to_doc[asin] 取,
-    截断 max_chars 字符避免超长 prompt.
-
-    Returns: top_k candidate indices (sorted by descending relevance).
+    candidates: list of dict, must contain 'asin' field and preserve retrieval order.
     """
     client = client or get_client()
     prompts = []
     for cand in candidates:
         asin = cand.get("asin")
-        doc_text = asin_to_doc.get(asin, "").replace("\n", " ").strip()[:max_chars]
+        doc_text = asin_to_doc[asin].replace("\n", " ").strip()[:max_chars]
         prompts.append(_build_rerank_prompt(query, doc_text))
-    raw = client.generate(prompts, n=1, temperature=0.0, top_p=1.0, max_tokens=4)
-    scores = [_parse_rerank_score(r[0]) if r else 0.0 for r in raw]
-    ranked = sorted(range(len(candidates)), key=lambda i: -scores[i])
-    return ranked[:top_k], scores
+    raw = client.generate(prompts, n=1, temperature=0.0, top_p=1.0, max_tokens=8)
+    scored = []
+    n_candidates = len(candidates)
+    for retrieval_rank, (cand, result) in enumerate(zip(candidates, raw), start=1):
+        if len(result) != 1:
+            raise RuntimeError(f"Expected one Qwen output, got {len(result)}")
+        raw_output = result[0]
+        llm_score = _parse_rerank_score(raw_output)
+        if llm_score is None:
+            raise ValueError(f"Unable to parse Qwen relevance score: {raw_output!r}")
+        if n_candidates == 1:
+            retrieval_rank_score = RERANK_SCORE_MAX
+        else:
+            retrieval_rank_score = RERANK_SCORE_MAX * (
+                n_candidates - retrieval_rank
+            ) / (n_candidates - 1)
+        scored.append((
+            retrieval_rank,
+            RETRIEVAL_RANK_WEIGHT * retrieval_rank_score
+            + LLM_SCORE_WEIGHT * llm_score,
+        ))
+    ranked = sorted(range(len(scored)),
+                    key=lambda i: (-scored[i][1], scored[i][0]))
+    return ranked[:top_k], [score for _, score in scored]
+
 
 
 def _build_rerank_prompt(query: str, doc_text: str) -> str:
-    """Qwen 通用 rerank prompt. Output: 单 token 数字 0-3."""
+    """Qwen pointwise prompt requiring one integer score from 0 through 10."""
     return (
-        "Rate the relevance of the document to the query on a scale of 0 (irrelevant) "
-        "to 3 (highly relevant). Output only a single digit.\n\n"
-        f"Query: {query}\n"
-        f"Document: {doc_text}\n\n"
-        "Relevance:"
+        "You are a product-search relevance judge.\n\n"
+        "Query:\n" + query + "\n\n"
+        "Candidate product:\n" + doc_text + "\n\n"
+        "Rate how relevant this product is to the query on a 0 to 10 scale.\n"
+        "10 = satisfies essentially all query requirements\n"
+        "7 = mostly relevant with a minor mismatch\n"
+        "5 = partially relevant\n"
+        "2 = weakly relevant\n"
+        "0 = irrelevant\n\n"
+        "Return only one integer score from 0 to 10. Do not return words, "
+        "labels, or an explanation.\n"
+        "Score:"
     )
 
 
-def _parse_rerank_score(text: str) -> float:
-    """Parse Qwen 0-3 single digit output."""
-    t = text.strip()
-    if not t:
-        return 0.0
-    # Take first digit
-    for c in t:
-        if c in "0123":
-            return float(c)
-    # Fallback: any digit
+def _parse_rerank_score(text: str) -> float | None:
+    """Extract one numeric 0–10 score from complete Qwen output."""
     import re
-    m = re.search(r"\d", t)
-    return float(m.group(0)) if m else 0.0
+
+    if not isinstance(text, str) or not text.strip():
+        return None
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if match is None:
+        return None
+    score = float(match.group(0))
+    if not 0.0 <= score <= 10.0:
+        raise ValueError(f"Qwen rerank score out of range [0, 10]: {text!r}")
+    return score
+
+
+
+
+# ---------- listwise permutation rerank helpers ----------
+def _build_listwise_prompt(query: str, docs: list[str]) -> str:
+    """Sliding-window listwise rerank prompt: 给 N 个 candidate，按相关度从高到低输出 letter IDs。"""
+    n = len(docs)
+    lines = [
+        "You are a product-search relevance judge.",
+        "",
+        "Query:",
+        query,
+        "",
+        "Below are N candidate products labelled [A], [B], ..., in their current order.",
+        "Rank all candidates from MOST relevant to LEAST relevant to the query.",
+        "Judge relevance by how completely each product satisfies ALL product",
+        "requirements expressed in the query (product type, category, brand,",
+        "attributes, size, flavour, material, or other stated constraints).",
+        "A product satisfying more query requirements should rank above one",
+        "satisfying only some.",
+        "Do not use the current displayed order as a relevance signal.",
+        "",
+        "Return only the ordered candidate letters from most to least relevant,",
+        "one per line, in the format `[X]` (e.g. `[B]` on line 1, `[A]` on line 2).",
+        "Every letter must appear exactly once; do not output anything else.",
+        "",
+    ]
+    for i, doc in enumerate(docs):
+        letter = chr(ord("A") + i)
+        short = doc.replace("\n", " ").strip()[:80]
+        lines.append(f"[{letter}] {short}")
+    lines.append("Ranked order:")
+    return "\n".join(lines)
+
+
+def _parse_listwise_permutation(text: str, n_expected: int) -> list[int] | None:
+    """Extract a permutation of `[A]`..`[Z]` from LLM output (max 26 candidates).
+
+    Returns list of length n_expected with indices into the input candidate list.
+    Raises on duplicate / out-of-range letters, returns None when no letter found.
+    """
+    import re
+    if not isinstance(text, str) or not text.strip():
+        return None
+    expected = set(range(n_expected))
+    # Prefer a compact permutation line such as `A > B > ... > T`.
+    for line in text.splitlines():
+        # Accept `A > B > ...`, `[A] [B]`, or `A, B, ...` output.
+        letters = re.findall(r"(?<![A-Z])([A-Z])(?![A-Z])", line)
+        compact = [ord(ch) - ord("A") for ch in letters]
+        # Small Qwen models sometimes append explanations; retain the first
+        # complete permutation within the valid window alphabet.
+        compact = [idx for idx in compact if 0 <= idx < n_expected]
+        dedup = []
+        for idx in compact:
+            if idx not in dedup:
+                dedup.append(idx)
+        if len(dedup) >= n_expected and set(dedup[:n_expected]) == expected:
+            return dedup[:n_expected]
+    # Otherwise accept bracket IDs in the first coherent output block.
+    found = re.findall(r"\[([A-Z])\]", text)
+    indices: list[int] = []
+    seen = set()
+    for ch in found:
+        idx = ord(ch) - ord("A")
+        if idx < 0 or idx >= n_expected:
+            continue
+        if idx in seen:
+            continue
+        seen.add(idx)
+        indices.append(idx)
+        if len(indices) == n_expected:
+            break
+    if len(indices) != n_expected:
+        raise ValueError(
+            f"Listwise rerank returned {len(indices)} unique letters, expected {n_expected}: "
+            f"{text!r}"
+        )
+    return indices
+
+
+def _build_listwise_prompt_v2(query: str, docs: list[str]) -> str:
+    """Compact listwise prompt with output instruction after candidates."""
+    n = len(docs)
+    lines = [
+        "Rank candidates for the query by satisfying all requirements.",
+        "Query: " + query.strip(),
+        "",
+        "Candidates (letters are IDs; current order is not a relevance signal):",
+    ]
+    for i, doc in enumerate(docs):
+        letter = chr(ord("A") + i)
+        short = doc.replace("\n", " ").strip()[:20]
+        lines.append(f"[{letter}] {short}")
+    lines.extend([
+        "",
+        f"Output exactly {n} IDs from [A] to [{chr(ord('A')+n-1)}], most relevant first.",
+        "Output only the bracketed IDs separated by spaces. No product text.",
+        "Ranking:",
+    ])
+    return "\n".join(lines)

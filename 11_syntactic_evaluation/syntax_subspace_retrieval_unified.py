@@ -27,8 +27,12 @@ from __future__ import annotations
 import collections
 import gzip
 import hashlib
+import heapq
+import html
 import json
 import os
+import re
+import unicodedata
 import pickle
 import sys
 import time
@@ -62,7 +66,7 @@ TOPK_SAVE_K = 100
 
 # 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
 SMOKE = False
-N_SMOKE_QUERIES = 5
+N_SMOKE_QUERIES = 0
 
 
 def log(msg: str) -> None:
@@ -163,61 +167,88 @@ def _queries_signature(queries: list[str]) -> str:
     return h.hexdigest()[:16]
 
 
-def build_meta_corpus() -> dict[str, str]:
-    """Load Amazon metadata → {asin: doc_text} (with ASIN_TO_DOC_CACHE reuse).
+_ALLOWED_PUNCTUATION = set("-_/.,:%&+()[]'\"#")
 
-    2026-09-06: 加 .sig sidecar 检测 META_FILE 变更, 防止 cache 静默过期。
-    """
+
+def _clean_doc_text(value) -> str:
+    """Normalize product text, removing HTML, emoji, and non-semantic symbols."""
+    if isinstance(value, list):
+        value = " ".join(str(x) for x in value if x is not None)
+    elif not isinstance(value, str):
+        return ""
+    value = html.unescape(value)
+    value = re.sub(r"<[^>]*>", " ", value)
+    value = value.replace("\r", " ").replace("\n", " ")
+    cleaned = []
+    for char in value:
+        category = unicodedata.category(char)
+        if category.startswith("C") or category.startswith("So"):
+            cleaned.append(" ")
+        elif char.isalnum() or char.isspace() or char in _ALLOWED_PUNCTUATION:
+            cleaned.append(char)
+        else:
+            cleaned.append(" ")
+    return " ".join("".join(cleaned).split()).strip()
+
+
+
+def build_meta_corpus() -> dict[str, str]:
+    """Build structured product documents with metadata and up to 25 reviews."""
     sig_path = _sig_path_for(ASIN_TO_DOC_CACHE)
     current_sig = _corpus_signature(meta_file=META_FILE)
-    if ASIN_TO_DOC_CACHE.exists():
-        if sig_path.exists():
-            cached_sig = sig_path.read_text().strip()
-            if cached_sig == current_sig:
-                t0 = time.time()
-                asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
-                log(f"  ✓ asin_to_doc cache hit ({len(asin_to_doc)} ASINs, "
-                    f"sig={current_sig}, {time.time() - t0:.2f}s)")
-                return asin_to_doc
-            log(f"  ⚠ asin_to_doc sig mismatch (cached={cached_sig}, "
-                f"current={current_sig}), rebuilding...")
-        else:
-            log(f"  ⚠ asin_to_doc exists but no .sig sidecar, re-reading META_FILE to seed sig...")
+    if ASIN_TO_DOC_CACHE.exists() and sig_path.exists():
+        cached_sig = sig_path.read_text().strip()
+        if cached_sig == current_sig:
+            t0 = time.time()
+            asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
+            log(f"  ✓ asin_to_doc cache hit ({len(asin_to_doc)} ASINs, "
+                f"sig={current_sig}, {time.time() - t0:.2f}s)")
+            return asin_to_doc
+        log(f"  ⚠ asin_to_doc sig mismatch (cached={cached_sig}, "
+            f"current={current_sig}), rebuilding...")
     asin_to_doc = {}
     log(f"  loading metadata from {META_FILE}")
-    with open(META_FILE, "rt", encoding="utf-8") as f:  # 2026-09-06: .jsonl 不是 .gz, 改用纯文本
+    with open(META_FILE, "rt", encoding="utf-8") as f:
         for line in f:
             r = json.loads(line)
-            asin = r.get("parent_asin", "").strip()
+            asin = _clean_doc_text(r.get("parent_asin"))
             if not asin:
                 continue
-            parts = []
-            t = r.get("title", "").strip()
-            if t:
-                parts.append(t)
-            desc = r.get("description", [])
-            if isinstance(desc, list):
-                desc = " ".join(desc)
-            elif not isinstance(desc, str):
-                desc = ""
-            desc = desc.strip()
-            if desc:
-                parts.append(desc)
-            feats = r.get("features", [])
-            if isinstance(feats, list):
-                feats = " ".join(feats)
-            if feats:
-                parts.append(feats[:500])
-            doc = " | ".join(parts).strip()
-            if doc:
-                asin_to_doc[asin] = doc[:1000]
-    log(f"  loaded {len(asin_to_doc)} ASIN docs")
+            details = r.get("details")
+            if not isinstance(details, dict):
+                raise ValueError(f"Required details field is not an object for ASIN {asin}")
+            title = _clean_doc_text(r.get("title"))
+            brand = _clean_doc_text(details.get("Brand"))
+            categories = r.get("categories")
+            if not isinstance(categories, list):
+                raise ValueError(f"Required categories field is not a list for ASIN {asin}")
+            category = " / ".join(_clean_doc_text(x) for x in categories if x is not None)
+            dimensions = _clean_doc_text(details.get("Product Dimensions"))
+            weight = _clean_doc_text(details.get("Item Weight"))
+            description = _clean_doc_text(r.get("description"))
+            features = r.get("features")
+            if not isinstance(features, list):
+                raise ValueError(f"Required features field is not a list for ASIN {asin}")
+            lines = [f"product: {title}"]
+            if brand: lines.append(f"brand: {brand}")
+            if category: lines.append(f"category: {category}")
+            if dimensions: lines.append(f"dimensions: {dimensions}")
+            if weight: lines.append(f"weight: {weight}")
+            if description: lines.append(f"description: {description}")
+            feature_values = [_clean_doc_text(x) for x in features]
+            feature_values = [x for x in feature_values if x]
+            if feature_values:
+                lines.append("features:")
+                lines.extend(f"#{i}: {x}" for i, x in enumerate(feature_values, 1))
+            asin_to_doc[asin] = "\n".join(lines)
+    log(f"  loaded {len(asin_to_doc)} ASIN docs with structured fields")
     ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True)
     with open(ASIN_TO_DOC_CACHE, "w", encoding="utf-8") as f:
-        json.dump(asin_to_doc, f, ensure_ascii=False)
+        json.dump(asin_to_doc, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    current_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
+    _sig_path_for(ASIN_TO_DOC_CACHE).write_text(current_sig)
     log(f"  cached → {ASIN_TO_DOC_CACHE} ({ASIN_TO_DOC_CACHE.stat().st_size / 1e6:.1f} MB)")
-    sig_path.write_text(current_sig)
-    log(f"  wrote sig → {sig_path} (sig={current_sig})")
     return asin_to_doc
 
 
@@ -946,6 +977,14 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
 # MAIN
 # ===========================================================================
 def main():
+    ONLY_BUILD_ASIN_TO_DOC = False
+    if ONLY_BUILD_ASIN_TO_DOC:
+        log("=== Building asin_to_doc.json only (no retrieval/evaluation) ===")
+        asin_to_doc = build_meta_corpus()
+        log(f"  generated {len(asin_to_doc)} ASIN documents")
+        log(f"  output → {ASIN_TO_DOC_CACHE}")
+        return
+
     t_start = time.time()
     log("=== Stage 5 unified multi-retriever (NO rerank) ===")
     log(f"  retrievers: {RETR_NAMES}")

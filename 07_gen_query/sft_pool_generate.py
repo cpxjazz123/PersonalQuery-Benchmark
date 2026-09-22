@@ -403,6 +403,7 @@ def main_pipeline():
         f"regen {len(fresh_asins)} ASINs (raw_cache 提供 initial raw, "
         f"{len(raw_per_asin_cache)} ASINs 在 raw cache)")
 
+    # 本轮 fresh 结果必须优先于旧 raw cache，避免最终汇总回退到旧候选。
     fresh_pool: Dict[str, List[str]] = {}
     if fresh_asins:
         attrs_list = [dict(list(attrs_all[a].items())[:5]) for a in fresh_asins]
@@ -581,14 +582,15 @@ def main_pipeline():
     n_below_min_query_asins = 0
     MIN_KEEP_QUERIES = 30  # 2026-09-18: 强制 ≥30 个 query; 不足则该 ASIN 不进 pool
     for asin in eval_asins:
-        if asin in cached_pool and len(cached_pool[asin]) >= MIN_KEPT_QUERIES:
+        if asin in fresh_pool:
+            # 本轮 fresh 结果优先，不能被旧 raw cache 覆盖。
+            raw = list(fresh_pool[asin])
+        elif asin in cached_pool and len(cached_pool[asin]) >= MIN_KEPT_QUERIES:
             # cached_pool hit (reuse_asins ∩ cached_pool)
             raw = list(cached_pool[asin])
         elif asin in raw_per_asin_cache:
-            # raw cache hit (reuse_asins ∩ raw_per_asin_cache only, cached_pool 空)
+            # raw cache hit (非本轮 fresh ASIN)
             raw = list(raw_per_asin_cache[asin])
-        elif asin in fresh_pool:
-            raw = fresh_pool[asin]
         else:
             continue
         kept = filter_pass_queries(asin, raw, attrs_all)
