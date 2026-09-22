@@ -14,6 +14,11 @@
 
 7. **虚拟环境必须使用 `pq_env`**: 唯一允许的 Python 解释器是 `/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`(python 3.10 + torch 2.13.0+cu130 + transformers 4.40.2 + spacy 3.8.4 + sklearn 1.7.2 + numpy 1.26.4 + accelerate),禁止使用系统 python / base conda / `genrec_env` / `rqvae_repro_env` 等其他环境。
 
+7a. **pip 安装必须装到 pq_env 自身的 site-packages**:
+    - ✅ **ALWAYS**: 走 `/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python -m pip install --target=/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages <pkg>`,或先 `source /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/activate` 再 `pip install <pkg>`。依赖会装到 `/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages`,venv 自动加载,不走 USER_SITE 路径。
+    - **全局 pip 陷阱**:`/etc/pip.conf` 强制设置 `target = /home/wlia0047/ar57/wenyu/.local`,所有 `pip install` 默认被重定向到该目录,pq_env 永远装不到,**所以必须显式 `--target=` 覆盖**。装完用 `/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python -c "import <pkg>; print(<pkg>.__version__)"` 自检,确认包装进了 pq_env。
+    - 按规则 7(项目统一用 pq_env,禁止 base/system/conda),禁止 `pip install --user`、不要设 `PYTHONUSERBASE`,否则包会落到 `/home/wlia0047/.local/lib/python3.10/site-packages` 而 venv 加载不到,跑脚本时会 `ModuleNotFoundError`。
+
 8. **后台任务必须使用 nohup,禁止 sbatch/srun**: 所有长时间运行的脚本(训练 / 生成 / 评估 / 扫描)一律 `nohup ... &` 后台运行,禁止通过 slurm 队列提交。
 
 9. **禁止用 sleep 等待后台进程**: 后台任务启动后用 `tail -n 20 <log>` / `ps aux | grep <proc>` 多次快速轮询,禁止 `sleep 300; tail xxx.log` 这类休眠等待。**严禁在 Bash 工具调用中使用 sleep 命令(无论长短)监控后台日志**,必须只用 `tail` / `grep` / `ps` / `nvidia-smi` 等即时查询,让后台进程完成时由 harness 通知,或主动 grep 日志关键字判断进度。
@@ -46,3 +51,5 @@
     - **Smoke 失败的常见原因**(必须先排查再扩大): Shape 错位、silent try/except 吞错、checkpoint 路径错、seed 不固定、GPU OOM (需 batch 砍半)、spaCy/torch 版本不兼容
 
 21. **回复必须简单直接,尽量只使用一段话**: 每次回复只用一段连贯的话讲清结论和下一步,禁止列表/表格/分点,禁止解释过程,直接给答案 + 行动项。需要时给出文件路径、命令、状态值等关键事实,但不展开。详细日志写到文件,chat 里只给一句话总结。
+
+22. **每次业务修改必须立即 commit + push 到 main**: 每完成一次业务代码 / 配置 / 文档 / 产物的修改,必须立刻执行 `git add -A` + `git status --short` 自检 + `git commit -m "<scope>: <what>"` + `git push origin main` 四步闭环,**不等待用户指示、不积攒多次改动一起提交**。本规则覆盖 Rule 6 中的"仅在用户显式要求时执行"——所有任务完成后默认触发自动 commit + push。仅维护 `main` 一个分支(同步 Rule 2),禁止 checkout / 创建其他分支,所有修改直接 commit 到 main。例外:`/home/wlia0047/ar57/wenyu/PersoanlQuery` 项目根的 `.claude/` 目录(本地 Claude 配置)、`.git/`、临时 scratch 产物不在 commit 范围内(由 `.gitignore` 控制)。
