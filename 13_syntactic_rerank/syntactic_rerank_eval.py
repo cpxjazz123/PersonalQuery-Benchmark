@@ -910,7 +910,7 @@ if __name__ == "__main__":
     #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma (Gemma2 chat template)
     #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
     #                   (SequenceClassification on Llama-2-7b-hf)
-    RERANKER_VARIANT = "qwen3"
+    RERANKER_VARIANT = "bge_gemma2"
     if RERANKER_VARIANT == "qwen3":
         import llm_client  # noqa: E402
         llm_client.DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"
