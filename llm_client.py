@@ -92,10 +92,14 @@ class QwenLocalClient:
                 # supports forward() and .eval() so merge is unnecessary for
                 # inference.
             elif _is_qwen3_checkpoint(self.model):
-                from transformers import AutoConfig
-                cfg = AutoConfig.from_pretrained(self.model, trust_remote_code=True)
-                model = AutoModel.from_pretrained(
-                    self.model, config=cfg, torch_dtype=getattr(torch, self.dtype),
+                # Qwen3-Reranker (Qwen3ForCausalLM) — needs the LM head to
+                # expose logits for the yes/no token logit-diff at the last
+                # prompt position. AutoModel (base) returns
+                # BaseModelOutputWithPast which has no .logits, so use the
+                # causal-LM class.
+                from transformers import AutoModelForCausalLM
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model, torch_dtype=getattr(torch, self.dtype),
                     device_map="auto", trust_remote_code=True)
             else:
                 from transformers import AutoModelForCausalLM
