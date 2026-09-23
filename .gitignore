@@ -75,3 +75,6 @@ result/**/*.gz
 slurm-*.out
 .codex/
 result/**/*.pre_theoretical_gate
+
+# Pre-clean backup files accidentally created in result/ (rule 15/16: no stacking backups in repo)
+*.bak_pre_clean
