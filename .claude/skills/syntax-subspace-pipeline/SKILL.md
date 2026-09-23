@@ -54,9 +54,16 @@ canonical selection 是 Stage 04b (trainable svd_mlp) → Stage 08 (svdmlp logp_
 
 ## 输入、环境与硬性规则
 
-**原始输入** (2026-09-23: data 目录从 `<repo>/data` 迁移到 `/home/wlia0047/hj82/wenyu/PersoanlQuery/data`)：
-- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl`
-- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl`
+**原始输入** (2026-09-23: data 目录从 `<repo>/data` 迁移到 `/home/wlia0047/hj82/wenyu/PersoanlQuery/data`，并扩到 3 个 category)：
+- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl` + `meta_Baby_Products_2023.jsonl` (Baby, 217k asins, 6.0M reviews)
+- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/Musical_Instruments.jsonl` + `meta_Musical_Instruments.jsonl` (Musical_Instruments, 213k asins, 3.0M reviews)
+- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/Video_Games.jsonl` + `meta_Video_Games.jsonl` (Video_Games, 137k asins, 4.6M reviews)
+
+**3-category 串行执行约定** (2026-09-23)：
+- Stage 01-14 所有主脚本 (`extract_product_attrs.py` / `extract_user_sentences.py` / `syntax_encoder.py` / `fit_per_user_gaussian.py` / `trainable_per_user_gaussian.py` / `raw_cov_validity.py` / `sft_pipeline.py` / `sft_pool_generate.py` / `syntax_select.py` / `sercl_user_profile.py` / `typo_inject.py` / `build_asin_to_doc.py` / `syntax_subspace_retrieval_unified.py` / `typo_retrieval_eval.py` / `syntactic_rerank_eval.py` / `typo_rerank_eval.py`) 顶层均带 `CATEGORY_INPUTS = [("Baby","baby"), ("Musical_Instruments","musical"), ("Video_Games","video_games")]`，`main()` 为串行 dispatcher 循环 3 个 category。
+- 每个 category 的产物写到独立子目录/后缀（Stage 01/02 用后缀 `_baby/_musical/_video_games`；Stage 04-14 dispatcher 默认写到 `result/<stage>/<subdir>/`）。
+- 默认 path 常量（无后缀）保持 Baby 路径，便于 Stage 04-14 下游 Stage 11/12 import 后只读 Baby 时不破坏兼容。
+- 实际跑 `python <script>.py` 不传环境变量即串行跑 3 个 category；通过 `CATEGORY_FILTER`（如未来实现）可只跑某 1 个。
 
 **运行环境**：
 - cwd 固定为 `/home/wlia0047/ar57/wenyu/PersoanlQuery`（filesystem alias `/fs04/ar57/wenyu/PersoanlQuery` 在部分环境下不可解析，所有 nohup/python 走 `/home/...` 路径）。
@@ -438,31 +445,55 @@ result/12_typo_evaluation/retrieval_degradation.json
 
 ## 最终 canonical 结果
 
+每个 category 一套独立产物（Baby / Musical_Instruments / Video_Games）。下方以 **Baby** 为 canonical 示例；Musical 和 Video_Games 路径把 `<subdir>` 替换为 `musical` / `video_games` 即可（Stage 01/02 用后缀 `_baby/_musical/_video_games`；Stage 04-14 dispatcher 默认写到 `result/<stage>/<subdir>/`）：
+
 ```text
-result/01_attribute_extraction/product_attributes.json
-result/02_user_review_sentence_extract/uid_to_sentences.json
-result/02_user_review_sentence_extract/uid_to_sentences.pkl
-result/02_user_review_sentence_extract/asin_to_users.json
-result/03_spacy_encode/syntax_pcfg_strict_attr.json
-result/04_gaussian/user_gaussian_stats.json              # Stage 04a full Σ
-result/04_gaussian/user_gaussian_stats_rank1.json
-result/04_gaussian/user_gaussian_stats_trainable.json    # Stage 04b raw (legacy comparison)
-result/04_gaussian/user_gaussian_stats_trainable_svdmlp.json  # Stage 04b svd_mlp (canonical)
-result/05_gaussian_audit/raw_cov_validity.json
-result/05_gaussian_audit/asin_coverage_valid_ge2.json
-result/07_gen_query/pool_queries.json
-result/08_select_query/selected_queries.json           # legacy baseline
-result/08_select_query/selected_queries_svdmlp.json     # canonical
-result/09_sercl_user_profile/user_sercl_profile.json
-result/09_sercl_user_profile/cohort_summary.json
-result/10_typo_injection/typo_injection_results.json
-result/10_typo_injection/cohort_summary.json
-result/11_syntactic_evaluation/per_query.json
-result/11_syntactic_evaluation/retrieval_summary.json
-result/11_syntactic_evaluation/volatility.json
-result/12_typo_evaluation/per_query.json
-result/12_typo_evaluation/retrieval_degradation.json
+# === Stage 01–02: 每个 category 一份 pkl, 用后缀区分 ===
+result/01_attribute_extraction/product_attributes_baby.pkl
+result/01_attribute_extraction/product_attributes_musical.pkl
+result/01_attribute_extraction/product_attributes_video_games.pkl
+result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl
+result/02_user_review_sentence_extract/uid_to_sentences_musical.pkl
+result/02_user_review_sentence_extract/uid_to_sentences_video_games.pkl
+result/02_user_review_sentence_extract/asin_to_users_baby.pkl
+result/02_user_review_sentence_extract/asin_to_users_musical.pkl
+result/02_user_review_sentence_extract/asin_to_users_video_games.pkl
+/home/wlia0047/hj82_scratch2/wenyu/cohort_manifest_baby.json
+/home/wlia0047/hj82_scratch2/wenyu/cohort_manifest_musical.json
+/home/wlia0047/hj82_scratch2/wenyu/cohort_manifest_video_games.json
+
+# === Stage 04-14: dispatcher 把每个 category 写到 result/<stage>/<subdir>/ 子目录 ===
+# Baby canonical:
+result/03_spacy_encode/baby/syntax_pcfg_strict_attr.json
+result/04_gaussian/baby/user_gaussian_stats.json              # Stage 04a full Σ
+result/04_gaussian/baby/user_gaussian_stats_rank1.json
+result/04_gaussian/baby/user_gaussian_stats_trainable.json    # Stage 04b raw (legacy comparison)
+result/04_gaussian/baby/user_gaussian_stats_trainable_svdmlp.json  # Stage 04b svd_mlp (canonical)
+result/05_gaussian_audit/baby/raw_cov_validity.json
+result/05_gaussian_audit/baby/asin_coverage_valid_ge2.json
+result/06_training_model/baby/sft_lora/                       # 既有 SFT adapter
+result/07_gen_query/baby/pool_queries.json
+result/08_select_query/baby/selected_queries.json              # legacy baseline
+result/08_select_query/baby/selected_queries_svdmlp.json        # canonical
+result/09_sercl_user_profile/baby/user_sercl_profile.json
+result/09_sercl_user_profile/baby/cohort_summary.json
+result/10_typo_injection/baby/typo_injection_results.json
+result/10_typo_injection/baby/cohort_summary.json
+result/11_syntactic_evaluation/baby/per_query.json
+result/11_syntactic_evaluation/baby/retrieval_summary.json
+result/11_syntactic_evaluation/baby/volatility.json
+result/12_typo_evaluation/baby/per_query.json
+result/12_typo_evaluation/baby/retrieval_degradation.json
+result/13_syntactic_rerank/baby/llm_rerank_results.json
+result/13_syntactic_rerank/baby/per_retr_bm25.json
+result/14_typo_rerank/baby/llm_rerank_typo_results.json
+result/14_typo_rerank/baby/stage11_stage13_stage14_paired.json
+
+# Musical canonical: 把上面对应路径的 /baby/ 替换为 /musical/
+# Video_Games canonical: 把 /baby/ 替换为 /video_games/
 ```
+
+下游 Stage 11/12 默认 SEL_IN 仍指向 Baby 的 canonical selection（向后兼容）；后续可加 `CATEGORY_FILTER` 让 Stage 11 跑其他 2 个 category 的 retrieval 评估。
 
 ## 快速检查
 
@@ -470,12 +501,26 @@ result/12_typo_evaluation/retrieval_degradation.json
 cd /home/wlia0047/ar57/wenyu/PersoanlQuery
 PY=/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python
 
-$PY -c 'import json; p=json.load(open("result/02_user_review_sentence_extract/uid_to_sentences.json")); print(len(p), next(iter(p.values()))[:1])'
-$PY -c 'import json; p=json.load(open("result/08_select_query/selected_queries_svdmlp.json")); print(p["config"].get("logp_delta"), len(p["kept"]))'
-$PY -c 'import json; p=json.load(open("result/10_typo_injection/cohort_summary.json")); print(p["totals"]); print(p["totals"]["transformation_source_counts"])'
-$PY -c 'import json; p=json.load(open("result/11_syntactic_evaluation/per_query.json")); print(p["config"], p["n_queries"])'
-$PY -c 'import json; p=json.load(open("result/11_syntactic_evaluation/volatility.json")); print(p["stability_flip"])'
-$PY -c 'import json; p=json.load(open("result/12_typo_evaluation/retrieval_degradation.json")); print(p["config"])'
+# Stage 02 (Baby 第一; 改 _baby 为 _musical / _video_games 看另 2 个 category)
+$PY -c 'import pickle; p=pickle.load(open("result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl")); print(len(p), next(iter(p.values()))[:1])'
+
+# Stage 08 svdmlp selection (Baby)
+$PY -c 'import json; p=json.load(open("result/08_select_query/baby/selected_queries_svdmlp.json")); print(p["config"].get("logp_delta"), len(p["kept"]))'
+
+# Stage 10 cohort summary (Baby)
+$PY -c 'import json; p=json.load(open("result/10_typo_injection/baby/cohort_summary.json")); print(p["totals"]); print(p["totals"]["transformation_source_counts"])'
+
+# Stage 11 (Baby)
+$PY -c 'import json; p=json.load(open("result/11_syntactic_evaluation/baby/per_query.json")); print(p["config"], p["n_queries"])'
+$PY -c 'import json; p=json.load(open("result/11_syntactic_evaluation/baby/volatility.json")); print(p["stability_flip"])'
+
+# Stage 12 (Baby)
+$PY -c 'import json; p=json.load(open("result/12_typo_evaluation/baby/retrieval_degradation.json")); print(p["config"])'
+
+# 跨 category 产物总览
+ls result/01_attribute_extraction/product_attributes_*.pkl
+ls result/02_user_review_sentence_extract/{uid_to_sentences,asin_to_users}_*.pkl
+ls -d result/{04_gaussian,05_gaussian_audit,07_gen_query,08_select_query,11_syntactic_evaluation,12_typo_evaluation}/{baby,musical,video_games}/ 2>/dev/null
 ```
 
 快速检查只用于读取 artifact 当前状态；不固化任何数量基线。运行中的进程用 `tail` / `grep` / `ps` / `nvidia-smi` 即时检查；禁止 `sleep` 等待。
