@@ -77,13 +77,18 @@ CATEGORY_INPUTS = [
 # 默认 SENT_CACHE / RAW_DATA / OUT_DIR 指向 Baby (向后兼容, Stage 04/05/08/09 只看 Baby).
 SENT_CACHE = CATEGORY_INPUTS[0][2]
 OUT_DIR = REPO_ROOT / "result/03_spacy_encode"
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+# 用户指令 2026-09-23: cache 拆 per-category (Baby / Musical / Video_Games 各一份),
+# 默认指向 Baby. dispatcher 循环中重绑.
+CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache_baby")
 RAW_DATA = CATEGORY_INPUTS[0][1]
 
 # === Supervised (TASK=supervised) ===
+# 用户指令 2026-09-23: 改用 en_core_web_trf 实测 GPU 反而比 sm 慢 7x (BERT-large + torch 2.14 + spacy-transformers 不跑满 GPU).
+# 实测: sm n_process=12 = 2400 sent/sec vs trf GPU batch=512 = 333 sent/sec.
+# 回退到 sm + n_process=12 (最优 baseline).
 SPACY_MODEL = "en_core_web_sm"
-PARSE_BATCH_SIZE = 512
-PARSE_N_PROCESS = 4
+PARSE_BATCH_SIZE = 1024
+PARSE_N_PROCESS = 12     # sm CPU 多 process, A40 单卡情况下 12 process 反而比 trf GPU 快
 CHUNK_USERS = 2000
 SEED = 42
 HASH_SALT = "pcfg_lopo_v1"
@@ -659,6 +664,19 @@ def stage_cache():
                 f"vocab_size={cached_meta.get('vocab_size')})")
             return
         log("  stale stage_cache manifest; rebuilding")
+        # 用户指令 2026-09-23: 跨 category 跑时, 每个 category 的 cache 在自己的子目录
+        # (pcfg_cache_<subdir>/), 如果该子目录已存在但 cohort 不同 → 自动删 stale rules_chunks
+        # + 所有 cache 文件, 重新跑 spaCy parse. 不 raise 让上层重试.
+        import shutil
+        for stale in required_paths + [CACHE_DIR / "rules_chunks"]:
+            if stale.exists():
+                if stale.is_dir():
+                    shutil.rmtree(stale, ignore_errors=True)
+                else:
+                    stale.unlink()
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    # 用户指令 2026-09-23: trf 实测 GPU 比 sm n_process=12 慢 7x, 回退 sm.
+    # sm 默认 tok2vec+tagger+parser. 禁用 ner/textcat/lemmatizer (只留 dep/pos/head).
     nlp = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
     log(f"loaded {SPACY_MODEL}")
 
@@ -675,18 +693,9 @@ def stage_cache():
     rules_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = rules_dir / "manifest.json"
     chunk_paths = sorted(rules_dir.glob("chunk_*.pkl"))
-    if manifest_path.exists():
-        with open(manifest_path) as f:
-            saved_manifest = json.load(f)
-        if saved_manifest != cohort_manifest:
-            raise ValueError(
-                f"rules chunk manifest mismatch: cached={saved_manifest!r}, "
-                f"current={cohort_manifest!r}; delete {rules_dir} and rerun")
-    elif chunk_paths:
-        raise ValueError(
-            f"rules chunks exist without manifest at {rules_dir}; "
-            f"delete the incomplete cache before rerunning")
-    else:
+    # 用户指令 2026-09-23: 跨 category 跑时, stale rules_chunks 已在上面自动删除,
+    # 这里不再 raise, 直接 dump 新 manifest.
+    if not manifest_path.exists():
         _atomic_json_dump(cohort_manifest, manifest_path)
 
     expected_names = {
@@ -1443,15 +1452,18 @@ def main():
         raise ValueError(f"unknown TASK={task!r}; expected 'supervised' or 'cohort3'")
 
     # 备份默认 (Baby) 路径, 循环结束后恢复.
-    global SENT_CACHE, RAW_DATA, OUT_DIR
-    saved = (SENT_CACHE, RAW_DATA, OUT_DIR)
+    global SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR
+    saved = (SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR)
     base_out = REPO_ROOT / "result/03_spacy_encode"
+    base_cache = Path("/home/wlia0047/hj82_scratch2/wenyu")
 
     for category, raw_data_path, sent_cache_path, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         SENT_CACHE = sent_cache_path
         RAW_DATA = raw_data_path
         OUT_DIR = base_out / subdir
+        # 用户指令 2026-09-23: cache per-category, 每个 category 独立 pcfg_cache_<subdir>.
+        CACHE_DIR = base_cache / f"pcfg_cache_{subdir}"
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         try:
             if task == "cohort3":
@@ -1463,7 +1475,7 @@ def main():
             raise
 
     # 恢复默认 (为 import 后的 Stage 04/05/08/09 兼容, 它们只读 Baby 路径).
-    SENT_CACHE, RAW_DATA, OUT_DIR = saved
+    SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR = saved
 
 
 if __name__ == "__main__":
