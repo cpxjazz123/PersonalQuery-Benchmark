@@ -36,6 +36,14 @@ STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
 STAGE8_SEL = REPO_ROOT / "result/08_select_query/selected_queries.json"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/13_syntactic_rerank/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 
 RETRIEVERS = ["bm25"]
 
@@ -53,6 +61,9 @@ KS = (1, 5, 10)
 N_SMOKE = 1635
 ONLY_BM25_SMOKE = True
 SMOKE = False
+# 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
+# 保留全量 1947 queries（不像 SMOKE 那样截断到 1 个）。结果仍写入 STAGE11_OUT。
+BM25_ONLY = True
 
 
 def log(msg: str) -> None:
@@ -568,8 +579,13 @@ def run_stage11_llm_rerank(smoke=False):
     queries_asin_pairs = [(a, q) for a, q in entries]
 
     per_retr_topk_idx: dict[str, np.ndarray] = {}
-    _retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
-    _typo_retr_list = _retr_list if SMOKE else RETRIEVERS
+    # 2026-09-23: BM25_ONLY 模式 — 跑全量 queries 但只 bm25 retriever（用户指令）
+    if BM25_ONLY:
+        _retr_list = ["bm25"]
+        _typo_retr_list = ["bm25"]
+    else:
+        _retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
+        _typo_retr_list = _retr_list if SMOKE else RETRIEVERS
     log(f"  smoke retriever set: stage11={_retr_list} stage12={_typo_retr_list}")
     for retr in _retr_list:
         topk_idx = load_topk_cache(STAGE11_TOPK_DIR, retr)
@@ -899,7 +915,7 @@ def print_and_save_stage11_vs_stage13(stage13_out: dict,
     log(f"\n  wrote → {out_path}")
 
 
-if __name__ == "__main__":
+def main_task_body() -> None:
     RUN_STAGE11 = True
     RUN_STAGE12 = False
 
@@ -940,3 +956,77 @@ if __name__ == "__main__":
                                           label=f"Stage 13 ({variant})")
         log(f"  [{variant}] done in {time.time()-t0:.1f}s")
     log(f"\n=== total: {time.time()-t_global:.1f}s ===")
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE11_OUT, STAGE11_TOPK_DIR, STAGE8_SEL, TYPO_PAIRS, ASIN_TO_DOC  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH",
+                 "STAGE11_OUT", "STAGE11_TOPK_DIR", "STAGE8_SEL",
+                 "TYPO_PAIRS", "ASIN_TO_DOC"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "STAGE11_OUT" in saved:
+            STAGE11_OUT = base_out / subdir / saved["STAGE11_OUT"].name
+        if "STAGE11_TOPK_DIR" in saved:
+            STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_TOPK_DIR"].name
+        if "STAGE8_SEL" in saved:
+            STAGE8_SEL = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE8_SEL"].name
+        if "TYPO_PAIRS" in saved:
+            TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
+        if "ASIN_TO_DOC" in saved:
+            ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        STAGE11_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_OUT" in saved else None
+        STAGE11_TOPK_DIR.mkdir(parents=True, exist_ok=True) if "STAGE11_TOPK_DIR" in saved else None
+        STAGE8_SEL.parent.mkdir(parents=True, exist_ok=True) if "STAGE8_SEL" in saved else None
+        TYPO_PAIRS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_PAIRS" in saved else None
+        ASIN_TO_DOC.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
+
+
+if __name__ == "__main__":
+    main()

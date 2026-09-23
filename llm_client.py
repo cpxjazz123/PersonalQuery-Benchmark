@@ -14,6 +14,49 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 
+# 2026-09-23: pq_env 多版本 dist-info 残留（torch ×5, transformers ×4, accelerate ×2, torchvision ×4），
+# 实际加载 transformers 4.57.6 + torchvision 0.19.0 vs torch 2.14.0 不兼容，
+# import torchvision 时 _meta_registrations 注册 fake `torchvision::nms` 抛 RuntimeError，
+# 级联导致 transformers.image_utils / Qwen3ForCausalLM / TrainerCallback 等全部炸。
+# 解决：导入 transformers 之前 stub torchvision.transforms（提供 InterpolationMode enum）
+# 和 torchvision.transforms.v2.functional（空模块），同时把 4.57.x 已移除的
+# AutoProcessor 从 processing_auto 子模块重新 export 到顶层。
+import enum as _enum
+import importlib.machinery as _im
+import types as _types
+
+_tv = _types.ModuleType("torchvision")
+_tv.__path__ = ["/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/torchvision"]
+_tv.__spec__ = _im.ModuleSpec("torchvision", None, is_package=True)
+sys.modules.setdefault("torchvision", _tv)
+
+
+class _InterpolationMode(_enum.Enum):
+    NEAREST = "nearest"
+    NEAREST_EXACT = "nearest-exact"
+    BILINEAR = "bilinear"
+    BICUBIC = "bicubic"
+    BOX = "box"
+    HAMMING = "hamming"
+    LANCZOS = "lanczos"
+
+
+_tv_t = _types.ModuleType("torchvision.transforms")
+_tv_t.__spec__ = _im.ModuleSpec("torchvision.transforms", None)
+_tv_t.InterpolationMode = _InterpolationMode
+sys.modules.setdefault("torchvision.transforms", _tv_t)
+_tv.transforms = _tv_t
+_tv_t_v2 = _types.ModuleType("torchvision.transforms.v2")
+_tv_t_v2.__spec__ = _im.ModuleSpec("torchvision.transforms.v2", None)
+_tv_t_v2.functional = _types.SimpleNamespace()
+sys.modules.setdefault("torchvision.transforms.v2", _tv_t_v2)
+_tv_t.v2 = _tv_t_v2
+
+import transformers as _transformers_mod
+from transformers.models.auto.processing_auto import AutoProcessor as _AutoProcessor
+_transformers_mod.AutoProcessor = _AutoProcessor
+
+
 # 禁止 vLLM/Outlines 向 /home 写 telemetry 或 SQLite cache；统一写入 scratch。
 os.environ["VLLM_USAGE_STATS"] = "0"
 os.environ["OUTLINES_CACHE_DIR"] = "/fs04/scratch2/hj82/wenyu/outlines_cache"

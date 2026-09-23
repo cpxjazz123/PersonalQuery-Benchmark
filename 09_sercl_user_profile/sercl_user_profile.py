@@ -8,7 +8,7 @@
 
 与现有 Gaussian profile 正交: μ_u + Σ_u (写作风格) + P_u(e|r) (写作错误规律)
 
-输入: result/02_user_review_sentence_extract/uid_to_sentences.pkl
+输入: result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl
 输出: result/09_sercl_user_profile/user_sercl_profile.json
        (包含 user_profiles + user_word_edits: per-uid 词级 incorrect→corrected pair)
        result/09_sercl_user_profile/cohort_summary.json
@@ -54,8 +54,17 @@ SERCL_OPS = ("R:", "M:", "U:")      # replacement / missing / unnecessary
 # 高频 error type 白名单 (后续可扩展)
 SERCL_TOP_ERROR_TYPES = None        # None = 不限; v1 不限, 看分布
 
-UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences.json"
+# 用户指令 2026-09-23: uid_to_sentences 改 pkl-only (下游 Python 消费).
+UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl"
 SELECTED_QUERIES = REPO_ROOT / "result/08_select_query/selected_queries.json"  # 2026-09-19: Stage 8 canonical output
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/09_sercl_user_profile/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 
 
 def log(msg: str) -> None:
@@ -82,9 +91,10 @@ def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
                 selected_uids.add(uid)
     log(f"  unique uids in selected_queries.json: {len(selected_uids)}")
 
-    # Step 2: load sentences (JSON dict: {uid: [sent, ...]})
-    with open(UID_TO_SENTS, encoding="utf-8") as f:
-        all_uids = json.load(f)
+    # Step 2: load sentences (pickle dict: {uid: [sent, ...]})
+    # 用户指令 2026-09-23: 改用 pickle.load (Stage 02 已切换 pkl-only).
+    with open(UID_TO_SENTS, "rb") as f:
+        all_uids = pickle.load(f)
     log(f"  total uids in uid_to_sentences: {len(all_uids)}")
 
     # Step 3: intersect selected ∩ eligible (≥MIN_SENTS)
@@ -316,7 +326,7 @@ def build_profiles(uid_to_records: Dict[str, List[Tuple[str, str]]],
 # ===========================================================================
 # Main
 # ===========================================================================
-def main_pipeline():
+def main_task_body():
     t_start = time.time()
     log("=== SErCL user-profile full run ===")
     log(f"  N_USERS={SERCL_N_USERS}  MIN_SENTS={SERCL_MIN_SENTS}  "
@@ -458,5 +468,61 @@ def main_pipeline():
     log(f"\n=== SErCL run complete ({time.time()-t_start:.1f}s) ===")
 
 
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SELECTED_QUERIES  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "SELECTED_QUERIES"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "SELECTED_QUERIES" in saved:
+            SELECTED_QUERIES = REPO_ROOT / "result/08_select_query" / subdir / saved["SELECTED_QUERIES"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        SELECTED_QUERIES.parent.mkdir(parents=True, exist_ok=True) if "SELECTED_QUERIES" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
+
+
 if __name__ == "__main__":
-    main_pipeline()
+    main()

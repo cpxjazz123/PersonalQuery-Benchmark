@@ -47,6 +47,14 @@ TOPK_SAVE_K = 100
 SMOKE = False  # full run over all Stage 10 typo pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/12_typo_evaluation/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 
 # Hit@k values reported (NO flip rate per user directive)
 KS = (1, 5, 10)
@@ -70,7 +78,7 @@ def _load_retrieval_module():
     mod = importlib.util.module_from_spec(spec)
     mod.REPO_ROOT = REPO_ROOT
     mod.ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
-    mod.META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl"
+    mod.META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
     mod.SEL_IN = REPO_ROOT / "result/08_select_query/selected_queries.json"
     mod.PER_QUERY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/per_query_stage11.json")
     mod.SUMMARY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/retrieval_summary_stage11.json")
@@ -98,7 +106,7 @@ def load_pairs():
     return pairs
 
 
-def main():
+def main_task_body():
     t0 = time.time()
     log("=== Stage 12 Typo Retrieval Evaluation (paired degradation) ===")
     log(f"  SMOKE={SMOKE}  KS={KS}")
@@ -329,6 +337,76 @@ def main():
     log(f"wrote → {OUT_DEGRADATION}")
 
     log(f"done in {time.time()-t0:.1f}s")
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH",
+                 "OUT_PER_QUERY", "OUT_DEGRADATION",
+                 "TYPO_RESULTS", "TOPK_DIR_ORIG", "TOPK_DIR_TYPO"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "OUT_PER_QUERY" in saved:
+            OUT_PER_QUERY = base_out / subdir / saved["OUT_PER_QUERY"].name
+        if "OUT_DEGRADATION" in saved:
+            OUT_DEGRADATION = base_out / subdir / saved["OUT_DEGRADATION"].name
+        if "TYPO_RESULTS" in saved:
+            TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_RESULTS"].name
+        if "TOPK_DIR_ORIG" in saved:
+            TOPK_DIR_ORIG = base_out / subdir / saved["TOPK_DIR_ORIG"].name
+        if "TOPK_DIR_TYPO" in saved:
+            TOPK_DIR_TYPO = base_out / subdir / saved["TOPK_DIR_TYPO"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        OUT_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "OUT_PER_QUERY" in saved else None
+        OUT_DEGRADATION.parent.mkdir(parents=True, exist_ok=True) if "OUT_DEGRADATION" in saved else None
+        TYPO_RESULTS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_RESULTS" in saved else None
+        TOPK_DIR_ORIG.mkdir(parents=True, exist_ok=True) if "TOPK_DIR_ORIG" in saved else None
+        TOPK_DIR_TYPO.mkdir(parents=True, exist_ok=True) if "TOPK_DIR_TYPO" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
 
 
 if __name__ == "__main__":

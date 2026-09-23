@@ -51,12 +51,24 @@ from syntactic_rerank_eval import (  # noqa: E402  (sys.path tweak above)
 OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 STAGE12_OUT = OUT_DIR / "llm_rerank_typo_results.json"
+
+# 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
+# 与 Stage 13 保持一致（BM25_ONLY 在 syntactic_rerank_eval.py 中定义）。
+from syntactic_rerank_eval import BM25_ONLY
 STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank/llm_rerank_results.json"
 
 TYPO_TOPK_DIR = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
 STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/14_typo_rerank/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank"
 
 # 2026-09-22: Stage 14 baseline = Stage 13 (same reranker on clean query).
@@ -190,7 +202,11 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
     asin_to_doc, asins = load_corpus()
 
     per_retr_typo_idx: dict[str, np.ndarray] = {}
-    typo_retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
+    # 2026-09-23: BM25_ONLY 模式 — 跑全量 typo pairs 但只 bm25 retriever（与 Stage 13 一致）
+    if BM25_ONLY:
+        typo_retr_list = ["bm25"]
+    else:
+        typo_retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
     log(f"  typo retriever set: {typo_retr_list}")
     for retr in typo_retr_list:
         topk_idx = load_topk_cache(TYPO_TOPK_DIR, retr)
@@ -487,7 +503,7 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
     return payload
 
 
-if __name__ == "__main__":
+def main_task_body() -> None:
     # === reranker selection ===
     # Match the Stage 13 reranker variant. Supported:
     #   "qwen3"      -> Qwen3-Reranker
@@ -533,3 +549,80 @@ if __name__ == "__main__":
             variant=variant)
         log(f"  [{variant}] done in {time.time()-t0:.1f}s")
     log(f"\n=== total: {time.time()-t_global:.1f}s ===")
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE12_OUT, STAGE11_OUT, TYPO_TOPK_DIR, TYPO_PAIRS, ASIN_TO_DOC, STAGE12_PER_QUERY  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH",
+                 "STAGE12_OUT", "STAGE11_OUT", "TYPO_TOPK_DIR",
+                 "TYPO_PAIRS", "ASIN_TO_DOC", "STAGE12_PER_QUERY"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "STAGE12_OUT" in saved:
+            STAGE12_OUT = base_out / subdir / saved["STAGE12_OUT"].name
+        if "STAGE11_OUT" in saved:
+            STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank" / subdir / saved["STAGE11_OUT"].name
+        if "TYPO_TOPK_DIR" in saved:
+            TYPO_TOPK_DIR = REPO_ROOT / "result/12_typo_evaluation" / subdir / saved["TYPO_TOPK_DIR"].name
+        if "TYPO_PAIRS" in saved:
+            TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
+        if "ASIN_TO_DOC" in saved:
+            ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC"].name
+        if "STAGE12_PER_QUERY" in saved:
+            STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation" / subdir / saved["STAGE12_PER_QUERY"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        STAGE12_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE12_OUT" in saved else None
+        STAGE11_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_OUT" in saved else None
+        TYPO_TOPK_DIR.mkdir(parents=True, exist_ok=True) if "TYPO_TOPK_DIR" in saved else None
+        TYPO_PAIRS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_PAIRS" in saved else None
+        ASIN_TO_DOC.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC" in saved else None
+        STAGE12_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "STAGE12_PER_QUERY" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
+
+
+if __name__ == "__main__":
+    main()

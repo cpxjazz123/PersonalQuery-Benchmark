@@ -54,9 +54,9 @@ canonical selection 是 Stage 04b (trainable svd_mlp) → Stage 08 (svdmlp logp_
 
 ## 输入、环境与硬性规则
 
-**原始输入**：
-- `data/Baby_Products_2023.jsonl`
-- `data/meta_Baby_Products_2023.jsonl`
+**原始输入** (2026-09-23: data 目录从 `<repo>/data` 迁移到 `/home/wlia0047/hj82/wenyu/PersoanlQuery/data`)：
+- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/Baby_Products_2023.jsonl`
+- `/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl`
 
 **运行环境**：
 - cwd 固定为 `/home/wlia0047/ar57/wenyu/PersoanlQuery`（filesystem alias `/fs04/ar57/wenyu/PersoanlQuery` 在部分环境下不可解析，所有 nohup/python 走 `/home/...` 路径）。

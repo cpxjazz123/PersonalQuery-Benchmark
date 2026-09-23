@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import json
+import pickle
 import random
 import re
 import sys
@@ -47,7 +48,16 @@ if CONTRASTIVE_5558:
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
-ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes.json"
+# 用户指令 2026-09-23: product_attributes 改 pkl-only (Stage 01 已切换).
+ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes_baby.pkl"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/07_gen_query/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_POOL_SEED = 42
@@ -88,8 +98,9 @@ def _build_sft_prompt(attrs: Dict[str, str]) -> str:
 
 
 def load_attributes() -> Dict[str, Dict[str, str]]:
-    with open(ATTRIBUTES_PATH) as f:
-        return json.load(f)
+    # 用户指令 2026-09-23: 改用 pickle.load (Stage 01 已切换 pkl-only).
+    with open(ATTRIBUTES_PATH, "rb") as f:
+        return pickle.load(f)
 
 
 def clean_attr_value(value: str, is_brand: bool = False) -> str:
@@ -351,7 +362,7 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
     return all_cands
 
 
-def main_pipeline():
+def main_task_body():
     log("=== sft_pool_generate ===")
     log(f"  Qwen={QWEN_PATH}  adapter={SFT_ADAPTER_DIR}")
     log(f"  N_ASIN={SFT_POOL_N_ASIN}  K={SFT_POOL_K}  rounds={SFT_POOL_ROUNDS}  temp={SFT_POOL_TEMP} "
@@ -638,5 +649,64 @@ def main_pipeline():
     log("=== sft_pool_generate DONE ===")
 
 
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SFT_ADAPTER_DIR, STAGE04_PATH  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "SFT_ADAPTER_DIR", "STAGE04_PATH"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "SFT_ADAPTER_DIR" in saved:
+            SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model" / subdir / saved["SFT_ADAPTER_DIR"].name
+        if "STAGE04_PATH" in saved:
+            STAGE04_PATH = REPO_ROOT / "result/04_gaussian" / subdir / saved["STAGE04_PATH"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        SFT_ADAPTER_DIR.mkdir(parents=True, exist_ok=True) if "SFT_ADAPTER_DIR" in saved else None
+        STAGE04_PATH.parent.mkdir(parents=True, exist_ok=True) if "STAGE04_PATH" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
+
+
 if __name__ == "__main__":
-    main_pipeline()
+    main()

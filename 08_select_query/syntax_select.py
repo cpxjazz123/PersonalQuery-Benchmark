@@ -30,6 +30,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pickle
 import sys
 import time
 from pathlib import Path
@@ -49,7 +50,16 @@ _cohort3_StyleMLP = StyleMLP
 StyleMLP = _cohort3_StyleMLP  # override alias so downstream 'StyleMLP(...)' uses cohort3 MLP
 
 POOL_PATH = REPO_ROOT / "result/07_gen_query/pool_queries.json"
-ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users.json"
+# 用户指令 2026-09-23: asin_to_users 改 pkl-only (Stage 02 已切换).
+ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/08_select_query/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 
 # --- svd_mlp canonical config (Rule 3: hardcoded) ---
 DEVICE = "cuda:0"
@@ -86,7 +96,7 @@ CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
 TRAINED_UIDS_PATH = REPO_ROOT / "result/03_spacy_encode/cohort3_trained_uids.json"
 STRICT3_NPZ = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/strict3_embeddings.npz")
 Z_PROFILE_POOL = Path("/home/wlia0047/hj82_scratch2/wenyu/coral_cohort3mlp16_30/z_profile_review_cohort3mlp16_30.npz")
-ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users.json"
+ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
 EPSILON_REL = 0.1              # 2026-09-19: 加大 Tikhonov regularization 让 A 接近 identity, 避免 query z 被过度压缩
 COND_THRESHOLD = 1e3
 MIN_USERS_PER_ASIN = 1
@@ -697,7 +707,7 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
     return asin_alignment
 
 
-def _svdmlp_main() -> None:
+def main_task_body() -> None:
     _svdmlp_log(f"device={DEVICE}  GATE_MODE={GATE_MODE}  "
         f"LOGP_DELTA={LOGP_DELTA}  GATE_Q={GATE_Q}  LATENT_DIM={LATENT_DIM}")
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -727,7 +737,7 @@ def _svdmlp_main() -> None:
 
     _svdmlp_log("loading pool queries")
     pool = json.load(open(POOL_PATH))["pool"]
-    asin_to_users = json.load(open(ASIN_USERS_PATH))
+    asin_to_users = pickle.load(open(ASIN_USERS_PATH, "rb"))
     _svdmlp_log(f"  pool: {len(pool)} ASINs")
 
     _svdmlp_log("loading cohort3mlp lowrank+diag Gaussian")
@@ -993,5 +1003,70 @@ def _svdmlp_main() -> None:
     _svdmlp_log(f"DONE wrote {OUT_STATS_PATH}")
 
 
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "OUT_STATS_PATH", "POOL_PATH",
+                 "GAUSSIAN_PATH", "ASIN_TO_USERS"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        _svdmlp_log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "OUT_STATS_PATH" in saved:
+            OUT_STATS_PATH = base_out / subdir / saved["OUT_STATS_PATH"].name
+        if "POOL_PATH" in saved:
+            POOL_PATH = REPO_ROOT / "result/07_gen_query" / subdir / saved["POOL_PATH"].name
+        if "GAUSSIAN_PATH" in saved:
+            GAUSSIAN_PATH = REPO_ROOT / "result/04_gaussian" / subdir / saved["GAUSSIAN_PATH"].name
+        if "ASIN_TO_USERS" in saved:
+            ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        OUT_STATS_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_STATS_PATH" in saved else None
+        POOL_PATH.parent.mkdir(parents=True, exist_ok=True) if "POOL_PATH" in saved else None
+        GAUSSIAN_PATH.parent.mkdir(parents=True, exist_ok=True) if "GAUSSIAN_PATH" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            _svdmlp_log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
+
+
 if __name__ == "__main__":
-    _svdmlp_main()
+    main()

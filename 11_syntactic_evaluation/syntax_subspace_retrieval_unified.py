@@ -28,11 +28,8 @@ import collections
 import gzip
 import hashlib
 import heapq
-import html
 import json
 import os
-import re
-import unicodedata
 import pickle
 import sys
 import time
@@ -41,7 +38,58 @@ from pathlib import Path
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# 2026-09-23: pq_env 多版本 dist-info 残留（torch ×5, transformers ×4, accelerate ×2, torchvision ×4），
+# 实际加载的是 transformers 4.57.6 + accelerate 1.15.0，但 site-packages 同时存在的
+# torchvision 0.19.0 与 torch 2.14.0 不兼容，import torchvision 时 `_meta_registrations`
+# 注册 fake `torchvision::nms` 抛 RuntimeError，级联导致 transformers.image_utils 加载失败，
+# 进而 sentence_transformers / TrainerCallback 全部炸。
+# 解决：在 import sentence_transformers 前 stub torchvision.transforms（提供 InterpolationMode
+# enum）和 torchvision.transforms.v2.functional（空模块），让 transformers 检测到 torchvision
+# "已安装"但不会触发原生 _meta_registrations。同时把 4.57.6 已移除的 AutoProcessor 从
+# processing_auto 子模块重新 export 到顶层（sentence_transformers 4.x 仍依赖 `from transformers
+# import AutoProcessor`）。
+import enum as _enum
+import importlib.machinery as _im
+import types as _types
+_tv = _types.ModuleType("torchvision")
+_tv.__path__ = ["/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/torchvision"]
+_tv.__spec__ = _im.ModuleSpec("torchvision", None, is_package=True)
+sys.modules["torchvision"] = _tv
+
+
+class _InterpolationMode(_enum.Enum):
+    NEAREST = "nearest"
+    NEAREST_EXACT = "nearest-exact"
+    BILINEAR = "bilinear"
+    BICUBIC = "bicubic"
+    BOX = "box"
+    HAMMING = "hamming"
+    LANCZOS = "lanczos"
+
+
+_tv_t = _types.ModuleType("torchvision.transforms")
+_tv_t.__spec__ = _im.ModuleSpec("torchvision.transforms", None)
+_tv_t.InterpolationMode = _InterpolationMode
+sys.modules["torchvision.transforms"] = _tv_t
+_tv.transforms = _tv_t
+_tv_t_v2 = _types.ModuleType("torchvision.transforms.v2")
+_tv_t_v2.__spec__ = _im.ModuleSpec("torchvision.transforms.v2", None)
+_tv_t_v2.functional = _types.SimpleNamespace()
+sys.modules["torchvision.transforms.v2"] = _tv_t_v2
+_tv_t.v2 = _tv_t_v2
+
+# Ensure AutoProcessor is importable from transformers top-level (removed in 4.57.x)
+import transformers as _transformers
+from transformers.models.auto.processing_auto import AutoProcessor as _AutoProcessor
+_transformers.AutoProcessor = _AutoProcessor
+
+# 2026-09-23: 本脚本只读 `result/11_syntactic_evaluation/asin_to_doc.json`。
+# asin_to_doc.json 的构建/清洗由 `common/build_asin_to_doc.py`（即将迁移）独立负责，
+# 本脚本不再调用 `build_meta_corpus`。`build_meta_corpus` 需要的 4 层清洗逻辑
+# （Tier 1/2/3/5）+ cache invalidation 指纹由 build_asin_to_doc.py 维护。
+# 注意：_corpus_signature 包含 asin_to_doc 内容 hash（cache invalidation bug 修复），
+# 下游 corpus_sig 会随清洗而变化。
+from build_asin_to_doc import _corpus_signature, _sig_path_for
 
 # 用户指令 2026-08-30: 支持 SEL_OUT_SUFFIX 让 strict34 cohort 跑独立 cache, 不覆盖 canonical
 _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
@@ -50,13 +98,23 @@ _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 # PATHS (inlined from common/syntax_subspace_utils.py 2026-09-06: common/ deleted)
 # ===========================================================================
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+# 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
+DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
-META_FILE = REPO_ROOT / "data/meta_Baby_Products_2023.jsonl"
+META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
 SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-19: canonical = current Stage 8 output
 RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
 PER_QUERY_OUT = RESULT_DIR / f"per_query{_SEL_SUFFIX}.json"
 SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
 VOLATILITY_OUT = RESULT_DIR / f"volatility{_SEL_SUFFIX}.json"
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/11_syntactic_evaluation/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
 
 # 2026-09-19: Top-100 candidates cache for each retriever (used by Stage 11/12 LLM rerank).
@@ -73,6 +131,23 @@ def log(msg: str) -> None:
     """Timestamped log print (inlined from common/syntax_subspace_utils.py)."""
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
+
+
+# 2026-09-23: Stage 12 / Stage 14 通过 module-level 调用 `retr_mod.build_meta_corpus()`。
+# 提供 read-only 包装：直接读 ASIN_TO_DOC_CACHE（已被 build_asin_to_doc.py 写入），不再重建。
+# 删除后会影响 12_typo_evaluation/typo_retrieval_eval.py 与 14_typo_rerank/typo_rerank_eval.py。
+def build_meta_corpus(force: bool = False):  # noqa: ARG001
+    """Read-only loader for ASIN_TO_DOC_CACHE (replaces former builder).
+
+    2026-09-23: asin_to_doc.json 的构建/清洗已迁移到 `build_asin_to_doc.py`（独立模块）。
+    本函数仅在 Stage 12 / 14 通过 module-level 调用时保留——直接读 cache，不重建。
+    """
+    if not ASIN_TO_DOC_CACHE.exists():
+        raise FileNotFoundError(
+            f"ASIN_TO_DOC_CACHE missing: {ASIN_TO_DOC_CACHE}. "
+            f"Run `python build_asin_to_doc.py` first."
+        )
+    return json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
 
 # ===========================================================================
 # RETRIEVER REGISTRY
@@ -133,25 +208,7 @@ def _flatten_selection(selection: dict) -> list[dict]:
 # ===========================================================================
 # HELPERS
 # ===========================================================================
-def _corpus_signature(asin_to_doc: dict[str, str] | None = None,
-                     meta_file: Path | None = None) -> str:
-    """Fast corpus fingerprint (mtime + size of META_FILE + n_asins).
-
-    Used as the cache-key for asin_to_doc cache, BM25 tokens, BM25 index,
-    SPLADE chunks, and dense corpus embeddings — any change to META_FILE
-    invalidates all of them.
-    """
-    mf = Path(meta_file) if meta_file is not None else META_FILE
-    st = mf.stat()
-    h = hashlib.sha1()
-    h.update(f"{mf.name}|mtime={int(st.st_mtime)}|size={st.st_size}".encode())
-    if asin_to_doc is not None:
-        h.update(f"|n={len(asin_to_doc)}".encode())
-    return h.hexdigest()[:16]
-
-
-def _sig_path_for(cache_path: Path) -> Path:
-    return cache_path.with_suffix(cache_path.suffix + ".sig")
+# _corpus_signature / _sig_path_for 同目录 build_asin_to_doc（2026-09-22，曾外移至 common/ 已撤回）
 
 
 def _queries_signature(queries: list[str]) -> str:
@@ -165,91 +222,6 @@ def _queries_signature(queries: list[str]) -> str:
     for q in queries:
         h.update(f"{q}\x00".encode())
     return h.hexdigest()[:16]
-
-
-_ALLOWED_PUNCTUATION = set("-_/.,:%&+()[]'\"#")
-
-
-def _clean_doc_text(value) -> str:
-    """Normalize product text, removing HTML, emoji, and non-semantic symbols."""
-    if isinstance(value, list):
-        value = " ".join(str(x) for x in value if x is not None)
-    elif not isinstance(value, str):
-        return ""
-    value = html.unescape(value)
-    value = re.sub(r"<[^>]*>", " ", value)
-    value = value.replace("\r", " ").replace("\n", " ")
-    cleaned = []
-    for char in value:
-        category = unicodedata.category(char)
-        if category.startswith("C") or category.startswith("So"):
-            cleaned.append(" ")
-        elif char.isalnum() or char.isspace() or char in _ALLOWED_PUNCTUATION:
-            cleaned.append(char)
-        else:
-            cleaned.append(" ")
-    return " ".join("".join(cleaned).split()).strip()
-
-
-
-def build_meta_corpus() -> dict[str, str]:
-    """Build structured product documents with metadata and up to 25 reviews."""
-    sig_path = _sig_path_for(ASIN_TO_DOC_CACHE)
-    current_sig = _corpus_signature(meta_file=META_FILE)
-    if ASIN_TO_DOC_CACHE.exists() and sig_path.exists():
-        cached_sig = sig_path.read_text().strip()
-        if cached_sig == current_sig:
-            t0 = time.time()
-            asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
-            log(f"  ✓ asin_to_doc cache hit ({len(asin_to_doc)} ASINs, "
-                f"sig={current_sig}, {time.time() - t0:.2f}s)")
-            return asin_to_doc
-        log(f"  ⚠ asin_to_doc sig mismatch (cached={cached_sig}, "
-            f"current={current_sig}), rebuilding...")
-    asin_to_doc = {}
-    log(f"  loading metadata from {META_FILE}")
-    with open(META_FILE, "rt", encoding="utf-8") as f:
-        for line in f:
-            r = json.loads(line)
-            asin = _clean_doc_text(r.get("parent_asin"))
-            if not asin:
-                continue
-            details = r.get("details")
-            if not isinstance(details, dict):
-                raise ValueError(f"Required details field is not an object for ASIN {asin}")
-            title = _clean_doc_text(r.get("title"))
-            brand = _clean_doc_text(details.get("Brand"))
-            categories = r.get("categories")
-            if not isinstance(categories, list):
-                raise ValueError(f"Required categories field is not a list for ASIN {asin}")
-            category = " / ".join(_clean_doc_text(x) for x in categories if x is not None)
-            dimensions = _clean_doc_text(details.get("Product Dimensions"))
-            weight = _clean_doc_text(details.get("Item Weight"))
-            description = _clean_doc_text(r.get("description"))
-            features = r.get("features")
-            if not isinstance(features, list):
-                raise ValueError(f"Required features field is not a list for ASIN {asin}")
-            lines = [f"product: {title}"]
-            if brand: lines.append(f"brand: {brand}")
-            if category: lines.append(f"category: {category}")
-            if dimensions: lines.append(f"dimensions: {dimensions}")
-            if weight: lines.append(f"weight: {weight}")
-            if description: lines.append(f"description: {description}")
-            feature_values = [_clean_doc_text(x) for x in features]
-            feature_values = [x for x in feature_values if x]
-            if feature_values:
-                lines.append("features:")
-                lines.extend(f"#{i}: {x}" for i, x in enumerate(feature_values, 1))
-            asin_to_doc[asin] = "\n".join(lines)
-    log(f"  loaded {len(asin_to_doc)} ASIN docs with structured fields")
-    ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    with open(ASIN_TO_DOC_CACHE, "w", encoding="utf-8") as f:
-        json.dump(asin_to_doc, f, ensure_ascii=False, indent=2)
-        f.write("\n")
-    current_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
-    _sig_path_for(ASIN_TO_DOC_CACHE).write_text(current_sig)
-    log(f"  cached → {ASIN_TO_DOC_CACHE} ({ASIN_TO_DOC_CACHE.stat().st_size / 1e6:.1f} MB)")
-    return asin_to_doc
 
 
 def rr_hit_from_rank(rank: int | None) -> dict:
@@ -446,6 +418,17 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
                     corpus_sig: str, query_sig: str,
                     save_topk_path: Path | None = None,
                     topk_k: int = TOPK_SAVE_K) -> list[dict]:
+    # 2026-09-22: monkey-patch transformers' is_torch_greater_or_equal —
+    # pq_env 装了 5 个 torch dist-info（2.4/2.5.1/2.9.0/2.13.0/2.14.0），
+    # importlib.metadata.version('torch') 返回 '2.5.1' 但实际加载是 2.9.0+cu128。
+    # transformers 4.57.6 的 check_torch_load_is_safe() 错误判断为 torch<2.6，
+    # 在 SPLADE 加载 .bin 权重时 raise ValueError。这里强制返回 True 以跳过检查。
+    import transformers.utils.import_utils as _tui
+    import torch as _torch_for_patch
+    from packaging import version as _v_for_patch
+    def _patched_is_torch_ge(library_version, accept_dev=False):
+        return _v_for_patch.parse(_torch_for_patch.__version__.split('+')[0]) >= _v_for_patch.parse(library_version)
+    _tui.is_torch_greater_or_equal = _patched_is_torch_ge
     from transformers import AutoModelForMaskedLM, AutoTokenizer
     log("\n=== SPLADE (learned_sparse, chunked-streaming) ===")
     cache_dir = EMBED_CACHE_DIR / "splade"
@@ -606,8 +589,13 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
     query_cache = cache_dir / "query_embeds.npy"
     query_sig_file = _sig_path_for(query_cache)
 
-    # corpus needs to be passed in; we re-build it here to keep this function self-contained
-    asin_to_doc = build_meta_corpus()
+    # Load pre-built ASIN corpus (built by build_asin_to_doc.py); this script is read-only.
+    if not ASIN_TO_DOC_CACHE.exists():
+        raise FileNotFoundError(
+            f"ASIN_TO_DOC_CACHE missing: {ASIN_TO_DOC_CACHE}. "
+            f"Run `python build_asin_to_doc.py` first (Rule 7: no fallback)."
+        )
+    asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
     asins = sorted(asin_to_doc.keys())
     corpus_texts = [asin_to_doc[a] for a in asins]
 
@@ -976,15 +964,7 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
 # ===========================================================================
 # MAIN
 # ===========================================================================
-def main():
-    ONLY_BUILD_ASIN_TO_DOC = False
-    if ONLY_BUILD_ASIN_TO_DOC:
-        log("=== Building asin_to_doc.json only (no retrieval/evaluation) ===")
-        asin_to_doc = build_meta_corpus()
-        log(f"  generated {len(asin_to_doc)} ASIN documents")
-        log(f"  output → {ASIN_TO_DOC_CACHE}")
-        return
-
+def main_task_body():
     t_start = time.time()
     log("=== Stage 5 unified multi-retriever (NO rerank) ===")
     log(f"  retrievers: {RETR_NAMES}")
@@ -1069,12 +1049,18 @@ def main():
         })
     log(f"  strict queries: {len(query_records)}")
 
-    # ---- 2. Build corpus ----
-    log("\n=== 2. Building ASIN corpus ===")
-    asin_to_doc = build_meta_corpus()
+    # ---- 2. Load ASIN corpus (read-only; built by build_asin_to_doc.py) ----
+    log("\n=== 2. Loading ASIN corpus ===")
+    if not ASIN_TO_DOC_CACHE.exists():
+        raise FileNotFoundError(
+            f"ASIN_TO_DOC_CACHE missing: {ASIN_TO_DOC_CACHE}. "
+            f"Run `python build_asin_to_doc.py` first (Rule 7: no fallback)."
+        )
+    t0 = time.time()
+    asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
     asins = sorted(asin_to_doc.keys())
     asin_to_idx = {a: i for i, a in enumerate(asins)}
-    log(f"  corpus size: {len(asins)} ASINs")
+    log(f"  corpus size: {len(asins)} ASINs ({time.time() - t0:.1f}s)")
     corpus_texts = [asin_to_doc[a] for a in asins]
     queries = [r["query"] for r in query_records]
     target_indices = np.array([asin_to_idx.get(r["asin"], -1) for r in query_records])
@@ -1271,6 +1257,78 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
         log(f"{n:<14} {n_asins:>8d} {h1} {h10} {rrs}")
 
     log(f"\n=== Stage 5 unified complete ({time.time() - t_start:.1f}s) ===")
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE, SEL_IN, RESULT_DIR, PER_QUERY_OUT, SUMMARY_OUT, VOLATILITY_OUT  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "ASIN_TO_DOC_CACHE", "SEL_IN",
+                 "RESULT_DIR", "PER_QUERY_OUT", "SUMMARY_OUT", "VOLATILITY_OUT"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "ASIN_TO_DOC_CACHE" in saved:
+            ASIN_TO_DOC_CACHE = base_out / subdir / saved["ASIN_TO_DOC_CACHE"].name
+        if "SEL_IN" in saved:
+            SEL_IN = REPO_ROOT / "result/08_select_query" / subdir / saved["SEL_IN"].name
+        if "RESULT_DIR" in saved:
+            RESULT_DIR = base_out / subdir
+        if "PER_QUERY_OUT" in saved:
+            PER_QUERY_OUT = base_out / subdir / saved["PER_QUERY_OUT"].name
+        if "SUMMARY_OUT" in saved:
+            SUMMARY_OUT = base_out / subdir / saved["SUMMARY_OUT"].name
+        if "VOLATILITY_OUT" in saved:
+            VOLATILITY_OUT = base_out / subdir / saved["VOLATILITY_OUT"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC_CACHE" in saved else None
+        SEL_IN.parent.mkdir(parents=True, exist_ok=True) if "SEL_IN" in saved else None
+        RESULT_DIR.mkdir(parents=True, exist_ok=True) if "RESULT_DIR" in saved else None
+        PER_QUERY_OUT.parent.mkdir(parents=True, exist_ok=True) if "PER_QUERY_OUT" in saved else None
+        SUMMARY_OUT.parent.mkdir(parents=True, exist_ok=True) if "SUMMARY_OUT" in saved else None
+        VOLATILITY_OUT.parent.mkdir(parents=True, exist_ok=True) if "VOLATILITY_OUT" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
 
 
 if __name__ == "__main__":

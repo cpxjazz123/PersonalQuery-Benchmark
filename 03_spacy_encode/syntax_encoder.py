@@ -26,6 +26,11 @@ Usage (per Rule 3, no args):
   TASK=supervised  cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
   TASK=cohort3     cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
 
+2026-09-23: 改为串行跑 3 个 category (Baby / Musical_Instruments / Video_Games).
+  每个 category 写产物到 result/03_spacy_encode/<baby|musical|video_games>/.
+  默认指向 Baby 的常量 (SENT_CACHE / RAW_DATA / OUT_DIR) 保持 Baby 路径, 不破坏
+  Stage 04/05/08/09 等下游只读 Baby 路径的兼容。
+
 History (canonical supervised 32d → 16d per Phase L8.7b; cohort3 was a
 separate script pre-2026-09-18 and has been merged here).
 """
@@ -53,10 +58,27 @@ from scipy.sparse import csr_matrix, load_npz, save_npz
 # ============================================================================
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences.pkl"
+# 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
+DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+# 用户指令 2026-09-23: 3 个 category 各自一份 Stage 02 产物 (Baby / Musical / Video_Games).
+# 用户指令 2026-09-23: 改串行运行 3 个 category (默认仍走 Baby, 完整产物在 <out>/<category>/ 下).
+CATEGORY_INPUTS = [
+    # (category_key, raw_data_path, uid_to_sentences_pkl, output_subdir)
+    ("Baby",                DATA_DIR / "Baby_Products_2023.jsonl",
+                            REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl",
+                            "baby"),
+    ("Musical_Instruments", DATA_DIR / "Musical_Instruments.jsonl",
+                            REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_musical.pkl",
+                            "musical"),
+    ("Video_Games",         DATA_DIR / "Video_Games.jsonl",
+                            REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_video_games.pkl",
+                            "video_games"),
+]
+# 默认 SENT_CACHE / RAW_DATA / OUT_DIR 指向 Baby (向后兼容, Stage 04/05/08/09 只看 Baby).
+SENT_CACHE = CATEGORY_INPUTS[0][2]
 OUT_DIR = REPO_ROOT / "result/03_spacy_encode"
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
-RAW_DATA = REPO_ROOT / "data/Baby_Products_2023.jsonl"
+RAW_DATA = CATEGORY_INPUTS[0][1]
 
 # === Supervised (TASK=supervised) ===
 SPACY_MODEL = "en_core_web_sm"
@@ -1408,13 +1430,40 @@ def main_cohort3():
 # ============================================================================
 
 def main():
+    """用户指令 2026-09-23: 串行运行 3 个 category (Baby / Musical_Instruments / Video_Games).
+
+    每个 category 重新绑定全局 SENT_CACHE / RAW_DATA / OUT_DIR 为 <REPO_ROOT>/result/03_spacy_encode/<subdir>/,
+    然后调原有 main_supervised() 或 main_cohort3()。所有 cache / encoder / strict3 产物按 category
+    写到子目录, 不互相覆盖。
+
+    Task 切换仍走 TASK 环境变量 (supervised | cohort3)。
+    """
     task = os.environ.get("TASK", "supervised").lower()
-    if task == "cohort3":
-        main_cohort3()
-    elif task == "supervised":
-        main_supervised()
-    else:
+    if task not in ("cohort3", "supervised"):
         raise ValueError(f"unknown TASK={task!r}; expected 'supervised' or 'cohort3'")
+
+    # 备份默认 (Baby) 路径, 循环结束后恢复.
+    global SENT_CACHE, RAW_DATA, OUT_DIR
+    saved = (SENT_CACHE, RAW_DATA, OUT_DIR)
+    base_out = REPO_ROOT / "result/03_spacy_encode"
+
+    for category, raw_data_path, sent_cache_path, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        SENT_CACHE = sent_cache_path
+        RAW_DATA = raw_data_path
+        OUT_DIR = base_out / subdir
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            if task == "cohort3":
+                main_cohort3()
+            else:
+                main_supervised()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+
+    # 恢复默认 (为 import 后的 Stage 04/05/08/09 兼容, 它们只读 Baby 路径).
+    SENT_CACHE, RAW_DATA, OUT_DIR = saved
 
 
 if __name__ == "__main__":

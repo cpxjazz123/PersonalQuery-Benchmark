@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""Product attribute extraction from meta_Baby_Products_2023.jsonl.gz.
+"""Product attribute extraction from meta_<category>_2023.jsonl.
 
-Reads product metadata, extracts structured attributes per ASIN (Brand,
-Main Category, Color, Material, Size, ..., no numeric values), writes to
-result/product_attributes.json.
+Reads product metadata for one or more Amazon categories, extracts structured
+attributes per ASIN (Brand, Main Category, Color, Material, Size, ..., no
+numeric values), and writes one pickle file per category:
+
+  - result/01_attribute_extraction/product_attributes_baby.pkl         (Baby)
+  - result/01_attribute_extraction/product_attributes_musical.pkl      (Musical_Instruments)
+  - result/01_attribute_extraction/product_attributes_video_games.pkl  (Video_Games)
+
+Each output dict maps asin -> {field_name: string_value}. 三个 category
+各自独立文件, 不合并 (用户指令 2026-09-23).
+
+2026-09-23: 改 pickle 输出 (下游全是 Python 消费, 删 json 省 ~30MB).
 
 Also exports select_top_attrs() utility used by gaussian/build_user.py
 to pick top-N attrs per ASIN with numeric value exclusion.
@@ -15,6 +24,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import pickle
 import re
 from multiprocessing import Pool
 from pathlib import Path
@@ -22,16 +32,29 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # === Inputs ===
-DATA = Path("/fs04/ar57/wenyu/PersoanlQuery/data")
-META_GZ = DATA / "meta_Baby_Products_2023.jsonl"
+# 用户指令 2026-09-23: data 目录从 ar57(PersoanlQuery/data) 整体迁移到 hj82,
+# 跨 LUSTRE 同盘瞬移, 保留所有现有产物路径. 下游脚本统一改 DATA_DIR.
+DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+
+# 用户指令 2026-09-23: 三个 category 各自一份 meta, 各自一份产物 (不合并)。
+# 三份 share 同一套 extract / filter / select 逻辑, 输出文件名按 category
+# 后缀区分 (semantic suffix, 不是版本号 — Rule 17 合规).
+# 用户指令 2026-09-23: 改 .pkl (下游 Python-only).
+META_INPUTS = [
+    # (category_key, input_path, output_path)
+    # 用户指令 2026-09-23: 保留 Baby / Musical_Instruments / Video_Games.
+    ("Baby",               DATA_DIR / "meta_Baby_Products_2023.jsonl",
+                           REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes_baby.pkl"),
+    ("Musical_Instruments", DATA_DIR / "meta_Musical_Instruments.jsonl",
+                           REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes_musical.pkl"),
+    ("Video_Games",         DATA_DIR / "meta_Video_Games.jsonl",
+                           REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes_video_games.pkl"),
+]
 
 # 用户指令 2026-09-04: multiprocessing 加速 (13 cores, 留 3 给 OS/IO).
 N_WORKERS = min(10, max(1, (os.cpu_count() or 4) - 3))
 # chunk size: 每 worker 一次拿 N 条, 减少 IPC 开销
 CHUNK_SIZE = 5_000
-
-# === Outputs ===
-PRODUCT_ATTRS_JSON = REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes.json"
 
 # === Step 1 — extract_attrs 参数 ===
 MAX_STR_LEN = 200
@@ -324,23 +347,32 @@ def _process_chunk(chunk: list[str]):
     return out
 
 
-def step1_extract_attrs() -> dict[str, dict]:
-    log("=== Step 1: extract_attrs (multiprocessing) ===")
+def step1_extract_attrs(category: str, meta_path: Path,
+                        out_path: Path) -> dict[str, dict]:
+    """提取单个 category 的 meta → attrs dict, 写到 out_path.
+
+    用户指令 2026-09-23: 从单一 Baby 拓展到 Baby / Pet_Supplies /
+    Grocery_and_Gourmet_Food 三个 category, 每个 category 独立文件。
+    """
+    log(f"=== Step 1: extract_attrs [{category}] ===")
+    log(f"  input={meta_path}")
+    log(f"  output={out_path}")
     log(f"  workers={N_WORKERS}, chunk_size={CHUNK_SIZE}")
 
     product_attrs: dict[str, dict] = {}
     n_total = 0
     n_with_attrs = 0
-    n_skipped_few_attrs = 0
     n_with_details = 0
     n_top_level_only = 0
     field_counter: dict[str, int] = {}
 
     # 主进程先一次性读取所有行到内存 (1.5 GB), 避免 worker fork 后
     # 多进程争抢同一个文件描述符 (POSIX 行为).
-    _open = gzip.open if str(META_GZ).endswith('.gz') else open
+    if not meta_path.exists():
+        raise FileNotFoundError(f"meta file not found: {meta_path}")
+    _open = gzip.open if str(meta_path).endswith('.gz') else open
     mode = 'rt' if _open is gzip.open else 'r'
-    with _open(META_GZ, mode) as f:
+    with _open(meta_path, mode) as f:
         all_lines = f.readlines()
     n_total = len(all_lines)
     log(f"  read {n_total} lines from metadata; dispatching to {N_WORKERS} workers")
@@ -350,7 +382,6 @@ def step1_extract_attrs() -> dict[str, dict]:
         all_lines[i : i + CHUNK_SIZE]
         for i in range(0, len(all_lines), CHUNK_SIZE)
     ]
-    n_skipped_few_attrs = 0
     with Pool(processes=N_WORKERS) as pool:
         for sub in pool.imap_unordered(_process_chunk, chunks):
             for asin, attrs in sub:
@@ -369,22 +400,22 @@ def step1_extract_attrs() -> dict[str, dict]:
                     for k in attrs:
                         field_counter[k] = field_counter.get(k, 0) + 1
 
-    PRODUCT_ATTRS_JSON.parent.mkdir(parents=True, exist_ok=True)
-    PRODUCT_ATTRS_JSON.write_text(
-        json.dumps(product_attrs, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    log(f"  total metadata products={n_total}, with attrs={n_with_attrs}")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    # 用户指令 2026-09-23: 改 pickle.dump (下游 Python-only, 删 json 省 ~30MB).
+    with open(out_path, 'wb') as f:
+        pickle.dump(product_attrs, f, protocol=pickle.HIGHEST_PROTOCOL)
+    log(f"  [{category}] total metadata products={n_total}, with attrs={n_with_attrs}")
     log(f"    details-based={n_with_details}, top-level only={n_top_level_only}")
     log(f"    distinct attr fields={len(field_counter)}")
     log(f"    skipped ASINs (filtered attrs <{MIN_ATTRS_PER_ASIN})={n_total - n_with_attrs}")
-    log(f"  wrote → {PRODUCT_ATTRS_JSON}")
+    log(f"  wrote → {out_path}")
     return product_attrs
 
 
 def main() -> None:
-    log("=== extract_product_attrs.py — Step 1 only ===")
-    step1_extract_attrs()
+    log("=== extract_product_attrs.py — Step 1 (multi-category) ===")
+    for category, meta_path, out_path in META_INPUTS:
+        step1_extract_attrs(category, meta_path, out_path)
     log("=== DONE ===")
 
 

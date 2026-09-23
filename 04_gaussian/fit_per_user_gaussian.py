@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import pickle
 import shutil
 import time
 from pathlib import Path
@@ -30,10 +31,19 @@ import numpy as np
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
+# main() 改为串行跑 3 个 domain, 产物写到 result/04_gaussian/<subdir>/.
+CATEGORY_INPUTS = [
+    # (category_key, subdir)
+    ("Baby",                "baby"),
+    ("Musical_Instruments", "musical"),
+    ("Video_Games",         "video_games"),
+]
 OUT_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
 OUT_PATH_RANK1 = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_rank1.json"
+# 用户指令 2026-09-23: asin_to_users 改 pkl-only (Stage 02 已切换).
 ASIN_USERS_PATH = (
-    REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users.json"
+    REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
 )
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -429,14 +439,15 @@ def _load_asin_users() -> dict[str, list[str]]:
         raise FileNotFoundError(
             f"missing: {ASIN_USERS_PATH} (run 02_user_review_sentence_extract first)"
         )
-    with open(ASIN_USERS_PATH) as f:
-        raw = json.load(f)
+    # 用户指令 2026-09-23: 改用 pickle.load (Stage 02 已切换 pkl-only).
+    with open(ASIN_USERS_PATH, "rb") as f:
+        raw = pickle.load(f)
     if not isinstance(raw, dict):
-        raise ValueError("asin_to_users.json must be an object")
+        raise ValueError("asin_to_users_baby.pkl must be an object")
     out: dict[str, list[str]] = {}
     for asin, users in raw.items():
         if not isinstance(asin, str) or not isinstance(users, list):
-            raise ValueError("asin_to_users.json must map string ASINs to user lists")
+            raise ValueError("asin_to_users_baby.pkl must map string ASINs to user lists")
         normalized = sorted({str(uid) for uid in users})
         if normalized:
             out[asin] = normalized
@@ -522,7 +533,7 @@ def _add_theoretical_gates(stats_path: Path, label: str, z_dim: int) -> None:
     log(f"  cohort gate_T_low_theoretical  = {low_val:.4f} (Stage 10)")
 
 
-def main() -> None:
+def main_task_body() -> None:
     t0 = time.time()
     log("=== Stage 04 — Per-User 32d Gaussian (full + rank1+residual) ===")
     log(
@@ -731,6 +742,62 @@ def main() -> None:
     # (等价于旧 rewrite_gaussian_with_theoretical_gate.py, 已被合并)
     _add_theoretical_gates(OUT_PATH, "full Σ schema", z_dim=int(z_profile.shape[1]))
     _add_theoretical_gates(OUT_PATH_RANK1, "rank1+residual schema", z_dim=int(z_profile.shape[1]))
+
+
+# ============================================================================
+# Entry point
+# ============================================================================
+
+def main() -> None:
+    """用户指令 2026-09-23: 串行运行 3 个 category.
+
+    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
+    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
+    result/<stage>/<baby|musical|video_games>/ 子目录.
+    """
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PATH_RANK1  # noqa
+    # backup current (Baby) defaults
+    saved = {
+        k: v for k, v in globals().items()
+        if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "OUT_PATH_RANK1"}
+        and isinstance(v, Path)
+    }
+    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    for category, subdir in CATEGORY_INPUTS:
+        log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        # Reset all known category-dependent paths to point at the per-category subdir.
+        if "SENT_CACHE" in saved:
+            SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "UID_TO_SENTS" in saved:
+            UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
+        if "ASIN_USERS_PATH" in saved:
+            ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+        if "ATTRIBUTES_PATH" in saved:
+            ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
+        if "META_FILE" in saved:
+            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+                "baby": "meta_Baby_Products_2023.jsonl",
+                "musical": "meta_Musical_Instruments.jsonl",
+                "video_games": "meta_Video_Games.jsonl",
+            }[subdir]
+        if "OUT_DIR" in saved:
+            OUT_DIR = base_out / subdir
+        if "OUT_PATH" in saved:
+            OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
+        if "OUT_PATH_RANK1" in saved:
+            OUT_PATH_RANK1 = base_out / subdir / saved["OUT_PATH_RANK1"].name
+        OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
+        OUT_PATH_RANK1.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH_RANK1" in saved else None
+        try:
+            main_task_body()
+        except Exception as e:
+            log(f"[{category}] FAILED: {e!r}")
+            raise
+    # Restore Baby defaults (for import compatibility with downstream).
+    for k, v in saved.items():
+        globals()[k] = v
 
 
 if __name__ == "__main__":
