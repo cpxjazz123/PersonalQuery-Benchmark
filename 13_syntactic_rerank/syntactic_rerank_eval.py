@@ -35,7 +35,7 @@ TYPO_OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
 STAGE8_SEL = REPO_ROOT / "result/08_select_query/selected_queries.json"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
-ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/13_syntactic_rerank/<subdir>/.
 CATEGORY_INPUTS = [
@@ -1017,7 +1017,8 @@ def main() -> None:
         if "TYPO_PAIRS" in saved:
             TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
         if "ASIN_TO_DOC" in saved:
-            ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC"].name
+            ASIN_TO_DOC = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+                           / subdir / saved["ASIN_TO_DOC"].name)
         if "STAGE11_PER_QUERY" in saved:
             STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None

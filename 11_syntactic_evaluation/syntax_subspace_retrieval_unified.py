@@ -83,12 +83,10 @@ import transformers as _transformers
 from transformers.models.auto.processing_auto import AutoProcessor as _AutoProcessor
 _transformers.AutoProcessor = _AutoProcessor
 
-# 2026-09-23: 本脚本只读 `result/11_syntactic_evaluation/asin_to_doc.json`。
-# asin_to_doc.json 的构建/清洗由 `common/build_asin_to_doc.py`（即将迁移）独立负责，
-# 本脚本不再调用 `build_meta_corpus`。`build_meta_corpus` 需要的 4 层清洗逻辑
-# （Tier 1/2/3/5）+ cache invalidation 指纹由 build_asin_to_doc.py 维护。
-# 注意：_corpus_signature 包含 asin_to_doc 内容 hash（cache invalidation bug 修复），
-# 下游 corpus_sig 会随清洗而变化。
+# Stage 11 只读 scratch 中预构建的 asin_to_doc corpus cache。
+# 构建/清洗由 `11_syntactic_evaluation/build_asin_to_doc.py` 独立负责。
+# 本脚本不再调用 `build_meta_corpus`。cache invalidation 指纹由 builder 维护。
+# 注意：_corpus_signature 包含 asin_to_doc 内容 hash，下游 corpus_sig 随清洗变化。
 from build_asin_to_doc import _corpus_signature, _sig_path_for
 
 # 用户指令 2026-08-30: 支持 SEL_OUT_SUFFIX 让 strict34 cohort 跑独立 cache, 不覆盖 canonical
@@ -100,7 +98,7 @@ _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 # 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
-ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
 SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-19: canonical = current Stage 8 output
 RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
@@ -1310,7 +1308,8 @@ def main() -> None:
         if "OUT_PATH" in saved:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = base_out / subdir / saved["ASIN_TO_DOC_CACHE"].name
+            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+                                 / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         if "SEL_IN" in saved:
             SEL_IN = REPO_ROOT / "result/08_select_query" / subdir / saved["SEL_IN"].name
         if "RESULT_DIR" in saved:

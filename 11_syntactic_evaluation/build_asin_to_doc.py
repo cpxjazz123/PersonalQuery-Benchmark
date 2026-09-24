@@ -1,4 +1,4 @@
-"""构建并清洗 `result/11_syntactic_evaluation/asin_to_doc.json`。
+"""构建并清洗 scratch 中的 Stage 11 产品文档缓存。
 
 本脚本从 `syntax_subspace_retrieval_unified.py` 中分离出来（2026-09-22），
 承担两件事：
@@ -17,7 +17,7 @@
   - 不引入 fallback（Rule 7）：规则不命中 → 保留原文，不替换
   - 不修改源数据：META_FILE 只读
   - 缓存签名包含 META_FILE mtime+size + n_asins，源文件变化自动失效
-  - 输出覆盖 `result/11_syntactic_evaluation/asin_to_doc.json`，下游
+  - 输出覆盖 `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<category>/asin_to_doc.json`，下游
     BM25/SPLADE/MiniLM/MPNet/BGE/GTE/ColBERTv2 7 个检索器自动消费清洗后版本
 
 被引用方：
@@ -26,7 +26,7 @@
 
 运行方式（无 CLI 参数，按 Rule 4）：
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
-  /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python common/build_asin_to_doc.py
+  /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python 11_syntactic_evaluation/build_asin_to_doc.py
 """
 from __future__ import annotations
 
@@ -47,9 +47,8 @@ REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 # 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
-ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/11_syntactic_evaluation/<subdir>/.
+ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+# 三个 category 的 corpus cache 均写入 hj82_scratch2，避免把缓存堆在 result/。
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -627,9 +626,9 @@ def main_task_body(force: bool = False) -> None:
 def main() -> None:
     """用户指令 2026-09-23: 串行运行 3 个 category.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    每个 category 将 META_FILE 和 ASIN_TO_DOC_CACHE 绑定到类别专属路径,
+    然后调用 main_task_body() 构建 corpus cache 至
+    `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<subdir>/`.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE  # noqa
     # backup current (Baby) defaults
@@ -662,7 +661,8 @@ def main() -> None:
         if "OUT_PATH" in saved:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = base_out / subdir / saved["ASIN_TO_DOC_CACHE"].name
+            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+                                 / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC_CACHE" in saved else None

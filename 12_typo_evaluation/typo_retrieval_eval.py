@@ -49,7 +49,7 @@ N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
 STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
-ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/12_typo_evaluation/<subdir>/.
@@ -413,7 +413,8 @@ def main() -> None:
         if "STAGE11_SEL_PATH" in saved:
             STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE11_SEL_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC_CACHE"].name
+            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+                                 / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         OUT_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "OUT_PER_QUERY" in saved else None
