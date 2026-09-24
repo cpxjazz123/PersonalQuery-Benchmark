@@ -121,8 +121,8 @@ TOPK_SAVE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache
 TOPK_SAVE_K = 100
 
 # 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
-SMOKE = False
-N_SMOKE_QUERIES = 0
+SMOKE = os.environ.get("STAGE11_SMOKE") == "1"
+N_SMOKE_QUERIES = 5
 
 
 def log(msg: str) -> None:
@@ -1320,6 +1320,14 @@ def main() -> None:
             SUMMARY_OUT = base_out / subdir / saved["SUMMARY_OUT"].name
         if "VOLATILITY_OUT" in saved:
             VOLATILITY_OUT = base_out / subdir / saved["VOLATILITY_OUT"].name
+        if SMOKE:
+            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                         "stage11_smoke" / subdir)
+            OUT_DIR = smoke_dir
+            RESULT_DIR = smoke_dir
+            PER_QUERY_OUT = smoke_dir / saved["PER_QUERY_OUT"].name
+            SUMMARY_OUT = smoke_dir / saved["SUMMARY_OUT"].name
+            VOLATILITY_OUT = smoke_dir / saved["VOLATILITY_OUT"].name
         if "TOPK_SAVE_DIR" in saved:
             TOPK_SAVE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
                              / subdir / saved["TOPK_SAVE_DIR"].name)
