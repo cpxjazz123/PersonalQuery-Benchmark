@@ -89,7 +89,6 @@ SVD_NPZ = SVD_COMPONENTS
 SVD_DIM = 256
 MLP_ENCODER = "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"
 MLP_PT = MLP_ENCODER
-CORAL_PATH = "/home/wlia0047/hj82_scratch2/wenyu/coral_cohort3mlp16_30/coral_cohort3mlp16_30.npz"
 CORAL_ASIN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_30/coral_asin_cohort2_mlp16_30.npz"
 CORAL_ART_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_30")
 CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
@@ -101,8 +100,10 @@ EPSILON_REL = 0.1              # 2026-09-19: 加大 Tikhonov regularization 让 
 COND_THRESHOLD = 1e3
 MIN_USERS_PER_ASIN = 1
 MIN_QUERIES_PER_ASIN = 1
-CORAL_MODE = "asin"   # "global" | "asin" — per-ASIN alignment when asin
+CORAL_MODE = "asin"
 APPLY_CORAL = True
+SMOKE = os.environ.get("STAGE08_ALIGNMENT_SMOKE") == "1"
+SMOKE_ASIN_LIMIT = 5
 VOCAB_PATH = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/vocab.json"
 GAUSSIAN_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank1.json"
 OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
@@ -141,47 +142,40 @@ extract_struct_rules = _svdmlp_extract_struct_rules  # alias for svdmlp encoding
 
 
 
-def _svdmlp_query_cache_key(vocab: list[str], cohort_filter_signature: str) -> str:
-    """Build a stable cache key for the spaCy + SVD-z pipeline.
-
-    Inputs (cheap to compute, captures all sources of cache invalidation):
-      - vocab fingerprint (Stage 03 PCFG rules) so cache invalidates if vocab changes
-      - SVD fingerprint (svd_components.npz head/tail bytes) so cache invalidates
-        if SVD dim/components change
-      - cohort_filter_signature: caller-supplied stable hash of the cohort filter
-        (e.g. sorted fitted-uid-set). Cache invalidates if cohort coverage changes.
-
-    We intentionally do NOT include queries text in the key: the cohort filter
-    already restricts which queries are processed (the rest are dropped before
-    spaCy), so the per-query text is implicitly fixed by the filter signature.
-    """
+def _svdmlp_query_cache_key(
+        vocab: list[str],
+        cohort_filter_signature: str,
+        queries: list[str],
+        flat_records: list | None = None) -> str:
+    """Fingerprint encoder inputs and the exact ordered query pool."""
     def _vocab_fingerprint(values):
         h = hashlib.sha256()
         h.update(b"vocab-v1\n")
-        for v in values:
-            h.update(len(v).to_bytes(8, "big"))
-            h.update(v.encode("utf-8"))
+        for value in values:
+            h.update(len(value).to_bytes(8, "big"))
+            h.update(value.encode("utf-8"))
         return h.hexdigest()
 
     h = hashlib.sha256()
-    h.update(b"pool_query_cache_v1\n")
+    h.update(b"pool_query_cache_v2\n")
     h.update(_vocab_fingerprint(vocab).encode())
-    # SVD fingerprint: cheap surrogate via head + tail bytes of svd_components.npz
     svd_path = Path(SVD_COMPONENTS)
     if svd_path.exists():
         with open(svd_path, "rb") as f:
-            head = f.read(1024)
+            h.update(f.read(1024))
             try:
                 f.seek(-1024, 2)
-                tail = f.read(1024)
+                h.update(f.read(1024))
             except OSError:
-                tail = b""
-        h.update(head)
-        h.update(tail)
-    h.update(b"svd_dim=")
+                pass
     h.update(str(SVD_DIM).encode())
-    h.update(b"cohort_filter=")
     h.update(cohort_filter_signature.encode())
+    for index, query in enumerate(queries):
+        if flat_records is not None:
+            h.update(str(flat_records[index][0]).encode("utf-8"))
+            h.update(b"\0")
+        h.update(query.encode("utf-8"))
+        h.update(b"\0")
     return h.hexdigest()
 
 
@@ -219,7 +213,8 @@ def _svdmlp_encode_queries(
 
     cache_path = None
     if cohort_filter_signature is not None:
-        cache_key = _svdmlp_query_cache_key(vocab, cohort_filter_signature)
+        cache_key = _svdmlp_query_cache_key(
+            vocab, cohort_filter_signature, queries, flat_records)
         cache_path = _svdmlp_query_cache_path(cache_key)
 
     z_svd: np.ndarray | None = None
@@ -346,47 +341,33 @@ def _svdmlp_encode_queries(
     _svdmlp_log(f"  MLP encode done, shape {z_all.shape}")
 
     if APPLY_CORAL:
-        if CORAL_MODE == "asin":
-            if asin_alignment is None or flat_records is None:
-                raise ValueError("CORAL_MODE=asin requires asin_alignment + flat_records")
-            asin_keys = asin_alignment["asin_keys"]          # (n_asin,) object str
-            A_per = asin_alignment["A_per_asin"]              # (n_asin, 16, 16)
-            muq_per = asin_alignment["mu_q_per_asin"]         # (n_asin, 16)
-            mur_per = asin_alignment["mu_r_per_asin"]         # (n_asin, 16)
-            global_A = asin_alignment["global_A"]
-            global_muq = asin_alignment["global_mu_q"]
-            global_mur = asin_alignment["global_mu_r"]
-            asin_to_idx = {str(a): i for i, a in enumerate(asin_keys)}
-            # rows_data order = filtered (non-empty) flat_records
-            n_fallback = 0
-            n_asin_used = 0
-            for row_i, (rec_idx, _) in enumerate(rows_data):
-                asin = str(flat_records[rec_idx][0])
-                ai = asin_to_idx.get(asin)
-                if ai is None:
-                    A_a, muq_a, mur_a = global_A, global_muq, global_mur
-                    n_fallback += 1
-                else:
-                    A_a = A_per[ai]
-                    muq_a = muq_per[ai]
-                    mur_a = mur_per[ai]
-                    n_asin_used += 1
-                z_all[row_i] = mur_a + (z_all[row_i] - muq_a) @ A_a.T
-            _svdmlp_log(f"  CORAL per-ASIN applied: {n_asin_used} rows per-ASIN, "
-                        f"{n_fallback} rows fallback (global A); "
-                        f"||A-I||_F={float(np.linalg.norm(global_A - np.eye(LATENT_DIM, dtype=np.float32))):.3f}")
-        else:
-            if not Path(CORAL_PATH).exists():
-                raise FileNotFoundError(
-                    f"APPLY_CORAL=True but {CORAL_PATH} missing; "
-                    "regenerate the global CORAL npz and rerun")
-            c = np.load(CORAL_PATH)
-            mu_q = c["mu_query"].astype(np.float32)
-            mu_r = c["mu_review"].astype(np.float32)
-            A = c["A"].astype(np.float32)
-            z_all = mu_r[None, :] + (z_all - mu_q[None, :]) @ A.T
-            _svdmlp_log(f"  CORAL applied: ||A-I||={float(np.linalg.norm(A - np.eye(LATENT_DIM, dtype=np.float32))):.3f}, "
-                        f"ε={float(c['epsilon']):.6f}")
+        if CORAL_MODE != "asin":
+            raise ValueError("CORAL_MODE must be 'asin'; global alignment is forbidden")
+        if asin_alignment is None or flat_records is None:
+            raise ValueError("per-ASIN CORAL requires asin_alignment + flat_records")
+        asin_keys = asin_alignment["asin_keys"]
+        A_per = asin_alignment["A_per_asin"]
+        muq_per = asin_alignment["mu_q_per_asin"]
+        mur_per = asin_alignment["mu_r_per_asin"]
+        asin_to_idx = {str(a): i for i, a in enumerate(asin_keys)}
+        missing = sorted({
+            str(flat_records[rec_idx][0])
+            for rec_idx, _ in rows_data
+            if str(flat_records[rec_idx][0]) not in asin_to_idx
+        })
+        if missing:
+            raise RuntimeError(
+                f"per-ASIN CORAL missing {len(missing)} encoded ASINs; "
+                f"examples={missing[:10]}")
+        for row_i, (rec_idx, _) in enumerate(rows_data):
+            asin = str(flat_records[rec_idx][0])
+            ai = asin_to_idx[asin]
+            z_all[row_i] = (
+                mur_per[ai] + (z_all[row_i] - muq_per[ai]) @ A_per[ai].T
+            )
+        _svdmlp_log(
+            f"  CORAL per-ASIN applied: {len(rows_data)} rows aligned, "
+            "0 fallback rows")
     return z_all, rows_data
 
 
@@ -427,14 +408,12 @@ def _svdmlp_load_gaussian() -> tuple[dict, list, np.ndarray, np.ndarray, np.ndar
 def _fit_coral_one(z_q_asin: np.ndarray, z_r_asin: np.ndarray,
                    epsilon_rel: float = EPSILON_REL,
                    return_cond: bool = False):
-    """Fit A = C_r^{1/2} C_q^{-1/2}, return (A, mu_q, mu_r[, cond_A])."""
+    """Fit regularized per-ASIN CORAL A = C_r^{1/2} C_q^{-1/2}."""
     K = z_q_asin.shape[1]
     mu_q = z_q_asin.mean(axis=0).astype(np.float32)
     mu_r = z_r_asin.mean(axis=0).astype(np.float32)
+
     def _covariance(x: np.ndarray) -> np.ndarray:
-        # np.cov returns a scalar for a single observation.  Stage 07
-        # selection can legitimately leave one query/user for an ASIN, for
-        # which the unbiased covariance is the zero matrix.
         if x.shape[0] <= 1:
             return np.zeros((K, K), dtype=np.float64)
         cov = np.asarray(np.cov(x.astype(np.float64), rowvar=False), dtype=np.float64)
@@ -453,7 +432,15 @@ def _fit_coral_one(z_q_asin: np.ndarray, z_r_asin: np.ndarray,
     w_q = np.clip(w_q, 0.0, None)
     Sr = V_r @ np.diag(np.sqrt(w_r)) @ V_r.T
     Sq_inv = V_q @ np.diag(1.0 / np.clip(np.sqrt(w_q), 1e-12, None)) @ V_q.T
-    A = (Sr @ Sq_inv).astype(np.float32)
+    A = Sr @ Sq_inv
+    U, singular_values, Vh = np.linalg.svd(A, full_matrices=False)
+    if not np.isfinite(singular_values).all() or singular_values[0] <= 0:
+        raise np.linalg.LinAlgError("non-finite or zero per-ASIN CORAL transform")
+    singular_values = np.maximum(
+        singular_values, singular_values[0] / COND_THRESHOLD)
+    A = ((U * singular_values) @ Vh).astype(np.float32)
+    if not np.isfinite(A).all() or not np.isfinite(mu_q).all() or not np.isfinite(mu_r).all():
+        raise np.linalg.LinAlgError("non-finite per-ASIN CORAL parameters")
     if return_cond:
         return A, mu_q, mu_r, float(np.linalg.cond(A.astype(np.float64)))
     return A, mu_q, mu_r
@@ -462,53 +449,9 @@ def _fit_coral_one(z_q_asin: np.ndarray, z_r_asin: np.ndarray,
 def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
                                 Vt: np.ndarray, mlp, fitted_uid_set: set[str]
                                 ) -> dict:
-    """If CORAL_ASIN_PATH missing or pool_query_cache key mismatch → run full fit,
-    write both coral_asin_*.npz AND qcache_*.npz. Otherwise load + return."""
-    cohort_sig = hashlib.sha256(
-        ("\n".join(sorted(fitted_uid_set))).encode("utf-8")
-    ).hexdigest()
-    cache_key = _svdmlp_query_cache_key(vocab, cohort_sig)
-    cache_path = _svdmlp_query_cache_path(cache_key)
+    """Fit and persist one regularized CORAL transform for every candidate ASIN."""
+    _svdmlp_log("=== Per-ASIN CORAL fit (global fallback disabled) ===")
 
-    need_coral = not Path(CORAL_ASIN_PATH).exists()
-    need_cache = not cache_path.exists()
-    if not need_coral and not need_cache:
-        _svdmlp_log(f"  loading per-ASIN CORAL alignment from {Path(CORAL_ASIN_PATH).name}")
-        ca = np.load(CORAL_ASIN_PATH, allow_pickle=True)
-        return {
-            "asin_keys": ca["asin_keys"],
-            "A_per_asin": ca["A_per_asin"],
-            "mu_q_per_asin": ca["mu_q_per_asin"],
-            "mu_r_per_asin": ca["mu_r_per_asin"],
-            "global_A": ca["global_A"],
-            "global_mu_q": ca["global_mu_q"],
-            "global_mu_r": ca["global_mu_r"],
-        }
-    # 2026-09-18: 如果只有 cache 缺失 (pool 扩展加了 ASINs), 但 CORAL npz 还在,
-    # 跳过 coral fit, 只重建 cache (per-ASIN A 保留原值, 新 ASIN 走 fallback global A)。
-    if not need_coral and need_cache:
-        _svdmlp_log(
-            f"  CORAL npz exists ({Path(CORAL_ASIN_PATH).name}) but cache missing; "
-            f"rebuild cache only (preserve existing per-ASIN CORAL)")
-        # Caller will load existing coral AFTER this function returns;
-        # we return None and let _svdmlp_main load npz directly.
-        ca = np.load(CORAL_ASIN_PATH, allow_pickle=True)
-        return {
-            "asin_keys": ca["asin_keys"],
-            "A_per_asin": ca["A_per_asin"],
-            "mu_q_per_asin": ca["mu_q_per_asin"],
-            "mu_r_per_asin": ca["mu_r_per_asin"],
-            "global_A": ca["global_A"],
-            "global_mu_q": ca["global_mu_q"],
-            "global_mu_r": ca["global_mu_r"],
-            "_rebuild_cache_only": True,
-        }
-
-    _svdmlp_log("=== Per-ASIN CORAL auto-fit (cache/npz missing) ===")
-
-    # The Gaussian mean is exactly the per-user mean of the Stage 03b
-    # profile-review embeddings.  Reading it from the category Gaussian keeps
-    # CORAL on the same encoder/cache and avoids a stale Baby-only side asset.
     with open(GAUSSIAN_PATH) as f:
         gaussian_users = json.load(f)["users"]
     review_uid_order = sorted(gaussian_users)
@@ -519,177 +462,118 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
     real_uid_to_zr_row = {uid: i for i, uid in enumerate(review_uid_order)}
     _svdmlp_log(f"  Gaussian profile-review means: {z_r_user.shape}")
 
-    # Build flat_records in pool order, plus rule2idx
     rule2idx = {r: i for i, r in enumerate(vocab)}
-    flat_records: list[tuple[str, str, int]] = []
-    for asin, queries in pool.items():
-        for li, q in enumerate(queries):
-            flat_records.append((asin, q, li))
-    queries_text = [r[1] for r in flat_records]
-    _svdmlp_log(f"  re-encoding {len(queries_text)} queries (spaCy n_process=8 batched)...")
+    flat_records: list[tuple[str, str, int]] = [
+        (asin, query, local_idx)
+        for asin, queries in pool.items()
+        for local_idx, query in enumerate(queries)
+    ]
+    queries_text = [record[1] for record in flat_records]
+    _svdmlp_log(
+        f"  encoding {len(queries_text)} pool queries for per-ASIN fitting")
 
     nlp_local = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
     query_asin_kept: list[str] = []
     rows_data: list[tuple[int, dict[int, float]]] = []
     t0 = time.time()
-    n_total = len(flat_records)
-    checkpoint_every = max(1, n_total // 20)
-    for rec_idx, doc in enumerate(nlp_local.pipe(queries_text, batch_size=2048, n_process=16)):
-        a_str = flat_records[rec_idx][0]
-        idx_set = {rule2idx[r] for r in _svdmlp_extract_struct_rules(doc) if r in rule2idx}
+    checkpoint_every = max(1, len(flat_records) // 20)
+    for rec_idx, doc in enumerate(
+            nlp_local.pipe(queries_text, batch_size=2048, n_process=16)):
+        asin = flat_records[rec_idx][0]
+        idx_set = {
+            rule2idx[rule]
+            for rule in _svdmlp_extract_struct_rules(doc)
+            if rule in rule2idx
+        }
         if idx_set:
-            query_asin_kept.append(a_str)
+            query_asin_kept.append(asin)
             rows_data.append((rec_idx, dict.fromkeys(idx_set, 1.0)))
         if (rec_idx + 1) % checkpoint_every == 0:
             elapsed = time.time() - t0
-            rate = (rec_idx + 1) / elapsed
-            _svdmlp_log(f"    spaCy {rec_idx+1}/{n_total}  "
-                        f"elapsed={elapsed:.1f}s  rate={rate:.1f} docs/s")
-    _svdmlp_log(f"    query_asin_kept rows = {len(query_asin_kept)}")
+            _svdmlp_log(
+                f"    spaCy {rec_idx + 1}/{len(flat_records)} "
+                f"elapsed={elapsed:.1f}s")
+    if not rows_data:
+        raise RuntimeError("no candidate query produced structural features")
 
-    # Sparse + SVD projection
     n_rows = len(rows_data)
-    V_dim = Vt.shape[1]
-    row_lens = [len(d) for _, d in rows_data]
+    row_lens = [len(counts) for _, counts in rows_data]
     data = np.ones(sum(row_lens), dtype=np.float32)
-    indices = np.concatenate([np.fromiter(d.keys(), dtype=np.int32) for _, d in rows_data])
+    indices = np.concatenate([
+        np.fromiter(counts.keys(), dtype=np.int32)
+        for _, counts in rows_data
+    ])
     indptr = np.zeros(n_rows + 1, dtype=np.int32)
-    cursor = 0
-    for i, n in enumerate(row_lens):
-        indptr[i] = cursor
-        cursor += n
-    indptr[-1] = cursor
-    X = sp.csr_matrix((data, indices, indptr), shape=(n_rows, V_dim))
+    np.cumsum(row_lens, out=indptr[1:])
+    X = sp.csr_matrix((data, indices, indptr), shape=(n_rows, len(vocab)))
     z_svd = (X @ Vt.T).astype(np.float32)
-    _svdmlp_log(f"  z_svd shape={z_svd.shape}")
-
-    # Persist Stage 8 cache
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = cache_path.with_suffix(".tmp.npz")
-    flat_idx_arr = np.asarray([r[0] for r in rows_data], dtype=np.int64)
-    max_len = max(row_lens) if row_lens else 0
-    row_indices_padded = np.full((n_rows, max_len), -1, dtype=np.int32)
-    row_data_padded = np.zeros((n_rows, max_len), dtype=np.float32)
-    for i, (_, counts) in enumerate(rows_data):
-        keys = list(counts.keys())
-        vals = list(counts.values())
-        row_indices_padded[i, :len(keys)] = keys
-        row_data_padded[i, :len(vals)] = vals
-    np.savez_compressed(
-        tmp, z_svd=z_svd, flat_idx_arr=flat_idx_arr,
-        row_indices=row_indices_padded, row_data=row_data_padded,
-    )
-    os.replace(tmp, cache_path)
-    _svdmlp_log(f"  wrote pool_query_cache → {cache_path.name} "
-                f"({cache_path.stat().st_size // 1024} KB, key={cache_key[:16]})")
-
-    # MLP encode
     mlp.eval()
     with torch.no_grad():
         z_q_all = np.empty((n_rows, LATENT_DIM), dtype=np.float32)
-        for s in range(0, n_rows, 1024):
-            xb = torch.from_numpy(z_svd[s:s + 1024]).to(DEVICE)
-            z_q_all[s:s + 1024] = mlp(xb).cpu().numpy()
-    _svdmlp_log(f"  encoded z_query_pool: {z_q_all.shape}")
-    del z_svd
+        for start in range(0, n_rows, 1024):
+            end = min(start + 1024, n_rows)
+            xb = torch.from_numpy(z_svd[start:end]).to(DEVICE)
+            z_q_all[start:end] = mlp(xb).cpu().numpy()
+    _svdmlp_log(f"  encoded fitting queries: {z_q_all.shape}")
 
-    # asin -> query row indices
     asin_to_qrows: dict[str, list[int]] = {}
-    for i, asin in enumerate(query_asin_kept):
-        asin_to_qrows.setdefault(asin, []).append(i)
+    for row_idx, asin in enumerate(query_asin_kept):
+        asin_to_qrows.setdefault(asin, []).append(row_idx)
 
-    # asin -> fitted Gaussian-user indices in z_r_user
     with open(ASIN_TO_USERS, "rb") as f:
         asin_to_users_raw = pickle.load(f)
-    _svdmlp_log(f"  fitted users with profile-review means: {len(real_uid_to_zr_row)}")
     asin_to_ruser: dict[str, list[int]] = {}
     for asin, uids in asin_to_users_raw.items():
-        r_idx_list = [real_uid_to_zr_row[u] for u in uids if u in real_uid_to_zr_row]
-        if r_idx_list:
-            asin_to_ruser[asin] = r_idx_list
-    _svdmlp_log(f"  ASINs with cohort3 review users: {len(asin_to_ruser)}")
+        r_idx = [
+            real_uid_to_zr_row[uid]
+            for uid in uids
+            if uid in real_uid_to_zr_row
+        ]
+        if r_idx:
+            asin_to_ruser[str(asin)] = r_idx
 
-    valid_asins = sorted(set(asin_to_qrows.keys()) & set(asin_to_ruser.keys()))
-    _svdmlp_log(f"  ASINs with both queries AND cohort reviews: {len(valid_asins)}")
+    candidate_asins = set(pool)
+    missing_queries = sorted(candidate_asins - set(asin_to_qrows))
+    missing_reviews = sorted(candidate_asins - set(asin_to_ruser))
+    if missing_queries or missing_reviews:
+        raise RuntimeError(
+            "cannot align every candidate ASIN: "
+            f"{len(missing_queries)} lack query embeddings "
+            f"(examples={missing_queries[:10]}), "
+            f"{len(missing_reviews)} lack cohort review means "
+            f"(examples={missing_reviews[:10]})")
 
-    # Per-ASIN CORAL fit
     out_keys: list[str] = []
     out_A: list[np.ndarray] = []
     out_mu_q: list[np.ndarray] = []
     out_mu_r: list[np.ndarray] = []
-    n_fitted = 0
-    n_skip_cond = 0
-    n_skip_linalg = 0
-    n_skip_short = 0
-    coral_started = time.time()
-    coral_progress_every = max(1, (len(valid_asins) + 19) // 20)
-    _svdmlp_log(f"  per-ASIN CORAL fitting start: {len(valid_asins)} ASINs")
-    for asin_idx, asin in enumerate(valid_asins, start=1):
-        if asin_idx > 1 and (asin_idx - 1) % coral_progress_every == 0:
-            _svdmlp_log(f"    CORAL fit {asin_idx-1}/{len(valid_asins)} ASINs "
-                        f"({100 * (asin_idx-1) / len(valid_asins):.1f}%), "
-                        f"elapsed={time.time() - coral_started:.1f}s")
+    for index, asin in enumerate(sorted(candidate_asins), start=1):
         q_idx = asin_to_qrows[asin]
         r_idx = asin_to_ruser[asin]
         if len(q_idx) < MIN_QUERIES_PER_ASIN or len(r_idx) < MIN_USERS_PER_ASIN:
-            n_skip_short += 1
-            continue
-        z_q_a = z_q_all[q_idx]
-        z_r_a = z_r_user[r_idx]
-        try:
-            A_a, muq_a, mur_a, cond_a = _fit_coral_one(
-                z_q_a, z_r_a, return_cond=True)
-        except np.linalg.LinAlgError:
-            n_skip_linalg += 1
-            continue
-        if not np.isfinite(cond_a) or cond_a > COND_THRESHOLD:
-            n_skip_cond += 1
-            continue
+            raise RuntimeError(
+                f"cannot fit per-ASIN CORAL for {asin}: "
+                f"queries={len(q_idx)}, review_users={len(r_idx)}")
+        A, mu_q, mu_r, condition = _fit_coral_one(
+            z_q_all[q_idx], z_r_user[r_idx], return_cond=True)
+        if not np.isfinite(condition) or condition > COND_THRESHOLD * (1 + 1e-5):
+            raise RuntimeError(
+                f"unstable per-ASIN CORAL for {asin}: cond={condition:g}")
         out_keys.append(asin)
-        out_A.append(A_a)
-        out_mu_q.append(muq_a)
-        out_mu_r.append(mur_a)
-        n_fitted += 1
-    _svdmlp_log(f"  fitted A_asin for {n_fitted} ASINs "
-                f"(skip short={n_skip_short}, cond>{COND_THRESHOLD:g}={n_skip_cond}, "
-                f"linalg={n_skip_linalg})")
+        out_A.append(A)
+        out_mu_q.append(mu_q)
+        out_mu_r.append(mu_r)
+        if index % max(1, len(candidate_asins) // 20) == 0:
+            _svdmlp_log(
+                f"    CORAL fit {index}/{len(candidate_asins)} ASINs")
 
-    # Global fallback A: 2026-09-18 限定只用 reuse_asins 子集的 queries 算 (避免新 ASIN
-    # 拉偏全局分布导致 d² 大幅退化)。reuse_asins 从 pool_queries.json config 读。
-    reuse_asin_list: list[str] = []
-    try:
-        _pool_doc = json.load(open(POOL_PATH))
-        reuse_asin_list = list(_pool_doc.get("config", {}).get("reuse_asin_list", []))
-    except (OSError, KeyError, ValueError):
-        reuse_asin_list = []
-    reuse_row_set = set()
-    if reuse_asin_list:
-        reuse_asin_set = set(reuse_asin_list)
-        for row_i, asin in enumerate(query_asin_kept):
-            if asin in reuse_asin_set:
-                reuse_row_set.add(row_i)
-        if reuse_row_set:
-            z_q_global = z_q_all[sorted(reuse_row_set)]
-            _svdmlp_log(f"  fitting global fallback CORAL on reuse subset ({len(reuse_row_set)} rows / "
-                        f"{len(reuse_asin_list)} reuse ASINs)...")
-        else:
-            z_q_global = z_q_all
-    else:
-        z_q_global = z_q_all
-    A_global, mu_q_g, mu_r_g = _fit_coral_one(z_q_global, z_r_user)
-
-    n_asin = len(out_keys)
+    if set(out_keys) != candidate_asins:
+        raise RuntimeError("per-ASIN CORAL coverage differs from candidate pool")
     asin_alignment = {
         "asin_keys": np.asarray(out_keys, dtype=object),
-        "A_per_asin": (np.stack(out_A, axis=0) if n_asin > 0
-                       else np.zeros((0, LATENT_DIM, LATENT_DIM), dtype=np.float32)),
-        "mu_q_per_asin": (np.stack(out_mu_q, axis=0) if n_asin > 0
-                          else np.zeros((0, LATENT_DIM), dtype=np.float32)),
-        "mu_r_per_asin": (np.stack(out_mu_r, axis=0) if n_asin > 0
-                          else np.zeros((0, LATENT_DIM), dtype=np.float32)),
-        "global_A": A_global,
-        "global_mu_q": mu_q_g,
-        "global_mu_r": mu_r_g,
+        "A_per_asin": np.stack(out_A, axis=0),
+        "mu_q_per_asin": np.stack(out_mu_q, axis=0),
+        "mu_r_per_asin": np.stack(out_mu_r, axis=0),
     }
     np.savez(
         CORAL_ASIN_PATH,
@@ -697,17 +581,15 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
         A_per_asin=asin_alignment["A_per_asin"],
         mu_q_per_asin=asin_alignment["mu_q_per_asin"],
         mu_r_per_asin=asin_alignment["mu_r_per_asin"],
-        global_A=asin_alignment["global_A"],
-        global_mu_q=asin_alignment["global_mu_q"],
-        global_mu_r=asin_alignment["global_mu_r"],
         min_users_per_asin=np.int32(MIN_USERS_PER_ASIN),
         min_queries_per_asin=np.int32(MIN_QUERIES_PER_ASIN),
         cond_threshold=np.float32(COND_THRESHOLD),
         epsilon=np.float32(EPSILON_REL),
         dim=np.int32(LATENT_DIM),
     )
-    _svdmlp_log(f"  wrote → {Path(CORAL_ASIN_PATH).name} "
-                f"({Path(CORAL_ASIN_PATH).stat().st_size // 1024} KB)")
+    _svdmlp_log(
+        f"  fitted and saved per-ASIN CORAL for {len(out_keys)} ASINs "
+        f"→ {Path(CORAL_ASIN_PATH).name}")
     return asin_alignment
 
 
@@ -750,6 +632,13 @@ def main_task_body() -> None:
                 normalized.append(text.strip())
         if normalized:
             pool[asin] = normalized
+    if SMOKE:
+        pool = dict(list(pool.items())[:SMOKE_ASIN_LIMIT])
+        if not pool:
+            raise RuntimeError("Stage08 alignment smoke pool is empty")
+        _svdmlp_log(
+            f"  SMOKE pool: {len(pool)} ASINs, "
+            f"{sum(map(len, pool.values()))} queries")
     asin_to_users = pickle.load(open(ASIN_USERS_PATH, "rb"))
     _svdmlp_log(f"  pool: {len(pool)} ASINs")
 
@@ -777,6 +666,10 @@ def main_task_body() -> None:
         f"  cohort-keep: {len(flat_records)} queries "
         f"({n_filtered_asins}/{len(pool)} ASINs had zero cohort users, "
         f"skipped before spaCy)")
+    if n_filtered_asins:
+        raise RuntimeError(
+            f"cannot score every candidate ASIN: {n_filtered_asins} have no "
+            "fitted cohort user; global fallback is forbidden")
 
     nlp = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
     queries_text = [r[1] for r in flat_records]
@@ -786,13 +679,12 @@ def main_task_body() -> None:
     cohort_sig = hashlib.sha256(
         ("\n".join(sorted(fitted_uid_set))).encode("utf-8")
     ).hexdigest()
-    asin_alignment: dict | None = None
     if APPLY_CORAL and CORAL_MODE == "asin":
         asin_alignment = _fit_coral_ensure_artifacts(
             pool, vocab, Vt, mlp, fitted_uid_set)
         _svdmlp_log(
-            f"  per-ASIN CORAL: {len(asin_alignment['asin_keys'])} ASINs "
-            f"(global fallback A ready)")
+            f"  per-ASIN CORAL: {len(asin_alignment['asin_keys'])}/"
+            f"{len(pool)} candidate ASINs aligned")
     z_all, rows_data = _svdmlp_encode_queries(
         queries_text, vocab, Vt, mlp, nlp,
         cohort_filter_signature=cohort_sig,
@@ -1088,6 +980,15 @@ def main() -> None:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "OUT_STATS_PATH" in saved:
             OUT_STATS_PATH = base_out / subdir / saved["OUT_STATS_PATH"].name
+        if SMOKE:
+            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                         "stage08_alignment_smoke" / subdir)
+            OUT_PATH = smoke_dir / "selected_queries.json"
+            OUT_STATS_PATH = smoke_dir / "selection_stats.json"
+            OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _svdmlp_log(
+                f"  SMOKE enabled: max {SMOKE_ASIN_LIMIT} ASINs; "
+                f"outputs in {smoke_dir}")
         if "POOL_PATH" in saved:
             POOL_PATH = REPO_ROOT / "result/07_gen_query" / subdir / saved["POOL_PATH"].name
         if "GAUSSIAN_PATH" in saved:
