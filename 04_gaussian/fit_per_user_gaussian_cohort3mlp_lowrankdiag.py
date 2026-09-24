@@ -324,18 +324,34 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT, CACHE_DIR  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
-                 "META_FILE", "OUT_DIR", "OUT_PATH", "OUT_VARIANT"}
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "OUT_VARIANT", "CACHE_DIR"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
+        # 用户指令 2026-09-23: CACHE_DIR 是从 fit_per_user_gaussian import 的, 必须同时更新
+        # fit_per_user_gaussian 的 module-level CACHE_DIR (Stage 04b 用的是 import 引用, 需要
+        # 通过 importlib reload 或直接 mutate 原 module).
+        if "CACHE_DIR" in saved:
+            import fit_per_user_gaussian as _fug
+            new_cache = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+            _fug.CACHE_DIR = new_cache
+            CACHE_DIR = new_cache
+            # 用户指令 2026-09-23: derived paths (SVD_COMPONENTS, SENT_VECTORS) module-level Path, 
+            # import 时已用初始 CACHE_DIR 算好. 必须直接 mutate this script + _fug module globals.
+            new_svd = new_cache / "svd_components.npz"
+            new_sv = new_cache / "sent_vectors.npz"
+            globals()["SVD_COMPONENTS"] = new_svd
+            globals()["SENT_VECTORS"] = new_sv
+            _fug.SVD_COMPONENTS = new_svd
+            _fug.SENT_VECTORS = new_sv
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:
