@@ -387,7 +387,13 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
         import torch
 
         tokenizer = _HF_TOKENIZER
-        for start in range(0, len(prompts), HF_BATCH_SIZE):
+        n_batches = (len(prompts) + HF_BATCH_SIZE - 1) // HF_BATCH_SIZE
+        progress_every = max(1, (n_batches + 19) // 20)
+        generation_started = time.time()
+        log(f"  Transformers generation start: prompts={len(prompts)}, "
+            f"batches={n_batches}, batch_size={HF_BATCH_SIZE}, k={k}")
+        for batch_num, start in enumerate(
+                range(0, len(prompts), HF_BATCH_SIZE), start=1):
             batch_prompts = prompts[start:start + HF_BATCH_SIZE]
             batch_attrs = attrs_list[start:start + HF_BATCH_SIZE]
             encoded = tokenizer(
@@ -432,6 +438,15 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
                         "n_tokens": len(ids),
                     })
                 all_cands.append(cands)
+            n_done_prompts = min(start + len(batch_attrs), len(prompts))
+            if batch_num % progress_every == 0 or batch_num == n_batches:
+                log(f"  Transformers generation progress: "
+                    f"{n_done_prompts}/{len(prompts)} prompts "
+                    f"({batch_num}/{n_batches} batches), "
+                    f"elapsed={time.time() - generation_started:.1f}s")
+        log(f"  Transformers generation complete: prompts={len(prompts)}, "
+            f"candidates={len(prompts) * k}, "
+            f"elapsed={time.time() - generation_started:.1f}s")
         return all_cands
 
 
