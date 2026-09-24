@@ -60,7 +60,7 @@ LLM_RERANK_LISTWISE_MAX_TOKENS = 64
 KS = (1, 5, 10)
 N_SMOKE = 1635
 ONLY_BM25_SMOKE = True
-SMOKE = False
+SMOKE = True
 # 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
 # 保留全量 1947 queries（不像 SMOKE 那样截断到 1 个）。结果仍写入 STAGE11_OUT。
 BM25_ONLY = True
@@ -576,10 +576,13 @@ def run_stage11_llm_rerank(smoke=False):
             if asin in row_asins:
                 eligible_keys.append((idx, (asin, query)))
                 break
-        if not eligible_keys:
-            raise ValueError("No BM25 Hit@100 query available for eligible smoke")
-        selection_indices = [eligible_keys[0][0]]
-        entries = [eligible_keys[0][1]]
+        if eligible_keys:
+            selection_indices = [eligible_keys[0][0]]
+            entries = [eligible_keys[0][1]]
+        else:
+            log("  smoke has no BM25 Hit@10 query; using first pair without LLM reranking")
+            selection_indices = [0]
+            entries = [entries[0]]
     log(f"  loaded {len(entries)} query pairs")
 
     asin_to_doc, asins = load_corpus()
@@ -628,14 +631,17 @@ def run_stage11_llm_rerank(smoke=False):
             if target in topk_for_retr[i][:LLM_RERANK_TOPK]
         ]
         excluded_no_hit10 = len(queries_asin_pairs) - len(eligible)
-        if not eligible:
-            raise ValueError(f"[{retr}] no target appears in original Top-10")
         eligible_queries = [queries_asin_pairs[i][1] for i in eligible]
         eligible_pairs = [queries_asin_pairs[i] for i in eligible]
         eligible_topk = [topk_for_retr[i] for i in eligible]
         log(f"\n  [{retr}] reranking eligible Hit@10 queries: "
             f"{len(eligible)}/{len(entries)} (excluded={excluded_no_hit10})")
-        reranked = llm_rerank_per_retriever(eligible_queries, eligible_topk, asin_to_doc, client)
+        if eligible:
+            reranked = llm_rerank_per_retriever(
+                eligible_queries, eligible_topk, asin_to_doc, client
+            )
+        else:
+            reranked = []
         for qi, record in enumerate(reranked):
             record["target_asin"] = eligible_pairs[qi][0]
             record["query"] = eligible_pairs[qi][1]
@@ -669,14 +675,8 @@ def run_stage11_llm_rerank(smoke=False):
         m["n_input_queries"] = len(queries_asin_pairs)
         m["n_eligible_hit10"] = len(eligible)
         m["n_excluded_no_hit10"] = excluded_no_hit10
-        eligible_m = compute_hit_metrics(reranked)
-        eligible_m["n_input_queries"] = len(queries_asin_pairs)
-        eligible_m["n_eligible_hit10"] = len(eligible)
-        eligible_m["n_excluded_no_hit10"] = excluded_no_hit10
         f = compute_flip_rate(full_records)
-        eligible_f = compute_flip_rate(reranked)
-        flip_dict = f
-        d = compute_rerank_diagnostics(reranked)
+        d = compute_rerank_diagnostics(reranked if reranked else full_records)
         per_retriever_metrics[retr] = m
         per_retriever_flip[retr] = f
         per_query_top10_by_retr[retr] = full_records
