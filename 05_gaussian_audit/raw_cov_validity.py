@@ -651,18 +651,28 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, CACHE_DIR  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
-                 "META_FILE", "OUT_DIR", "OUT_PATH"}
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "CACHE_DIR"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
+        # 用户指令 2026-09-23: Stage 03a 写到 pcfg_cache_<subdir>/, 05 必须按 subdir 重绑 CACHE_DIR.
+        if "CACHE_DIR" in saved:
+            CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+            # 用户指令 2026-09-23: EMBED_PATH 等 derived paths 在 import 时已绑定, 必须重新计算.
+            globals()["EMBED_PATH"] = CACHE_DIR / "strict3_embeddings.npz"
+            globals()["MANIFEST_PATH"] = CACHE_DIR / "strict3_manifest.json"
+            globals()["READY_PATH"] = CACHE_DIR / "cache_ready.json"
+            globals()["N_SENTS_PATH"] = CACHE_DIR / "user_n_sents.json"
+            globals()["SVD_COMPONENTS"] = CACHE_DIR / "svd_components.npz"
+            globals()["SENT_VECTORS"] = CACHE_DIR / "sent_vectors.npz"
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:
