@@ -60,7 +60,7 @@ LLM_RERANK_LISTWISE_MAX_TOKENS = 64
 KS = (1, 5, 10)
 N_SMOKE = 1635
 ONLY_BM25_SMOKE = True
-SMOKE = True
+SMOKE = False
 # 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
 # 保留全量 1947 queries（不像 SMOKE 那样截断到 1 个）。结果仍写入 STAGE11_OUT。
 BM25_ONLY = True
