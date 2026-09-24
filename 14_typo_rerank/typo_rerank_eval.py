@@ -47,6 +47,7 @@ from syntactic_rerank_eval import (  # noqa: E402  (sys.path tweak above)
     load_stage11_baseline_metrics,
     print_and_save_stage11_vs_stage13,
 )
+SMOKE = True
 
 OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
