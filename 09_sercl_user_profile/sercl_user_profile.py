@@ -117,15 +117,15 @@ def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
 
 
 # ===========================================================================
-# Stage 2: GEC correction via GECToR-2024 RoBERTa-large (subprocess to gector_env)
+# Stage 2: GEC correction via GECToR-2024 RoBERTa-large in pq_env
 # ===========================================================================
-# pq_env = Python 3.10 + transformers 4.43.2; GECToR requires transformers >=4.49 + torch >=2.5.
-# 必须从独立 gector_env (Python 3.11) 子进程调用, 不能 in-process import.
+# Run GECToR in the required pq_env subprocess, not in-process.
+# JSONL IPC loads the model once per category and batch-corrects its sentences.
 # Subprocess 通过 JSONL 文件 IPC, 单次启动加载模型一次, 跑完所有句子.
 
 
 def gec_correct_batch(sents: List[str]) -> List[str]:
-    """Write sents → JSONL → spawn gector_env subprocess → read corrected JSONL."""
+    """Write sents → JSONL → run the pq_env GECToR subprocess → read output."""
     if not sents:
         return []
     SERCL_GEC_IN_JSONL.parent.mkdir(parents=True, exist_ok=True)

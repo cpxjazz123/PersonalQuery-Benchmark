@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""GECToR-2024 RoBERTa-large batch corrector (subprocess driver for SErCL Stage 2).
+"""GECToR-2024 RoBERTa-large batch corrector for SErCL Stage 2.
 
-Runs in gector_env (Python 3.11 + torch 2.5.1+cu121 + transformers 4.49 + gector 1.2.0).
-Reads input JSONL from fixed path, writes corrected JSONL to fixed path.
+Runs in the required pq_env interpreter. Reads and writes fixed JSONL paths;
+the parent launches this script once per category so the model is loaded once
+for that category's batched sentences.
 
 Inputs: /home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl
   Each line: {"i": <int>, "text": "<original sentence>"}
@@ -12,11 +13,8 @@ Outputs: /home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl
   (preserves original order index `i`; caller must sort by i)
 
 用法 (Rule 3: 无参数):
-  /home/wlia0047/hj82_scratch2/wenyu/venvs/gector_env/bin/python \\
+  /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \\
       /home/wlia0047/ar57/wenyu/PersoanlQuery/09_sercl_user_profile/gector_subprocess.py
-
-Note: pq_env is Python 3.10 + transformers 4.43.2, GECToR requires >=4.49 + torch >=2.5,
-所以必须从独立的 gector_env 子进程调用, 不能 in-process import.
 """
 from __future__ import annotations
 
