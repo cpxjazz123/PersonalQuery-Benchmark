@@ -409,11 +409,15 @@ def _clean_simple_field(value: str) -> str:
 def _asin_content_sha1(asin_to_doc: dict[str, str]) -> str:
     """Compute sha1 over asin_to_doc sorted contents (40 hex chars)."""
     content_h = hashlib.sha1()
-    for k in sorted(asin_to_doc.keys()):
+    keys = sorted(asin_to_doc.keys())
+    log(f"  hashing {len(keys)} ASIN documents")
+    for index, k in enumerate(keys, start=1):
         content_h.update(k.encode())
         content_h.update(b"\x00")
         content_h.update(asin_to_doc[k].encode("utf-8", errors="ignore"))
         content_h.update(b"\x00")
+        if index % 100_000 == 0 or index == len(keys):
+            log(f"  hash progress: {index}/{len(keys)} ASINs")
     return content_h.hexdigest()
 
 
@@ -512,6 +516,9 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
                 continue
             r = json.loads(line)
             n_records += 1
+            if n_records % 50_000 == 0:
+                log(f"  metadata progress: {n_records:,} records, "
+                    f"{len(asin_to_doc):,} ASIN docs ({time.time() - t0:.1f}s)")
             asin = _clean_doc_text(r.get("parent_asin"))
             if not asin:
                 raise ValueError(
@@ -581,6 +588,7 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
         f"({time.time() - t0:.1f}s, skipped_no_title={n_skip_no_title})")
     log(f"  cleaning stats: description_cleaned={n_cleaned_desc}, "
         f"features_title_dedup={n_dropped_title_dup}")
+    log(f"  writing {len(asin_to_doc):,} ASIN documents to {ASIN_TO_DOC_CACHE}")
 
     ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
