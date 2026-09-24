@@ -676,6 +676,7 @@ def run_stage11_llm_rerank(smoke=False):
         m["n_eligible_hit10"] = len(eligible)
         m["n_excluded_no_hit10"] = excluded_no_hit10
         f = compute_flip_rate(full_records)
+        flip_dict = f
         d = compute_rerank_diagnostics(reranked if reranked else full_records)
         per_retriever_metrics[retr] = m
         per_retriever_flip[retr] = f
