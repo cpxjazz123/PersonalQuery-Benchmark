@@ -177,8 +177,8 @@ if CONTRASTIVE_5558:
     OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary_5558.json"
 
 # Hardcoded hyperparams
-SMOKE = False                   # full three-typo run after smoke passed
-N_SMOKE_USERS = 250
+SMOKE = os.environ.get("STAGE10_ALIGNMENT_SMOKE") == "1"
+N_SMOKE_USERS = 5
 SEED_BASE = 42
 
 # D² threshold quantile (per-user). Set dynamically from Stage 04 config.
@@ -1015,33 +1015,41 @@ def _is_load_rule_to_id() -> Dict[str, int]:
     return _rule_to_id
 
 
-_coral_data = None  # 2026-09-19: cached per-ASIN CORAL A matrix
+_coral_data = None
 
 
-def _is_load_coral() -> Tuple[Dict[str, np.ndarray], np.ndarray]:
-    """Load per-ASIN CORAL A matrix from coral_asin_cohort2_mlp16_30.npz.
-    Returns ({asin: A}, global_A). 2026-09-19: Stage 10 必须 apply A 才能
-    与 Stage 8 cohort gates d² 数值一致 (否则 raw z vs μ_r 数值偏大 100-300×)."""
+def _is_load_coral() -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Load category-specific per-ASIN CORAL; missing ASINs are fatal."""
     global _coral_data
     if _coral_data is None:
-        c = np.load(CORAL_ASIN_PATH, allow_pickle=True)
-        A_per = c["A_per_asin"]
-        muq_per = c["mu_q_per_asin"]
-        mur_per = c["mu_r_per_asin"]
-        keys = c["asin_keys"]
-        asin_to_A = {
-            str(keys[i]): (A_per[i], muq_per[i], mur_per[i])
-            for i in range(len(keys))
-        }
-        global_transform = (c["global_A"], c["global_mu_q"], c["global_mu_r"])
-        _coral_data = (asin_to_A, global_transform)
+        if not Path(CORAL_ASIN_PATH).is_file():
+            raise FileNotFoundError(f"per-ASIN CORAL artifact missing: {CORAL_ASIN_PATH}")
+        with np.load(CORAL_ASIN_PATH, allow_pickle=True) as coral:
+            keys = [str(key) for key in coral["asin_keys"]]
+            transforms = {
+                key: (A, mu_q, mu_r)
+                for key, A, mu_q, mu_r in zip(
+                    keys, coral["A_per_asin"], coral["mu_q_per_asin"],
+                    coral["mu_r_per_asin"])
+            }
+        if not transforms or len(transforms) != len(keys):
+            raise ValueError("per-ASIN CORAL keys are empty or duplicated")
+        for asin, (A, mu_q, mu_r) in transforms.items():
+            if (A.shape != (16, 16) or mu_q.shape != (16,) or mu_r.shape != (16,)
+                    or not np.isfinite(A).all()
+                    or not np.isfinite(mu_q).all()
+                    or not np.isfinite(mu_r).all()):
+                raise ValueError(f"invalid per-ASIN CORAL parameters for {asin}")
+        _coral_data = transforms
     return _coral_data
 
 
 def _is_apply_coral(z: np.ndarray, asin: str) -> np.ndarray:
-    """Apply per-ASIN CORAL A (or global fallback) to z → align query→review domain."""
-    asin_to_A, global_transform = _is_load_coral()
-    A, mu_q, mu_r = asin_to_A.get(asin, global_transform)
+    """Apply the required ASIN-specific affine CORAL transform."""
+    transform = _is_load_coral().get(asin)
+    if transform is None:
+        raise KeyError(f"per-ASIN CORAL transform missing for {asin}")
+    A, mu_q, mu_r = transform
     return (mu_r + (z.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
 
 
@@ -1387,8 +1395,7 @@ def _is_batch_gate(
     encoder,
     rule_to_id: Dict[str, int],
     vocab_size: int,
-    asin_to_A: Dict[str, np.ndarray],
-    global_A: np.ndarray,
+    asin_to_A: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]],
 ) -> List[Dict]:
     """Phase-2 batch gate: batch-encode all orig+inj, apply CORAL, compute d²,
     comp gate. Returns list of updated items with d2_before/after/comp_pass."""
@@ -1407,8 +1414,12 @@ def _is_batch_gate(
     for k, it in enumerate(items):
         z_orig = z_all[2 * k]
         z_inj = z_all[2 * k + 1]
-        # Apply the same centered affine CORAL transform as Stage 08.
-        A, mu_q, mu_r = asin_to_A.get(it["asin"], global_A)
+        # Apply the same centered ASIN-specific CORAL transform as Stage 08.
+        try:
+            A, mu_q, mu_r = asin_to_A[it["asin"]]
+        except KeyError as exc:
+            raise KeyError(
+                f"per-ASIN CORAL transform missing for {it['asin']}") from exc
         z_orig_aligned = (mu_r + (z_orig.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
         z_inj_aligned = (mu_r + (z_inj.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
         mu = it["mu"]
@@ -1887,9 +1898,15 @@ def main_task_body():
     log(f"Phase 1 done: {len(items)}/{n_total_processed} pairs sampled (rest: no-candidate)")
 
     # Phase 2: batch encode + gate
-    asin_to_A, global_A = _is_load_coral()
+    asin_to_A = _is_load_coral()
+    missing_asins = sorted({it["asin"] for it in items} - set(asin_to_A))
+    if missing_asins:
+        raise RuntimeError(
+            f"Stage 10 per-ASIN CORAL missing for {len(missing_asins)} "
+            f"selected ASINs; examples={missing_asins[:10]}")
     log("Phase 2: batch encoding all (orig, inj) pairs")
-    items = _is_batch_gate(items, None, encoder, rule_to_id, vocab_size, asin_to_A, global_A)
+    items = _is_batch_gate(
+        items, None, encoder, rule_to_id, vocab_size, asin_to_A)
     log(f"  encoded {len(items)*2} texts, d²_before/after computed")
     log("Phase 3: batch semantic + comp gates")
     items = _is_batch_semantic(items)
@@ -2150,6 +2167,11 @@ def main() -> None:
             OUT_RESULTS = base_out / subdir / saved["OUT_RESULTS"].name
         if "OUT_SUMMARY" in saved:
             OUT_SUMMARY = base_out / subdir / saved["OUT_SUMMARY"].name
+        if SMOKE:
+            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                         "stage10_alignment_smoke" / subdir)
+            OUT_RESULTS = smoke_dir / "typo_injection_results.json"
+            OUT_SUMMARY = smoke_dir / "cohort_summary.json"
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         SERCL_PROFILE.parent.mkdir(parents=True, exist_ok=True) if "SERCL_PROFILE" in saved else None
