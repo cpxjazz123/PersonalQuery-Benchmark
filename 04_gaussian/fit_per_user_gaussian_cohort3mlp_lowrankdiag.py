@@ -324,7 +324,7 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT, CACHE_DIR  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT, CACHE_DIR, ENCODER_WEIGHTS_CANDIDATES, TRAINED_UIDS_PATH, SVD_COMPONENTS, SENT_VECTORS  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -352,12 +352,22 @@ def main() -> None:
             globals()["SENT_VECTORS"] = new_sv
             _fug.SVD_COMPONENTS = new_svd
             _fug.SENT_VECTORS = new_sv
+        # Stage 03b assets are category-specific. Never fall back to the root
+        # Baby encoder or UID whitelist for the other categories.
+        stage03_dir = REPO_ROOT / "result/03_spacy_encode" / subdir
+        ENCODER_WEIGHTS_CANDIDATES = [
+            stage03_dir / "cohort2_mlp16_30_30ep.pt"
+        ]
+        TRAINED_UIDS_PATH = stage03_dir / "cohort3_trained_uids.json"
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:
             UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "ASIN_USERS_PATH" in saved:
             ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract" / f"asin_to_users_{subdir}.pkl"
+            # _load_asin_users() reads the defining module's global.
+            import fit_per_user_gaussian as _fug
+            _fug.ASIN_USERS_PATH = ASIN_USERS_PATH
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:

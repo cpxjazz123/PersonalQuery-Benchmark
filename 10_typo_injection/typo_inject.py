@@ -979,8 +979,7 @@ def _is_load_pcfg_module():
 
 
 def _is_load_encoder():
-    """Load encoder — supports both _SupEncoder (strict3_encoder.pt) and
-    StyleMLP (cohort2_mlp16_30_30ep.pt, raw state_dict). Returns (model, vocab_size)."""
+    """Load _SupEncoder or the normalized Stage 03 StyleMLP. Returns (model, vocab_size)."""
     global _encoder, _encoder_vocab_size
     if _encoder is None:
         ckpt = torch.load(ENCODER_PT, map_location="cpu", weights_only=False)
@@ -994,14 +993,11 @@ def _is_load_encoder():
                 cfg["n_users"], cfg["dropout"])
             model.load_state_dict(ckpt["model_state"])
         else:
-            # StyleMLP raw state_dict (cohort2_mlp16_30_30ep.pt) — Stage 8
-            # SVD → MLP pipeline (SVD_DIM=256 → HIDDEN=128 → OUT=16).
-            import sys as _sys
-            _sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode")
-            from syntax_encoder import StyleMLP as _StyleMLP
+            # Stage 08 and Gaussian fitting share syntax_encoder.StyleMLP,
+            # including its L2 normalization.
             state_dict = ckpt if isinstance(ckpt, dict) else ckpt.state_dict()
             _encoder_vocab_size = len(_is_load_rule_to_id())
-            model = _StyleMLP()  # 用默认 dim: 256 → 128 → 16
+            model = _is_load_pcfg_module().StyleMLP()
             model.load_state_dict(state_dict)
         model.eval()
         model.to(ENCODER_DEVICE)
@@ -1030,17 +1026,23 @@ def _is_load_coral() -> Tuple[Dict[str, np.ndarray], np.ndarray]:
     if _coral_data is None:
         c = np.load(CORAL_ASIN_PATH, allow_pickle=True)
         A_per = c["A_per_asin"]
+        muq_per = c["mu_q_per_asin"]
+        mur_per = c["mu_r_per_asin"]
         keys = c["asin_keys"]
-        asin_to_A = {str(keys[i]): A_per[i] for i in range(len(keys))}
-        _coral_data = (asin_to_A, c["global_A"])
+        asin_to_A = {
+            str(keys[i]): (A_per[i], muq_per[i], mur_per[i])
+            for i in range(len(keys))
+        }
+        global_transform = (c["global_A"], c["global_mu_q"], c["global_mu_r"])
+        _coral_data = (asin_to_A, global_transform)
     return _coral_data
 
 
 def _is_apply_coral(z: np.ndarray, asin: str) -> np.ndarray:
     """Apply per-ASIN CORAL A (or global fallback) to z → align query→review domain."""
-    asin_to_A, global_A = _is_load_coral()
-    A = asin_to_A.get(asin, global_A)
-    return (A @ z.astype(np.float32)).astype(np.float32)
+    asin_to_A, global_transform = _is_load_coral()
+    A, mu_q, mu_r = asin_to_A.get(asin, global_transform)
+    return (mu_r + (z.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
 
 
 def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str, int],
@@ -1060,7 +1062,7 @@ def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str,
             j = rule_to_id.get(r)
             if j is not None:
                 counts[i, j] = 1.0
-    counts = counts / (1.0 + counts)
+    # Stage 08 uses binary rule presence with ROW_NORMALIZE=False.
     # 检测 encoder 类型
     is_style_mlp = "StyleMLP" in type(encoder).__name__
     if is_style_mlp:
@@ -1392,10 +1394,10 @@ def _is_batch_gate(
     for k, it in enumerate(items):
         z_orig = z_all[2 * k]
         z_inj = z_all[2 * k + 1]
-        # Apply CORAL per ASIN
-        A = asin_to_A.get(it["asin"], global_A)
-        z_orig_aligned = (A @ z_orig.astype(np.float32)).astype(np.float32)
-        z_inj_aligned = (A @ z_inj.astype(np.float32)).astype(np.float32)
+        # Apply the same centered affine CORAL transform as Stage 08.
+        A, mu_q, mu_r = asin_to_A.get(it["asin"], global_A)
+        z_orig_aligned = (mu_r + (z_orig.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
+        z_inj_aligned = (mu_r + (z_inj.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
         mu = it["mu"]
         stats = it["user_stats"]
         d2_before = _is_mahalanobis_d2(z_orig_aligned, mu, it["sigma_inv"], user_stats=stats)
@@ -2074,7 +2076,7 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SERCL_PROFILE, STAGE04_PATH, SELECTED, OUT_RESULTS, OUT_SUMMARY  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SERCL_PROFILE, STAGE04_PATH, SELECTED, OUT_RESULTS, OUT_SUMMARY, ENCODER_PT, SVD_COMPONENTS_PATH, CORAL_ASIN_PATH, CACHE_DIR, _encoder, _encoder_vocab_size, _rule_to_id, _coral_data  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -2088,6 +2090,21 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
+        cache_dir = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+        CACHE_DIR = cache_dir
+        ENCODER_PT = str(REPO_ROOT / "result/03_spacy_encode" / subdir /
+                         "cohort2_mlp16_30_30ep.pt")
+        SVD_COMPONENTS_PATH = str(cache_dir / "svd_components.npz")
+        CORAL_ASIN_PATH = str(
+            Path("/home/wlia0047/hj82_scratch2/wenyu") /
+            f"coral_asin_cohort2_mlp16_30_{subdir}" /
+            "coral_asin_cohort2_mlp16_30.npz"
+        )
+        # These lazy caches otherwise retain Baby assets on later iterations.
+        _encoder = None
+        _encoder_vocab_size = None
+        _rule_to_id = {}
+        _coral_data = None
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:

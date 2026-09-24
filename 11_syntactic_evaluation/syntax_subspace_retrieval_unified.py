@@ -1070,7 +1070,7 @@ def main_task_body():
 
     # ---- 3. Retrieve with each retriever ----
     log("\n=== 3. Per-retriever retrieval (7 retrievers, no rerank) ===")
-    corpus_sig = _corpus_signature(meta_file=META_FILE)
+    corpus_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
     query_sig = selection_sig  # selection_sig already computed in step 0
     log(f"  corpus_sig={corpus_sig}  query_sig={query_sig}")
     retr_results: dict[str, list[dict]] = {}
@@ -1270,13 +1270,14 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE, SEL_IN, RESULT_DIR, PER_QUERY_OUT, SUMMARY_OUT, VOLATILITY_OUT  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE, SEL_IN, RESULT_DIR, PER_QUERY_OUT, SUMMARY_OUT, VOLATILITY_OUT, TOPK_SAVE_DIR, EMBED_CACHE_DIR  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
                  "META_FILE", "OUT_DIR", "OUT_PATH", "ASIN_TO_DOC_CACHE", "SEL_IN",
-                 "RESULT_DIR", "PER_QUERY_OUT", "SUMMARY_OUT", "VOLATILITY_OUT"}
+                 "RESULT_DIR", "PER_QUERY_OUT", "SUMMARY_OUT", "VOLATILITY_OUT",
+                 "TOPK_SAVE_DIR", "EMBED_CACHE_DIR"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -1313,6 +1314,11 @@ def main() -> None:
             SUMMARY_OUT = base_out / subdir / saved["SUMMARY_OUT"].name
         if "VOLATILITY_OUT" in saved:
             VOLATILITY_OUT = base_out / subdir / saved["VOLATILITY_OUT"].name
+        if "TOPK_SAVE_DIR" in saved:
+            TOPK_SAVE_DIR = base_out / subdir / saved["TOPK_SAVE_DIR"].name
+        if "EMBED_CACHE_DIR" in saved:
+            EMBED_CACHE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                               "gaussian_vades/multiretrieval_embeds" / subdir)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC_CACHE" in saved else None
@@ -1321,6 +1327,8 @@ def main() -> None:
         PER_QUERY_OUT.parent.mkdir(parents=True, exist_ok=True) if "PER_QUERY_OUT" in saved else None
         SUMMARY_OUT.parent.mkdir(parents=True, exist_ok=True) if "SUMMARY_OUT" in saved else None
         VOLATILITY_OUT.parent.mkdir(parents=True, exist_ok=True) if "VOLATILITY_OUT" in saved else None
+        TOPK_SAVE_DIR.mkdir(parents=True, exist_ok=True) if "TOPK_SAVE_DIR" in saved else None
+        EMBED_CACHE_DIR.mkdir(parents=True, exist_ok=True) if "EMBED_CACHE_DIR" in saved else None
         try:
             main_task_body()
         except Exception as e:

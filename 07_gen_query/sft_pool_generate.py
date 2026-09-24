@@ -35,9 +35,12 @@ sys.path.insert(0, str(REPO_ROOT))
 
 OUT_DIR = REPO_ROOT / "result/07_gen_query"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+RAW_CACHE_ROOT = Path("/home/wlia0047/hj82_scratch2/wenyu/stage07_pool_cache")
+RAW_CACHE_PATH = RAW_CACHE_ROOT / "baby" / "raw_per_asin_cache.json"
 
 # Stage 04 cohort3mlp lowrank+diag artifact 提供 fitted users 与 ASIN cohort coverage。
 STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank1.json"
+STAGE05_PATH = REPO_ROOT / "result/05_gaussian_audit/raw_cov_validity.json"
 SFT_POOL_SOURCE = "stage04_cohort3mlp_lowrankdiag"  # 标注抽样源
 
 # CONTRASTIVE_5558 ABLATION: 5558 contrastive cohort stats
@@ -47,6 +50,7 @@ if CONTRASTIVE_5558:
     SFT_POOL_SOURCE = "stage04_fitted_cohort_5558_contrastive"
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
+HF_CACHE_DIR = "/home/wlia0047/hj82_scratch2/wenyu/hf_cache"
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
 # 用户指令 2026-09-23: product_attributes 改 pkl-only (Stage 01 已切换).
 ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes_baby.pkl"
@@ -61,7 +65,7 @@ CATEGORY_INPUTS = [
 
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_POOL_SEED = 42
-SFT_POOL_SMOKE = False        # True=5 ASIN smoke, False=100 ASIN full (Rule 20)
+SFT_POOL_SMOKE = False        # True=5 ASIN smoke, False=all eligible ASINs (Rule 20)
 SFT_POOL_N_ASIN = 5 if SFT_POOL_SMOKE else None  # SMOKE=5, full=None=不限制(全量 asin_to_valid)
 SFT_POOL_K = 50               # 2026-09-19: 每 round 每个 ASIN 生成 50 个候选, 2 轮 = 100/ASIN
 SFT_POOL_ROUNDS = 2            # 2026-09-06: 同 prompt 跑 2 轮, 合并为 50/ASIN
@@ -77,6 +81,12 @@ SFT_POOL_EXCLUDE_TRAIN = True # 排除 SFT 训练 ASIN (用户 query_samples_100
 
 # vLLM 引擎单例 (07 regen 复用, lazy 初始化)
 _LLM = None
+_GENERATION_BACKEND = None
+_HF_TOKENIZER = None
+_LOADED_ADAPTER = None
+HF_BATCH_SIZE = 8
+_VLLM_SAMPLING_PARAMS = None
+_VLLM_LORA_REQUEST = None
 
 
 def log(msg: str) -> None:
@@ -213,7 +223,6 @@ def select_eval_asins(attrs_all: Dict[str, Dict[str, str]],
     if not isinstance(asin_to_valid, dict) or not asin_to_valid:
         raise ValueError("Stage 04 artifact requires non-empty cohort_gates")
 
-    STAGE05_PATH = REPO_ROOT / "result/05_gaussian_audit/raw_cov_validity.json"
     valid_uids: set[str] = set()
     if STAGE05_PATH.exists():
         with open(STAGE05_PATH) as f:
@@ -265,37 +274,85 @@ def select_eval_asins(attrs_all: Dict[str, Dict[str, str]],
 
 
 def get_or_create_llm():
-    """vLLM 引擎 lazy 单例 (GPU 与 qwen_hidden_server 共享, util=0.42)."""
-    global _LLM
+    """Load vLLM, falling back to a batched Transformers LoRA model."""
+    global _LLM, _GENERATION_BACKEND, _HF_TOKENIZER, _LOADED_ADAPTER
+    global _VLLM_SAMPLING_PARAMS, _VLLM_LORA_REQUEST
+    adapter_path = str(SFT_ADAPTER_DIR)
     if _LLM is not None:
-        return _LLM
-    from vllm import LLM
+        if (_GENERATION_BACKEND != "transformers"
+                or _LOADED_ADAPTER == adapter_path):
+            return _LLM
+        del _LLM
+        _LLM = None
+        _HF_TOKENIZER = None
+        _LOADED_ADAPTER = None
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-    log(f"  loading vLLM engine (Qwen2.5-0.5B + enable_lora=True) ...")
-    t0 = time.time()
-    _LLM = LLM(
-        model=QWEN_PATH,
-        enable_lora=True,
-        max_lora_rank=8,
-        max_model_len=384,        # 150 prompt + 40 gen + 32 query = 222, 384 留 slack
-        gpu_memory_utilization=0.85,  # 2026-09-06: 用户提速要求, 0.55→0.85 + max_num_seqs 扩并发
-        max_num_seqs=1024,             # 2026-09-06: vLLM 默认 256, 扩并发 batch
-        enforce_eager=False,           # 2026-09-06: 启用 CUDA graph, 预期 +20-30% 吞吐
-        dtype="bfloat16",
-        trust_remote_code=True,
-    )
-    log(f"  vLLM engine loaded in {time.time()-t0:.1f}s")
-    return _LLM
+    try:
+        from vllm import LLM, SamplingParams
+        from vllm.lora.request import LoRARequest
+
+        log("  loading vLLM engine (Qwen2.5-0.5B + enable_lora=True) ...")
+        t0 = time.time()
+        _LLM = LLM(
+            model=QWEN_PATH,
+            enable_lora=True,
+            max_lora_rank=8,
+            max_model_len=384,
+            gpu_memory_utilization=0.85,
+            max_num_seqs=1024,
+            enforce_eager=False,
+            dtype="bfloat16",
+            trust_remote_code=True,
+        )
+        _VLLM_SAMPLING_PARAMS = SamplingParams
+        _VLLM_LORA_REQUEST = LoRARequest
+        _GENERATION_BACKEND = "vllm"
+        log(f"  vLLM engine loaded in {time.time()-t0:.1f}s")
+        return _LLM
+    except Exception as exc:
+        log(f"  vLLM unavailable ({type(exc).__name__}: {exc}); using Transformers+PEFT")
+        _VLLM_SAMPLING_PARAMS = None
+        _VLLM_LORA_REQUEST = None
+        import gc
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        if _LLM is not None:
+            del _LLM
+            _LLM = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        t0 = time.time()
+        _HF_TOKENIZER = AutoTokenizer.from_pretrained(
+            QWEN_PATH, cache_dir=HF_CACHE_DIR)
+        _HF_TOKENIZER.padding_side = "left"
+        if _HF_TOKENIZER.pad_token_id is None:
+            _HF_TOKENIZER.pad_token = _HF_TOKENIZER.eos_token
+        base = AutoModelForCausalLM.from_pretrained(
+            QWEN_PATH,
+            cache_dir=HF_CACHE_DIR,
+            torch_dtype=torch.float16,
+            device_map="cuda:0",
+            trust_remote_code=True,
+        )
+        _LLM = PeftModel.from_pretrained(base, adapter_path)
+        _LLM.eval()
+        _GENERATION_BACKEND = "transformers"
+        _LOADED_ADAPTER = adapter_path
+        log(f"  Transformers+PEFT model loaded in {time.time()-t0:.1f}s")
+        return _LLM
 
 
 def generate_candidates(attrs_list: List[Dict[str, str]],
                         k: int) -> List[List[Dict]]:
-    """对每个 ASIN 的 attrs 生成 k 个 candidates (batched), 返回 content-check 后的列表.
-
-    供本脚本 main 和 08_select_query regen 复用.
-    """
-    from vllm import SamplingParams
-    from vllm.lora.request import LoRARequest
+    """Generate k candidates per ASIN in batches and apply the content checks."""
     import re
 
     def tokenize(text: str) -> List[str]:
@@ -324,42 +381,94 @@ def generate_candidates(attrs_list: List[Dict[str, str]],
 
     llm = get_or_create_llm()
     prompts = [_build_sft_prompt(attrs) for attrs in attrs_list]
+    all_cands: List[List[Dict]] = []
 
-    sampling_params = SamplingParams(
+    if _GENERATION_BACKEND == "transformers":
+        import torch
+
+        tokenizer = _HF_TOKENIZER
+        for start in range(0, len(prompts), HF_BATCH_SIZE):
+            batch_prompts = prompts[start:start + HF_BATCH_SIZE]
+            batch_attrs = attrs_list[start:start + HF_BATCH_SIZE]
+            encoded = tokenizer(
+                batch_prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            )
+            device = next(llm.parameters()).device
+            encoded = {key: value.to(device) for key, value in encoded.items()}
+            prompt_width = encoded["input_ids"].shape[1]
+            with torch.inference_mode():
+                generated = llm.generate(
+                    **encoded,
+                    max_new_tokens=SFT_POOL_MAX_NEW_TOKENS,
+                    do_sample=True,
+                    temperature=SFT_POOL_TEMP,
+                    top_p=SFT_POOL_TOP_P,
+                    num_return_sequences=k,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                )
+            for batch_idx, attrs in enumerate(batch_attrs):
+                seqs = generated[batch_idx * k:(batch_idx + 1) * k,
+                                 prompt_width:]
+                cands = []
+                for token_ids in seqs:
+                    ids = token_ids.tolist()
+                    if tokenizer.eos_token_id in ids:
+                        ids = ids[:ids.index(tokenizer.eos_token_id)]
+                    text = tokenizer.decode(
+                        ids, skip_special_tokens=True).strip().split("\n")[0].strip()
+                    cov, miss, rep, extras = check_content(text, attrs)
+                    cands.append({
+                        "text": text,
+                        "cov": cov,
+                        "missing": miss,
+                        "repeated": rep,
+                        "extras": extras,
+                        "pass": len(miss) == 0 and not rep,
+                        "n_words": len(tokenize(text)),
+                        "n_tokens": len(ids),
+                    })
+                all_cands.append(cands)
+        return all_cands
+
+
+    sampling_params = _VLLM_SAMPLING_PARAMS(
         n=k,
         temperature=SFT_POOL_TEMP,
         top_p=SFT_POOL_TOP_P,
         max_tokens=SFT_POOL_MAX_NEW_TOKENS,
-        stop=["<|im_end|>", "\n\n"],  # 防止 model 续写 system echo
+        stop=["<|im_end|>", "\n\n"],
     )
-    lora_request = LoRARequest("sft_adapter", 1, str(SFT_ADAPTER_DIR))
-
+    lora_request = _VLLM_LORA_REQUEST("sft_adapter", 1, str(SFT_ADAPTER_DIR))
     t0 = time.time()
     log(f"  starting vLLM generate: {len(prompts)} prompts × n={k} "
         f"= {len(prompts)*k} candidates")
-    outputs = llm.generate(prompts, sampling_params, lora_request=lora_request,
-                           use_tqdm=True)
+    outputs = llm.generate(
+        prompts, sampling_params, lora_request=lora_request, use_tqdm=True)
     log(f"  vLLM generate done in {time.time()-t0:.1f}s")
 
-    all_cands: List[List[Dict]] = []
     for attrs, out in zip(attrs_list, outputs):
         cands = []
         for choice in out.outputs:
             text = choice.text.strip().split("\n")[0].strip()
             cov, miss, rep, extras = check_content(text, attrs)
-            content_pass = (len(miss) == 0 and not rep)
             cands.append({
                 "text": text,
                 "cov": cov,
                 "missing": miss,
                 "repeated": rep,
                 "extras": extras,
-                "pass": content_pass,
+                "pass": len(miss) == 0 and not rep,
                 "n_words": len(tokenize(text)),
                 "n_tokens": len(choice.token_ids),
             })
         all_cands.append(cands)
     return all_cands
+
+
 
 
 def main_task_body():
@@ -395,7 +504,7 @@ def main_task_body():
                    if a in cached_pool and len(cached_pool[a]) >= MIN_KEPT_QUERIES]
     fresh_asins = [a for a in eval_asins if a not in reuse_asins]
     # 2026-09-18: 加载 raw_per_asin cache (前次崩溃留下来的 raw candidates)
-    raw_cache_path = OUT_DIR / "raw_per_asin_cache.json"
+    raw_cache_path = RAW_CACHE_PATH
     raw_per_asin_cache: dict[str, list] = {}
     if raw_cache_path.exists():
         try:
@@ -452,16 +561,15 @@ def main_task_body():
                 # 2026-09-19: dump 时合并已有 raw_per_asin_cache + fresh_asins 新 raw,
                 # 避免覆盖丢失 reuse_asins 的 raw 数据。
                 _dump_existing: Dict[str, list] = {}
-                if (OUT_DIR / "raw_per_asin_cache.json").exists():
+                if RAW_CACHE_PATH.exists():
                     try:
-                        _dump_existing = json.load(
-                            open(OUT_DIR / "raw_per_asin_cache.json"))
+                        _dump_existing = json.load(open(RAW_CACHE_PATH))
                     except Exception:
                         _dump_existing = {}
                 _dump = dict(_dump_existing)
                 for i, asin in enumerate(fresh_asins):
                     _dump[asin] = [c["text"] for c in raw_per_asin[i]]
-                with open(OUT_DIR / "raw_per_asin_cache.json", "w") as _dcf:
+                with open(RAW_CACHE_PATH, "w") as _dcf:
                     json.dump(_dump, _dcf, ensure_ascii=False)
                 # 同时 dump filter pass 的部分 pool (fresh + reuse 都包含)
                 # 2026-09-19: 同步更新 kept_per_asin 让 regen rounds 不再选已 pass ASINs
@@ -537,16 +645,15 @@ def main_task_body():
                 try:
                     # 2026-09-19: dump 时合并已有 raw_per_asin_cache + fresh_asins 新 raw
                     _dump_existing: Dict[str, list] = {}
-                    if (OUT_DIR / "raw_per_asin_cache.json").exists():
+                    if RAW_CACHE_PATH.exists():
                         try:
-                            _dump_existing = json.load(
-                                open(OUT_DIR / "raw_per_asin_cache.json"))
+                            _dump_existing = json.load(open(RAW_CACHE_PATH))
                         except Exception:
                             _dump_existing = {}
                     dump = dict(_dump_existing)
                     for i, asin in enumerate(fresh_asins):
                         dump[asin] = [c["text"] for c in raw_per_asin[i]]
-                    with open(OUT_DIR / "raw_per_asin_cache.json", "w") as _dcf:
+                    with open(RAW_CACHE_PATH, "w") as _dcf:
                         json.dump(dump, _dcf, ensure_ascii=False)
                     _pool_partial = {fresh_asins[i]: kept_per_asin[i]
                                      for i in range(len(fresh_asins))
@@ -660,12 +767,13 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SFT_ADAPTER_DIR, STAGE04_PATH  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SFT_ADAPTER_DIR, STAGE04_PATH, STAGE05_PATH, RAW_CACHE_PATH  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
-                 "META_FILE", "OUT_DIR", "OUT_PATH", "SFT_ADAPTER_DIR", "STAGE04_PATH"}
+                 "META_FILE", "OUT_DIR", "OUT_PATH", "SFT_ADAPTER_DIR", "STAGE04_PATH",
+                 "STAGE05_PATH", "RAW_CACHE_PATH"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -688,13 +796,18 @@ def main() -> None:
             }[subdir]
         if "OUT_DIR" in saved:
             OUT_DIR = base_out / subdir
+        if "RAW_CACHE_PATH" in saved:
+            RAW_CACHE_PATH = RAW_CACHE_ROOT / subdir / "raw_per_asin_cache.json"
         if "OUT_PATH" in saved:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "SFT_ADAPTER_DIR" in saved:
             SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model" / subdir / saved["SFT_ADAPTER_DIR"].name
         if "STAGE04_PATH" in saved:
             STAGE04_PATH = REPO_ROOT / "result/04_gaussian" / subdir / saved["STAGE04_PATH"].name
+        if "STAGE05_PATH" in saved:
+            STAGE05_PATH = REPO_ROOT / "result/05_gaussian_audit" / subdir / saved["STAGE05_PATH"].name
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
+        RAW_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True) if "RAW_CACHE_PATH" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         SFT_ADAPTER_DIR.mkdir(parents=True, exist_ok=True) if "SFT_ADAPTER_DIR" in saved else None
         STAGE04_PATH.parent.mkdir(parents=True, exist_ok=True) if "STAGE04_PATH" in saved else None

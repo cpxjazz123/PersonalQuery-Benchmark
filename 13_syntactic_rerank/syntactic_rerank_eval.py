@@ -969,14 +969,14 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE11_OUT, STAGE11_TOPK_DIR, STAGE8_SEL, TYPO_PAIRS, ASIN_TO_DOC  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE11_OUT, STAGE11_TOPK_DIR, STAGE8_SEL, TYPO_PAIRS, ASIN_TO_DOC, STAGE11_PER_QUERY  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
                  "META_FILE", "OUT_DIR", "OUT_PATH",
                  "STAGE11_OUT", "STAGE11_TOPK_DIR", "STAGE8_SEL",
-                 "TYPO_PAIRS", "ASIN_TO_DOC"}
+                 "TYPO_PAIRS", "ASIN_TO_DOC", "STAGE11_PER_QUERY"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -1011,6 +1011,8 @@ def main() -> None:
             TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
         if "ASIN_TO_DOC" in saved:
             ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC"].name
+        if "STAGE11_PER_QUERY" in saved:
+            STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         STAGE11_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_OUT" in saved else None
@@ -1018,6 +1020,7 @@ def main() -> None:
         STAGE8_SEL.parent.mkdir(parents=True, exist_ok=True) if "STAGE8_SEL" in saved else None
         TYPO_PAIRS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_PAIRS" in saved else None
         ASIN_TO_DOC.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC" in saved else None
+        STAGE11_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_PER_QUERY" in saved else None
         try:
             main_task_body()
         except Exception as e:

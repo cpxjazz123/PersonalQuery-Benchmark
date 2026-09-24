@@ -61,6 +61,7 @@ TYPO_TOPK_DIR = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
 STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
+STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/per_query.json"
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/14_typo_rerank/<subdir>/.
 CATEGORY_INPUTS = [
@@ -562,14 +563,15 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE12_OUT, STAGE11_OUT, TYPO_TOPK_DIR, TYPO_PAIRS, ASIN_TO_DOC, STAGE12_PER_QUERY  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE12_OUT, STAGE11_OUT, TYPO_TOPK_DIR, TYPO_PAIRS, ASIN_TO_DOC, STAGE12_PER_QUERY, STAGE11_PER_QUERY, STAGE13_RESULTS_DIR  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
                  "META_FILE", "OUT_DIR", "OUT_PATH",
                  "STAGE12_OUT", "STAGE11_OUT", "TYPO_TOPK_DIR",
-                 "TYPO_PAIRS", "ASIN_TO_DOC", "STAGE12_PER_QUERY"}
+                 "TYPO_PAIRS", "ASIN_TO_DOC", "STAGE12_PER_QUERY",
+                 "STAGE11_PER_QUERY", "STAGE13_RESULTS_DIR"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -606,6 +608,10 @@ def main() -> None:
             ASIN_TO_DOC = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC"].name
         if "STAGE12_PER_QUERY" in saved:
             STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation" / subdir / saved["STAGE12_PER_QUERY"].name
+        if "STAGE11_PER_QUERY" in saved:
+            STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
+        if "STAGE13_RESULTS_DIR" in saved:
+            STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank" / subdir
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         STAGE12_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE12_OUT" in saved else None
@@ -614,6 +620,15 @@ def main() -> None:
         TYPO_PAIRS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_PAIRS" in saved else None
         ASIN_TO_DOC.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC" in saved else None
         STAGE12_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "STAGE12_PER_QUERY" in saved else None
+        STAGE11_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_PER_QUERY" in saved else None
+        STAGE13_RESULTS_DIR.mkdir(parents=True, exist_ok=True) if "STAGE13_RESULTS_DIR" in saved else None
+        # Imported helpers execute in syntactic_rerank_eval's module globals.
+        # Synchronize those globals before calling them for this category.
+        import syntactic_rerank_eval as base_mod
+        base_mod.ASIN_TO_DOC = ASIN_TO_DOC
+        base_mod.STAGE11_PER_QUERY = STAGE11_PER_QUERY
+        base_mod.STAGE11_OUT = STAGE11_OUT
+        base_mod.OUT_DIR = STAGE13_RESULTS_DIR
         try:
             main_task_body()
         except Exception as e:

@@ -139,20 +139,6 @@ def _svdmlp_extract_struct_rules(doc):
 extract_struct_rules = _svdmlp_extract_struct_rules  # alias for svdmlp encoding pipeline
 
 
-class _svdmlp_StyleMLP(nn.Module):
-    def __init__(self, in_dim: int, hidden: int, out_dim: int):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden, out_dim),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
-
-
-StyleMLP = _svdmlp_StyleMLP
 
 
 def _svdmlp_query_cache_key(vocab: list[str], cohort_filter_signature: str) -> str:
@@ -445,9 +431,20 @@ def _fit_coral_one(z_q_asin: np.ndarray, z_r_asin: np.ndarray,
     K = z_q_asin.shape[1]
     mu_q = z_q_asin.mean(axis=0).astype(np.float32)
     mu_r = z_r_asin.mean(axis=0).astype(np.float32)
-    Cq = np.cov(z_q_asin.astype(np.float64), rowvar=False) + 0.0
-    Cr = np.cov(z_r_asin.astype(np.float64), rowvar=False) + 0.0
-    eps = float(np.trace(Cq) / K) * epsilon_rel
+    def _covariance(x: np.ndarray) -> np.ndarray:
+        # np.cov returns a scalar for a single observation.  Stage 07
+        # selection can legitimately leave one query/user for an ASIN, for
+        # which the unbiased covariance is the zero matrix.
+        if x.shape[0] <= 1:
+            return np.zeros((K, K), dtype=np.float64)
+        cov = np.asarray(np.cov(x.astype(np.float64), rowvar=False), dtype=np.float64)
+        if cov.ndim == 0:
+            return np.zeros((K, K), dtype=np.float64)
+        return cov.reshape(K, K)
+
+    Cq = _covariance(z_q_asin)
+    Cr = _covariance(z_r_asin)
+    eps = max(float(np.trace(Cq) / K) * epsilon_rel, 1e-6)
     Cr_reg = Cr + eps * np.eye(K, dtype=np.float64)
     Cq_reg = Cq + eps * np.eye(K, dtype=np.float64)
     w_r, V_r = np.linalg.eigh((Cr_reg + Cr_reg.T) / 2)
@@ -509,11 +506,18 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
 
     _svdmlp_log("=== Per-ASIN CORAL auto-fit (cache/npz missing) ===")
 
-    # Load z_profile_review
-    zrp = np.load(Z_PROFILE_POOL)
-    z_r_user = zrp["z"].astype(np.float32)            # (n_user, K)
-    uid_idx_r = zrp["uid_idx"]                         # index into strict3 uid_list
-    _svdmlp_log(f"  z_profile_review: {z_r_user.shape}")
+    # The Gaussian mean is exactly the per-user mean of the Stage 03b
+    # profile-review embeddings.  Reading it from the category Gaussian keeps
+    # CORAL on the same encoder/cache and avoids a stale Baby-only side asset.
+    with open(GAUSSIAN_PATH) as f:
+        gaussian_users = json.load(f)["users"]
+    review_uid_order = sorted(gaussian_users)
+    z_r_user = np.asarray(
+        [gaussian_users[uid]["mu"] for uid in review_uid_order],
+        dtype=np.float32,
+    )
+    real_uid_to_zr_row = {uid: i for i, uid in enumerate(review_uid_order)}
+    _svdmlp_log(f"  Gaussian profile-review means: {z_r_user.shape}")
 
     # Build flat_records in pool order, plus rule2idx
     rule2idx = {r: i for i, r in enumerate(vocab)}
@@ -594,17 +598,10 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
     for i, asin in enumerate(query_asin_kept):
         asin_to_qrows.setdefault(asin, []).append(i)
 
-    # asin -> cohort3-trained user indices in z_r_user
-    asin_to_users_raw = json.load(open(ASIN_TO_USERS))
-    trained_uid_set = set(json.load(open(TRAINED_UIDS_PATH)))
-    npz_strict3 = np.load(STRICT3_NPZ, allow_pickle=False)
-    uid_list = np.asarray(npz_strict3["uid_list"], dtype=object)
-    real_uid_to_zr_row: dict[str, int] = {}
-    for i in range(len(uid_idx_r)):
-        real_uid = str(uid_list[int(uid_idx_r[i])])
-        if real_uid in trained_uid_set:
-            real_uid_to_zr_row[real_uid] = i
-    _svdmlp_log(f"  cohort3-trained users with z_r_user: {len(real_uid_to_zr_row)}")
+    # asin -> fitted Gaussian-user indices in z_r_user
+    with open(ASIN_TO_USERS, "rb") as f:
+        asin_to_users_raw = pickle.load(f)
+    _svdmlp_log(f"  fitted users with profile-review means: {len(real_uid_to_zr_row)}")
     asin_to_ruser: dict[str, list[int]] = {}
     for asin, uids in asin_to_users_raw.items():
         r_idx_list = [real_uid_to_zr_row[u] for u in uids if u in real_uid_to_zr_row]
@@ -726,17 +723,26 @@ def main_task_body() -> None:
         # cohort3 ckpt is raw state_dict (saved via torch.save(enc.state_dict(), ...))
         state_dict = ckpt
         mlp_cfg = {}
-    mlp = StyleMLP(
-        in_dim=mlp_cfg.get("svd_dim") or mlp_cfg.get("in_dim") or SVD_DIM,
-        hidden=mlp_cfg.get("hidden") or 128,
-        out_dim=mlp_cfg.get("out_dim") or LATENT_DIM,
-    ).to(DEVICE)
+    mlp = StyleMLP().to(DEVICE)
     mlp.load_state_dict(state_dict)
     _svdmlp_log(f"  mlp: in={mlp_cfg.get('svd_dim')} hidden={mlp_cfg.get('hidden')} "
         f"out={mlp_cfg.get('out_dim')}")
 
     _svdmlp_log("loading pool queries")
-    pool = json.load(open(POOL_PATH))["pool"]
+    pool_doc = json.load(open(POOL_PATH))
+    # Accept both the canonical {"pool": ...} wrapper and the direct
+    # dictionary emitted by the transformers fallback. Normalize candidate
+    # records to query strings for the selection pipeline.
+    pool_raw = pool_doc.get("pool", pool_doc) if isinstance(pool_doc, dict) else {}
+    pool = {}
+    for asin, candidates in pool_raw.items():
+        normalized = []
+        for candidate in candidates:
+            text = candidate.get("text") if isinstance(candidate, dict) else candidate
+            if isinstance(text, str) and text.strip():
+                normalized.append(text.strip())
+        if normalized:
+            pool[asin] = normalized
     asin_to_users = pickle.load(open(ASIN_USERS_PATH, "rb"))
     _svdmlp_log(f"  pool: {len(pool)} ASINs")
 
@@ -1014,7 +1020,7 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS, SVD_COMPONENTS, SVD_NPZ, MLP_ENCODER, MLP_PT, VOCAB_PATH, TRAINED_UIDS_PATH, STRICT3_NPZ, CORAL_ART_DIR, CORAL_ASIN_PATH  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -1027,6 +1033,20 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         _svdmlp_log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
+        cache_dir = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+        SVD_COMPONENTS = str(cache_dir / "svd_components.npz")
+        SVD_NPZ = SVD_COMPONENTS
+        VOCAB_PATH = str(cache_dir / "vocab.json")
+        MLP_ENCODER = str(REPO_ROOT / "result/03_spacy_encode" / subdir /
+                          "cohort2_mlp16_30_30ep.pt")
+        MLP_PT = MLP_ENCODER
+        TRAINED_UIDS_PATH = (REPO_ROOT / "result/03_spacy_encode" / subdir /
+                             "cohort3_trained_uids.json")
+        STRICT3_NPZ = cache_dir / "strict3_embeddings.npz"
+        CORAL_ART_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                         f"coral_asin_cohort2_mlp16_30_{subdir}")
+        CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
+        CORAL_ASIN_PATH = str(CORAL_ART_DIR / "coral_asin_cohort2_mlp16_30.npz")
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:

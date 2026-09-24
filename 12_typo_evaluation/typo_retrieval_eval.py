@@ -47,6 +47,10 @@ TOPK_SAVE_K = 100
 SMOKE = False  # full run over all Stage 10 typo pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
+STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
+STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
+ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
+META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/12_typo_evaluation/<subdir>/.
 CATEGORY_INPUTS = [
@@ -77,14 +81,27 @@ def _load_retrieval_module():
     )
     mod = importlib.util.module_from_spec(spec)
     mod.REPO_ROOT = REPO_ROOT
-    mod.ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation/asin_to_doc.json"
-    mod.META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
-    mod.SEL_IN = REPO_ROOT / "result/08_select_query/selected_queries.json"
+    mod.ASIN_TO_DOC_CACHE = ASIN_TO_DOC_CACHE
+    mod.META_FILE = META_FILE
+    mod.SEL_IN = STAGE11_SEL_PATH
     mod.PER_QUERY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/per_query_stage11.json")
     mod.SUMMARY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/retrieval_summary_stage11.json")
     mod.VOLATILITY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/volatility_stage11.json")
     mod.EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
     spec.loader.exec_module(mod)
+    # The imported script assigns its defaults during execution, so apply the
+    # current category again after exec_module.
+    mod.ASIN_TO_DOC_CACHE = ASIN_TO_DOC_CACHE
+    mod.META_FILE = META_FILE
+    mod.SEL_IN = STAGE11_SEL_PATH
+    mod.RESULT_DIR = OUT_PER_QUERY.parent
+    mod.PER_QUERY_OUT = OUT_PER_QUERY.parent / "stage11_per_query_unused.json"
+    mod.SUMMARY_OUT = OUT_PER_QUERY.parent / "stage11_summary_unused.json"
+    mod.VOLATILITY_OUT = OUT_PER_QUERY.parent / "stage11_volatility_unused.json"
+    mod.TOPK_SAVE_DIR = STAGE11_TOPK_DIR
+    mod.EMBED_CACHE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                           "gaussian_vades/multiretrieval_embeds" /
+                           OUT_PER_QUERY.parent.name)
     return mod
 
 
@@ -121,7 +138,7 @@ def main_task_body():
 
     if len(pairs) == 0:
         log(f"  no typo pairs to evaluate (Stage 10 injected 0). writing empty summary.")
-        out_path = REPO_ROOT / "result/12_typo_evaluation/typo_paired_summary.json"
+        out_path = OUT_PER_QUERY.parent / "typo_paired_summary.json"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w") as f:
             json.dump({
@@ -139,7 +156,7 @@ def main_task_body():
     asins = sorted(asin_to_doc.keys())
     asin_to_idx = {a: i for i, a in enumerate(asins)}
     corpus_texts = [asin_to_doc[a] for a in asins]
-    corpus_sig = retr_mod._corpus_signature(meta_file=retr_mod.META_FILE)
+    corpus_sig = retr_mod._corpus_signature(asin_to_doc=asin_to_doc, meta_file=retr_mod.META_FILE)
     log(f"  corpus: {len(asins)} ASINs  sig={corpus_sig}")
 
     # ---- Build records and typo queries (orig will be loaded from Stage 11 cache) ----
@@ -169,8 +186,6 @@ def main_task_body():
     # Stage 11 selection has 1947 entries (asin, query); Stage 10 typo has 1912 (subset).
     # Need to map each typo pair's original_query → its position in Stage 11 selection
     # to load the right row from Stage 11 top-100 cache.
-    STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
-    STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
     with open(STAGE11_SEL_PATH) as f:
         sel = json.load(f)
     sel_entries = []  # [(asin, query_text), ...] in Stage 11 retrieval order
@@ -350,14 +365,15 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO, STAGE11_TOPK_DIR, STAGE11_SEL_PATH, ASIN_TO_DOC_CACHE  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
         if k in {"SENT_CACHE", "UID_TO_SENTS", "ASIN_USERS_PATH", "ATTRIBUTES_PATH",
                  "META_FILE", "OUT_DIR", "OUT_PATH",
                  "OUT_PER_QUERY", "OUT_DEGRADATION",
-                 "TYPO_RESULTS", "TOPK_DIR_ORIG", "TOPK_DIR_TYPO"}
+                 "TYPO_RESULTS", "TOPK_DIR_ORIG", "TOPK_DIR_TYPO",
+                 "STAGE11_TOPK_DIR", "STAGE11_SEL_PATH", "ASIN_TO_DOC_CACHE"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -392,6 +408,12 @@ def main() -> None:
             TOPK_DIR_ORIG = base_out / subdir / saved["TOPK_DIR_ORIG"].name
         if "TOPK_DIR_TYPO" in saved:
             TOPK_DIR_TYPO = base_out / subdir / saved["TOPK_DIR_TYPO"].name
+        if "STAGE11_TOPK_DIR" in saved:
+            STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_TOPK_DIR"].name
+        if "STAGE11_SEL_PATH" in saved:
+            STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE11_SEL_PATH"].name
+        if "ASIN_TO_DOC_CACHE" in saved:
+            ASIN_TO_DOC_CACHE = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["ASIN_TO_DOC_CACHE"].name
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         OUT_PER_QUERY.parent.mkdir(parents=True, exist_ok=True) if "OUT_PER_QUERY" in saved else None
@@ -399,6 +421,9 @@ def main() -> None:
         TYPO_RESULTS.parent.mkdir(parents=True, exist_ok=True) if "TYPO_RESULTS" in saved else None
         TOPK_DIR_ORIG.mkdir(parents=True, exist_ok=True) if "TOPK_DIR_ORIG" in saved else None
         TOPK_DIR_TYPO.mkdir(parents=True, exist_ok=True) if "TOPK_DIR_TYPO" in saved else None
+        STAGE11_TOPK_DIR.mkdir(parents=True, exist_ok=True) if "STAGE11_TOPK_DIR" in saved else None
+        STAGE11_SEL_PATH.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_SEL_PATH" in saved else None
+        ASIN_TO_DOC_CACHE.parent.mkdir(parents=True, exist_ok=True) if "ASIN_TO_DOC_CACHE" in saved else None
         try:
             main_task_body()
         except Exception as e:
