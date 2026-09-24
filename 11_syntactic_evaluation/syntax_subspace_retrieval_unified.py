@@ -117,7 +117,7 @@ EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multir
 
 # 2026-09-19: Top-100 candidates cache for each retriever (used by Stage 11/12 LLM rerank).
 # Each retriever writes <topk_save_dir>/<retr_name>_top100.npz with key 'topk_asins' (n_queries, 100).
-TOPK_SAVE_DIR = RESULT_DIR / "top100_cache"
+TOPK_SAVE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
 TOPK_SAVE_K = 100
 
 # 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
@@ -1321,7 +1321,8 @@ def main() -> None:
         if "VOLATILITY_OUT" in saved:
             VOLATILITY_OUT = base_out / subdir / saved["VOLATILITY_OUT"].name
         if "TOPK_SAVE_DIR" in saved:
-            TOPK_SAVE_DIR = base_out / subdir / saved["TOPK_SAVE_DIR"].name
+            TOPK_SAVE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+                             / subdir / saved["TOPK_SAVE_DIR"].name)
         if "EMBED_CACHE_DIR" in saved:
             EMBED_CACHE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
                                "gaussian_vades/multiretrieval_embeds" / subdir)

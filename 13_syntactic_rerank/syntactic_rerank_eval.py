@@ -32,7 +32,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 STAGE11_OUT = OUT_DIR / "llm_rerank_results.json"
 TYPO_OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 
-STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
+STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
 STAGE8_SEL = REPO_ROOT / "result/08_select_query/selected_queries.json"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
@@ -1011,7 +1011,8 @@ def main() -> None:
         if "STAGE11_OUT" in saved:
             STAGE11_OUT = base_out / subdir / saved["STAGE11_OUT"].name
         if "STAGE11_TOPK_DIR" in saved:
-            STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_TOPK_DIR"].name
+            STAGE11_TOPK_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+                                / subdir / saved["STAGE11_TOPK_DIR"].name)
         if "STAGE8_SEL" in saved:
             STAGE8_SEL = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE8_SEL"].name
         if "TYPO_PAIRS" in saved:

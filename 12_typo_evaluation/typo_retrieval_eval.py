@@ -39,15 +39,15 @@ OUT_DEGRADATION = REPO_ROOT / "result/12_typo_evaluation/retrieval_degradation.j
 
 # 2026-09-19: top-100 cache for orig and typo queries (used by Stage 12 LLM rerank).
 # Two parallel directories keyed by query type (orig vs typo).
-TOPK_DIR_ORIG = REPO_ROOT / "result/12_typo_evaluation/top100_cache_orig"
-TOPK_DIR_TYPO = REPO_ROOT / "result/12_typo_evaluation/top100_cache_typo"
+TOPK_DIR_ORIG = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_orig")
+TOPK_DIR_TYPO = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_typo")
 TOPK_SAVE_K = 100
 
 # Hardcoded (Rule 3)
 SMOKE = False  # full run over all Stage 10 typo pairs
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
-STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation/top100_cache"
+STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
 STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
 ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
@@ -405,11 +405,14 @@ def main() -> None:
         if "TYPO_RESULTS" in saved:
             TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_RESULTS"].name
         if "TOPK_DIR_ORIG" in saved:
-            TOPK_DIR_ORIG = base_out / subdir / saved["TOPK_DIR_ORIG"].name
+            TOPK_DIR_ORIG = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache")
+                             / subdir / saved["TOPK_DIR_ORIG"].name)
         if "TOPK_DIR_TYPO" in saved:
-            TOPK_DIR_TYPO = base_out / subdir / saved["TOPK_DIR_TYPO"].name
+            TOPK_DIR_TYPO = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache")
+                             / subdir / saved["TOPK_DIR_TYPO"].name)
         if "STAGE11_TOPK_DIR" in saved:
-            STAGE11_TOPK_DIR = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_TOPK_DIR"].name
+            STAGE11_TOPK_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+                                / subdir / saved["STAGE11_TOPK_DIR"].name)
         if "STAGE11_SEL_PATH" in saved:
             STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE11_SEL_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
