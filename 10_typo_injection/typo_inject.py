@@ -1278,8 +1278,6 @@ def _is_sample_user_historical_typo(
             sig = sigs.get(level)
             if sig is None:
                 continue
-            key = (orig_lower, sig)
-            from error_location import _default_rate_hierarchical as _dr
             # Need to look up directly — use the function above for level-specific
             forms = [f for (o, s), forms in user_model.get("transformation_history", {}).items()
                      for f in forms if o == orig_lower and s == sig]
