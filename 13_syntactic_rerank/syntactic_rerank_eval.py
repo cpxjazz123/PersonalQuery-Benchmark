@@ -314,12 +314,19 @@ def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client)
     flat = []
     keep = []
     pairs = []
+    prompt_started = time.time()
+    prompt_checkpoint_every = max(1, (len(queries_text) + 19) // 20)
+    log(f"  rerank prompt preparation start: {len(queries_text)} queries")
     for qi, qtext in enumerate(queries_text):
         for retrieval_rank, cand_asin in enumerate(topk_asins_list[qi], start=1):
             cand_doc = asin_to_doc[cand_asin].strip()[:240]
             flat.append(_build_reranker_prompt(qtext, cand_doc))
             keep.append((qi, cand_asin, retrieval_rank))
             pairs.append((qtext, cand_doc))
+        if (qi + 1) % prompt_checkpoint_every == 0 or qi + 1 == len(queries_text):
+            log(f"  rerank prompts prepared for {qi+1}/{len(queries_text)} queries "
+                f"({100 * (qi+1) / len(queries_text):.1f}%), "
+                f"elapsed={time.time() - prompt_started:.1f}s")
 
     log(f"  Rerank variant={RERANKER_VARIANT}: {len(flat)} prompts "
         f"({len(queries_text)} queries × top-{n_candidates})")

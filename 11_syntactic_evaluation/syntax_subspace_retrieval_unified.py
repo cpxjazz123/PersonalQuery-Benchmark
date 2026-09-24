@@ -284,7 +284,7 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
             log(f"  ⚠ tokens cache stale (sig/n_corpus mismatch), rebuilding...")
     if corpus_tokens is None:
         t0 = time.time()
-        corpus_tokens = bm25s.tokenize(corpus_texts, stopwords="en", show_progress=False)
+        corpus_tokens = bm25s.tokenize(corpus_texts, stopwords="en", show_progress=True)
         log(f"  corpus tokenized in {time.time() - t0:.1f}s")
         with open(tokens_path, "wb") as f:
             pickle.dump(corpus_tokens, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -308,7 +308,7 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
     if retriever is None:
         t0 = time.time()
         retriever = bm25s.BM25(method="lucene", k1=1.5, b=0.75)
-        retriever.index(corpus_tokens, show_progress=False)
+        retriever.index(corpus_tokens, show_progress=True)
         log(f"  index built in {time.time() - t0:.1f}s")
         if index_dir.exists():
             import shutil
@@ -318,15 +318,18 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
         log(f"  cached → {index_dir} (sig={current_sig}, n_corpus={n_corpus})")
 
     t0 = time.time()
-    query_tokens = bm25s.tokenize(queries, stopwords="en", show_progress=False)
+    query_tokens = bm25s.tokenize(queries, stopwords="en", show_progress=True)
     BM25_BATCH = 1000
+    n_batches = (len(queries) + BM25_BATCH - 1) // BM25_BATCH
+    progress_every = max(1, (n_batches + 19) // 20)
+    log(f"  BM25 retrieval start: {len(queries)} queries in {n_batches} batches")
     results = [None] * len(queries)
     topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
 
     def _slice_tok(tok, s, e):
         return type(tok)(tok.ids[s:e], tok.vocab)
 
-    for s in range(0, len(queries), BM25_BATCH):
+    for batch_num, s in enumerate(range(0, len(queries), BM25_BATCH), start=1):
         e = min(s + BM25_BATCH, len(queries))
         sub_tokens = _slice_tok(query_tokens, s, e)
         sub_res = retriever.retrieve(sub_tokens, k=bm25_k, show_progress=False)
@@ -338,6 +341,10 @@ def bm25_retrieve(queries: list[str], corpus_texts: list[str],
             results[gi] = rr_hit_from_rank(rank)
             if topk_buffer is not None:
                 topk_buffer.append(np.asarray(sorted_docs[:topk_k], dtype=np.int32))
+        if batch_num % progress_every == 0 or batch_num == n_batches:
+            log(f"  BM25 retrieval progress: {e}/{len(queries)} queries "
+                f"({batch_num}/{n_batches} batches), "
+                f"elapsed={time.time() - t0:.1f}s")
     log(f"  retrieved in {time.time() - t0:.1f}s")
     if save_topk_path is not None:
         save_topk_path.parent.mkdir(parents=True, exist_ok=True)
@@ -612,7 +619,7 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
     if corpus_embeds is None:
         log(f"  encoding {len(corpus_texts)} corpus (batch=128)...")
         t0 = time.time()
-        corpus_embeds = model.encode(corpus_texts, batch_size=128, show_progress_bar=False,
+        corpus_embeds = model.encode(corpus_texts, batch_size=128, show_progress_bar=True,
                                      convert_to_numpy=True, normalize_embeddings=True)
         log(f"  encoded in {time.time() - t0:.1f}s, shape={corpus_embeds.shape}")
         np.save(corpus_cache, corpus_embeds)
@@ -638,7 +645,7 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
     if q_embeds is None:
         log(f"  encoding {len(queries)} queries (batch=512)...")
         t0 = time.time()
-        q_embeds = model.encode(queries, batch_size=512, show_progress_bar=False,
+        q_embeds = model.encode(queries, batch_size=512, show_progress_bar=True,
                                 convert_to_numpy=True, normalize_embeddings=True)
         log(f"  encoded in {time.time() - t0:.1f}s, shape={q_embeds.shape}")
         np.save(query_cache, q_embeds)

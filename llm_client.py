@@ -218,7 +218,12 @@ class QwenLocalClient:
         """
         import math
         import torch
+        backend_started = time.time()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] "
+              f"score_pairs loading backend for {self.model}", flush=True)
         self._init_backend()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_pairs backend ready "
+              f"in {time.time() - backend_started:.1f}s", flush=True)
         if self.backend_kind != "transformers":
             raise RuntimeError(
                 f"score_pairs requires the transformers backend; "
@@ -235,9 +240,15 @@ class QwenLocalClient:
         scores: List[float] = []
         eos_id = tok.eos_token_id
         pad_id = tok.pad_token_id or eos_id
+        n_batches = (len(pairs) + batch_size - 1) // batch_size
+        started_at = last_log_at = time.time()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_pairs start: "
+              f"{len(pairs)} pairs in {n_batches} batches "
+              f"(batch_size={batch_size}, style={prompt_style})", flush=True)
 
         with torch.inference_mode():
-            for start in range(0, len(pairs), batch_size):
+            for batch_num, start in enumerate(
+                    range(0, len(pairs), batch_size), start=1):
                 batch = pairs[start:start + batch_size]
                 prompts = []
                 for q, d in batch:
@@ -281,6 +292,17 @@ class QwenLocalClient:
                     torch.exp(z_yes - m) + torch.exp(z_no - m)
                 )
                 scores.extend(p_yes.float().cpu().tolist())
+                now = time.time()
+                if batch_num == n_batches or now - last_log_at >= 30:
+                    processed = min(start + len(batch), len(pairs))
+                    print(f"[llm_client {time.strftime('%H:%M:%S')}] "
+                          f"score_pairs progress: {processed}/{len(pairs)} pairs "
+                          f"({batch_num}/{n_batches} batches), "
+                          f"elapsed={now - started_at:.1f}s", flush=True)
+                    last_log_at = now
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_pairs complete: "
+              f"{len(scores)}/{len(pairs)} pairs in "
+              f"{time.time() - started_at:.1f}s", flush=True)
         return scores
 
     def score_seqcls(self,
@@ -309,7 +331,12 @@ class QwenLocalClient:
         Larger score = more relevant. Forces the ``transformers`` backend.
         """
         import torch
+        backend_started = time.time()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] "
+              f"score_seqcls loading backend for {self.model}", flush=True)
         self._init_backend()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_seqcls backend ready "
+              f"in {time.time() - backend_started:.1f}s", flush=True)
         if self.backend_kind != "transformers":
             raise RuntimeError(
                 f"score_seqcls requires the transformers backend; "
@@ -327,8 +354,14 @@ class QwenLocalClient:
             model.config.pad_token_id = tok.pad_token_id
         model.eval()
         scores: List[float] = []
+        n_batches = (len(pairs) + batch_size - 1) // batch_size
+        started_at = last_log_at = time.time()
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_seqcls start: "
+              f"{len(pairs)} pairs in {n_batches} batches "
+              f"(batch_size={batch_size})", flush=True)
         with torch.inference_mode():
-            for start in range(0, len(pairs), batch_size):
+            for batch_num, start in enumerate(
+                    range(0, len(pairs), batch_size), start=1):
                 batch = pairs[start:start + batch_size]
                 qs = [query_prefix + q.strip() for q, _ in batch]
                 ds = [doc_prefix + d.strip() for _, d in batch]
@@ -348,6 +381,17 @@ class QwenLocalClient:
                         f"got shape {tuple(logits.shape)}"
                     )
                 scores.extend(logits[:, 0].float().cpu().tolist())
+                now = time.time()
+                if batch_num == n_batches or now - last_log_at >= 30:
+                    processed = min(start + len(batch), len(pairs))
+                    print(f"[llm_client {time.strftime('%H:%M:%S')}] "
+                          f"score_seqcls progress: {processed}/{len(pairs)} pairs "
+                          f"({batch_num}/{n_batches} batches), "
+                          f"elapsed={now - started_at:.1f}s", flush=True)
+                    last_log_at = now
+        print(f"[llm_client {time.strftime('%H:%M:%S')}] score_seqcls complete: "
+              f"{len(scores)}/{len(pairs)} pairs in "
+              f"{time.time() - started_at:.1f}s", flush=True)
         return scores
 
     def shutdown(self):

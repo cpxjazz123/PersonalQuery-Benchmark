@@ -1057,11 +1057,18 @@ def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str,
 
     n = len(texts)
     counts = np.zeros((n, vocab_size), dtype=np.float32)
+    encode_started = time.time()
+    checkpoint_every = max(1, (n + 19) // 20)
+    log(f"  spaCy encoding start: {n} texts, batch_size=256")
     for i, doc in enumerate(nlp.pipe(texts, batch_size=256)):
         for r in extract_struct_rules(doc):
             j = rule_to_id.get(r)
             if j is not None:
                 counts[i, j] = 1.0
+        if (i + 1) % checkpoint_every == 0 or i + 1 == n:
+            log(f"    spaCy encoded {i+1}/{n} texts "
+                f"({100 * (i+1) / n:.1f}%), "
+                f"elapsed={time.time() - encode_started:.1f}s")
     # Stage 08 uses binary rule presence with ROW_NORMALIZE=False.
     # 检测 encoder 类型
     is_style_mlp = "StyleMLP" in type(encoder).__name__
@@ -1176,20 +1183,26 @@ def _is_load_semantic_encoder():
     """Lazy-load MiniLM bi-encoder for semantic similarity."""
     global _semantic_encoder
     if _semantic_encoder is None:
+        t0 = time.time()
+        log(f"loading MiniLM semantic encoder: {SEMANTIC_MODEL_ID}")
         os.environ.setdefault("HF_HOME", str(SEMANTIC_CACHE_DIR))
         os.environ.setdefault("HF_HUB_CACHE", str(SEMANTIC_CACHE_DIR / "hub"))
         from sentence_transformers import SentenceTransformer
         _semantic_encoder = SentenceTransformer(SEMANTIC_MODEL_ID, device=ENCODER_DEVICE)
+        log(f"  MiniLM loaded in {time.time() - t0:.1f}s")
     return _semantic_encoder
 
 
 def _is_semantic_cosine(texts_a: List[str], texts_b: List[str]) -> np.ndarray:
     """Batch cosine similarity between paired MiniLM embeddings."""
     enc = _is_load_semantic_encoder()
+    t0 = time.time()
+    log(f"  MiniLM paired encoding start: {len(texts_a)} pairs, batch_size=64")
     ea = enc.encode(texts_a, normalize_embeddings=True,
-                    batch_size=64, show_progress_bar=False, convert_to_numpy=True)
+                    batch_size=64, show_progress_bar=True, convert_to_numpy=True)
     eb = enc.encode(texts_b, normalize_embeddings=True,
-                    batch_size=64, show_progress_bar=False, convert_to_numpy=True)
+                    batch_size=64, show_progress_bar=True, convert_to_numpy=True)
+    log(f"  MiniLM paired encoding complete in {time.time() - t0:.1f}s")
     return (ea * eb).sum(axis=1)
 
 
@@ -1391,6 +1404,8 @@ def _is_batch_gate(
     # Batch encode
     nlp_ = nlp if nlp is not None else _el_ensure_spacy()
     z_all = _is_encode_queries_32d(texts, nlp_, encoder, rule_to_id, vocab_size)
+    gate_started = time.time()
+    checkpoint_every = max(1, (len(items) + 19) // 20)
     for k, it in enumerate(items):
         z_orig = z_all[2 * k]
         z_inj = z_all[2 * k + 1]
@@ -1410,6 +1425,10 @@ def _is_batch_gate(
         # Mahalanobis is diagnostic-only for this stress test; do not reject typo
         # candidates based on the user Gaussian threshold.
         it["gaussian_pass"] = True
+        if (k + 1) % checkpoint_every == 0 or k + 1 == len(items):
+            log(f"    Gaussian gate processed {k+1}/{len(items)} pairs "
+                f"({100 * (k+1) / len(items):.1f}%), "
+                f"elapsed={time.time() - gate_started:.1f}s")
     return items
 
 

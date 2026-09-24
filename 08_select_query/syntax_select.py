@@ -621,7 +621,14 @@ def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
     n_skip_cond = 0
     n_skip_linalg = 0
     n_skip_short = 0
-    for asin in valid_asins:
+    coral_started = time.time()
+    coral_progress_every = max(1, (len(valid_asins) + 19) // 20)
+    _svdmlp_log(f"  per-ASIN CORAL fitting start: {len(valid_asins)} ASINs")
+    for asin_idx, asin in enumerate(valid_asins, start=1):
+        if asin_idx > 1 and (asin_idx - 1) % coral_progress_every == 0:
+            _svdmlp_log(f"    CORAL fit {asin_idx-1}/{len(valid_asins)} ASINs "
+                        f"({100 * (asin_idx-1) / len(valid_asins):.1f}%), "
+                        f"elapsed={time.time() - coral_started:.1f}s")
         q_idx = asin_to_qrows[asin]
         r_idx = asin_to_ruser[asin]
         if len(q_idx) < MIN_QUERIES_PER_ASIN or len(r_idx) < MIN_USERS_PER_ASIN:
@@ -819,12 +826,21 @@ def main_task_body() -> None:
     # re-deriving gate decisions.
     per_asin_records: dict[str, list[dict]] = {}
     n_no_user = 0
+    selection_started = time.time()
+    selection_total = len(flat_idx_for_row)
+    selection_progress_every = max(1, (selection_total + 19) // 20)
+    _svdmlp_log(f"  query scoring start: {selection_total} encoded queries")
     for ri, (z_row, flat_idx) in enumerate(zip(z_all, flat_idx_for_row)):
         asin, q_text, local_idx, _ = flat_records[flat_idx]
         user_list = asin_to_users.get(asin, [])
         cand_idx = [uid_idx[u] for u in user_list if u in uid_idx]
         if not cand_idx:
             n_no_user += 1
+            if (ri + 1) % selection_progress_every == 0 or ri + 1 == selection_total:
+                _svdmlp_log(f"    query scoring {ri+1}/{selection_total} "
+                            f"({100 * (ri+1) / selection_total:.1f}%), "
+                            f"no_user={n_no_user}, "
+                            f"elapsed={time.time() - selection_started:.1f}s")
             continue
         cand_idx_arr = np.asarray(cand_idx, dtype=np.int64)
         diff = z_row[None, :] - mu[cand_idx_arr]                          # (n_cand, D)
@@ -854,6 +870,11 @@ def main_task_body() -> None:
             "n_inside_per_q": n_inside_per_q,
             "query": q_text,
         })
+        if (ri + 1) % selection_progress_every == 0 or ri + 1 == selection_total:
+            _svdmlp_log(f"    query scoring {ri+1}/{selection_total} "
+                        f"({100 * (ri+1) / selection_total:.1f}%), "
+                        f"no_user={n_no_user}, "
+                        f"elapsed={time.time() - selection_started:.1f}s")
 
     _svdmlp_log(f"  queries with candidate: {sum(len(v) for v in per_asin_records.values())}/{len(flat_records)}")
 
