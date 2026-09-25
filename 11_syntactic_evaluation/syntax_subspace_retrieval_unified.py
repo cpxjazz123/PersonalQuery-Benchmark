@@ -173,7 +173,7 @@ BGE_M3_QUERY_BATCH = 512
 #   → keep B=64 to fit 46 GB VRAM with corpus up to 220 k docs.
 BGE_M3_HYBRID_CORPUS_BATCH = 64
 BGE_M3_HYBRID_QUERY_BATCH = 64
-BGE_M3_HYBRID_COLBERT_MAXLEN = 32  # cap token len to keep colbert matmul cheap
+BGE_M3_HYBRID_COLBERT_MAXLEN = 16  # cap token len to keep colbert matmul cheap
 BGE_M3_HYBRID_COLBERT_SCORE_BATCH = 4096  # corpus chunks per query in colbert matmul
 
 # ===========================================================================
@@ -835,25 +835,27 @@ def _bge_m3_encode_hybrid(model, texts: list[str], batch_size: int) -> dict:
     return {"dense": dense, "sparse": sparse, "colbert": colbert}
 
 
-def _sparse_to_csr(sparse_list: list, vocab: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Pack variable-length sparse dicts into CSR (data/indices/indptr) over fixed vocab."""
-    v2i = {int(t): i for i, t in enumerate(vocab.tolist())}
-    V = len(vocab)
+def _sparse_to_csr(sparse_list: list, vocab: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Pack variable-length sparse dicts into CSR (data/indices/indptr).
+
+    2026-09-26: indices now store the REAL BGE-M3 token ids (not column indices
+    into vocab). The vocab argument is kept for backward compatibility but is
+    ignored — we always produce a CSR whose column space is [0, max(token_id)+1).
+    Downstream sparse_mm uses the original BGE-M3 vocab (250002) so this is
+    consistent across corpus and queries.
+    """
     indptr = np.zeros(len(sparse_list) + 1, dtype=np.int64)
-    pairs: list[tuple[int, int, float]] = []
+    cols_list: list[int] = []
+    vals_list: list[float] = []
     for di, d in enumerate(sparse_list):
         for tok, w in d.items():
-            ti = v2i.get(int(tok))
-            if ti is None:
-                continue
-            pairs.append((di, ti, float(w)))
-        indptr[di + 1] = len(pairs)
-    if pairs:
-        rows = np.array([p[0] for p in pairs], dtype=np.int32)
-        cols = np.array([p[1] for p in pairs], dtype=np.int32)
-        vals = np.array([p[2] for p in pairs], dtype=np.float16)
+            cols_list.append(int(tok))  # real token id
+            vals_list.append(float(w))
+        indptr[di + 1] = len(cols_list)
+    if cols_list:
+        cols = np.array(cols_list, dtype=np.int32)
+        vals = np.array(vals_list, dtype=np.float16)
     else:
-        rows = np.zeros(0, dtype=np.int32)
         cols = np.zeros(0, dtype=np.int32)
         vals = np.zeros(0, dtype=np.float16)
     return vals, cols, indptr.astype(np.int32)
@@ -965,69 +967,48 @@ def _colbert_maxsim_chunked(
     chunk_size: int = BGE_M3_HYBRID_COLBERT_SCORE_BATCH,
     normalize: bool = True,
 ) -> torch.Tensor:
-    """ColBERT late-interaction score per query (B, corpus) by chunked matmul.
+    """Score flat-packed query/document token vectors with ColBERT MaxSim."""
+    B = q_lens.numel()
+    N = d_lens.numel()
+    device = q_packed.device
+    if B == 0 or N == 0:
+        return torch.zeros(B, N, dtype=torch.float32, device=device)
 
-    For each query q (lengths[i]), score against all docs d in chunks:
-        s(q, d) = sum_t max_j <q[t], d[j]>      (L2-normalized vectors)
-    Implementation: gather docs in chunk → (chunk, L_max_d, 1024) padded,
-    q × d.T (B, L_q, chunk, L_d), then max over L_d and sum over L_q.
-    Memory: ~B * L_q * chunk * L_d * 4 bytes for fp32 scores.
-    """
-    B = q_packed.shape[0]
-    N = d_packed.shape[0]
+    q_lens = q_lens.to(device=device, dtype=torch.long)
+    d_lens = d_lens.to(device=device, dtype=torch.long)
     Lq = int(q_lens.max().item())
-    Ld = int(d_lens.max().item()) if N > 0 else 0
-    if Lq == 0 or Ld == 0 or N == 0:
-        return torch.zeros(B, N, dtype=torch.float32, device=q_packed.device)
+    Ld = int(d_lens.max().item())
+    if Lq == 0 or Ld == 0:
+        return torch.zeros(B, N, dtype=torch.float32, device=device)
 
+    q_offsets = torch.cat((q_lens.new_zeros(1), q_lens.cumsum(0)))
+    d_offsets = torch.cat((d_lens.new_zeros(1), d_lens.cumsum(0)))
+    q_pos = torch.arange(Lq, device=device)
+    q_valid = q_pos.unsqueeze(0) < q_lens.unsqueeze(1)
+    q_idx = (q_offsets[:-1, None] + q_pos).clamp_(max=q_packed.shape[0] - 1)
+    q_pad = q_packed[q_idx].float()
     if normalize:
-        q_packed = q_packed / q_packed.norm(dim=-1, keepdim=True).clamp(min=1e-9)
-        d_packed = d_packed / d_packed.norm(dim=-1, keepdim=True).clamp(min=1e-9)
+        q_pad = q_pad / q_pad.norm(dim=-1, keepdim=True).clamp(min=1e-9)
 
-    out = torch.zeros(B, N, dtype=torch.float32, device=q_packed.device)
-    # Pad queries once: (B, Lq, 1024)
-    q_pad = torch.zeros(B, Lq, q_packed.shape[-1], dtype=torch.float32, device=q_packed.device)
-    q_mask = torch.zeros(B, Lq, dtype=torch.bool, device=q_packed.device)
-    q_offsets = torch.cat([torch.zeros(1, dtype=torch.long, device=q_packed.device),
-                           q_lens.cumsum(0).long()])
-    for i in range(B):
-        L = int(q_lens[i].item())
-        if L > 0:
-            q_pad[i, :L] = q_packed[q_offsets[i]:q_offsets[i] + L].float()
-            q_mask[i, :L] = True
-
-    # Iterate docs in chunks to bound memory
+    out = torch.zeros(B, N, dtype=torch.float32, device=device)
+    d_pos = torch.arange(Ld, device=device)
     for s in range(0, N, chunk_size):
         e = min(s + chunk_size, N)
-        # Pack docs (e-s, Ld, 1024)
-        d_pad = torch.zeros(e - s, Ld, d_packed.shape[-1], dtype=torch.float32,
-                            device=q_packed.device)
-        d_mask = torch.zeros(e - s, Ld, dtype=torch.bool, device=q_packed.device)
-        d_offsets = torch.cat([torch.zeros(1, dtype=torch.long, device=q_packed.device),
-                               d_lens.cumsum(0).long()])
-        for j in range(e - s):
-            di = s + j
-            L = int(d_lens[di].item())
-            if L > 0:
-                d_pad[j, :L] = d_packed[d_offsets[di]:d_offsets[di] + L].float()
-                d_mask[j, :L] = True
-        # scores: (B, Lq, e-s, Ld) → take max over Ld (masked) → (B, Lq, e-s) → sum over Lq
-        # bmm einsum: q_pad (B, Lq, 1024) @ d_pad.transpose(-1,-2) → (B, Lq, e-s, Ld)
-        scores = torch.einsum("bld,bqld->bqd", q_pad, d_pad)  # wrong shape
-        # correct: (B, Lq, 1024) x (chunk, Ld, 1024) → (B, Lq, chunk, Ld)
-        # Use einsum:
-        del scores
-        chunk_scores = torch.einsum("blf,clf->bcl",
-                                    q_pad.reshape(B * Lq, -1),
-                                    d_pad.reshape(e - s, Ld, -1))
-        # Wait: above gives (BLq, Cl). Reshape to (B, Lq, C, Ld).
-        chunk_scores = chunk_scores.view(B, Lq, e - s, Ld)
-        # mask out padding
-        chunk_scores = chunk_scores.masked_fill(~d_mask.unsqueeze(0).unsqueeze(0), -1e4)
-        chunk_scores = chunk_scores.masked_fill(~q_mask.unsqueeze(-1).unsqueeze(-1), 0.0)
-        maxsim, _ = chunk_scores.max(dim=-1)  # (B, Lq, chunk)
-        out[:, s:e] = maxsim.sum(dim=1)  # sum over Lq
-        del chunk_scores, maxsim, d_pad, d_mask
+        lens = d_lens[s:e]
+        d_valid = d_pos.unsqueeze(0) < lens.unsqueeze(1)
+        d_idx = (d_offsets[s:e, None] + d_pos).clamp_(max=d_packed.shape[0] - 1)
+        d_pad = d_packed[d_idx].float()
+        if normalize:
+            d_pad = d_pad / d_pad.norm(dim=-1, keepdim=True).clamp(min=1e-9)
+
+        # (B, Lq, C, Ld): query-token/document-token dot products.
+        scores = torch.einsum("btf,clf->btcl", q_pad, d_pad)
+        scores.masked_fill_(~d_valid[None, None, :, :], -1e4)
+        maxsim = scores.max(dim=-1).values
+        maxsim.masked_fill_(~q_valid[:, :, None], 0.0)
+        chunk_scores = maxsim.sum(dim=1)
+        chunk_scores.masked_fill_(lens[None, :] == 0, 0.0)
+        out[:, s:e] = chunk_scores
     return out
 
 
@@ -1086,6 +1067,11 @@ def bge_m3_hybrid_retrieve(queries: list[str], corpus_texts: list[str],
     )
 
     # ---------- 1. encode corpus ----------
+    # 2026-09-26: stream the corpus in fixed-size batches and write each
+    # artifact to disk + free Python references immediately. The original
+    # full-corpus BGEM3FlagModel.encode call kept 217710 × (L, 1024) fp32
+    # colbert tensors in RAM until the function returned, blowing past the
+    # 245 GB cgroup limit at ~83% corpus (OOM-killed at RSS=241 GB).
     have_dense = (corpus_dense.exists() and corpus_dense_sig.exists()
                   and corpus_dense_sig.read_text().strip() == corpus_sig)
     have_sparse = (sparse_corpus_npz.exists() and sparse_corpus_sig.exists()
@@ -1102,34 +1088,107 @@ def bge_m3_hybrid_retrieve(queries: list[str], corpus_texts: list[str],
         sparse_corpus_indptr = sparse_corpus_z["indptr"].astype(np.int64)
         colbert_corpus_packed, colbert_corpus_lens = _load_colbert_npz(colbert_corpus_npz)
     else:
+        import gc
+        BS = BGE_M3_HYBRID_CORPUS_BATCH
         log(f"  encoding {len(corpus_texts)} corpus with BGE-M3 hybrid "
-            f"(batch={BGE_M3_HYBRID_CORPUS_BATCH}, max_len={BGE_M3_HYBRID_COLBERT_MAXLEN})...")
-        out = _bge_m3_encode_hybrid(model, corpus_texts, BGE_M3_HYBRID_CORPUS_BATCH)
-        corpus_dense_arr = out["dense"]
-        sparse_raw = out["sparse"]
-        colbert_raw = out["colbert"]
-
+            f"(stream batch={BS}, max_len={BGE_M3_HYBRID_COLBERT_MAXLEN})...")
+        # Sparse corpus strategy: maintain (a) vocab: int id (the real BGE-M3
+        # token id, 0..250001), (b) per-batch local CSR — at end we write a
+        # single npz with global indices into the vocab. Vocab stays as the
+        # original BGE-M3 token ids (no remap) so that downstream sparse mm
+        # can keep using the original token id space.
+        corpus_dense_arr = (np.load(corpus_dense)
+                            if have_dense
+                            else np.zeros((len(corpus_texts), 1024), dtype=np.float32))
+        if have_sparse:
+            sparse_corpus_z = np.load(sparse_corpus_npz)
+            sparse_corpus_vocab = sparse_corpus_z["vocab"].astype(np.int64)
+            sparse_corpus_data = sparse_corpus_z["data"].astype(np.float16)
+            sparse_corpus_indices = sparse_corpus_z["indices"].astype(np.int32)
+            sparse_corpus_indptr = sparse_corpus_z["indptr"].astype(np.int64)
+            # vocab field now holds sorted unique BGE-M3 token ids actually used;
+            # indices are real token ids (not column indices into vocab). The CSR
+            # column space is [0, max_token_id+1) which downstream allocates.
+        else:
+            sparse_corpus_vocab = np.zeros(0, dtype=np.int64)
+            sparse_corpus_data = np.zeros(0, dtype=np.float16)
+            sparse_corpus_indices = np.zeros(0, dtype=np.int32)
+            sparse_corpus_indptr = np.zeros(0, dtype=np.int64)
+            # per-doc nnz counts to build indptr at the end
+            sparse_doc_nnz = np.zeros(len(corpus_texts), dtype=np.int64)
+        if have_colbert:
+            colbert_corpus_packed, colbert_corpus_lens = _load_colbert_npz(colbert_corpus_npz)
+        else:
+            colbert_tmp_packed = []
+            colbert_tmp_lens = np.zeros(len(corpus_texts), dtype=np.int32)
+        # main encode loop
+        t_corpus = time.time()
+        for b_start in range(0, len(corpus_texts), BS):
+            b_end = min(b_start + BS, len(corpus_texts))
+            chunk_texts = corpus_texts[b_start:b_end]
+            out = _bge_m3_encode_hybrid(model, chunk_texts, BS)
+            chunk_dense = out["dense"]
+            chunk_sparse = out["sparse"]
+            chunk_colbert = out["colbert"]
+            if not have_dense:
+                corpus_dense_arr[b_start:b_end] = chunk_dense
+            if not have_sparse:
+                # collect (token_id, weight, doc_local_idx) → append to flat arrays
+                rows_local = []
+                cols_tok = []
+                vals_w = []
+                for i, d in enumerate(chunk_sparse):
+                    for tok, w in d.items():
+                        ti = int(tok)
+                        rows_local.append(b_start + i)
+                        cols_tok.append(ti)  # store real BGE-M3 token id directly
+                        vals_w.append(float(w))
+                if rows_local:
+                    new_rows = np.array(rows_local, dtype=np.int64)
+                    new_cols = np.array(cols_tok, dtype=np.int32)
+                    new_vals = np.array(vals_w, dtype=np.float16)
+                    # use np.add.at to compute nnz per doc
+                    np.add.at(sparse_doc_nnz, new_rows, 1)
+                    sparse_corpus_indices = np.concatenate([sparse_corpus_indices, new_cols])
+                    sparse_corpus_data = np.concatenate([sparse_corpus_data, new_vals])
+                del rows_local, cols_tok, vals_w, new_rows, new_cols, new_vals
+            if not have_colbert:
+                packed_chunk, lens_chunk = _colbert_to_packed(chunk_colbert, BGE_M3_HYBRID_COLBERT_MAXLEN)
+                colbert_tmp_packed.append(packed_chunk)
+                colbert_tmp_lens[b_start:b_end] = lens_chunk
+            del out, chunk_dense, chunk_sparse, chunk_colbert
+            if b_start % (BS * 8) == 0:
+                elapsed = time.time() - t_corpus
+                eta = elapsed / max(1, b_end) * (len(corpus_texts) - b_end)
+                log(f"    encoded {b_end}/{len(corpus_texts)} "
+                    f"({100 * b_end / len(corpus_texts):.1f}%) "
+                    f"rate={b_end / elapsed:.0f}/s eta={eta:.0f}s")
+            gc.collect()
+        # finalize sparse: build indptr via cumsum, vocab = sorted unique token ids
+        if not have_sparse:
+            sparse_corpus_vocab = np.unique(sparse_corpus_indices).astype(np.int64)
+            sparse_corpus_indptr = np.zeros(len(corpus_texts) + 1, dtype=np.int64)
+            np.cumsum(sparse_doc_nnz, out=sparse_corpus_indptr[1:])
+            _save_sparse_npz(sparse_corpus_npz,
+                             sparse_corpus_data,
+                             sparse_corpus_indices,
+                             sparse_corpus_indptr.astype(np.int32),
+                             sparse_corpus_vocab)
+            sparse_corpus_sig.write_text(corpus_sig)
+            log(f"  cached → {sparse_corpus_npz} (vocab={sparse_corpus_vocab.shape}, nnz={sparse_corpus_data.shape})")
+            del sparse_doc_nnz
         if not have_dense:
             np.save(corpus_dense, corpus_dense_arr)
             corpus_dense_sig.write_text(corpus_sig)
             log(f"  cached → {corpus_dense} (shape={corpus_dense_arr.shape})")
-        if not have_sparse:
-            vocab = np.array(sorted({int(t) for d in sparse_raw for t in d.keys()}),
-                             dtype=np.int64)
-            data, indices, indptr = _sparse_to_csr(sparse_raw, vocab)
-            _save_sparse_npz(sparse_corpus_npz, data, indices, indptr.astype(np.int32), vocab)
-            sparse_corpus_sig.write_text(corpus_sig)
-            log(f"  cached → {sparse_corpus_npz} (vocab={vocab.shape}, nnz={data.shape})")
-            sparse_corpus_vocab, sparse_corpus_data = vocab, data.astype(np.float32)
-            sparse_corpus_indices, sparse_corpus_indptr = indices, indptr
         if not have_colbert:
-            packed, lens = _colbert_to_packed(colbert_raw, BGE_M3_HYBRID_COLBERT_MAXLEN)
-            _save_colbert_npz(colbert_corpus_npz, packed, lens)
+            colbert_corpus_packed = np.concatenate(colbert_tmp_packed, axis=0)
+            colbert_corpus_lens = colbert_tmp_lens
+            _save_colbert_npz(colbert_corpus_npz, colbert_corpus_packed, colbert_corpus_lens)
             colbert_corpus_sig.write_text(corpus_sig)
-            log(f"  cached → {colbert_corpus_npz} (n={len(lens)}, total_tokens={packed.shape})")
-            colbert_corpus_packed, colbert_corpus_lens = packed, lens
-        # free
-        del sparse_raw, colbert_raw
+            log(f"  cached → {colbert_corpus_npz} (n={len(colbert_corpus_lens)}, total_tokens={colbert_corpus_packed.shape})")
+            del colbert_tmp_packed
+        gc.collect()
 
     # ---------- 2. encode queries ----------
     have_qd = (query_dense.exists() and query_dense_sig.exists()

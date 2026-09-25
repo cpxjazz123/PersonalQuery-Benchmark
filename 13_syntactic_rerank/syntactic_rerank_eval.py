@@ -7,7 +7,7 @@ raises. Stage 11 / 12 retrieval pipelines must remain retrieval-only
 (no LLM calls). For each of the 7 retrievers in
 {bm25, splade, minilm, mpnet, bge_base_v15, gte_base, colbertv2}:
 
-    retriever Top-100 -> Qwen P(Yes) rerank on the first 20 -> top-20.
+    retriever Top-100 -> Qwen P(Yes) rerank on the first 25 -> top-25.
 
 The same LLM (Qwen via ``llm_client``), same prompt, same Top-100 depth,
 same scoring rule are used across retrievers. The LLM score has no
@@ -48,8 +48,8 @@ CATEGORY_INPUTS = [
 
 RETRIEVERS = ["bm25"]
 
-LLM_RERANK_TOPK = 20
-LLM_RERANK_CANDIDATES = 20
+LLM_RERANK_TOPK = 25
+LLM_RERANK_CANDIDATES = 25
 LLM_WEIGHT = 1.0
 RETRIEVAL_WEIGHT = 0.1
 # 兼容旧 λ sweep: 若代码里仍引用 RANK_PRIOR_LAMBDA,默认 2.0(本公式不再使用)
@@ -60,7 +60,7 @@ LLM_RERANK_BATCH = 1024
 LLM_RERANK_WINDOW = 20
 LLM_RERANK_STRIDE = 10
 LLM_RERANK_LISTWISE_MAX_TOKENS = 64
-KS = (1, 5, 10, 20)
+KS = (1, 5, 10, 20, 25)
 N_SMOKE = 5
 ONLY_BM25_SMOKE = True
 SMOKE = os.environ.get("STAGE13_SMOKE") == "1"
@@ -129,19 +129,6 @@ def _build_yes_no_prompt(query: str, doc_text: str) -> str:
         "Answer only: Yes or No\n"
         "Answer:"
     )
-
-
-def _resolve_yes_no_ids(client):
-    client._init_backend()
-    tokenizer = client._backend.get_tokenizer()
-
-    def _ids(token_strs):
-        ids = []
-        for s in token_strs:
-            ids.extend(tokenizer.encode(s, add_special_tokens=False))
-        return ids
-
-    return _ids([" Yes", "Yes", " yes", "yes"]), _ids([" No", "No", " no", "no"])
 
 
 _QWEN3_RERANKER_INSTRUCTION = (
@@ -378,22 +365,22 @@ def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client)
             )
         log(f"  RankLLaMA score_seqcls done in {time.time()-t0:.1f}s")
     else:
-        # Default (Qwen3) path: transformers score_pairs with the Qwen3
-        # chat-template prompt. vLLM was removed from the whitelist on
-        # 2026-09-22; this path serves Qwen3-Reranker entirely via
-        # transformers.
-        score_batch = max(1, LLM_RERANK_BATCH // 32)
-        all_scores = client.score_pairs(
-            pairs, prompt_style="qwen3",
-            batch_size=score_batch,
-            yes_tokens=yes_ids, no_tokens=no_ids,
+        # Qwen3 is scored from the first generated token through vLLM.
+        # ``flat`` already contains the official Qwen3-Reranker prompt; unlike
+        # the Transformers path, vLLM can batch requests without materializing
+        # the full vocabulary logits in Python.
+        all_scores = client.score_logit_diff(
+            flat,
+            yes_tokens=yes_ids,
+            no_tokens=no_ids,
+            batch_size=LLM_RERANK_BATCH,
         )
         if len(all_scores) != n_total:
             raise RuntimeError(
-                f"Qwen3 score_pairs output mismatch: "
+                f"Qwen3 score_logit_diff output mismatch: "
                 f"{len(all_scores)} != {n_total}"
             )
-        log(f"  Qwen3-Reranker (transformers) rerank done in {time.time()-t0:.1f}s")
+        log(f"  Qwen3-Reranker (vLLM) rerank done in {time.time()-t0:.1f}s")
 
     for (qi, asin, retrieval_rank), llm_score in zip(keep, all_scores):
         rank_prior = (n_candidates - retrieval_rank) / (n_candidates - 1) if n_candidates > 1 else 1.0
@@ -467,6 +454,7 @@ def compute_hit_metrics(reranked):
         "Recall@100": recall_at_100 / n,
         "hit@10": hit[10] / n,
         "hit@20": hit[20] / n,
+        "hit@25": hit[25] / n,
         "MRR": rr_sum / n,
     }
 
@@ -514,12 +502,12 @@ def compute_flip_rate(reranked, min_queries_per_asin=2):
         except ValueError:
             rank = None
         asin_to_ranks[target].append(rank)
-    flip_rates = {k: [] for k in (1, 5, 10, 20)}
+    flip_rates = {k: [] for k in (1, 5, 10, 20, 25)}
     rr_stds = []
     for asin, ranks in asin_to_ranks.items():
         if len(ranks) < min_queries_per_asin:
             continue
-        for k in (1, 5, 10, 20):
+        for k in (1, 5, 10, 20, 25):
             hits_k = [(r is not None and r <= k) for r in ranks]
             if len(hits_k) >= 2:
                 n_flip = sum(1 for i in range(len(hits_k))
@@ -534,7 +522,7 @@ def compute_flip_rate(reranked, min_queries_per_asin=2):
             rr_stds.append(var ** 0.5)
     import statistics as _stats
     out = {"n_asins": len(flip_rates[1])}
-    for k in (1, 5, 10, 20):
+    for k in (1, 5, 10, 20, 25):
         if flip_rates[k]:
             out[f"Hit@{k}_FlipRate_mean"] = sum(flip_rates[k]) / len(flip_rates[k])
         else:
@@ -645,9 +633,11 @@ def run_stage11_llm_rerank(smoke=False):
     topk_by_retr = {retr: idx_to_asin(arr, asins) for retr, arr in per_retr_topk_idx.items()}
 
     from llm_client import get_client
-    # 2026-09-22: vLLM removed from the whitelist (Rule 9). All rerankers
-    # — Qwen3, BGE Gemma2, RankLLaMA — run on the transformers backend.
-    client = get_client(backend="transformers")
+    # Qwen3 uses vLLM's batched first-token logprob path. BGE Gemma2 and
+    # RankLLaMA keep the Transformers cross-encoder/sequence-classification
+    # paths because they are not supported by this vLLM client.
+    backend = "vllm" if RERANKER_VARIANT == "qwen3" else "transformers"
+    client = get_client(backend=backend)
 
     per_retriever_metrics = {}
     per_retriever_flip = {}
@@ -665,7 +655,7 @@ def run_stage11_llm_rerank(smoke=False):
         eligible_queries = [queries_asin_pairs[i][1] for i in eligible]
         eligible_pairs = [queries_asin_pairs[i] for i in eligible]
         eligible_topk = [topk_for_retr[i] for i in eligible]
-        log(f"\n  [{retr}] reranking eligible Hit@20 queries: "
+        log(f"\n  [{retr}] reranking eligible Hit@{LLM_RERANK_TOPK} queries: "
             f"{len(eligible)}/{len(entries)} (excluded={excluded_no_hit20})")
         if eligible:
             reranked = llm_rerank_per_retriever(
@@ -708,7 +698,9 @@ def run_stage11_llm_rerank(smoke=False):
         m = compute_hit_metrics(full_records)
         m["n_input_queries"] = len(queries_asin_pairs)
         m["n_eligible_hit20"] = len(eligible)
+        m["n_eligible_hit25"] = len(eligible)
         m["n_excluded_no_hit20"] = excluded_no_hit20
+        m["n_excluded_no_hit25"] = excluded_no_hit20
         # Preserve old names for consumers of the pre-Hit@20 schema.
         m["n_eligible_hit10"] = len(eligible)
         m["n_excluded_no_hit10"] = excluded_no_hit20
@@ -721,7 +713,7 @@ def run_stage11_llm_rerank(smoke=False):
         per_query_top20_by_retr[retr] = full_records
         log(f"  [{retr}] ALL queries n={len(full_records)} eligible={len(eligible)} "
             f"hit@1={m['hit@1']*100:.2f}% hit@10={m['hit@10']*100:.2f}% "
-            f"hit@20={m['hit@20']*100:.2f}% "
+            f"hit@20={m['hit@20']*100:.2f}% hit@25={m['hit@25']*100:.2f}% "
             f"MRR={m['MRR']*100:.2f}% Recall@100={m['Recall@100']*100:.2f}% "
             f"RR_Std={f['RR_Std_mean']:.4f}")
         log(f"    LLM score unique={len(d['llm_score_unique_values'])} "
@@ -811,12 +803,14 @@ def run_stage11_llm_rerank(smoke=False):
             "stage13_hit@5": m.get("hit@5"),
             "stage13_hit@10": m.get("hit@10"),
             "stage13_hit@20": m.get("hit@20"),
+            "stage13_hit@25": m.get("hit@25"),
             "stage13_MRR": m.get("MRR"),
             "stage13_Recall@100": m.get("Recall@100"),
             "stage13_flip@1": f.get("Hit@1_FlipRate_mean"),
             "stage13_flip@5": f.get("Hit@5_FlipRate_mean"),
             "stage13_flip@10": f.get("Hit@10_FlipRate_mean"),
             "stage13_flip@20": f.get("Hit@20_FlipRate_mean"),
+            "stage13_flip@25": f.get("Hit@25_FlipRate_mean"),
             "stage13_flip_n_asins": f.get("n_asins"),
             "stage13_RR_Std_mean": f.get("RR_Std_mean"),
             "stage13_RR_Std_median": f.get("RR_Std_median"),
@@ -824,10 +818,10 @@ def run_stage11_llm_rerank(smoke=False):
         })
     out["summary_table"] = {
         "columns": ["retriever", "stage13_n_queries",
-                    "stage13_hit@1", "stage13_hit@5", "stage13_hit@10", "stage13_hit@20", "stage13_MRR",
+                    "stage13_hit@1", "stage13_hit@5", "stage13_hit@10", "stage13_hit@20", "stage13_hit@25", "stage13_MRR",
                     "stage13_Recall@100",
                     "stage13_flip@1", "stage13_flip@5", "stage13_flip@10",
-                    "stage13_flip@20", "stage13_flip_n_asins",
+                    "stage13_flip@20", "stage13_flip@25", "stage13_flip_n_asins",
                     "stage13_RR_Std_mean", "stage13_RR_Std_median", "stage13_RR_Std_std"],
         "flip_definition": (
             "Per-ASIN query-pair Hit@K disagreement rate among Stage13 rerank "
@@ -880,6 +874,10 @@ def load_stage11_baseline_metrics() -> dict[str, dict]:
             if not vals:
                 continue
             out[retr][metric_norm] = float(np.mean(vals))
+        rank_key = f"{retr}_rank"
+        rank_vals = [float(q[rank_key]) for q in queries if q.get(rank_key) is not None]
+        if rank_vals:
+            out[retr]["hit@25"] = float(np.mean([1.0 if r <= LLM_RERANK_TOPK else 0.0 for r in rank_vals]))
     return out
 
 
@@ -891,7 +889,7 @@ def build_stage11_vs_stage13_table(stage11_metrics: dict,
         s11 = stage11_metrics.get(retr, {})
         s13 = stage13_metrics.get(retr, {})
         row = {"retriever": retr}
-        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "MRR"):
+        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "hit@25", "MRR"):
             v11 = s11.get(k)
             v13 = s13.get(k)
             row[f"stage11_{k}"] = v11
@@ -920,7 +918,7 @@ def print_and_save_stage11_vs_stage13(stage13_out: dict,
     for retr in set(retr_to_row) | set(stage13_flip):
         fr = stage13_flip.get(retr, {})
         row = retr_to_row.setdefault(retr, {"retriever": retr})
-        for k in (1, 5, 10, 20):
+        for k in (1, 5, 10, 20, 25):
             row[f"stage13_flip@{k}"] = fr.get(f"Hit@{k}_FlipRate_mean")
         row["stage13_flip_n_asins"] = fr.get("n_asins")
         row["stage13_RR_Std_mean"] = fr.get("RR_Std_mean")
@@ -929,26 +927,26 @@ def print_and_save_stage11_vs_stage13(stage13_out: dict,
     rows = [retr_to_row[retr] for retr in sorted(retr_to_row)]
     log(f"\n=== {label}: Stage 11 baseline vs Stage 13 rerank ===")
     header = ("  retr         hit@1(11→13 Δ)        hit@5(11→13 Δ)        "
-              "hit@10(11→13 Δ)       hit@20(11→13 Δ)       MRR(11→13 Δ)")
+              "hit@10(11→13 Δ)       hit@20(11→13 Δ)       hit@25(11→13 Δ)       MRR(11→13 Δ)")
     log(header)
     log("  " + "-" * (len(header) - 2))
     for r in rows:
         cells = []
-        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "MRR"):
+        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "hit@25", "MRR"):
             v11 = r.get(f"stage11_{k}"); v13 = r.get(f"stage13_{k}"); d = r.get(f"delta_{k}")
             if v11 is None or v13 is None:
                 cells.append(f"    N/A      ")
             else:
                 cells.append(f"{v11*100:6.2f}%→{v13*100:6.2f}%({d*100:+5.2f})")
         f1 = r.get("stage13_flip@1"); f5 = r.get("stage13_flip@5")
-        f10 = r.get("stage13_flip@10"); f20 = r.get("stage13_flip@20")
+        f10 = r.get("stage13_flip@10"); f20 = r.get("stage13_flip@20"); f25 = r.get("stage13_flip@25")
         rr_std = r.get("stage13_RR_Std_mean")
         n_a = r.get("stage13_flip_n_asins")
         def pc(v): return f"{v*100:>6.2f}%" if v is not None else "   N/A "
         rr_std_s = f"{rr_std:>6.3f}" if rr_std is not None else "   N/A"
         n_a_s = f"n_asins={n_a}" if n_a is not None else ""
         log(f"  {r['retriever']:12s}  " + "  ".join(cells)
-            + f"  flip: {pc(f1)} {pc(f5)} {pc(f10)} {pc(f20)}  RR_Std={rr_std_s}  {n_a_s}")
+            + f"  flip: {pc(f1)} {pc(f5)} {pc(f10)} {pc(f20)} {pc(f25)}  RR_Std={rr_std_s}  {n_a_s}")
     payload = {
         "config": {"label": label,
                    "stage11_source": str(STAGE11_PER_QUERY),
@@ -978,13 +976,21 @@ def main_task_body() -> None:
     #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma (Gemma2 chat template)
     #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
     #                   (SequenceClassification on Llama-2-7b-hf)
-    RERANKER_VARIANTS = [
+    all_reranker_variants = [
         ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
         ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
         ("rankllama",  _RANKLLAMA_BASE, _RANKLLAMA_PEFT),
     ]
+    reranker_filter = os.environ.get("STAGE13_RERANKERS", "").strip()
+    if reranker_filter:
+        keep = {x.strip() for x in reranker_filter.split(",") if x.strip()}
+        RERANKER_VARIANTS = [v for v in all_reranker_variants if v[0] in keep]
+        if not RERANKER_VARIANTS:
+            raise ValueError(f"STAGE13_RERANKERS={reranker_filter!r} matched no variants")
+    else:
+        RERANKER_VARIANTS = all_reranker_variants
 
-    log(f"=== Stage 13 / Stage 11 syntactic rerank (loops over 3 rerankers) ===")
+    log(f"=== Stage 13 / Stage 11 syntactic rerank (loops over {len(RERANKER_VARIANTS)} reranker(s)) ===")
     log(f"  SMOKE={SMOKE}  RUN_STAGE11={RUN_STAGE11}  RUN_STAGE12={RUN_STAGE12}  "
         f"variants={[v[0] for v in RERANKER_VARIANTS]}")
     t_global = time.time()
@@ -1032,7 +1038,15 @@ def main() -> None:
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
-    for category, subdir in CATEGORY_INPUTS:
+    category_filter = os.environ.get("STAGE13_CATEGORIES", "").strip()
+    if category_filter:
+        keep_cats = {x.strip() for x in category_filter.split(",") if x.strip()}
+        category_loop = [c for c in CATEGORY_INPUTS if c[1] in keep_cats]
+        if not category_loop:
+            raise ValueError(f"STAGE13_CATEGORIES={category_filter!r} matched no categories")
+    else:
+        category_loop = CATEGORY_INPUTS
+    for category, subdir in category_loop:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
         if "SENT_CACHE" in saved:

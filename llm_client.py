@@ -66,13 +66,14 @@ os.environ["OUTLINES_CACHE_DIR"] = "/fs04/scratch2/hj82/wenyu/outlines_cache"
 DEFAULT_QWEN_MODEL = "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"
 DEFAULT_PEFT_ADAPTER: Optional[Path] = None  # set by rerank dispatcher for RankLLaMA-style LoRA rerankers
 DEFAULT_SFT_ADAPTER = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/06_training_model/sft_lora")
-DEFAULT_BACKEND = "transformers"  # 2026-09-22: dropped vLLM; all rerankers (Qwen3 / BGE / RankLLaMA) run on transformers
+DEFAULT_BACKEND = "transformers"  # Qwen3 batched rerank overrides to vllm via get_client()
 DEFAULT_MAX_MODEL_LEN = 2048  # Qwen3-Reranker 0.6B strict
 DEFAULT_MAX_NUM_SEQS = 32  # placeholder, unused under transformers backend
 DEFAULT_MAX_BATCHED_TOKENS = 4096  # placeholder
 DEFAULT_GPU_MEM_UTIL = 0.85  # unused under transformers backend
 DEFAULT_DTYPE = "bfloat16"
 DEFAULT_ENABLE_PREFIX_CACHING = False  # 2026-09-20: 关掉 prefix caching 避免 KV 重建开销
+DEFAULT_VLLM_LOGPROBS = 20
 
 
 class QwenLocalClient:
@@ -112,7 +113,24 @@ class QwenLocalClient:
         if self._backend is not None:
             return
         backend = self.backend
-        if backend == "transformers":
+        if backend == "vllm":
+            from vllm import LLM
+
+            print(f"[llm_client] loading vLLM {self.model} ...", flush=True)
+            self._backend = LLM(
+                model=self.model,
+                tokenizer=self.model,
+                max_model_len=self.max_model_len,
+                max_num_seqs=self.max_num_seqs,
+                max_num_batched_tokens=self.max_num_batched_tokens,
+                gpu_memory_utilization=self.gpu_memory_utilization,
+                dtype=self.dtype,
+                enforce_eager=self.enforce_eager,
+                trust_remote_code=True,
+                enable_prefix_caching=self.enable_prefix_caching,
+            )
+            self.backend_kind = "vllm"
+        elif backend == "transformers":
             import torch
             from transformers import AutoModel, AutoTokenizer
             print(f"[llm_client] loading transformers (auto) {self.model} ...", flush=True)
@@ -166,6 +184,21 @@ class QwenLocalClient:
         self._init_backend()
         if not prompts:
             return []
+        if self.backend_kind == "vllm":
+            from vllm import SamplingParams
+
+            sampling_params = SamplingParams(
+                n=n,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                stop=stop,
+            )
+            outputs = self._backend.generate(
+                prompts, sampling_params, use_tqdm=False
+            )
+            return [[item.text for item in output.outputs] for output in outputs]
+
         import torch
         model, tok = self._backend
         results = []
@@ -187,6 +220,122 @@ class QwenLocalClient:
                 texts.append(txt)
             results.append(texts)
         return results
+
+    def score_logit_diff(self,
+                         prompts: List[str],
+                         yes_tokens: List[int] | None = None,
+                         no_tokens: List[int] | None = None,
+                         batch_size: int = 1024) -> List[float]:
+        """Score Qwen3 prompts from the first generated token.
+
+        vLLM returns the selected token plus the requested top logprobs. The
+        ``allowed_token_ids`` constraint keeps all Yes/No variants in that
+        returned set without changing their logit difference. The returned
+        value is ``sigmoid(logP(Yes) - logP(No))`` so it has the same [0, 1]
+        scale as the Transformers ``score_pairs`` implementation.
+        """
+        import math
+        from vllm import SamplingParams
+
+        self._init_backend()
+        if self.backend_kind != "vllm":
+            raise RuntimeError(
+                "score_logit_diff requires the vLLM backend; "
+                f"backend_kind={self.backend_kind}"
+            )
+        if not prompts:
+            return []
+
+        tokenizer = self._backend.get_tokenizer()
+        if yes_tokens is None:
+            yes_tokens = tokenizer.encode(" Yes", add_special_tokens=False)
+        if no_tokens is None:
+            no_tokens = tokenizer.encode(" No", add_special_tokens=False)
+        yes_ids = set(yes_tokens)
+        no_ids = set(no_tokens)
+        allowed_ids = sorted(yes_ids | no_ids)
+        if not yes_ids or not no_ids:
+            raise ValueError(
+                f"Empty Yes/No token set: yes={sorted(yes_ids)} "
+                f"no={sorted(no_ids)}"
+            )
+
+        batch_size = max(1, batch_size)
+        n_batches = (len(prompts) + batch_size - 1) // batch_size
+        scores: List[float] = []
+        started_at = last_log_at = time.time()
+        print(
+            f"[llm_client {time.strftime('%H:%M:%S')}] "
+            f"score_logit_diff start: {len(prompts)} prompts in {n_batches} "
+            f"batches (batch_size={batch_size})",
+            flush=True,
+        )
+
+        for batch_num, start in enumerate(
+                range(0, len(prompts), batch_size), start=1):
+            sampling_params = SamplingParams(
+                temperature=0.0,
+                top_p=1.0,
+                max_tokens=1,
+                logprobs=max(DEFAULT_VLLM_LOGPROBS, len(allowed_ids)),
+                allowed_token_ids=allowed_ids,
+            )
+            outputs = self._backend.generate(
+                prompts[start:start + batch_size],
+                sampling_params,
+                use_tqdm=False,
+            )
+            for output in outputs:
+                if not output.outputs or output.outputs[0].logprobs is None:
+                    raise RuntimeError(
+                        "vLLM returned no first-token logprobs for a Qwen3 "
+                        "reranker prompt"
+                    )
+                first_position = output.outputs[0].logprobs[0]
+                yes_values = [
+                    info.logprob
+                    for token_id, info in first_position.items()
+                    if token_id in yes_ids
+                ]
+                no_values = [
+                    info.logprob
+                    for token_id, info in first_position.items()
+                    if token_id in no_ids
+                ]
+                if not yes_values and not no_values:
+                    raise RuntimeError(
+                        "vLLM returned no Yes/No token logprobs: "
+                        f"yes_ids={sorted(yes_ids)} no_ids={sorted(no_ids)} "
+                        f"returned={sorted(first_position)}"
+                    )
+                # Top-k logprobs may omit the unlikely label; mirror the
+                # transformers path by clamping missing sides to -60.
+                logprob_floor = -60.0
+                yes_log = max(yes_values) if yes_values else logprob_floor
+                no_log = max(no_values) if no_values else logprob_floor
+                diff = yes_log - no_log
+                diff = max(-60.0, min(60.0, diff))
+                scores.append(1.0 / (1.0 + math.exp(-diff)))
+
+            now = time.time()
+            if batch_num == n_batches or now - last_log_at >= 30:
+                processed = min(start + len(outputs), len(prompts))
+                print(
+                    f"[llm_client {time.strftime('%H:%M:%S')}] "
+                    f"score_logit_diff progress: {processed}/{len(prompts)} "
+                    f"prompts ({batch_num}/{n_batches}), "
+                    f"elapsed={now - started_at:.1f}s",
+                    flush=True,
+                )
+                last_log_at = now
+
+        print(
+            f"[llm_client {time.strftime('%H:%M:%S')}] "
+            f"score_logit_diff complete: {len(scores)}/{len(prompts)} "
+            f"prompts in {time.time() - started_at:.1f}s",
+            flush=True,
+        )
+        return scores
 
     def score_pairs(self,
                     pairs: List[tuple[str, str]],
@@ -212,9 +361,8 @@ class QwenLocalClient:
 
         Returns sigmoid-normalised relevance scores in [0, 1], one per pair.
 
-        Forces the ``transformers`` backend. vLLM has been removed from the
-        whitelist per Rule 9 — Qwen3-Reranker no longer relies on vLLM's
-        next-token logprob path.
+        Forces the ``transformers`` backend. For batched Qwen3 reranking use
+        ``score_logit_diff`` with ``backend="vllm"`` instead.
         """
         import math
         import torch
@@ -407,13 +555,17 @@ class QwenLocalClient:
         return scores
 
     def shutdown(self):
-        """释放 transformers GPU 资源."""
+        """释放 vLLM 或 Transformers GPU 资源."""
         if self._backend is None:
             return
         try:
-            model, tok = self._backend
-            del model
-            del tok
+            if getattr(self, "backend_kind", None) == "vllm":
+                backend = self._backend
+                del backend
+            else:
+                model, tok = self._backend
+                del model
+                del tok
         finally:
             self._backend = None
 
