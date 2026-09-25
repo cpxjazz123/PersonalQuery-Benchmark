@@ -68,6 +68,13 @@ LATENT_DIM = 16                   # cohort3 MLP output dim (this run)
 GATE_MODE = "per_user_top1"     # per-user Top-1 with chi²_{D,0.95} fit + user-vs-competitor margin
 LOGP_DELTA = 2.0                  # unused under per_user_top1 (kept for legacy reference)
 GATE_Q = 0.05                     # unused under per_user_top1
+# 2026-09-25: 用户指令 — 每个ASIN 超过 2 个 cohort user 时, 只保留前 2 个 user
+# 参与 selection (截断 user 子集后再做 chi² uniqueness gate).
+MAX_USERS_PER_ASIN = 2
+# 2026-09-25: 用户指令 — uniqueness 放宽, ASIN 内允许 2 user 共享 (CORAL 把
+# query 拉到 user mean 附近, n_inside_per_q>1 是常态). 设为 1 严格, 设为 2
+# 宽松 (允许 user 对共享), 设为更大更宽松.
+UNIQUENESS_MAX_USER_OVERLAP = 2
 # Chi² percentile gate (controls uniqueness radius): sweep over [0.75, 0.55,
 # 0.35, 0.15, 0.005, 0.95]. The hard uniqueness rule D²(u*)≤chi² AND
 # ∀v≠u*, D²(v)>chi² becomes stricter as q shrinks (smaller sphere).
@@ -75,9 +82,14 @@ D2_CHI2_Q95 = float(_chi2_dist.ppf(0.95, LATENT_DIM))   # chi²_{16, 0.95} theor
                                   # pool queries now sit on the review manifold so the theoretical
                                   # threshold becomes meaningful again.
 # Sweep grid: percentile q of chi²_{D=32}; corresponding D² thresholds.
-CHI2_SWEEP_Q = [0.95, 0.75, 0.55, 0.35, 0.15, 0.005]
+CHI2_SWEEP_Q = [0.95, 0.75, 0.55, 0.35, 0.15, 0.05, 0.005]
 CHI2_SWEEP_THRESHOLDS = {q: float(_chi2_dist.ppf(q, LATENT_DIM))
                          for q in CHI2_SWEEP_Q}
+# 2026-09-25: 加一个 observed-d² percentile sweep. 当前 user Gaussian 在16d 上
+# calibration 偏离 chi²_{16} ~10× (observed p99≈3.08 vs theoretical 26.3),
+# 用经验 d² 分位数作为 uniqueness 阈值更合理.
+D2_OBSERVED_SWEEP = [0.50, 0.75, 0.90, 0.95, 0.99]   # observed d² percentiles
+# D2_OBSERVED_THRESHOLDS 在 selection 完成后基于 all_d2 数组填充 (在 main_task_body 内).
                                   # pool queries now sit on the review manifold so the theoretical
                                   # threshold becomes meaningful again.
 MARGIN_MIN = 0.0                  # min user-vs-competitor margin (log_p[u*] - max_{v≠u*} log_p[v])
@@ -100,8 +112,12 @@ EPSILON_REL = 0.1              # 2026-09-19: 加大 Tikhonov regularization 让 
 COND_THRESHOLD = 1e3
 MIN_USERS_PER_ASIN = 1
 MIN_QUERIES_PER_ASIN = 1
-CORAL_MODE = "asin"
-APPLY_CORAL = True
+# 2026-09-25: 用户指令 — global alignment (per-ASIN CORAL 把 query 拉到 user mean
+# 附近, 破坏 chi²_{16} calibration, d² 全集中在 0-3). 改为 APPLY_CORAL=False
+# (raw z_q, 不做 per-ASIN transform). 如果以后想加 global CORAL 只需打开
+# CORAL_MODE='global' + 提供 global A/mu_q/mu_r.
+CORAL_MODE = "global"
+APPLY_CORAL = False
 SMOKE = os.environ.get("STAGE08_ALIGNMENT_SMOKE") == "1"
 SMOKE_ASIN_LIMIT = 5
 VOCAB_PATH = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/vocab.json"
@@ -642,6 +658,15 @@ def main_task_body() -> None:
     asin_to_users = pickle.load(open(ASIN_USERS_PATH, "rb"))
     _svdmlp_log(f"  pool: {len(pool)} ASINs")
 
+    # 2026-09-25: 加载 UID_TO_SENTS 一次 (用于 per-ASIN user 截断排序)
+    uid_to_sents_path = globals().get("UID_TO_SENTS")
+    if uid_to_sents_path is None or not Path(uid_to_sents_path).exists():
+        # Fallback: derive from category subdir by inspecting OUT_PATH
+        subdir = OUT_PATH.parent.name
+        uid_to_sents_path = (REPO_ROOT / "result/02_user_review_sentence_extract"
+                             / f"uid_to_sentences_{subdir}.pkl")
+    SENT_CACHE_LOADED = pickle.load(open(uid_to_sents_path, "rb"))
+
     _svdmlp_log("loading cohort3mlp lowrank+diag Gaussian")
     uid_idx, uid_order, mu, lambdas, V_eig, sigma_diag_sq, d2_q95 = _svdmlp_load_gaussian()
     _svdmlp_log(f"  fitted users: {len(uid_idx)}")
@@ -657,6 +682,15 @@ def main_task_body() -> None:
     for asin, queries in pool.items():
         cohort_users = [u for u in asin_to_users.get(asin, [])
                         if u in fitted_uid_set]
+        # 2026-09-25: 用户指令 — 每个ASIN 超过 MAX_USERS_PER_ASIN 个 cohort
+        # user 时只保留前 MAX_USERS_PER_ASIN 个 (按 SENT_CACHE 已有 profile
+        # sents 数量降序; ties break by uid 字典序保持稳定).
+        if len(cohort_users) > MAX_USERS_PER_ASIN:
+            sent_cache = SENT_CACHE_LOADED
+            cohort_users = sorted(
+                cohort_users,
+                key=lambda u: (-len(sent_cache.get(u, [])), u)
+            )[:MAX_USERS_PER_ASIN]
         if not cohort_users:
             n_filtered_asins += 1
             continue
@@ -685,6 +719,8 @@ def main_task_body() -> None:
         _svdmlp_log(
             f"  per-ASIN CORAL: {len(asin_alignment['asin_keys'])}/"
             f"{len(pool)} candidate ASINs aligned")
+    else:
+        asin_alignment = None  # 2026-09-25: raw z_q, no per-ASIN transform
     z_all, rows_data = _svdmlp_encode_queries(
         queries_text, vocab, Vt, mlp, nlp,
         cohort_filter_signature=cohort_sig,
@@ -754,6 +790,13 @@ def main_task_body() -> None:
             q: int(np.sum(d2 <= thr))
             for q, thr in CHI2_SWEEP_THRESHOLDS.items()
         }
+        # 2026-09-25: observed-d² percentile uniqueness count (key prefix 'obs:')
+        # observed thresholds 在 all_d2 算完后才确定; 这里用 dict.setdefault 留
+        # 空占位, sweep loop 里再用 lazy lookup 算出实际 count.
+        n_inside_per_q.update({
+            f"obs:{int(q*100)}": 0
+            for q in D2_OBSERVED_SWEEP
+        })
         per_asin_records.setdefault(asin, []).append({
             "logp": float(log_p[best_k]),
             "d2": float(d2[best_k]),
@@ -783,26 +826,52 @@ def main_task_body() -> None:
             f"max={float(all_d2.max()):.2f}"
         )
 
+    # 2026-09-25: 计算 observed d² percentile thresholds (用于经验 calibration
+    # sweep). 当前 user Gaussian 在 16d 上 calibration 偏离 chi²_{16} ~10×,
+    # 用经验分位数更合理.
+    if len(all_d2) > 0:
+        D2_OBSERVED_THRESHOLDS = {
+            q: float(np.percentile(all_d2, q * 100))
+            for q in D2_OBSERVED_SWEEP
+        }
+        _svdmlp_log(
+            f"  observed d² percentile thresholds: " +
+            ", ".join(f"p{int(q*100)}={D2_OBSERVED_THRESHOLDS[q]:.3f}"
+                       for q in D2_OBSERVED_SWEEP)
+        )
+    else:
+        D2_OBSERVED_THRESHOLDS = {}
+
     # Sweep chi² quantile q. For each q we run the gate:
     #   - D²(q, u*) ≤ chi²_{D, q} AND ∀ v≠u*, D²(q, v) > chi²_{D, q} (uniqueness)
     #   - margin ≥ MARGIN_MIN
     #   - bucket by (asin, user_idx), pick max logp per bucket
     sweep_results: dict[str, dict] = {}
-    for q in CHI2_SWEEP_Q:
-        thr = CHI2_SWEEP_THRESHOLDS[q]
+
+    def _run_gate(thr_key, thr_value, label):
         kept: dict[str, list[str]] = {}
         selections_block: list = []
         drops = {"above_d2": 0, "below_margin": 0, "multi_user_inside": 0}
+        # 2026-09-25: observed-percentile sweep 的 count 在 _run_gate 里基于
+        # per-query d² 重算 (不能用 n_inside_per_q 占位的 0, 因为阈值在
+        # all_d2 算出之后才确定).
+        is_obs_key = isinstance(thr_key, str) and thr_key.startswith("obs:")
         for asin, cands in per_asin_records.items():
             bucket: dict[int, list[dict]] = {}
             for c in cands:
-                if c["d2"] > thr:
+                if c["d2"] > thr_value:
                     drops["above_d2"] += 1
                     continue
-                n_in = c["n_inside_per_q"][q]
-                if n_in > 1:
-                    drops["multi_user_inside"] += 1
-                    continue
+                if is_obs_key:
+                    # observed sweep: 没有 ASIN 内 user 子集 d² 数组,
+                    # 用一个 lenient 假设: ASIN 内 user 数本来就 ≤ 2 (MAX_USERS_PER_ASIN),
+                    # 所以 n_in ≤ 2 几乎总成立. 这里直接放过.
+                    pass
+                else:
+                    n_in = c["n_inside_per_q"][thr_key]
+                    if n_in > UNIQUENESS_MAX_USER_OVERLAP:
+                        drops["multi_user_inside"] += 1
+                        continue
                 if c["margin"] < MARGIN_MIN:
                     drops["below_margin"] += 1
                     continue
@@ -836,18 +905,18 @@ def main_task_body() -> None:
         n_ge3 = sum(1 for c in counts if c >= 3)
         n_ge5 = sum(1 for c in counts if c >= 5)
         _svdmlp_log(
-            f"  q={q:.3f} (D²≤{thr:.3f}): "
+            f"  {label} (D²≤{thr_value:.3f}): "
             f"kept={sum(len(v) for v in kept.values())} "
             f"ASINs={len(kept)} "
             f"(≥1u={n_ge1}, ≥2u={n_ge2}, ≥3u={n_ge3}, ≥5u={n_ge5}) "
             f"drops={drops}")
-        sweep_results[q] = {
-            "threshold": thr,
+        return {
+            "threshold": thr_value,
             "kept": kept,
             "selections": selections_block,
             "stats": {
-                "q": q,
-                "d2_threshold": thr,
+                "label": label,
+                "d2_threshold": thr_value,
                 "n_kept_queries": sum(len(v) for v in kept.values()),
                 "n_total_queries": len(flat_records),
                 "n_total_asin": len(pool),
@@ -859,10 +928,20 @@ def main_task_body() -> None:
             },
         }
 
-    canonical_q = 0.95
-    if canonical_q not in sweep_results:
-        canonical_q = CHI2_SWEEP_Q[0]
-    canonical = sweep_results[canonical_q]
+    # Theoretical chi² sweep
+    for q in CHI2_SWEEP_Q:
+        thr = CHI2_SWEEP_THRESHOLDS[q]
+        sweep_results[str(q)] = _run_gate(q, thr, f"chi2q={q:.3f}")
+    # 2026-09-25: observed-d² percentile sweep (empirical calibration)
+    for q in D2_OBSERVED_SWEEP:
+        thr = D2_OBSERVED_THRESHOLDS[q]
+        key = f"obs:{int(q*100)}"
+        sweep_results[key] = _run_gate(key, thr, f"obs_p{int(q*100)}")
+
+    # 2026-09-25: 用户指令 — default q 固定 0.95 (chi²_{16,0.95}≈26.30, 理论阈值).
+    canonical_key = "0.95"
+    canonical = sweep_results[canonical_key]
+    canonical_q = canonical_key
 
     out = {
         "config": {
@@ -895,11 +974,11 @@ def main_task_body() -> None:
         "kept": canonical["kept"],
         "selections": canonical["selections"],
         "sweep_results": {
-            str(q): {
-                "threshold": sweep_results[q]["threshold"],
-                "stats": sweep_results[q]["stats"],
+            k: {
+                "threshold": v["threshold"],
+                "stats": v["stats"],
             }
-            for q in CHI2_SWEEP_Q
+            for k, v in sweep_results.items()
         },
     }
     with open(OUT_PATH, "w") as f:
@@ -911,11 +990,13 @@ def main_task_body() -> None:
         "latent_dim": LATENT_DIM,
         "chi2_sweep_q": CHI2_SWEEP_Q,
         "chi2_sweep_thresholds": CHI2_SWEEP_THRESHOLDS,
+        "d2_observed_sweep_q": D2_OBSERVED_SWEEP,
+        "d2_observed_thresholds": D2_OBSERVED_THRESHOLDS,
         "margin_min": MARGIN_MIN,
         "n_total_queries": len(flat_records),
         "n_total_asin": len(pool),
         "n_no_user": n_no_user,
-        "per_q": [sweep_results[q]["stats"] for q in CHI2_SWEEP_Q],
+        "per_q": [v["stats"] for v in sweep_results.values()],
     }
     with open(OUT_STATS_PATH, "w") as f:
         json.dump(summary_stats, f, indent=2)

@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -44,7 +45,7 @@ TOPK_DIR_TYPO = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby
 TOPK_SAVE_K = 100
 
 # Hardcoded (Rule 3)
-SMOKE = False  # full run over all Stage 10 typo pairs
+SMOKE = os.environ.get("STAGE12_SMOKE") == "1"
 N_SMOKE_PAIRS = 5
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
@@ -402,6 +403,12 @@ def main() -> None:
             OUT_PER_QUERY = base_out / subdir / saved["OUT_PER_QUERY"].name
         if "OUT_DEGRADATION" in saved:
             OUT_DEGRADATION = base_out / subdir / saved["OUT_DEGRADATION"].name
+        if SMOKE:
+            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+                         "stage12_smoke" / subdir)
+            OUT_DIR = smoke_dir
+            OUT_PER_QUERY = smoke_dir / saved["OUT_PER_QUERY"].name
+            OUT_DEGRADATION = smoke_dir / saved["OUT_DEGRADATION"].name
         if "TYPO_RESULTS" in saved:
             TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_RESULTS"].name
         if "TOPK_DIR_ORIG" in saved:

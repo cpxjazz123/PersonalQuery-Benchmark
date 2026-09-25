@@ -17,6 +17,7 @@ used only as an exact tie-breaker.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from collections import Counter
@@ -58,9 +59,9 @@ LLM_RERANK_WINDOW = 20
 LLM_RERANK_STRIDE = 10
 LLM_RERANK_LISTWISE_MAX_TOKENS = 64
 KS = (1, 5, 10)
-N_SMOKE = 1635
+N_SMOKE = 5
 ONLY_BM25_SMOKE = True
-SMOKE = False
+SMOKE = os.environ.get("STAGE13_SMOKE") == "1"
 # 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
 # 保留全量 1947 queries（不像 SMOKE 那样截断到 1 个）。结果仍写入 STAGE11_OUT。
 BM25_ONLY = True
@@ -543,6 +544,27 @@ def compute_flip_rate(reranked, min_queries_per_asin=2):
 
 
 def load_stage8_selection() -> list[tuple[str, str]]:
+    """Load (asin, query) selection for Stage 13 rerank.
+
+    2026-09-25: switched to read Stage 11 per_query.json (the same pair set the
+    Stage 11 retriever cache was built on) so the rerank pair set matches the
+    Stage 11 baseline hit@K. Stage 08 kept ASINs (chi²_{16,0.95} uniqueness gate)
+    leave only 7/6/10 ASINs after the per-ASIN CORAL alignment, which makes
+    baseline-vs-rerank pairing collapse to N/A. Fall back to STAGE8_SEL if
+    Stage 11 per_query.json is missing.
+    """
+    if STAGE11_PER_QUERY.exists():
+        with open(STAGE11_PER_QUERY) as f:
+            d = json.load(f)
+        queries = d.get("queries", [])
+        entries: list[tuple[str, str]] = []
+        for q in queries:
+            asin = q.get("asin")
+            text = q.get("query")
+            if asin and text:
+                entries.append((asin, text))
+        if entries:
+            return entries
     with open(STAGE8_SEL) as f:
         sel = json.load(f)
     entries = []
@@ -575,10 +597,11 @@ def run_stage11_llm_rerank(smoke=False):
             row_asins = {_asins_smoke[int(x)] for x in bm25_cache[idx][:LLM_RERANK_TOPK]}
             if asin in row_asins:
                 eligible_keys.append((idx, (asin, query)))
-                break
+                if len(eligible_keys) >= N_SMOKE:
+                    break
         if eligible_keys:
-            selection_indices = [eligible_keys[0][0]]
-            entries = [eligible_keys[0][1]]
+            selection_indices = [idx for idx, _ in eligible_keys]
+            entries = [pair for _, pair in eligible_keys]
         else:
             log("  smoke has no BM25 Hit@10 query; using first pair without LLM reranking")
             selection_indices = [0]
@@ -1023,6 +1046,12 @@ def main() -> None:
                            / subdir / saved["ASIN_TO_DOC"].name)
         if "STAGE11_PER_QUERY" in saved:
             STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
+        if SMOKE:
+            smoke_out = Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke") / subdir
+            OUT_DIR = smoke_out
+            STAGE11_OUT = smoke_out / saved["STAGE11_OUT"].name
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            STAGE11_OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         STAGE11_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE11_OUT" in saved else None

@@ -215,6 +215,8 @@ def extract_error_records(orig_sents: List[str], cor_sents: List[str]
                           ) -> List[Tuple[str, str, int, Dict[str, str]]]:
     """Return [(error_type, d3_context, sent_idx, word_pair)] per edit.
 
+    ``sent_idx`` is local to the supplied sentence lists (not a global index);
+    callers that process the input in outer batches must use the per-batch index.
     word_pair = {"op": "R:"|"M:"|"U:", "incorrect_word": str, "corrected_word": str}
     """
     nlp, ann = _load_spacy_errant()
@@ -226,7 +228,7 @@ def extract_error_records(orig_sents: List[str], cor_sents: List[str]
         orig_docs = list(nlp.pipe(batch_o, batch_size=BATCH))
         cor_docs = list(nlp.pipe(batch_c, batch_size=BATCH))
         for di, (x, x_prime, orig, cor) in enumerate(zip(batch_o, batch_c, orig_docs, cor_docs)):
-            si = batch_start + di
+            si = di
             if x.strip() == x_prime.strip():
                 continue
             try:
@@ -370,7 +372,7 @@ def main_task_body():
             per_sent.setdefault(si, []).append((et, ctx, si, wp))
         for di, (uid, x, x_prime) in enumerate(zip(batch_uids, batch_o, batch_c)):
             sent_edits: List[Dict[str, str]] = []
-            for et, ctx, _si, wp in per_sent.get(batch_start + di, []):
+            for et, ctx, _si, wp in per_sent.get(di, []):
                 uid_to_records[uid].append((et, ctx, uid))
                 sent_edits.append(wp)
             if sent_edits:

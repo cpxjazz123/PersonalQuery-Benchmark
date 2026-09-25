@@ -21,6 +21,7 @@ used only as an exact tie-breaker.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -47,7 +48,7 @@ from syntactic_rerank_eval import (  # noqa: E402  (sys.path tweak above)
     load_stage11_baseline_metrics,
     print_and_save_stage11_vs_stage13,
 )
-SMOKE = False
+SMOKE = os.environ.get("STAGE14_SMOKE") == "1"
 
 OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -185,21 +186,25 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
     """
     log(f"=== Stage 14 / Stage 13 LLM rerank (typo paired) | variant={variant} ===")
 
-    pairs = load_typo_pairs(smoke=smoke)
-    log(f"  typo pairs: {len(pairs)}")
-
+    all_pairs = load_typo_pairs(smoke=False)
     stage13_lookup = load_stage13_baseline(variant)
-    matched = sum(1 for p in pairs
+    matched = sum(1 for p in all_pairs
                   if (p["asin"], p["original_query"]) in stage13_lookup)
     if matched == 0:
         raise KeyError(
             f"No Stage 13 records matched the typo pairs (variant={variant}). "
             f"Stage 13 lookup size={len(stage13_lookup)}")
-    if matched < len(pairs):
-        log(f"  ⚠ {matched}/{len(pairs)} typo pairs matched to Stage 13 baseline "
-            f"({len(stage13_lookup)} records); unmatched will be excluded")
-    log(f"  ✓ {matched}/{len(pairs)} typo pairs matched to Stage 13 baseline "
-        f"({len(stage13_lookup)} Stage 13 records)")
+    smoke_indices = list(range(len(all_pairs)))
+    if smoke:
+        smoke_indices = [
+            i for i, p in enumerate(all_pairs)
+            if (p["asin"], p["original_query"]) in stage13_lookup
+        ][:N_SMOKE]
+        if not smoke_indices:
+            raise KeyError("Stage 14 smoke has no typo pairs matching Stage 13 baseline")
+    pairs = [all_pairs[i] for i in smoke_indices]
+    log(f"  ✓ {matched}/{len(all_pairs)} typo pairs matched to Stage 13 baseline "
+        f"({len(stage13_lookup)} records)")
 
     asin_to_doc, asins = load_corpus()
 
@@ -217,9 +222,13 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
         per_retr_typo_idx[retr] = topk_idx
 
     if smoke:
-        rerank_n = min(N_SMOKE, len(pairs),
-                       min(arr.shape[0] for arr in per_retr_typo_idx.values()))
-        per_retr_typo_idx = {retr: arr[:rerank_n] for retr, arr in per_retr_typo_idx.items()}
+        rerank_n = min(N_SMOKE, len(pairs))
+        selected_rows = smoke_indices[:rerank_n]
+        if any(i >= arr.shape[0] for i in selected_rows for arr in per_retr_typo_idx.values()):
+            raise ValueError("Stage 12 typo cache does not cover matched Stage 14 smoke rows")
+        per_retr_typo_idx = {
+            retr: arr[selected_rows] for retr, arr in per_retr_typo_idx.items()
+        }
     else:
         for retr, arr in per_retr_typo_idx.items():
             if arr.shape[0] != len(pairs):
@@ -615,6 +624,15 @@ def main() -> None:
             STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
         if "STAGE13_RESULTS_DIR" in saved:
             STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank" / subdir
+        if SMOKE:
+            smoke_out = Path("/home/wlia0047/hj82_scratch2/wenyu/stage14_smoke") / subdir
+            OUT_DIR = smoke_out
+            STAGE12_OUT = smoke_out / saved["STAGE12_OUT"].name
+            STAGE11_OUT = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke")
+                           / subdir / saved["STAGE11_OUT"].name)
+            STAGE13_RESULTS_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke") / subdir
+            OUT_DIR.mkdir(parents=True, exist_ok=True)
+            STAGE12_OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
         STAGE12_OUT.parent.mkdir(parents=True, exist_ok=True) if "STAGE12_OUT" in saved else None
