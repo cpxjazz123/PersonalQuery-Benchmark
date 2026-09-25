@@ -7,6 +7,7 @@ MPNet / BGE / GTE / ColBERTv2) on BOTH queries, then compare hit@1, hit@5,
 hit@10 degradation. NO flip-rate computation (per user directive 2026-09-06).
 
 Hit@k degradation = original_hit@k - typo_hit@k
+    Hit@20 is computed from the same Top-100 retrieval rank as Hit@1/5/10.
   - 0   : typo did not affect recall
   - +1  : typo fully lost the hit (e.g. orig=1, typo=0)
   - -1  : typo IMPROVED retrieval (rare, indicates lucky match)
@@ -62,7 +63,7 @@ CATEGORY_INPUTS = [
 ]
 
 # Hit@k values reported (NO flip rate per user directive)
-KS = (1, 5, 10)
+KS = (1, 5, 10, 20)
 
 
 def log(msg: str) -> None:
@@ -265,7 +266,7 @@ def main_task_body():
             if sel_idx < 0:
                 # Record not in Stage 11 selection: use empty placeholders
                 orig_results.append({
-                    "rank": None, "RR": 0.0, "hit1": 0, "hit5": 0, "hit10": 0,
+                    "rank": None, "RR": 0.0, "hit1": 0, "hit5": 0, "hit10": 0, "hit20": 0,
                 })
             else:
                 tgt = asin_to_idx[rec["asin"]]
@@ -279,6 +280,7 @@ def main_task_body():
                     "hit1": int(rank == 1),
                     "hit5": int(rank <= 5),
                     "hit10": int(rank <= 10),
+                    "hit20": int(rank <= 20),
                 })
         retr_results[name] = (orig_results, retr_typo[name])
 

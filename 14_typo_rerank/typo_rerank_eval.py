@@ -7,9 +7,9 @@ this script owns the Stage 12 typo paired degradation evaluation.
 For each of the 7 retrievers in
 {bm25, splade, minilm, mpnet, bge_base_v15, gte_base, colbertv2}:
 
-    typo query → typo retriever Top-100 → Qwen P(Yes) rerank → top-10
+    typo query → typo retriever Top-100 → Qwen P(Yes) rerank → top-20
 
-We compare the resulting rerank Top-10 against the Stage 11 rerank Top-10
+We compare the resulting rerank Top-20 against the Stage 13 rerank Top-20
 for the *original* (clean) query to obtain the paired Hit@K degradation
 and MRR degradation.
 
@@ -114,9 +114,10 @@ def load_stage13_baseline(variant: str) -> dict:
     """Stage 13 LLM rerank results for the same reranker variant on clean queries.
 
     Paired within-system baseline: same reranker, same pipeline, same prompt,
-    same candidate depth (BM25 top-100 → rerank top-10), only the input query
+    same candidate depth (BM25 top-100 → rerank top-20), only the input query
     differs (clean vs typo). Returns a lookup keyed by
-    ``(target_asin, query)`` -> ``{retr: {"top10": [...], "retrieval_top10": [...]}}``.
+    ``(target_asin, query)`` -> ``{retr: {"top20": [...], "top10": [...],
+    "retrieval_top20": [...]}}``.
     """
     if variant is None:
         raise ValueError("variant must be specified for Stage 13 baseline")
@@ -126,13 +127,16 @@ def load_stage13_baseline(variant: str) -> dict:
     with open(path) as f:
         d = json.load(f)
     lookup: dict = {}
-    per_query_by_retr = d.get("per_query_top10_by_retriever", {})
+    per_query_by_retr = d.get("per_query_top20_by_retriever") or d.get("per_query_top10_by_retriever", {})
     for retr, records in per_query_by_retr.items():
         for r in records:
             key = (r["target_asin"], r["query"])
+            top20 = r.get("top20", r.get("top10", []))
             lookup.setdefault(key, {})[retr] = {
-                "top10": r["top10"],
-                "retrieval_top10": r.get("retrieval_top10", []),
+                "top20": top20,
+                "top10": r.get("top10", top20[:10]),
+                "retrieval_top20": r.get("retrieval_top20", r.get("retrieval_top10", [])),
+                "retrieval_top10": r.get("retrieval_top10", top20[:10]),
             }
     return lookup
 
@@ -140,7 +144,7 @@ def load_stage13_baseline(variant: str) -> dict:
 def _typo_metrics_from_cached(typo_reranked: list[dict],
                               stage13_lookup: dict,
                               retr: str) -> dict:
-    """Recompute hit@k / MRR on the typo side from cached top-10 records,
+    """Recompute hit@k / MRR on the typo side from cached top-20 records,
     restricted to queries that joined Stage 13 baseline (same cohort as
     paired_degradation).
     """
@@ -150,8 +154,8 @@ def _typo_metrics_from_cached(typo_reranked: list[dict],
     n = 0
     for r in typo_reranked:
         target = r["target_asin"]
-        top10 = r["top10"]
-        rank = top10.index(target) + 1 if target in top10 else None
+        top20 = r.get("top20", r.get("top10", []))
+        rank = top20.index(target) + 1 if target in top20 else None
         for k in KS:
             if rank is not None and rank <= k:
                 hit_counts[k] += 1
@@ -163,9 +167,11 @@ def _typo_metrics_from_cached(typo_reranked: list[dict],
         "hit@1": hit_counts[1] / n if n else 0.0,
         "hit@5": hit_counts[5] / n if n else 0.0,
         "hit@10": hit_counts[10] / n if n else 0.0,
+        "hit@20": hit_counts[20] / n if n else 0.0,
         "MRR": rr_sum / rr_n if rr_n else 0.0,
         "n_queries": n,
         "n_eligible_hit10": hit_counts[10],
+        "n_eligible_hit20": hit_counts[20],
     }
 
 
@@ -180,7 +186,7 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
       MRR_deg     = orig_MRR - typo_MRR       (positive = typo hurts)
 
     When ``regen_from_cache`` is True, the LLM rerank step is skipped and the
-    typo-side per-query top-10 is loaded from
+    typo-side per-query top-20 is loaded from
     ``result/14_typo_rerank/llm_rerank_typo_results_<variant>.json``. This is
     used when only the baseline source has changed.
     """
@@ -262,7 +268,7 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
         cached_typ_top10_by_retr = cached.get("per_query_typo_rerank_by_retriever", {})
         if not cached_typ_top10_by_retr:
             raise ValueError(f"Cached Stage 14 result has empty per_query_typo_rerank_by_retr: {cache_path}")
-        log(f"  ✓ loaded cached typo-side top-10 for {len(cached_typ_top10_by_retr)} retrievers "
+        log(f"  ✓ loaded cached typo-side top-20 for {len(cached_typ_top10_by_retr)} retrievers "
             f"({sum(len(v) for v in cached_typ_top10_by_retr.values())} records)")
 
     for retr in typo_retr_list:
@@ -275,11 +281,12 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
             typo_reranked = [
                 {
                     "target_asin": r["target_asin"],
-                    "top10": r["top10"],
+                    "top20": r.get("top20", r["top10"]),
+                    "top10": r.get("top10", r.get("top20", [])[:10]),
                 }
                 for r in cached_records
             ]
-            log(f"\n  [{retr}] reusing cached typo rerank top-10 for {len(typo_reranked)} queries")
+            log(f"\n  [{retr}] reusing cached typo rerank top-20 for {len(typo_reranked)} queries")
             # Recompute typo-side hit@k / MRR from cached records (paired with
             # Stage 13 join, so n_paired may differ from len(cached_records)).
             typo_metrics = _typo_metrics_from_cached(
@@ -301,7 +308,9 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
                     "target_asin": r["target_asin"],
                     "query": pairs[i]["typo_query"],
                     "original_query": pairs[i]["original_query"],
+                    "retrieval_top20": r.get("retrieval_top20", r["retrieval_top10"]),
                     "retrieval_top10": r["retrieval_top10"],
+                    "top20": r.get("top20", r["top10"]),
                     "top10": r["top10"],
                     "candidates": r["candidates"],
                     "diagnostics": r["diagnostics"],
@@ -339,22 +348,24 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
             s13_retr = s13.get(retr)
             if s13_retr is None:
                 continue
-            orig_top10 = s13_retr["top10"]
+            orig_top20 = s13_retr.get("top20", s13_retr["top10"])
             target = p["asin"]
-            orig_rank = orig_top10.index(target) + 1 \
-                if target in orig_top10 else None
+            orig_rank = orig_top20.index(target) + 1 \
+                if target in orig_top20 else None
             for k in KS:
                 orig_hit = 1 if (orig_rank is not None and orig_rank <= k) else 0
-                typo_rank = typo_reranked[pi]["top10"].index(target) + 1 \
-                    if target in typo_reranked[pi]["top10"] else None
+                typo_top20 = typo_reranked[pi].get("top20", typo_reranked[pi]["top10"])
+                typo_rank = typo_top20.index(target) + 1 \
+                    if target in typo_top20 else None
                 typo_hit = 1 if (typo_rank is not None and typo_rank <= k) else 0
                 orig_hits[k].append(orig_hit)
                 typo_hits[k].append(typo_hit)
                 deg_per_k[k].append(orig_hit - typo_hit)
             if orig_rank is not None:
                 orig_rrs.append(1.0 / orig_rank)
-            typo_rank_final = typo_reranked[pi]["top10"].index(target) + 1 \
-                if target in typo_reranked[pi]["top10"] else None
+            typo_top20 = typo_reranked[pi].get("top20", typo_reranked[pi]["top10"])
+            typo_rank_final = typo_top20.index(target) + 1 \
+                if target in typo_top20 else None
             if typo_rank_final is not None:
                 typo_rrs.append(1.0 / typo_rank_final)
             n_paired += 1
@@ -373,6 +384,9 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
         log(f"  [{retr}] orig_hit@10={paired['orig_hit@10']*100:.2f}% "
             f"typo_hit@10={paired['typo_hit@10']*100:.2f}% "
             f"deg@10={paired['deg_hit@10']*100:+.2f}% "
+            f"orig_hit@20={paired['orig_hit@20']*100:.2f}% "
+            f"typo_hit@20={paired['typo_hit@20']*100:.2f}% "
+            f"deg@20={paired['deg_hit@20']*100:+.2f}% "
             f"MRR_deg={paired['MRR_deg']*100:+.2f}%")
 
     out = {
@@ -406,23 +420,26 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
             "typo_hit@1": m.get("hit@1"),
             "typo_hit@5": m.get("hit@5"),
             "typo_hit@10": m.get("hit@10"),
+            "typo_hit@20": m.get("hit@20"),
             "typo_MRR": m.get("MRR"),
             "typo_Recall@100": m.get("Recall@100"),
             "orig_hit@1": d.get("orig_hit@1"),
             "orig_hit@5": d.get("orig_hit@5"),
             "orig_hit@10": d.get("orig_hit@10"),
+            "orig_hit@20": d.get("orig_hit@20"),
             "orig_MRR": d.get("orig_MRR"),
             "deg_hit@1": d.get("deg_hit@1"),
             "deg_hit@5": d.get("deg_hit@5"),
             "deg_hit@10": d.get("deg_hit@10"),
+            "deg_hit@20": d.get("deg_hit@20"),
             "MRR_deg": d.get("MRR_deg"),
         })
     out["summary_table"] = {
         "columns": ["retriever", "n_paired",
-                    "orig_hit@1", "orig_hit@5", "orig_hit@10", "orig_MRR",
-                    "typo_hit@1", "typo_hit@5", "typo_hit@10", "typo_MRR",
+                    "orig_hit@1", "orig_hit@5", "orig_hit@10", "orig_hit@20", "orig_MRR",
+                    "typo_hit@1", "typo_hit@5", "typo_hit@10", "typo_hit@20", "typo_MRR",
                     "typo_Recall@100",
-                    "deg_hit@1", "deg_hit@5", "deg_hit@10", "MRR_deg"],
+                    "deg_hit@1", "deg_hit@5", "deg_hit@10", "deg_hit@20", "MRR_deg"],
         "metric_definition": (
             "Stage14 paired degradation over typo-paired subset (same reranker, "
             "same pipeline, clean vs typo): "
@@ -444,7 +461,7 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
     """Build the Stage 13 / Stage 14 side-by-side table + save to JSON.
 
     Stage 13 baseline: same reranker rerank on clean query, same pipeline
-                      (BM25 top-100 → rerank → top-10), typo-paired subset join.
+                      (BM25 top-100 → rerank → top-20), typo-paired subset join.
     Stage 14 (typo rerank): typo-pair subset, LLM rerank hit@k
 
     Stage14 reports paired DEGRADATION only (deg_hit@k = Stage13_clean - Stage14_typo,
@@ -455,7 +472,7 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
     paired = stage14_out.get("paired_degradation_by_retriever", {})
     log("\n=== Stage 13 baseline (typo-pair subset, same reranker clean) | "
         "Stage 14 typo rerank (typo-pair subset) ===")
-    log("  retr         hit@10                                          MRR")
+    log("  retr         hit@10 / hit@20                              MRR")
     log("  " + "-" * 76)
     rows = []
     for retr in sorted(set(stage11_metrics) | set(paired)):
@@ -464,12 +481,16 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
         row = {
             "retriever": retr,
             "stage11_hit@10_full_n1947": s11.get("hit@10"),
+            "stage11_hit@20_full_n1947": s11.get("hit@20"),
             "stage11_MRR_full_n1947": s11.get("MRR"),
             "stage13_orig_hit@10_paired": sp.get("orig_hit@10"),
+            "stage13_orig_hit@20_paired": sp.get("orig_hit@20"),
             "stage13_orig_MRR_paired": sp.get("orig_MRR"),
             "stage14_typo_hit@10_paired": sp.get("typo_hit@10"),
+            "stage14_typo_hit@20_paired": sp.get("typo_hit@20"),
             "stage14_typo_MRR_paired": sp.get("typo_MRR"),
             "stage14_deg_hit@10_paired": sp.get("deg_hit@10"),
+            "stage14_deg_hit@20_paired": sp.get("deg_hit@20"),
             "stage14_MRR_deg_paired": sp.get("MRR_deg"),
             "n_paired": sp.get("n_paired"),
         }
@@ -480,9 +501,12 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
         sign = lambda v: (f"{v*100:+5.2f}%" if v is not None else "   N/A")
         n_str = f"n={row['n_paired']}" if row['n_paired'] is not None else ""
         log(f"  {retr:12s}  "
-            f"S13_clean={cell(row['stage13_orig_hit@10_paired'])}  "
-            f"S14_typo={cell(row['stage14_typo_hit@10_paired'])} "
+            f"S13_clean@10={cell(row['stage13_orig_hit@10_paired'])}  "
+            f"S14_typo@10={cell(row['stage14_typo_hit@10_paired'])} "
             f"(deg {sign(row['stage14_deg_hit@10_paired'])})  "
+            f"S13_clean@20={cell(row['stage13_orig_hit@20_paired'])}  "
+            f"S14_typo@20={cell(row['stage14_typo_hit@20_paired'])} "
+            f"(deg {sign(row['stage14_deg_hit@20_paired'])})  "
             f"  MRR {cell(row['stage13_orig_MRR_paired'])} → "
             f"{cell(row['stage14_typo_MRR_paired'])} "
             f"(deg {sign(row['stage14_MRR_deg_paired'])})  {n_str}")
@@ -494,7 +518,7 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
                 f"result/13_syntactic_rerank/llm_rerank_results_{variant}.json"
                 if variant else "result/13_syntactic_rerank/llm_rerank_results.json"),
             "stage13_baseline": (
-                "Same reranker rerank on clean query (BM25 top-100 → rerank → top-10)"),
+                "Same reranker rerank on clean query (BM25 top-100 → rerank → top-20)"),
             "stage14_source": str(STAGE12_OUT),
             "stage14_denominator": "typo-paired subset",
             "stage14_metric_definition": (

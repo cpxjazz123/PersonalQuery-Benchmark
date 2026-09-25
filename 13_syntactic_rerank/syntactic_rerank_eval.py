@@ -7,7 +7,7 @@ raises. Stage 11 / 12 retrieval pipelines must remain retrieval-only
 (no LLM calls). For each of the 7 retrievers in
 {bm25, splade, minilm, mpnet, bge_base_v15, gte_base, colbertv2}:
 
-    retriever Top-100 -> Qwen P(Yes) rerank on those 100 -> top-10.
+    retriever Top-100 -> Qwen P(Yes) rerank on the first 20 -> top-20.
 
 The same LLM (Qwen via ``llm_client``), same prompt, same Top-100 depth,
 same scoring rule are used across retrievers. The LLM score has no
@@ -48,8 +48,8 @@ CATEGORY_INPUTS = [
 
 RETRIEVERS = ["bm25"]
 
-LLM_RERANK_TOPK = 10
-LLM_RERANK_CANDIDATES = 15
+LLM_RERANK_TOPK = 20
+LLM_RERANK_CANDIDATES = 20
 LLM_WEIGHT = 1.0
 RETRIEVAL_WEIGHT = 0.1
 # 兼容旧 λ sweep: 若代码里仍引用 RANK_PRIOR_LAMBDA,默认 2.0(本公式不再使用)
@@ -58,7 +58,7 @@ LLM_RERANK_BATCH = 512
 LLM_RERANK_WINDOW = 20
 LLM_RERANK_STRIDE = 10
 LLM_RERANK_LISTWISE_MAX_TOKENS = 64
-KS = (1, 5, 10)
+KS = (1, 5, 10, 20)
 N_SMOKE = 5
 ONLY_BM25_SMOKE = True
 SMOKE = os.environ.get("STAGE13_SMOKE") == "1"
@@ -410,16 +410,20 @@ def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client)
     for qi, _q in enumerate(queries_text):
         candidates = scores_by_qi[qi]
         ranked = sorted(candidates, key=lambda x: (-x["final_score"], x["original_rank"]))
-        retrieval_top10 = [x["asin"] for x in candidates[:LLM_RERANK_TOPK]]
+        retrieval_top20 = [x["asin"] for x in candidates[:LLM_RERANK_TOPK]]
+        retrieval_top10 = retrieval_top20[:10]
         retrieval_ranks = [x["original_rank"] for x in candidates]
         final_ranks = [0] * len(candidates)
         for final_rank, cand in enumerate(ranked, start=1):
             final_ranks[cand["original_rank"] - 1] = final_rank
         kendall, spearman = _rank_correlation(retrieval_ranks, final_ranks)
-        final_top10 = [x["asin"] for x in ranked[:LLM_RERANK_TOPK]]
+        final_top20 = [x["asin"] for x in ranked[:LLM_RERANK_TOPK]]
+        final_top10 = final_top20[:10]
         results.append({
-            "top10": final_top10,
-            "retrieval_top10": retrieval_top10,
+            "top20": final_top20,
+            "top10": final_top10,  # backward-compatible first-10 alias
+            "retrieval_top20": retrieval_top20,
+            "retrieval_top10": retrieval_top10,  # backward-compatible alias
             "target_asin": None,
             "candidates": ranked,
             "diagnostics": {
@@ -442,7 +446,7 @@ def compute_hit_metrics(reranked):
     for r in reranked:
         target = r["target_asin"]
         try:
-            rank = r["top10"].index(target) + 1
+            rank = r["top20"].index(target) + 1
         except ValueError:
             rank = None
         if rank is not None:
@@ -460,6 +464,7 @@ def compute_hit_metrics(reranked):
         "hit@5": hit[5] / n,
         "Recall@100": recall_at_100 / n,
         "hit@10": hit[10] / n,
+        "hit@20": hit[20] / n,
         "MRR": rr_sum / n,
     }
 
@@ -503,7 +508,7 @@ def compute_flip_rate(reranked, min_queries_per_asin=2):
     for r in reranked:
         target = r["target_asin"]
         try:
-            rank = r["top10"].index(target) + 1
+            rank = r["top20"].index(target) + 1
         except ValueError:
             rank = None
         asin_to_ranks[target].append(rank)
@@ -645,6 +650,7 @@ def run_stage11_llm_rerank(smoke=False):
     per_retriever_metrics = {}
     per_retriever_flip = {}
     per_query_top10_by_retr = {}
+    per_query_top20_by_retr = {}
     queries_text = [q for _a, q in queries_asin_pairs]
 
     for retr in _retr_list:
@@ -653,12 +659,12 @@ def run_stage11_llm_rerank(smoke=False):
             i for i, (target, _query) in enumerate(queries_asin_pairs)
             if target in topk_for_retr[i][:LLM_RERANK_TOPK]
         ]
-        excluded_no_hit10 = len(queries_asin_pairs) - len(eligible)
+        excluded_no_hit20 = len(queries_asin_pairs) - len(eligible)
         eligible_queries = [queries_asin_pairs[i][1] for i in eligible]
         eligible_pairs = [queries_asin_pairs[i] for i in eligible]
         eligible_topk = [topk_for_retr[i] for i in eligible]
-        log(f"\n  [{retr}] reranking eligible Hit@10 queries: "
-            f"{len(eligible)}/{len(entries)} (excluded={excluded_no_hit10})")
+        log(f"\n  [{retr}] reranking eligible Hit@20 queries: "
+            f"{len(eligible)}/{len(entries)} (excluded={excluded_no_hit20})")
         if eligible:
             reranked = llm_rerank_per_retriever(
                 eligible_queries, eligible_topk, asin_to_doc, client
@@ -680,8 +686,10 @@ def run_stage11_llm_rerank(smoke=False):
             full_records.append({
                 "target_asin": target,
                 "query": query,
-                "retrieval_top10": original[:LLM_RERANK_TOPK],
-                "top10": original[:LLM_RERANK_TOPK],
+                "retrieval_top20": original[:LLM_RERANK_TOPK],
+                "retrieval_top10": original[:10],
+                "top20": original[:LLM_RERANK_TOPK],
+                "top10": original[:10],
                 "candidates": [
                     {"asin": asin, "original_rank": rank, "retrieval_rank": rank}
                     for rank, asin in enumerate(original, start=1)
@@ -691,21 +699,27 @@ def run_stage11_llm_rerank(smoke=False):
                     "kendall_tau_a": 1.0,
                     "spearman_rho": 1.0,
                     "top10_order_changed": False,
+                    "excluded_no_hit20": True,
                     "excluded_no_hit10": True,
                 },
             })
         m = compute_hit_metrics(full_records)
         m["n_input_queries"] = len(queries_asin_pairs)
+        m["n_eligible_hit20"] = len(eligible)
+        m["n_excluded_no_hit20"] = excluded_no_hit20
+        # Preserve old names for consumers of the pre-Hit@20 schema.
         m["n_eligible_hit10"] = len(eligible)
-        m["n_excluded_no_hit10"] = excluded_no_hit10
+        m["n_excluded_no_hit10"] = excluded_no_hit20
         f = compute_flip_rate(full_records)
         flip_dict = f
         d = compute_rerank_diagnostics(reranked if reranked else full_records)
         per_retriever_metrics[retr] = m
         per_retriever_flip[retr] = f
         per_query_top10_by_retr[retr] = full_records
+        per_query_top20_by_retr[retr] = full_records
         log(f"  [{retr}] ALL queries n={len(full_records)} eligible={len(eligible)} "
             f"hit@1={m['hit@1']*100:.2f}% hit@10={m['hit@10']*100:.2f}% "
+            f"hit@20={m['hit@20']*100:.2f}% "
             f"MRR={m['MRR']*100:.2f}% Recall@100={m['Recall@100']*100:.2f}% "
             f"RR_Std={f['RR_Std_mean']:.4f}")
         log(f"    LLM score unique={len(d['llm_score_unique_values'])} "
@@ -722,6 +736,7 @@ def run_stage11_llm_rerank(smoke=False):
                 "flip_rate": flip_dict,
                 "diagnostics": d,
                 "per_query_top10_by_retriever": per_query_top10_by_retr[retr],
+                "per_query_top20_by_retriever": per_query_top20_by_retr[retr],
             }, fout, indent=2, default=str)
         log(f"  → per-retriever saved to {retr_out_path}")
 
@@ -742,6 +757,7 @@ def run_stage11_llm_rerank(smoke=False):
             "metrics_by_retriever": per_retriever_metrics,
             "flip_rate_by_retriever": per_retriever_flip,
             "per_query_top10_by_retriever": per_query_top10_by_retr,
+            "per_query_top20_by_retriever": per_query_top20_by_retr,
         }
         with open(cumulative_path, "w") as fout:
             json.dump(cumulative, fout, indent=2, default=str)
@@ -776,6 +792,7 @@ def run_stage11_llm_rerank(smoke=False):
             for retr in per_query_top10_by_retr
         },
         "per_query_top10_by_retriever": per_query_top10_by_retr,
+        "per_query_top20_by_retriever": per_query_top20_by_retr,
     }
 
     # Aggregated per-retriever summary_table (single source of truth):
@@ -791,6 +808,7 @@ def run_stage11_llm_rerank(smoke=False):
             "stage13_hit@1": m.get("hit@1"),
             "stage13_hit@5": m.get("hit@5"),
             "stage13_hit@10": m.get("hit@10"),
+            "stage13_hit@20": m.get("hit@20"),
             "stage13_MRR": m.get("MRR"),
             "stage13_Recall@100": m.get("Recall@100"),
             "stage13_flip@1": f.get("Hit@1_FlipRate_mean"),
@@ -804,7 +822,7 @@ def run_stage11_llm_rerank(smoke=False):
         })
     out["summary_table"] = {
         "columns": ["retriever", "stage13_n_queries",
-                    "stage13_hit@1", "stage13_hit@5", "stage13_hit@10", "stage13_MRR",
+                    "stage13_hit@1", "stage13_hit@5", "stage13_hit@10", "stage13_hit@20", "stage13_MRR",
                     "stage13_Recall@100",
                     "stage13_flip@1", "stage13_flip@5", "stage13_flip@10",
                     "stage13_flip@20", "stage13_flip_n_asins",
@@ -840,7 +858,7 @@ STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/per_query.json"
 
 
 def load_stage11_baseline_metrics() -> dict[str, dict]:
-    """Aggregate Stage 11 retrieval baseline hit@1/@5/@10/MRR per retriever."""
+    """Aggregate Stage 11 retrieval baseline hit@1/@5/@10/@20/MRR per retriever."""
     if not STAGE11_PER_QUERY.exists():
         raise FileNotFoundError(f"Stage 11 per_query.json missing: {STAGE11_PER_QUERY}")
     with open(STAGE11_PER_QUERY) as f:
@@ -852,7 +870,8 @@ def load_stage11_baseline_metrics() -> dict[str, dict]:
     out: dict[str, dict] = {retr: {} for retr in retrs}
     for retr in retrs:
         for metric_norm, key_suffix in (("hit@1", "hit1"), ("hit@5", "hit5"),
-                                        ("hit@10", "hit10"), ("MRR", "RR")):
+                                        ("hit@10", "hit10"), ("hit@20", "hit20"),
+                                        ("MRR", "RR")):
             key = f"{retr}_{key_suffix}"
             vals = [float(q[key]) for q in queries
                     if q.get(key) is not None]
@@ -870,7 +889,7 @@ def build_stage11_vs_stage13_table(stage11_metrics: dict,
         s11 = stage11_metrics.get(retr, {})
         s13 = stage13_metrics.get(retr, {})
         row = {"retriever": retr}
-        for k in ("hit@1", "hit@5", "hit@10", "MRR"):
+        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "MRR"):
             v11 = s11.get(k)
             v13 = s13.get(k)
             row[f"stage11_{k}"] = v11
@@ -886,7 +905,7 @@ def print_and_save_stage11_vs_stage13(stage13_out: dict,
     """Print + save Stage11 baseline vs Stage13 rerank side-by-side table.
 
     Each row carries:
-      - absolute Stage11 / Stage13 hit@{1,5,10}, MRR, Recall@100
+      - absolute Stage11 / Stage13 hit@{1,5,10,20}, MRR, Recall@100
       - Stage13 Flip@{1,5,10,20}, RR_Std_mean (per-ASIN query-pair disagreement
         rate among Stage13 rerank Top-K vs Stage11 baseline Top-K)
     All numeric values are stored as raw floats (not pre-formatted strings).
@@ -908,12 +927,12 @@ def print_and_save_stage11_vs_stage13(stage13_out: dict,
     rows = [retr_to_row[retr] for retr in sorted(retr_to_row)]
     log(f"\n=== {label}: Stage 11 baseline vs Stage 13 rerank ===")
     header = ("  retr         hit@1(11→13 Δ)        hit@5(11→13 Δ)        "
-              "hit@10(11→13 Δ)       MRR(11→13 Δ)")
+              "hit@10(11→13 Δ)       hit@20(11→13 Δ)       MRR(11→13 Δ)")
     log(header)
     log("  " + "-" * (len(header) - 2))
     for r in rows:
         cells = []
-        for k in ("hit@1", "hit@5", "hit@10", "MRR"):
+        for k in ("hit@1", "hit@5", "hit@10", "hit@20", "MRR"):
             v11 = r.get(f"stage11_{k}"); v13 = r.get(f"stage13_{k}"); d = r.get(f"delta_{k}")
             if v11 is None or v13 is None:
                 cells.append(f"    N/A      ")

@@ -224,11 +224,12 @@ def _queries_signature(queries: list[str]) -> str:
 
 def rr_hit_from_rank(rank: int | None) -> dict:
     if rank is None or rank < 0:
-        return {"rank": None, "RR": 0.0, "hit1": 0, "hit5": 0, "hit10": 0}
+        return {"rank": None, "RR": 0.0, "hit1": 0, "hit5": 0, "hit10": 0, "hit20": 0}
     return {"rank": rank, "RR": 1.0 / rank,
             "hit1": 1 if rank == 1 else 0,
             "hit5": 1 if rank <= 5 else 0,
-            "hit10": 1 if rank <= 10 else 0}
+            "hit10": 1 if rank <= 10 else 0,
+            "hit20": 1 if rank <= 20 else 0}
 
 
 def rank_target_in_sorted(target_idx: int, sorted_docs: np.ndarray, max_k: int) -> int:
@@ -1007,28 +1008,55 @@ def main_task_body():
         log(f"  ✓ loaded {cached.get('n_queries', 0)} cached query records")
         # ---- 4-10 from cache: build aggregates ----
         query_records = cached["queries"]
+        # Older per-query caches predate Hit@20.  Their exact retrieval rank
+        # is already present, so migrate the field without rerunning retrieval.
+        for record in query_records:
+            for retr_name in RETR_NAMES:
+                rank = record.get(f"{retr_name}_rank")
+                record[f"{retr_name}_hit20"] = int(
+                    rank is not None and rank <= 20
+                )
+        # Persist the migrated schema so Stage 12/13 consumers see Hit@20
+        # even when Stage 11 itself was served from its old query cache.
+        cached["queries"] = query_records
+        with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
+            json.dump(cached, f, ensure_ascii=False)
         asins_count = cached["config"]["corpus_size"]
 
         # Load minilm q_embeds from disk so canonical sim09 reference is available
         # without re-running all 7 retrievers
         minilm_q_cache = EMBED_CACHE_DIR / "minilm" / "query_embeds.npy"
+        cached_minilm = None
         if minilm_q_cache.exists():
-            cached_minilm = np.load(minilm_q_cache)
-            if cached_minilm.shape[0] == len(query_records):
-                retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
-                canonical_name = "minilm"
-                log(f"  ✓ loaded minilm q_embeds from disk ({cached_minilm.shape}) "
+            candidate = np.load(minilm_q_cache)
+            if candidate.shape[0] == len(query_records):
+                cached_minilm = candidate
+                log(f"  ✓ loaded minilm q_embeds from disk ({candidate.shape}) "
                     f"for canonical sim09 reference")
             else:
-                raise RuntimeError(
-                    f"minilm q_embeds cache stale (cached={cached_minilm.shape[0]}, "
-                    f"current={len(query_records)}); delete {minilm_q_cache} and re-run"
-                )
-        else:
-            raise RuntimeError(
-                f"minilm q_embeds cache not found at {minilm_q_cache}; "
-                f"cannot build canonical sim09 reference"
+                log(f"  ⚠ stale minilm q_embeds cache ({candidate.shape[0]} != "
+                    f"{len(query_records)}); re-encoding only query embeddings")
+        if cached_minilm is None:
+            # Stage 12 uses the same retriever module and can overwrite the
+            # shared query cache with typo queries.  Rebuild only the
+            # canonical MiniLM query vectors; retrieval ranks remain cached.
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer(
+                "sentence-transformers/all-MiniLM-L6-v2",
+                device="cuda" if torch.cuda.is_available() else "cpu",
             )
+            cached_minilm = model.encode(
+                [q["query"] for q in query_records], batch_size=512,
+                show_progress_bar=False, convert_to_numpy=True,
+                normalize_embeddings=True,
+            )
+            np.save(minilm_q_cache, cached_minilm)
+            _sig_path_for(minilm_q_cache).write_text(selection_sig)
+            del model
+            torch.cuda.empty_cache()
+            log(f"  ✓ rebuilt minilm q_embeds ({cached_minilm.shape})")
+        retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
+        canonical_name = "minilm"
         # 2026-09-19: top-100 cache 已被 fresh-run 路径保存 (主循环中所有 retriever
         # 都调用 save_topk_path=topk_path). 这里是 cache-hit 路径, top-100 应已存在.
         missing_topk = [n for n in RETR_NAMES
@@ -1152,6 +1180,7 @@ def main_task_body():
             r[f"{n}_hit1"] = res["hit1"]
             r[f"{n}_hit5"] = res["hit5"]
             r[f"{n}_hit10"] = res["hit10"]
+            r[f"{n}_hit20"] = res["hit20"]
 
     # ---- 5. Save per-query intermediate (with signature for cache) ----
     PER_QUERY_OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -1209,6 +1238,22 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
                 "sim09_reference": canonical_embeds_name,
                 "selection_file": str(SEL_IN),
                 "corpus_size": asins_count,
+            },
+            "retrieval_metrics": {
+                n: {
+                    "n_queries": len(query_records),
+                    **{
+                        f"hit@{k}": float(np.mean([
+                            q.get(f"{n}_hit{k}", 0) for q in query_records
+                        ]))
+                        for k in (1, 5, 10, 20)
+                    },
+                    "MRR": float(np.mean([
+                        float(q.get(f"{n}_RR") or 0.0)
+                        for q in query_records
+                    ])),
+                }
+                for n in RETR_NAMES
             },
             "volatility_sim09": volatility,
         }, f, ensure_ascii=False, indent=2)
