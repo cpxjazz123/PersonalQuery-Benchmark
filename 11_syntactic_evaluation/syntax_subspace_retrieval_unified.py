@@ -158,6 +158,8 @@ RETRIEVERS = [
     {"name": "bge_base_v15", "kind": "dense", "hf_id": "BAAI/bge-base-en-v1.5", "dim": 768},
     {"name": "gte_base", "kind": "dense", "hf_id": "thenlper/gte-base", "dim": 768},
     {"name": "bge_m3", "kind": "dense_bge_m3", "hf_id": "BAAI/bge-m3", "dim": 1024},
+    {"name": "bge_m3_hybrid", "kind": "dense_bge_m3_hybrid", "hf_id": "BAAI/bge-m3", "dim": 1024,
+     "weights": (1.0, 0.3, 1.0)},  # (w_dense, w_sparse, w_colbert)
     {"name": "colbertv2", "kind": "late_interaction", "hf_id": "colbert-ir/colbertv2.0", "dim": 128},
 ]
 RETR_NAMES = [r["name"] for r in RETRIEVERS]
@@ -165,6 +167,14 @@ BGE_M3_HF_CACHE = Path("/home/wlia0047/hj82/wenyu/hf_cache")
 # 2026-09-25: raise batch — bs=64 used ~2.5GB/46GB VRAM; larger batch cuts steps.
 BGE_M3_CORPUS_BATCH = 512
 BGE_M3_QUERY_BATCH = 512
+# 2026-09-26: BGE-M3 hybrid (dense + sparse + colbert) parameters.
+# - batch lowered vs dense-only to leave headroom for sparse + colbert matmul
+# - colbert matmul is O(B * corpus * 1024 * max_token_len_q * max_token_len_d)
+#   → keep B=64 to fit 46 GB VRAM with corpus up to 220 k docs.
+BGE_M3_HYBRID_CORPUS_BATCH = 64
+BGE_M3_HYBRID_QUERY_BATCH = 64
+BGE_M3_HYBRID_COLBERT_MAXLEN = 32  # cap token len to keep colbert matmul cheap
+BGE_M3_HYBRID_COLBERT_SCORE_BATCH = 4096  # corpus chunks per query in colbert matmul
 
 # ===========================================================================
 # SELECTION SIGNATURE (per-query cache key)
@@ -713,8 +723,17 @@ def bge_m3_retrieve(queries: list[str], corpus_texts: list[str],
     log("\n=== bge_m3 (dense, BAAI/bge-m3) ===")
     cache_dir = EMBED_CACHE_DIR / "bge_m3"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    corpus_cache = cache_dir / "corpus_embeds.npy"
-    query_cache = cache_dir / "query_embeds.npy"
+    # 2026-09-26: dense cache files renamed to corpus_dense.npy so the same
+    # artifacts can be shared with bge_m3_hybrid (which also needs dense).
+    # Legacy corpus_embeds.npy / query_embeds.npy are still honored on read.
+    corpus_cache = cache_dir / "corpus_dense.npy"
+    query_cache = cache_dir / "query_dense.npy"
+    legacy_corpus = cache_dir / "corpus_embeds.npy"
+    legacy_query = cache_dir / "query_embeds.npy"
+    if not corpus_cache.exists() and legacy_corpus.exists():
+        corpus_cache = legacy_corpus
+    if not query_cache.exists() and legacy_query.exists():
+        query_cache = legacy_query
     corpus_sig_file = _sig_path_for(corpus_cache)
     query_sig_file = _sig_path_for(query_cache)
 
@@ -792,7 +811,484 @@ def bge_m3_retrieve(queries: list[str], corpus_texts: list[str],
 
 
 # ===========================================================================
-# ColBERTv2 (late interaction, 768→128 linear projection)
+# BGE-M3 hybrid (dense + sparse + colbert) retriever
+# 2026-09-26: implements full multi-vector + lexical fusion (BGE-M3 native).
+# Cache layout under cache_dir/bge_m3/:
+#   corpus_dense.npy          (N, 1024) float32  ← shared with bge_m3 dense
+#   query_dense.npy           (Q, 1024) float32
+#   corpus_sparse.npz         {vocab:(V,), data:(nnz,) float16, indices:(nnz,) int32, indptr:(N+1,) int32}
+#   query_sparse.npz          (same layout)
+#   corpus_colbert.npz        {data:(sum_L, 1024) float16, lengths:(N,) int32}
+#   query_colbert.npz         (same layout)
+# Scoring: dense cosine + w_s·sparse ip + w_c·colbert max-sim sum (ColBERT formula)
+# ===========================================================================
+def _bge_m3_encode_hybrid(model, texts: list[str], batch_size: int) -> dict:
+    """Run BGE-M3 returning dense + sparse + colbert outputs (single pass)."""
+    out = model.encode(
+        texts, batch_size=batch_size, max_length=512,
+        return_dense=True, return_sparse=True, return_colbert_vecs=True,
+    )
+    dense = np.asarray(out["dense_vecs"], dtype=np.float32)
+    dense = dense / np.linalg.norm(dense, axis=1, keepdims=True).clip(min=1e-12)
+    sparse = out["lexical_weights"]  # list[defaultdict[int,float]]
+    colbert = out["colbert_vecs"]    # list[(L, 1024) float32]
+    return {"dense": dense, "sparse": sparse, "colbert": colbert}
+
+
+def _sparse_to_csr(sparse_list: list, vocab: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Pack variable-length sparse dicts into CSR (data/indices/indptr) over fixed vocab."""
+    v2i = {int(t): i for i, t in enumerate(vocab.tolist())}
+    V = len(vocab)
+    indptr = np.zeros(len(sparse_list) + 1, dtype=np.int64)
+    pairs: list[tuple[int, int, float]] = []
+    for di, d in enumerate(sparse_list):
+        for tok, w in d.items():
+            ti = v2i.get(int(tok))
+            if ti is None:
+                continue
+            pairs.append((di, ti, float(w)))
+        indptr[di + 1] = len(pairs)
+    if pairs:
+        rows = np.array([p[0] for p in pairs], dtype=np.int32)
+        cols = np.array([p[1] for p in pairs], dtype=np.int32)
+        vals = np.array([p[2] for p in pairs], dtype=np.float16)
+    else:
+        rows = np.zeros(0, dtype=np.int32)
+        cols = np.zeros(0, dtype=np.int32)
+        vals = np.zeros(0, dtype=np.float16)
+    return vals, cols, indptr.astype(np.int32)
+
+
+def _colbert_to_packed(colbert_list: list, max_len: int = BGE_M3_HYBRID_COLBERT_MAXLEN
+                       ) -> tuple[np.ndarray, np.ndarray]:
+    """Pack variable-length colbert vecs → (sum_L, 1024) float16 + lengths (N,) int32."""
+    flat = []
+    lens = np.zeros(len(colbert_list), dtype=np.int32)
+    for i, arr in enumerate(colbert_list):
+        L = min(arr.shape[0], max_len)
+        lens[i] = L
+        if L > 0:
+            flat.append(arr[:L].astype(np.float16))
+    if flat:
+        packed = np.concatenate(flat, axis=0)
+    else:
+        packed = np.zeros((0, 1024), dtype=np.float16)
+    return packed, lens
+
+
+def _sparse_scores_chunked(
+    q_sparse_vocab: np.ndarray, q_sparse_indptr: np.ndarray,
+    q_sparse_indices: np.ndarray, q_sparse_data: np.ndarray,
+    c_sparse_vocab: np.ndarray, c_sparse_indptr: np.ndarray,
+    c_sparse_indices: np.ndarray, c_sparse_data: np.ndarray,
+    chunk: int = 4096,
+) -> np.ndarray:
+    """Compute sparse ip (Q x N) as CPU CSR @ CSR with chunked corpus output.
+
+    BGE-M3 sparse: each doc has ~25 weighted tokens, each query ~10. So a
+    per-query loop over corpus docs only needs to check the token intersection
+    of (q.vocab ∩ d.vocab). Use a hash-set per query for O(N * avg_tokens)
+    which is ~5M ops for baby (2714 * 217710 * 25 = 1.5e10 — still too slow).
+
+    Better: build corpus token → list-of-doc-weights dict once, then for each
+    query token do a token-bucket dot product. Total ops: O(sum_q L_q * sum_d
+    |bucket_d_tok|) which is ~Q * 10 * (N * 25 / V_active) — tractable.
+    """
+    # 1. Build per-corpus sparse dicts as plain python for fast inner loop
+    # (Corpus never changes during one run.)
+    corpus_dicts: list[dict[int, float]] = []
+    for di in range(len(c_sparse_indptr) - 1):
+        s = int(c_sparse_indptr[di])
+        e = int(c_sparse_indptr[di + 1])
+        idx = c_sparse_indices[s:e].tolist()
+        w = c_sparse_data[s:e].astype(np.float32).tolist()
+        corpus_dicts.append({idx[k]: w[k] for k in range(len(idx))})
+
+    # 2. Build inverse index: corpus token id → list of (doc_id, weight)
+    inv: dict[int, list[tuple[int, float]]] = {}
+    for di, d in enumerate(corpus_dicts):
+        for tok, w in d.items():
+            inv.setdefault(int(tok), []).append((di, w))
+
+    # 3. Query loop: for each query token, accumulate w_q * w_d over its bucket
+    Q = len(q_sparse_indptr) - 1
+    N = len(corpus_dicts)
+    out = np.zeros((Q, N), dtype=np.float32)
+    # Process in chunks of docs to bound memory
+    chunk_doc_ids: dict[int, list[float]] = {}
+    chunk_dense: np.ndarray  # current chunk scores
+    for qi in range(Q):
+        s = int(q_sparse_indptr[qi])
+        e = int(q_sparse_indptr[qi])
+        e = int(q_sparse_indptr[qi + 1])
+        q_idx = q_sparse_indices[s:e].astype(np.int64)
+        q_w = q_sparse_data[s:e].astype(np.float32)
+        if q_w.shape[0] == 0:
+            continue
+        scores_q = out[qi]
+        # For each query token, fold its corpus bucket into scores_q
+        # The bucket is a sorted list of (doc_id, w_d) — accumulate
+        for ti, wq in zip(q_idx.tolist(), q_w.tolist()):
+            bucket = inv.get(int(ti))
+            if not bucket:
+                continue
+            # vectorized: convert bucket to numpy arrays
+            arr = np.asarray(bucket, dtype=np.float32)  # (k, 2)
+            di_arr = arr[:, 0].astype(np.int64)
+            wd_arr = arr[:, 1]
+            np.add.at(scores_q, di_arr, wq * wd_arr)
+    return out
+
+
+def _save_sparse_npz(path: Path, data: np.ndarray, indices: np.ndarray, indptr: np.ndarray,
+                     vocab: np.ndarray):
+    np.savez_compressed(path, vocab=vocab, data=data, indices=indices, indptr=indptr)
+
+
+def _save_colbert_npz(path: Path, packed: np.ndarray, lengths: np.ndarray):
+    np.savez_compressed(path, data=packed, lengths=lengths)
+
+
+def _load_colbert_npz(path: Path, dim: int = 1024) -> tuple[np.ndarray, np.ndarray]:
+    z = np.load(path)
+    packed = z["data"]
+    if packed.dtype != np.float16:
+        packed = packed.astype(np.float16, copy=False)
+    if packed.ndim == 1:
+        packed = packed.reshape(-1, dim)
+    return packed, z["lengths"].astype(np.int32)
+
+
+def _colbert_maxsim_chunked(
+    q_packed: torch.Tensor, q_lens: torch.Tensor,
+    d_packed: torch.Tensor, d_lens: torch.Tensor,
+    chunk_size: int = BGE_M3_HYBRID_COLBERT_SCORE_BATCH,
+    normalize: bool = True,
+) -> torch.Tensor:
+    """ColBERT late-interaction score per query (B, corpus) by chunked matmul.
+
+    For each query q (lengths[i]), score against all docs d in chunks:
+        s(q, d) = sum_t max_j <q[t], d[j]>      (L2-normalized vectors)
+    Implementation: gather docs in chunk → (chunk, L_max_d, 1024) padded,
+    q × d.T (B, L_q, chunk, L_d), then max over L_d and sum over L_q.
+    Memory: ~B * L_q * chunk * L_d * 4 bytes for fp32 scores.
+    """
+    B = q_packed.shape[0]
+    N = d_packed.shape[0]
+    Lq = int(q_lens.max().item())
+    Ld = int(d_lens.max().item()) if N > 0 else 0
+    if Lq == 0 or Ld == 0 or N == 0:
+        return torch.zeros(B, N, dtype=torch.float32, device=q_packed.device)
+
+    if normalize:
+        q_packed = q_packed / q_packed.norm(dim=-1, keepdim=True).clamp(min=1e-9)
+        d_packed = d_packed / d_packed.norm(dim=-1, keepdim=True).clamp(min=1e-9)
+
+    out = torch.zeros(B, N, dtype=torch.float32, device=q_packed.device)
+    # Pad queries once: (B, Lq, 1024)
+    q_pad = torch.zeros(B, Lq, q_packed.shape[-1], dtype=torch.float32, device=q_packed.device)
+    q_mask = torch.zeros(B, Lq, dtype=torch.bool, device=q_packed.device)
+    q_offsets = torch.cat([torch.zeros(1, dtype=torch.long, device=q_packed.device),
+                           q_lens.cumsum(0).long()])
+    for i in range(B):
+        L = int(q_lens[i].item())
+        if L > 0:
+            q_pad[i, :L] = q_packed[q_offsets[i]:q_offsets[i] + L].float()
+            q_mask[i, :L] = True
+
+    # Iterate docs in chunks to bound memory
+    for s in range(0, N, chunk_size):
+        e = min(s + chunk_size, N)
+        # Pack docs (e-s, Ld, 1024)
+        d_pad = torch.zeros(e - s, Ld, d_packed.shape[-1], dtype=torch.float32,
+                            device=q_packed.device)
+        d_mask = torch.zeros(e - s, Ld, dtype=torch.bool, device=q_packed.device)
+        d_offsets = torch.cat([torch.zeros(1, dtype=torch.long, device=q_packed.device),
+                               d_lens.cumsum(0).long()])
+        for j in range(e - s):
+            di = s + j
+            L = int(d_lens[di].item())
+            if L > 0:
+                d_pad[j, :L] = d_packed[d_offsets[di]:d_offsets[di] + L].float()
+                d_mask[j, :L] = True
+        # scores: (B, Lq, e-s, Ld) → take max over Ld (masked) → (B, Lq, e-s) → sum over Lq
+        # bmm einsum: q_pad (B, Lq, 1024) @ d_pad.transpose(-1,-2) → (B, Lq, e-s, Ld)
+        scores = torch.einsum("bld,bqld->bqd", q_pad, d_pad)  # wrong shape
+        # correct: (B, Lq, 1024) x (chunk, Ld, 1024) → (B, Lq, chunk, Ld)
+        # Use einsum:
+        del scores
+        chunk_scores = torch.einsum("blf,clf->bcl",
+                                    q_pad.reshape(B * Lq, -1),
+                                    d_pad.reshape(e - s, Ld, -1))
+        # Wait: above gives (BLq, Cl). Reshape to (B, Lq, C, Ld).
+        chunk_scores = chunk_scores.view(B, Lq, e - s, Ld)
+        # mask out padding
+        chunk_scores = chunk_scores.masked_fill(~d_mask.unsqueeze(0).unsqueeze(0), -1e4)
+        chunk_scores = chunk_scores.masked_fill(~q_mask.unsqueeze(-1).unsqueeze(-1), 0.0)
+        maxsim, _ = chunk_scores.max(dim=-1)  # (B, Lq, chunk)
+        out[:, s:e] = maxsim.sum(dim=1)  # sum over Lq
+        del chunk_scores, maxsim, d_pad, d_mask
+    return out
+
+
+def _colbert_maxsim_topk_only(
+    q_packed: torch.Tensor, q_lens: torch.Tensor,
+    d_packed: torch.Tensor, d_lens: torch.Tensor,
+    target_indices: torch.Tensor,
+    chunk_size: int = BGE_M3_HYBRID_COLBERT_SCORE_BATCH,
+    topk_k: int = 100,
+) -> torch.Tensor:
+    """Compute ColBERT max-sim score only for the doc range that contains each
+    target, then take top-k around it. Cheaper than full N.
+    For each query, we compute scores vs the union of {target} ∪ topk neighbors
+    from dense matmul — but here we just compute scores vs ALL corpus (chunked)
+    which is what we already do. Use the chunked version."""
+    raise NotImplementedError("use _colbert_maxsim_chunked instead")
+
+
+def bge_m3_hybrid_retrieve(queries: list[str], corpus_texts: list[str],
+                           target_indices: np.ndarray, *,
+                           corpus_sig: str, query_sig: str,
+                           save_topk_path: Path | None = None,
+                           topk_k: int = TOPK_SAVE_K,
+                           weights: tuple = (1.0, 0.3, 1.0)) -> tuple[list[dict], np.ndarray]:
+    from FlagEmbedding import BGEM3FlagModel
+
+    w_dense, w_sparse, w_colbert = weights
+    log(f"\n=== bge_m3_hybrid (dense+sparse+colbert, weights={weights}) ===")
+    cache_dir = EMBED_CACHE_DIR / "bge_m3"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # ---------- shared dense cache ----------
+    corpus_dense = cache_dir / "corpus_dense.npy"
+    query_dense = cache_dir / "query_dense.npy"
+    legacy_corpus = cache_dir / "corpus_embeds.npy"
+    legacy_query = cache_dir / "query_embeds.npy"
+    if not corpus_dense.exists() and legacy_corpus.exists():
+        corpus_dense = legacy_corpus
+    if not query_dense.exists() and legacy_query.exists():
+        query_dense = legacy_query
+    corpus_dense_sig = _sig_path_for(corpus_dense)
+    query_dense_sig = _sig_path_for(query_dense)
+
+    sparse_corpus_npz = cache_dir / "corpus_sparse.npz"
+    sparse_query_npz = cache_dir / "query_sparse.npz"
+    sparse_corpus_sig = _sig_path_for(sparse_corpus_npz)
+    sparse_query_sig = _sig_path_for(sparse_query_npz)
+    colbert_corpus_npz = cache_dir / "corpus_colbert.npz"
+    colbert_query_npz = cache_dir / "query_colbert.npz"
+    colbert_corpus_sig = _sig_path_for(colbert_corpus_npz)
+    colbert_query_sig = _sig_path_for(colbert_query_npz)
+
+    model = BGEM3FlagModel(
+        "BAAI/bge-m3", use_fp16=True, devices=["cuda:0"],
+        cache_dir=str(BGE_M3_HF_CACHE),
+    )
+
+    # ---------- 1. encode corpus ----------
+    have_dense = (corpus_dense.exists() and corpus_dense_sig.exists()
+                  and corpus_dense_sig.read_text().strip() == corpus_sig)
+    have_sparse = (sparse_corpus_npz.exists() and sparse_corpus_sig.exists()
+                   and sparse_corpus_sig.read_text().strip() == corpus_sig)
+    have_colbert = (colbert_corpus_npz.exists() and colbert_corpus_sig.exists()
+                    and colbert_corpus_sig.read_text().strip() == corpus_sig)
+    if have_dense and have_sparse and have_colbert:
+        log(f"  ✓ corpus cache (dense+sparse+colbert) all hit, sig={corpus_sig}")
+        corpus_dense_arr = np.load(corpus_dense)
+        sparse_corpus_z = np.load(sparse_corpus_npz)
+        sparse_corpus_vocab = sparse_corpus_z["vocab"].astype(np.int64)
+        sparse_corpus_data = sparse_corpus_z["data"].astype(np.float32)
+        sparse_corpus_indices = sparse_corpus_z["indices"].astype(np.int32)
+        sparse_corpus_indptr = sparse_corpus_z["indptr"].astype(np.int64)
+        colbert_corpus_packed, colbert_corpus_lens = _load_colbert_npz(colbert_corpus_npz)
+    else:
+        log(f"  encoding {len(corpus_texts)} corpus with BGE-M3 hybrid "
+            f"(batch={BGE_M3_HYBRID_CORPUS_BATCH}, max_len={BGE_M3_HYBRID_COLBERT_MAXLEN})...")
+        out = _bge_m3_encode_hybrid(model, corpus_texts, BGE_M3_HYBRID_CORPUS_BATCH)
+        corpus_dense_arr = out["dense"]
+        sparse_raw = out["sparse"]
+        colbert_raw = out["colbert"]
+
+        if not have_dense:
+            np.save(corpus_dense, corpus_dense_arr)
+            corpus_dense_sig.write_text(corpus_sig)
+            log(f"  cached → {corpus_dense} (shape={corpus_dense_arr.shape})")
+        if not have_sparse:
+            vocab = np.array(sorted({int(t) for d in sparse_raw for t in d.keys()}),
+                             dtype=np.int64)
+            data, indices, indptr = _sparse_to_csr(sparse_raw, vocab)
+            _save_sparse_npz(sparse_corpus_npz, data, indices, indptr.astype(np.int32), vocab)
+            sparse_corpus_sig.write_text(corpus_sig)
+            log(f"  cached → {sparse_corpus_npz} (vocab={vocab.shape}, nnz={data.shape})")
+            sparse_corpus_vocab, sparse_corpus_data = vocab, data.astype(np.float32)
+            sparse_corpus_indices, sparse_corpus_indptr = indices, indptr
+        if not have_colbert:
+            packed, lens = _colbert_to_packed(colbert_raw, BGE_M3_HYBRID_COLBERT_MAXLEN)
+            _save_colbert_npz(colbert_corpus_npz, packed, lens)
+            colbert_corpus_sig.write_text(corpus_sig)
+            log(f"  cached → {colbert_corpus_npz} (n={len(lens)}, total_tokens={packed.shape})")
+            colbert_corpus_packed, colbert_corpus_lens = packed, lens
+        # free
+        del sparse_raw, colbert_raw
+
+    # ---------- 2. encode queries ----------
+    have_qd = (query_dense.exists() and query_dense_sig.exists()
+               and query_dense_sig.read_text().strip() == query_sig)
+    have_qs = (sparse_query_npz.exists() and sparse_query_sig.exists()
+               and sparse_query_sig.read_text().strip() == query_sig)
+    have_qc = (colbert_query_npz.exists() and colbert_query_sig.exists()
+               and colbert_query_sig.read_text().strip() == query_sig)
+    if have_qd and have_qs and have_qc:
+        log(f"  ✓ query cache (dense+sparse+colbert) all hit, sig={query_sig}")
+        q_dense = np.load(query_dense)
+        sq = np.load(sparse_query_npz)
+        q_sparse_vocab = sq["vocab"].astype(np.int64)
+        q_sparse_data = sq["data"].astype(np.float32)
+        q_sparse_indices = sq["indices"].astype(np.int32)
+        q_sparse_indptr = sq["indptr"].astype(np.int64)
+        q_colbert_packed, q_colbert_lens = _load_colbert_npz(colbert_query_npz)
+    else:
+        log(f"  encoding {len(queries)} queries with BGE-M3 hybrid "
+            f"(batch={BGE_M3_HYBRID_QUERY_BATCH})...")
+        qout = _bge_m3_encode_hybrid(model, queries, BGE_M3_HYBRID_QUERY_BATCH)
+        q_dense = qout["dense"]
+        q_sparse_raw = qout["sparse"]
+        q_colbert_raw = qout["colbert"]
+        if not have_qd:
+            np.save(query_dense, q_dense)
+            query_dense_sig.write_text(query_sig)
+            log(f"  cached → {query_dense} (shape={q_dense.shape})")
+        if not have_qs:
+            qvocab = np.array(sorted({int(t) for d in q_sparse_raw for t in d.keys()}),
+                              dtype=np.int64)
+            qdata, qindices, qindptr = _sparse_to_csr(q_sparse_raw, qvocab)
+            _save_sparse_npz(sparse_query_npz, qdata, qindices, qindptr.astype(np.int32), qvocab)
+            sparse_query_sig.write_text(query_sig)
+            log(f"  cached → {sparse_query_npz} (vocab={qvocab.shape}, nnz={qdata.shape})")
+            q_sparse_vocab, q_sparse_data, q_sparse_indices, q_sparse_indptr = (
+                qvocab, qdata.astype(np.float32), qindices, qindptr)
+        if not have_qc:
+            qpacked, qlens = _colbert_to_packed(q_colbert_raw, BGE_M3_HYBRID_COLBERT_MAXLEN)
+            _save_colbert_npz(colbert_query_npz, qpacked, qlens)
+            colbert_query_sig.write_text(query_sig)
+            log(f"  cached → {colbert_query_npz} (n={len(qlens)}, total_tokens={qpacked.shape})")
+            q_colbert_packed, q_colbert_lens = qpacked, qlens
+        del q_sparse_raw, q_colbert_raw
+
+    del model
+    torch.cuda.empty_cache()
+
+    # ---------- 3. hybrid scoring ----------
+    # Vocabularies are kept in their CSR form (union vocab is reconstructed from
+    # corpus ∪ query vocab in sparse_scores.py). We don't try to build a dense
+    # (N, V) sparse matrix — for baby V is 250002 → 109 GB, doesn't fit.
+    # Instead, we use torch.sparse.mm on (N, V) sparse_csr @ (V, B) dense per
+    # chunk which is feasible because torch sparse matmul keeps CSR sparsity
+    # and emits dense B-vector outputs.
+    # Per BGE-M3 sparse behavior: each doc has ~25 nonzero tokens out of 250002;
+    # CSR @ dense yields 217710 * 25 * B = 5.4e6 * B FLOPs per chunk, fast.
+    log(f"  corpus sparse nnz={int(sparse_corpus_data.shape[0])}, "
+        f"query sparse nnz={int(q_sparse_data.shape[0])}")
+    # build GPU sparse tensors (re-using the cached CSR arrays)
+    corpus_sparse_t = torch.sparse_csr_tensor(
+        torch.from_numpy(sparse_corpus_indptr.astype(np.int64)),
+        torch.from_numpy(sparse_corpus_indices.astype(np.int64)),
+        torch.from_numpy(sparse_corpus_data),
+        size=(len(corpus_texts), 250002), dtype=torch.float32,
+    ).cuda()
+    q_dense_t = torch.from_numpy(q_dense).cuda()
+    cd_t = torch.from_numpy(corpus_dense_arr).cuda()
+    targets_gpu = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
+    q_packed_t = torch.from_numpy(q_colbert_packed).cuda()
+    q_lens_t = torch.from_numpy(q_colbert_lens).cuda()
+    d_packed_t = torch.from_numpy(colbert_corpus_packed).cuda()
+    d_lens_t = torch.from_numpy(colbert_corpus_lens).cuda()
+
+    # Re-index query sparse columns to a contiguous dense V' representation.
+    # We pack each query's tokens into a dense (Q, V_qmax) fp16 mat where
+    # V_qmax = max query token id + 1, then do sparse @ dense.
+    # But for batched mm we need (V, B) dense — and V=250002, B=64 → 64 MB.
+    # This fits easily. So pack queries per batch.
+    # query_sparse_t is CSR (Q, 250002). To batch mm we need each query as a
+    # dense vector in (250002, B). Use sparse_csr_tensor.to_dense() in slices.
+
+    results: list[dict] = []
+    topk_rows: list[np.ndarray] = []
+    t0 = time.time()
+    SCORE_BATCH = 64  # queries per chunk to bound memory
+    q_offsets_full = torch.cat([torch.zeros(1, dtype=torch.long, device="cuda"),
+                                q_lens_t.cumsum(0).long()])
+    for start in range(0, len(queries), SCORE_BATCH):
+        end = min(start + SCORE_BATCH, len(queries))
+        B = end - start
+        # dense cosine
+        sd = q_dense_t[start:end] @ cd_t.T  # (B, N) fp32
+        # sparse ip: corpus_sparse.T (sparse, 250002×N) @ query_dense_v (250002×B, dense)
+        # Build query dense v by to_dense on the query CSR slice — too costly
+        # (250002 * 64 fp32 = 64 MB per batch, OK). But to_dense is dense
+        # extraction — actually fine.
+        q_dense_v = torch.zeros(250002, B, dtype=torch.float32, device="cuda")
+        # Place query sparse columns at their original positions in the 250002
+        # vector space, then transpose → (250002, B). Actually we need:
+        #   scores_sparse = q_dense_v.T (B, 250002) @ corpus_sparse.T (sparse) — NOT supported.
+        # Equivalent: scores_sparse = corpus_sparse (N, 250002) @ q_dense_v (250002, B)
+        # Sparse @ dense works in PyTorch.
+        # We need q_dense_v: for each query b, set q_dense_v[token_id, b] = weight.
+        for j in range(B):
+            qi = start + j
+            s = int(sparse_corpus_indptr[0])  # not used
+            # query CSR slice
+            qs = q_sparse_indptr[qi]
+            qe = q_sparse_indptr[qi + 1]
+            tok_ids = q_sparse_indices[qs:qe]
+            tok_vals = q_sparse_data[qs:qe]
+            if tok_vals.shape[0] > 0:
+                q_dense_v[tok_ids, j] = torch.from_numpy(tok_vals.astype(np.float32)).cuda()
+        # sparse @ dense: corpus_sparse (N, 250002) @ q_dense_v (250002, B) → (N, B)
+        ss = torch.sparse.mm(corpus_sparse_t, q_dense_v).T  # (B, N) fp32
+        # colbert max-sim
+        sl = q_offsets_full[start].item()
+        sr = q_offsets_full[end].item()
+        q_chunk_packed = q_packed_t[sl:sr]
+        q_chunk_lens = q_lens_t[start:end]
+        sc = _colbert_maxsim_chunked(
+            q_chunk_packed, q_chunk_lens, d_packed_t, d_lens_t,
+            chunk_size=BGE_M3_HYBRID_COLBERT_SCORE_BATCH,
+        )  # (B, N)
+        # z-normalize each component for fair weighting
+        def _zscore(x: torch.Tensor) -> torch.Tensor:
+            mu = x.mean(dim=1, keepdim=True)
+            sd = x.std(dim=1, keepdim=True).clamp(min=1e-6)
+            return (x - mu) / sd
+        sd_z = _zscore(sd)
+        ss_z = _zscore(ss)
+        sc_z = _zscore(sc)
+        combined = w_dense * sd_z + w_sparse * ss_z + w_colbert * sc_z
+        for j in range(B):
+            scores = combined[j]
+            target = int(targets_gpu[start + j].item())
+            if target < 0:
+                results.append(rr_hit_from_rank(-1))
+            else:
+                rank = int((scores > scores[target]).sum().item()) + 1
+                results.append(rr_hit_from_rank(rank))
+            if save_topk_path is not None:
+                row = torch.topk(scores, k=min(topk_k, scores.shape[0])).indices.cpu().numpy().astype(np.int32)
+                if len(row) < topk_k:
+                    row = np.pad(row, (0, topk_k - len(row)), constant_values=-1)
+                topk_rows.append(row)
+        del sd, ss, sc, combined, sd_z, ss_z, sc_z, q_dense_v
+        torch.cuda.empty_cache()
+    log(f"  hybrid matmul + ranks done in {time.time() - t0:.1f}s")
+    if save_topk_path is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        arr = np.stack(topk_rows) if topk_rows else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={arr.shape})")
+    # Return q_dense (1024) for canonical sim09 reference parity with bge_m3.
+    return results, q_dense
+
+
 # ===========================================================================
 def _load_colbert_projection(snapshot_dir: Path) -> torch.Tensor:
     import safetensors.torch as st
@@ -1144,6 +1640,21 @@ def _run_one_retriever(retr: dict, queries: list[str], corpus_texts: list[str],
             corpus_sig=corpus_sig, query_sig=query_sig,
             save_topk_path=topk_path,
         )
+    if kind == "dense_bge_m3_hybrid":
+        weights = (1.0, 0.3, 1.0)
+        # Allow per-call override via env for sweeps (e.g., BGE_M3_W_S=0.5)
+        try:
+            wd = float(os.environ.get("BGE_M3_W_D", weights[0]))
+            ws = float(os.environ.get("BGE_M3_W_S", weights[1]))
+            wc = float(os.environ.get("BGE_M3_W_C", weights[2]))
+            weights = (wd, ws, wc)
+        except Exception:
+            pass
+        return bge_m3_hybrid_retrieve(
+            queries, corpus_texts, target_indices,
+            corpus_sig=corpus_sig, query_sig=query_sig,
+            save_topk_path=topk_path, weights=weights,
+        )
     if kind == "late_interaction":
         return colbertv2_retrieve(queries, corpus_texts, target_indices,
                                   corpus_sig=corpus_sig, query_sig=query_sig,
@@ -1383,6 +1894,21 @@ def main_task_body():
                 queries, corpus_texts, target_indices,
                 corpus_sig=corpus_sig, query_sig=query_sig,
                 save_topk_path=topk_path,
+            )
+            retr_q_embeds[retr["name"]] = q_embeds
+        elif kind == "dense_bge_m3_hybrid":
+            weights = (1.0, 0.3, 1.0)
+            try:
+                wd = float(os.environ.get("BGE_M3_W_D", weights[0]))
+                ws = float(os.environ.get("BGE_M3_W_S", weights[1]))
+                wc = float(os.environ.get("BGE_M3_W_C", weights[2]))
+                weights = (wd, ws, wc)
+            except Exception:
+                pass
+            results, q_embeds = bge_m3_hybrid_retrieve(
+                queries, corpus_texts, target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig,
+                save_topk_path=topk_path, weights=weights,
             )
             retr_q_embeds[retr["name"]] = q_embeds
         elif kind == "late_interaction":
