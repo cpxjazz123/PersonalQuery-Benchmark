@@ -236,6 +236,12 @@ def main_task_body():
                 corpus_sig=corpus_sig, query_sig=query_sig_typo,
                 save_topk_path=topk_typo,
             )
+        elif kind == "dense_bge_m3":
+            typo_results, _q_embeds = retr_mod.bge_m3_retrieve(
+                typo_queries, corpus_texts, typo_target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig_typo,
+                save_topk_path=topk_typo,
+            )
         elif kind == "late_interaction":
             typo_results, _q_embeds = retr_mod.colbertv2_retrieve(
                 typo_queries, corpus_texts, typo_target_indices,

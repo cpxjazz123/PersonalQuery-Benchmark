@@ -157,9 +157,11 @@ RETRIEVERS = [
     {"name": "mpnet", "kind": "dense", "hf_id": "sentence-transformers/all-mpnet-base-v2", "dim": 768},
     {"name": "bge_base_v15", "kind": "dense", "hf_id": "BAAI/bge-base-en-v1.5", "dim": 768},
     {"name": "gte_base", "kind": "dense", "hf_id": "thenlper/gte-base", "dim": 768},
+    {"name": "bge_m3", "kind": "dense_bge_m3", "hf_id": "BAAI/bge-m3", "dim": 1024},
     {"name": "colbertv2", "kind": "late_interaction", "hf_id": "colbert-ir/colbertv2.0", "dim": 128},
 ]
 RETR_NAMES = [r["name"] for r in RETRIEVERS]
+BGE_M3_HF_CACHE = Path("/home/wlia0047/hj82/wenyu/hf_cache")
 
 # ===========================================================================
 # SELECTION SIGNATURE (per-query cache key)
@@ -696,6 +698,97 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
 
 
 # ===========================================================================
+# BGE-M3 dense retriever (FlagEmbedding, 1024d)
+# ===========================================================================
+def bge_m3_retrieve(queries: list[str], corpus_texts: list[str],
+                    target_indices: np.ndarray, *,
+                    corpus_sig: str, query_sig: str,
+                    save_topk_path: Path | None = None,
+                    topk_k: int = TOPK_SAVE_K) -> tuple[list[dict], np.ndarray]:
+    from FlagEmbedding import BGEM3FlagModel
+
+    log("\n=== bge_m3 (dense, BAAI/bge-m3) ===")
+    cache_dir = EMBED_CACHE_DIR / "bge_m3"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    corpus_cache = cache_dir / "corpus_embeds.npy"
+    query_cache = cache_dir / "query_embeds.npy"
+    corpus_sig_file = _sig_path_for(corpus_cache)
+    query_sig_file = _sig_path_for(query_cache)
+
+    model = BGEM3FlagModel(
+        "BAAI/bge-m3", use_fp16=True, devices=["cuda:0"],
+        cache_dir=str(BGE_M3_HF_CACHE),
+    )
+
+    def encode(texts: list[str], batch_size: int) -> np.ndarray:
+        out = model.encode(
+            texts, batch_size=batch_size, max_length=512,
+            return_dense=True, return_sparse=False, return_colbert_vecs=False,
+        )
+        vecs = np.asarray(out["dense_vecs"], dtype=np.float32)
+        return vecs / np.linalg.norm(vecs, axis=1, keepdims=True).clip(min=1e-12)
+
+    corpus_embeds = None
+    if corpus_cache.exists() and corpus_sig_file.exists() and corpus_sig_file.read_text().strip() == corpus_sig:
+        corpus_embeds = np.load(corpus_cache)
+        log(f"  ✓ corpus embeds cache ({corpus_embeds.shape}, sig={corpus_sig})")
+    if corpus_embeds is None:
+        log(f"  encoding {len(corpus_texts)} corpus with BGE-M3 (batch=64)...")
+        corpus_embeds = encode(corpus_texts, 64)
+        np.save(corpus_cache, corpus_embeds)
+        corpus_sig_file.write_text(corpus_sig)
+        log(f"  cached → {corpus_cache} (shape={corpus_embeds.shape}, sig={corpus_sig})")
+
+    q_embeds = None
+    if query_cache.exists() and query_sig_file.exists() and query_sig_file.read_text().strip() == query_sig:
+        candidate = np.load(query_cache)
+        if candidate.shape[0] == len(queries):
+            q_embeds = candidate
+            log(f"  ✓ query embeds cache ({q_embeds.shape}, sig={query_sig})")
+    if q_embeds is None:
+        log(f"  encoding {len(queries)} queries with BGE-M3 (batch=128)...")
+        q_embeds = encode(queries, 128)
+        np.save(query_cache, q_embeds)
+        query_sig_file.write_text(query_sig)
+        log(f"  cached → {query_cache} (shape={q_embeds.shape}, sig={query_sig})")
+
+    del model
+    torch.cuda.empty_cache()
+    corpus_gpu = torch.from_numpy(corpus_embeds).cuda()
+    query_gpu = torch.from_numpy(q_embeds).cuda()
+    targets_gpu = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
+    results: list[dict] = []
+    topk_rows: list[np.ndarray] = []
+    t0 = time.time()
+    for start in range(0, len(queries), 512):
+        end = min(start + 512, len(queries))
+        scores_batch = query_gpu[start:end] @ corpus_gpu.T
+        for j in range(end - start):
+            scores = scores_batch[j]
+            target = int(targets_gpu[start + j].item())
+            if target < 0:
+                results.append(rr_hit_from_rank(-1))
+            else:
+                rank = int((scores > scores[target]).sum().item()) + 1
+                results.append(rr_hit_from_rank(rank))
+            if save_topk_path is not None:
+                row = torch.topk(scores, k=min(topk_k, scores.shape[0])).indices.cpu().numpy().astype(np.int32)
+                if len(row) < topk_k:
+                    row = np.pad(row, (0, topk_k-len(row)), constant_values=-1)
+                topk_rows.append(row)
+        del scores_batch
+    del corpus_gpu, query_gpu, targets_gpu
+    torch.cuda.empty_cache()
+    log(f"  matmul + ranks done in {time.time() - t0:.1f}s")
+    if save_topk_path is not None:
+        save_topk_path.parent.mkdir(parents=True, exist_ok=True)
+        arr = np.stack(topk_rows) if topk_rows else np.zeros((0, topk_k), dtype=np.int32)
+        np.savez_compressed(save_topk_path, topk_asins=arr)
+        log(f"  saved top-{topk_k} → {save_topk_path} (shape={arr.shape})")
+    return results, q_embeds
+
+
+# ===========================================================================
 # ColBERTv2 (late interaction, 768→128 linear projection)
 # ===========================================================================
 def _load_colbert_projection(snapshot_dir: Path) -> torch.Tensor:
@@ -1128,6 +1221,13 @@ def main_task_body():
                                               query_sig=query_sig,
                                               save_topk_path=topk_path)
             retr_q_embeds[retr["name"]] = q_embeds
+        elif kind == "dense_bge_m3":
+            results, q_embeds = bge_m3_retrieve(
+                queries, corpus_texts, target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig,
+                save_topk_path=topk_path,
+            )
+            retr_q_embeds[retr["name"]] = q_embeds
         elif kind == "late_interaction":
             results, q_embeds = colbertv2_retrieve(queries, corpus_texts, target_indices,
                                                   corpus_sig=corpus_sig, query_sig=query_sig,
@@ -1145,7 +1245,7 @@ def main_task_body():
     canonical_q_embeds = retr_q_embeds.get("minilm")
     if canonical_q_embeds is None:
         # Fallback: pick any available dense retriever's embeds
-        for n in ("mpnet", "bge_base_v15", "gte_base", "colbertv2"):
+        for n in ("mpnet", "bge_base_v15", "gte_base", "bge_m3", "colbertv2"):
             if retr_q_embeds.get(n) is not None:
                 canonical_q_embeds = retr_q_embeds[n]
                 log(f"  canonical sim09 reference: minilm missing → using {n}")
@@ -1153,7 +1253,7 @@ def main_task_body():
     if canonical_q_embeds is None:
         raise RuntimeError("No dense retriever produced query embeddings; cannot build sim09 reference")
     canonical_embeds_name = "minilm" if retr_q_embeds.get("minilm") is not None else \
-        next((n for n in ("mpnet", "bge_base_v15", "gte_base", "colbertv2")
+        next((n for n in ("mpnet", "bge_base_v15", "gte_base", "bge_m3", "colbertv2")
               if retr_q_embeds.get(n) is not None), "unknown")
     log(f"  canonical sim09 reference: {canonical_embeds_name} (shape={canonical_q_embeds.shape})")
     # Override: every retriever's sim09 clustering uses canonical_embeds
