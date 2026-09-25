@@ -1063,10 +1063,106 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
 # ===========================================================================
 # MAIN
 # ===========================================================================
+def _load_minilm_q_embeds_for_volatility(query_records: list[dict], selection_sig: str) -> np.ndarray:
+    minilm_q_cache = EMBED_CACHE_DIR / "minilm" / "query_embeds.npy"
+    if minilm_q_cache.exists():
+        candidate = np.load(minilm_q_cache)
+        if candidate.shape[0] == len(query_records):
+            log(f"  ✓ loaded minilm q_embeds from disk ({candidate.shape}) "
+                f"for canonical sim09 reference")
+            return candidate
+        log(f"  ⚠ stale minilm q_embeds cache ({candidate.shape[0]} != "
+            f"{len(query_records)}); re-encoding only query embeddings")
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer(
+        "sentence-transformers/all-MiniLM-L6-v2",
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    cached_minilm = model.encode(
+        [q["query"] for q in query_records], batch_size=512,
+        show_progress_bar=False, convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
+    np.save(minilm_q_cache, cached_minilm)
+    _sig_path_for(minilm_q_cache).write_text(selection_sig)
+    del model
+    torch.cuda.empty_cache()
+    log(f"  ✓ rebuilt minilm q_embeds ({cached_minilm.shape})")
+    return cached_minilm
+
+
+def _migrate_hit20_fields(query_records: list[dict]) -> None:
+    for record in query_records:
+        for retr_name in RETR_NAMES:
+            rank = record.get(f"{retr_name}_rank")
+            record[f"{retr_name}_hit20"] = int(rank is not None and rank <= 20)
+
+
+def _finalize_from_cached_queries(
+        query_records: list[dict], cached: dict, selection_sig: str,
+        t_start: float) -> None:
+    _migrate_hit20_fields(query_records)
+    cached["queries"] = query_records
+    cached["config"]["retrievers"] = sorted(
+        set(cached.get("config", {}).get("retrievers", [])) | set(RETR_NAMES))
+    with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
+        json.dump(cached, f, ensure_ascii=False)
+    asins_count = cached["config"]["corpus_size"]
+    cached_minilm = _load_minilm_q_embeds_for_volatility(query_records, selection_sig)
+    retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
+    missing_topk = [n for n in RETR_NAMES
+                    if not (TOPK_SAVE_DIR / f"{n}_top100.npz").exists()]
+    if missing_topk:
+        log(f"  ⚠ top-100 cache missing for {missing_topk}, "
+            f"delete {PER_QUERY_OUT} to re-run retrievers and populate top-100 cache")
+    _build_aggregates_and_save(query_records, asins_count, t_start,
+                               retr_q_embeds_cached, "minilm")
+
+
+def _run_one_retriever(retr: dict, queries: list[str], corpus_texts: list[str],
+                       target_indices: np.ndarray, corpus_sig: str,
+                       query_sig: str) -> tuple[list[dict], np.ndarray | None]:
+    kind = retr["kind"]
+    topk_path = TOPK_SAVE_DIR / f"{retr['name']}_top100.npz"
+    if kind == "sparse_lexical":
+        return bm25_retrieve(queries, corpus_texts, target_indices,
+                             save_topk_path=topk_path), None
+    if kind == "sparse_learned":
+        return splade_retrieve(queries, corpus_texts, target_indices,
+                               corpus_sig=corpus_sig, query_sig=query_sig,
+                               save_topk_path=topk_path), None
+    if kind == "dense":
+        return dense_retrieve(retr["name"], retr["hf_id"], queries,
+                              target_indices, corpus_sig=corpus_sig,
+                              query_sig=query_sig, save_topk_path=topk_path)
+    if kind == "dense_bge_m3":
+        return bge_m3_retrieve(
+            queries, corpus_texts, target_indices,
+            corpus_sig=corpus_sig, query_sig=query_sig,
+            save_topk_path=topk_path,
+        )
+    if kind == "late_interaction":
+        return colbertv2_retrieve(queries, corpus_texts, target_indices,
+                                  corpus_sig=corpus_sig, query_sig=query_sig,
+                                  save_topk_path=topk_path)
+    raise ValueError(f"Unknown retriever kind: {kind}")
+
+
 def main_task_body():
     t_start = time.time()
     log("=== Stage 5 unified multi-retriever (NO rerank) ===")
     log(f"  retrievers: {RETR_NAMES}")
+
+    retr_filter_raw = os.environ.get("STAGE11_RETRIEVERS", "").strip()
+    if retr_filter_raw:
+        keep_names = {x.strip() for x in retr_filter_raw.split(",") if x.strip()}
+        active_retrievers = [r for r in RETRIEVERS if r["name"] in keep_names]
+        if not active_retrievers:
+            raise ValueError(f"STAGE11_RETRIEVERS={retr_filter_raw!r} matched no retrievers")
+        log(f"  STAGE11_RETRIEVERS={sorted(keep_names)} (incremental onto existing per_query)")
+    else:
+        active_retrievers = RETRIEVERS
+        keep_names = set()
 
     # ---- 0. Cache check (selection signature) ----
     # If PER_QUERY_OUT already has results for the current selection,
@@ -1091,8 +1187,66 @@ def main_task_body():
             cached = json.load(open(PER_QUERY_OUT))
         except (json.JSONDecodeError, OSError):
             cached = None
+
     if (
-        cached is not None
+        retr_filter_raw
+        and cached is not None
+        and cached.get("config", {}).get("signature") == selection_sig
+    ):
+        query_records = cached["queries"]
+        existing_retrs = set(cached.get("config", {}).get("retrievers", []))
+        todo = [r for r in active_retrievers if r["name"] not in existing_retrs]
+        if not todo:
+            log(f"  ✓ incremental cache hit: {sorted(keep_names)} already present, "
+                f"rebuilding aggregates only")
+            _finalize_from_cached_queries(query_records, cached, selection_sig, t_start)
+            return
+        log(f"  incremental add: running {[r['name'] for r in todo]} on "
+            f"{len(query_records)} cached queries")
+        if not ASIN_TO_DOC_CACHE.exists():
+            raise FileNotFoundError(
+                f"ASIN_TO_DOC_CACHE missing: {ASIN_TO_DOC_CACHE}. "
+                f"Run `python build_asin_to_doc.py` first.")
+        asin_to_doc = json.load(open(ASIN_TO_DOC_CACHE, encoding="utf-8"))
+        asins = sorted(asin_to_doc.keys())
+        asin_to_idx = {a: i for i, a in enumerate(asins)}
+        corpus_texts = [asin_to_doc[a] for a in asins]
+        queries = [r["query"] for r in query_records]
+        target_indices = np.array([asin_to_idx.get(r["asin"], -1) for r in query_records])
+        corpus_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
+        retr_results: dict[str, list[dict]] = {}
+        retr_q_embeds_new: dict[str, np.ndarray | None] = {}
+        for retr in todo:
+            results, q_embeds = _run_one_retriever(
+                retr, queries, corpus_texts, target_indices, corpus_sig, selection_sig)
+            retr_results[retr["name"]] = results
+            retr_q_embeds_new[retr["name"]] = q_embeds
+        for gi, r in enumerate(query_records):
+            for n, res_list in retr_results.items():
+                res = res_list[gi]
+                r[f"{n}_rank"] = res["rank"]
+                r[f"{n}_RR"] = res["RR"]
+                r[f"{n}_hit1"] = res["hit1"]
+                r[f"{n}_hit5"] = res["hit5"]
+                r[f"{n}_hit10"] = res["hit10"]
+                r[f"{n}_hit20"] = res["hit20"]
+        cached["config"]["retrievers"] = sorted(existing_retrs | set(retr_results))
+        cached["queries"] = query_records
+        with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
+            json.dump(cached, f, ensure_ascii=False)
+        log(f"  wrote → {PER_QUERY_OUT} (added {list(retr_results)})")
+        cached_minilm = _load_minilm_q_embeds_for_volatility(query_records, selection_sig)
+        retr_q_embeds_full = {n: cached_minilm for n in RETR_NAMES}
+        for n, emb in retr_q_embeds_new.items():
+            if emb is not None:
+                retr_q_embeds_full[n] = emb
+        _build_aggregates_and_save(
+            query_records, len(asins), t_start, retr_q_embeds_full, "minilm")
+        return
+
+    if (
+        not retr_filter_raw
+        and cached is not None
         and cached.get("config", {}).get("signature") == selection_sig
         and set(RETR_NAMES).issubset(set(cached.get("config", {}).get("retrievers", [])))
     ):
