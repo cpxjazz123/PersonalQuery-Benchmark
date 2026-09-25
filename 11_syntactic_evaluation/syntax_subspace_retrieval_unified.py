@@ -162,6 +162,9 @@ RETRIEVERS = [
 ]
 RETR_NAMES = [r["name"] for r in RETRIEVERS]
 BGE_M3_HF_CACHE = Path("/home/wlia0047/hj82/wenyu/hf_cache")
+# 2026-09-25: raise batch — bs=64 used ~2.5GB/46GB VRAM; larger batch cuts steps.
+BGE_M3_CORPUS_BATCH = 512
+BGE_M3_QUERY_BATCH = 512
 
 # ===========================================================================
 # SELECTION SIGNATURE (per-query cache key)
@@ -733,8 +736,8 @@ def bge_m3_retrieve(queries: list[str], corpus_texts: list[str],
         corpus_embeds = np.load(corpus_cache)
         log(f"  ✓ corpus embeds cache ({corpus_embeds.shape}, sig={corpus_sig})")
     if corpus_embeds is None:
-        log(f"  encoding {len(corpus_texts)} corpus with BGE-M3 (batch=64)...")
-        corpus_embeds = encode(corpus_texts, 64)
+        log(f"  encoding {len(corpus_texts)} corpus with BGE-M3 (batch={BGE_M3_CORPUS_BATCH})...")
+        corpus_embeds = encode(corpus_texts, BGE_M3_CORPUS_BATCH)
         np.save(corpus_cache, corpus_embeds)
         corpus_sig_file.write_text(corpus_sig)
         log(f"  cached → {corpus_cache} (shape={corpus_embeds.shape}, sig={corpus_sig})")
@@ -746,8 +749,8 @@ def bge_m3_retrieve(queries: list[str], corpus_texts: list[str],
             q_embeds = candidate
             log(f"  ✓ query embeds cache ({q_embeds.shape}, sig={query_sig})")
     if q_embeds is None:
-        log(f"  encoding {len(queries)} queries with BGE-M3 (batch=128)...")
-        q_embeds = encode(queries, 128)
+        log(f"  encoding {len(queries)} queries with BGE-M3 (batch={BGE_M3_QUERY_BATCH})...")
+        q_embeds = encode(queries, BGE_M3_QUERY_BATCH)
         np.save(query_cache, q_embeds)
         query_sig_file.write_text(query_sig)
         log(f"  cached → {query_cache} (shape={q_embeds.shape}, sig={query_sig})")
