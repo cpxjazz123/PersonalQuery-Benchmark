@@ -277,14 +277,22 @@ class QwenLocalClient:
                     truncation=True,
                     max_length=self.max_model_len - 1,
                 ).to(model.device)
-                logits = model(**enc).logits
-                # Use the LAST NON-PADDING position of each sequence (cross-encoder
-                # convention: logit at the document-tail position encodes relevance).
-                attn = enc["attention_mask"]
-                seq_lens = attn.sum(dim=1) - 1
-                last_idx = seq_lens.to(logits.device)
-                batch_idx = torch.arange(logits.shape[0], device=logits.device)
-                last_logits = logits[batch_idx, last_idx, :]
+                if prompt_style == "qwen3":
+                    # Qwen3ForCausalLM supports logits_to_keep and only needs
+                    # the final position for the Yes/No relevance score. This
+                    # avoids materializing sequence_length × vocab_size logits.
+                    logits = model(**enc, logits_to_keep=1).logits
+                    last_logits = logits[:, 0, :]
+                else:
+                    logits = model(**enc).logits
+                    # Use the LAST NON-PADDING position of each sequence
+                    # (cross-encoder convention: the document-tail position
+                    # encodes relevance).
+                    attn = enc["attention_mask"]
+                    seq_lens = attn.sum(dim=1) - 1
+                    last_idx = seq_lens.to(logits.device)
+                    batch_idx = torch.arange(logits.shape[0], device=logits.device)
+                    last_logits = logits[batch_idx, last_idx, :]
                 z_yes = last_logits[:, yes_tokens].max(dim=-1).values
                 z_no = last_logits[:, no_tokens].max(dim=-1).values
                 m = torch.maximum(z_yes, z_no)
