@@ -54,7 +54,9 @@ LLM_WEIGHT = 1.0
 RETRIEVAL_WEIGHT = 0.1
 # 兼容旧 λ sweep: 若代码里仍引用 RANK_PRIOR_LAMBDA,默认 2.0(本公式不再使用)
 RANK_PRIOR_LAMBDA = 2.0
-LLM_RERANK_BATCH = 512
+# score_pairs/score_seqcls receives LLM_RERANK_BATCH // 32; 1024 gives
+# Transformers an effective batch size of 32 on the available GPU.
+LLM_RERANK_BATCH = 1024
 LLM_RERANK_WINDOW = 20
 LLM_RERANK_STRIDE = 10
 LLM_RERANK_LISTWISE_MAX_TOKENS = 64
