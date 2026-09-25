@@ -230,6 +230,10 @@ class QwenLocalClient:
                 f"backend_kind={self.backend_kind}"
             )
         model, tok = self._backend
+        if prompt_style == "qwen3":
+            # logits_to_keep=1 returns the final padded column. Left padding
+            # makes that column the final real token for every batch item.
+            tok.padding_side = "left"
         if yes_tokens is None or no_tokens is None:
             yes_tokens = tok.encode("Yes", add_special_tokens=False)
             no_tokens = tok.encode("No", add_special_tokens=False)
