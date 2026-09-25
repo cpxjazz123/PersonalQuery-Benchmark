@@ -440,7 +440,7 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
     cache_dir = EMBED_CACHE_DIR / "splade"
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = "naver/splade-cocondenser-ensembledistil"
-    HF_CACHE = "/home/wlia0047/hj82_scratch2/wenyu/hf_cache"
+    HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
     tok = AutoTokenizer.from_pretrained(name, cache_dir=HF_CACHE)
     model = AutoModelForMaskedLM.from_pretrained(name, cache_dir=HF_CACHE).to("cuda").eval()
 
@@ -754,7 +754,7 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
     cache_dir = EMBED_CACHE_DIR / "colbertv2"
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = "colbert-ir/colbertv2.0"
-    HF_CACHE = "/home/wlia0047/hj82_scratch2/wenyu/hf_cache"
+    HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
     snap_root = Path(HF_CACHE) / "models--colbert-ir--colbertv2.0" / "snapshots"
     snap_dir = snap_root / sorted([p.name for p in snap_root.iterdir()])[0]
 

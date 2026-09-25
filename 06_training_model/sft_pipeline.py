@@ -54,7 +54,7 @@ CATEGORY_INPUTS = [
     ("Musical_Instruments", "musical"),
     ("Video_Games",         "video_games"),
 ]
-os.environ.setdefault("HF_HOME", "/home/wlia0047/hj82_scratch2/wenyu/hf_cache")
+os.environ.setdefault("HF_HOME", "/home/wlia0047/hj82/wenyu/hf_cache")
 
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_SEED = 42

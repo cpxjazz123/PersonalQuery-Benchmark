@@ -147,7 +147,7 @@ CORAL_ASIN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_3
 PCFG_PIPELINE = "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode/syntax_encoder.py"
 SEMANTIC_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 SEMANTIC_THRESHOLD = 0.78
-SEMANTIC_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/hf_cache")
+SEMANTIC_CACHE_DIR = Path("/home/wlia0047/hj82/wenyu/hf_cache")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
 
 

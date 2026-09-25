@@ -28,9 +28,9 @@ from pathlib import Path
 # ----- Hardcoded paths (Rule 3) -----
 INPUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl")
 OUTPUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl")
-WEIGHTS = Path("/home/wlia0047/hj82_scratch2/wenyu/hf_cache/gector/gector-2024-roberta-large.th")
-VOCAB_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/hf_cache/gector/vocab")
-HF_CACHE = "/home/wlia0047/hj82_scratch2/wenyu/hf_cache"
+WEIGHTS = Path("/home/wlia0047/hj82/wenyu/hf_cache/gector/gector-2024-roberta-large.th")
+VOCAB_DIR = Path("/home/wlia0047/hj82/wenyu/hf_cache/gector/vocab")
+HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
 
 # GECToR hyperparams
 GEC_TRANSFORMER = "roberta-large"

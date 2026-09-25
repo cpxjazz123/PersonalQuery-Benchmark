@@ -50,7 +50,7 @@ if CONTRASTIVE_5558:
     SFT_POOL_SOURCE = "stage04_fitted_cohort_5558_contrastive"
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
-HF_CACHE_DIR = "/home/wlia0047/hj82_scratch2/wenyu/hf_cache"
+HF_CACHE_DIR = "/home/wlia0047/hj82/wenyu/hf_cache"
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
 # 用户指令 2026-09-23: product_attributes 改 pkl-only (Stage 01 已切换).
 ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes_baby.pkl"
