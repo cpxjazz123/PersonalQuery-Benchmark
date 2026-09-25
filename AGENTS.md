@@ -10,7 +10,7 @@
 
 5. **已实现的提速方法必须使用**: 实现相关业务时必须选用适用的方法(批量解码 / 向量化张量 / `nlp.pipe` / 中间缓存 / 最小模型 / 预编码 / vLLM / batched vLLM),禁止回退到逐条生成 / 逐元素循环 / 重复加载大文件。
 
-6. **Commit + push 仅在用户显式要求时执行**: 禁止在每个任务完成后自动 commit + push；仅当用户明确要求"commit"或"commit+push"时,才执行 `git add` + `git diff --cached --stat` 验证 + `git commit` + `git push origin main` 两步闭环。
+6. **Commit + push 远程仓库固定为 GitHub**: 远程仓库已切换为 `https://github.com/cpxjazz123/PersonalQuery-Benchmark.git`(`git push origin main`)。推送须在用户显式要求时执行,禁止自动 commit + push；仅当用户明确要求"commit"或"commit+push"时,才执行 `git add` + `git diff --cached --stat` 验证 + `git commit` + `git push origin main` 两步闭环。若上游未配置凭据(`403 / permission denied`),先提示用户配置 `gh`/token/SSH,不要降级到只本地 commit。
 
 7. **虚拟环境必须使用 `pq_env`**: 唯一允许的 Python 解释器是 `/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python`(python 3.10 + torch 2.13.0+cu130 + transformers 4.40.2 + spacy 3.8.4 + sklearn 1.7.2 + numpy 1.26.4 + accelerate),禁止使用系统 python / base conda / `genrec_env` / `rqvae_repro_env` 等其他环境。
 
@@ -52,4 +52,4 @@
 
 21. **回复必须简单直接,尽量只使用一段话**: 每次回复只用一段连贯的话讲清结论和下一步,禁止列表/表格/分点,禁止解释过程,直接给答案 + 行动项。需要时给出文件路径、命令、状态值等关键事实,但不展开。详细日志写到文件,chat 里只给一句话总结。
 
-22. **每次业务修改必须立即 commit + push 到 main**: 每完成一次业务代码 / 配置 / 文档 / 产物的修改,必须立刻执行 `git add -A` + `git status --short` 自检 + `git commit -m "<scope>: <what>"` + `git push origin main` 四步闭环,**不等待用户指示、不积攒多次改动一起提交**。本规则覆盖 Rule 6 中的"仅在用户显式要求时执行"——所有任务完成后默认触发自动 commit + push。仅维护 `main` 一个分支(同步 Rule 2),禁止 checkout / 创建其他分支,所有修改直接 commit 到 main。例外:`/home/wlia0047/ar57/wenyu/PersoanlQuery` 项目根的 `.claude/` 目录(本地 Claude 配置)、`.git/`、临时 scratch 产物不在 commit 范围内(由 `.gitignore` 控制)。
+22. **每次业务修改必须立即 commit + push 到 GitHub main**: 每完成一次业务代码 / 配置 / 文档 / 产物的修改,必须立刻执行 `git add -A` + `git status --short` 自检 + `git commit -m "<scope>: <what>"` + `git push origin main` 四步闭环(remote 已固定为 `https://github.com/cpxjazz123/PersonalQuery-Benchmark.git`),**不等待用户指示、不积攒多次改动一起提交**。本规则覆盖 Rule 6 中的"仅在用户显式要求时执行"——所有任务完成后默认触发自动 commit + push。仅维护 `main` 一个分支(同步 Rule 2),禁止 checkout / 创建其他分支,所有修改直接 commit 到 main。例外:`/home/wlia0047/ar57/wenyu/PersoanlQuery` 项目根的 `.claude/` 目录(本地 Claude 配置)、`.git/`、临时 scratch 产物不在 commit 范围内(由 `.gitignore` 控制)。如推送失败(`403 / permission denied` 等),先提示用户配置 `gh`/token/SSH,不要降级到只本地 commit。

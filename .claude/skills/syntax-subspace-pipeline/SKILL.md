@@ -562,3 +562,11 @@ ls -d result/{04_gaussian,05_gaussian_audit,07_gen_query,08_select_query,11_synt
 - 必需文件缺失、schema 不一致、用户/ASIN 关联不一致或 signature 不一致时直接 raise。
 - canonical selection = Stage 04b (trainable svd_mlp) → Stage 08 (svdmlp logp_delta=2.0) → Stage 11；legacy baseline 仅作对照保留。
 - 本技能不执行 commit 或 push，除非用户另行明确要求。
+
+## GitHub Push 规则 (2026-09-25 用户指令)
+
+- 本项目所有 git push 都使用 GitHub remote: `https://github.com/cpxjazz123/PersonalQuery-Benchmark.git` (`git push origin main`)。
+- 仅在用户显式要求 `commit` / `commit+push` 时才执行 `git add -A` + `git status --short` 自检 + `git commit` + `git push origin main`；不要自动触发。
+- 仅维护 `main` 一个分支，禁止 checkout / 创建其他分支。
+- 推送若失败（403 / permission denied），先提示用户配置 `gh`/token/SSH，不要降级到只本地 commit。
+- 这条规则与 `CLAUDE.md` / `AGENTS.md` 的 Rule 6 / Rule 22 一致；项目内任何层（CLAUDE.md / AGENTS.md / .claude/skills / .pi/agent）都遵守同一约定。
