@@ -31,10 +31,14 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 sys.path.insert(0, str(REPO_ROOT))
 
+# (display_category, subdir_for_upstream_stages, output_stem)
+# upstream Stage 08/10/11/14 use the short subdir (baby/musical/video_games)
+# as their directory name; we keep that for the input paths but emit the
+# flat dataset JSON with the full category name for human-readability.
 CATEGORY_INPUTS = [
-    ("Baby",                "baby"),
-    ("Musical_Instruments", "musical"),
-    ("Video_Games",         "video_games"),
+    ("Baby",                "baby",          "Baby_Products"),
+    ("Musical_Instruments", "musical",       "Musical_Instruments"),
+    ("Video_Games",         "video_games",   "Video_Games"),
 ]
 
 
@@ -42,11 +46,11 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_for_category(subdir: str) -> dict[str, list[dict]]:
+def build_for_category(subdir: str, output_stem: str) -> dict[str, list[dict]]:
     """Build the per-ASIN dataset JSON for one category."""
     sel_path = REPO_ROOT / f"result/08_select_query/{subdir}/selected_queries.json"
     typo_path = REPO_ROOT / f"result/10_typo_injection/{subdir}/typo_injection_results.json"
-    out_path = REPO_ROOT / f"result/15_build_dataset/{subdir}.json"
+    out_path = REPO_ROOT / f"result/15_build_dataset/{output_stem}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     sel = json.load(open(sel_path))
@@ -125,9 +129,9 @@ def build_for_category(subdir: str) -> dict[str, list[dict]]:
 
 def main_task_body() -> None:
     log("=== Stage 15 build per-ASIN clean/typo dataset ===")
-    for category, subdir in CATEGORY_INPUTS:
-        log(f"\n--- [{category}] (subdir={subdir}) ---")
-        build_for_category(subdir)
+    for category, subdir, output_stem in CATEGORY_INPUTS:
+        log(f"\n--- [{category}] (subdir={subdir}, output={output_stem}.json) ---")
+        build_for_category(subdir, output_stem)
 
 
 if __name__ == "__main__":
