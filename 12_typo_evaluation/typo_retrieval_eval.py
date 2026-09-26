@@ -2,9 +2,10 @@
 """Stage 12 — Typo Injection Retrieval Evaluation (paired degradation).
 
 For each successfully injected (uid, asin, original_query, typo_query) pair from
-Stage 10, run the SAME 7 retrievers used in Stage 11 (BM25 / SPLADE / MiniLM /
-MPNet / BGE / GTE / ColBERTv2) on BOTH queries, then compare hit@1, hit@5,
-hit@10 degradation. NO flip-rate computation (per user directive 2026-09-06).
+Stage 10, run the current Stage 11 registry (BM25 / SPLADE / GTE-base /
+BGE-M3 dense / BGE-M3 hybrid / ColBERTv2) on BOTH queries, then compare
+hit@1, hit@5, hit@10 degradation. GTE-base is the only standard Dense Bi-Encoder.
+NO flip-rate computation (per user directive 2026-09-06).
 
 Hit@k degradation = original_hit@k - typo_hit@k
     Hit@20 is computed from the same Top-100 retrieval rank as Hit@1/5/10.
@@ -13,7 +14,7 @@ Hit@k degradation = original_hit@k - typo_hit@k
   - -1  : typo IMPROVED retrieval (rare, indicates lucky match)
 
 Output:
-  - result/12_typo_evaluation/per_query.json     (paired original+typo records, 7 retr × 45 pairs)
+  - result/12_typo_evaluation/per_query.json (paired records across the active Stage 11 registry)
   - result/12_typo_evaluation/retrieval_degradation.json  (per-retriever hit@k means)
 
 Smoke (SMOKE=True):  5 pairs → 10 queries, ~2min (embed cache cold)
@@ -358,10 +359,21 @@ def main_task_body():
             {**previous_by_key[pair_key(record)], **record}
             for record in records
         ]
-        summary_names = sorted(
-            set(previous_summary.get("per_retriever", {})) | set(active_names)
+        previous_names = set(previous_config.get("retrievers", [])) | set(
+            previous_summary.get("per_retriever", {})
         )
-        log(f"  merged active retrievers into existing results: {summary_names}")
+        retired_names = previous_names - all_names
+        for record in records:
+            for old_name in retired_names:
+                prefix = f"{old_name}_"
+                for key in tuple(record):
+                    if key.startswith(prefix):
+                        del record[key]
+        summary_names = sorted(
+            (set(previous_summary.get("per_retriever", {})) & all_names)
+            | set(active_names)
+        )
+        log(f"  merged current retrievers into existing results: {summary_names}")
 
     with open(STAGE11_PER_QUERY_PATH, encoding="utf-8") as f:
         stage11_queries = json.load(f)["queries"]

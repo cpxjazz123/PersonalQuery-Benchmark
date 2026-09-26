@@ -1,24 +1,21 @@
 """Stage 5 unified multi-retriever on strict alignment (NO rerank).
 
-按用户指令 2026-08-29: 整合所有 retrievers 到单一主 pipeline,删除
-cross-encoder rerank。Stage 4 选出的 strict_personalized queries 在 7 个
-retrievers 上全量 retrieval,然后算 per-retriever headline + volatility。
+按当前检索配置，在 Stage 4 选出的 strict_personalized queries 上运行 6 个 retrievers，计算 per-retriever headline + volatility。
 
-7 retrievers:
+6 retrievers:
   1. BM25 (lexical_sparse, bm25s lucene k1=1.5 b=0.75)
   2. SPLADE (learned_sparse, naver/splade-cocondenser-ensembledistil)
-  3. MiniLM-L6-v2 (dense_biencoder, 384d)
-  4. MPNet-base-v2 (dense_biencoder, 768d)
-  5. BGE-base-en-v1.5 (dense_biencoder, 768d)
-  6. GTE-base (dense_biencoder, 768d)
-  7. ColBERTv2 (late_interaction, 768→128 linear projection)
+  3. GTE-base (唯一 Dense Bi-Encoder, 768d)
+  4. BGE-M3 dense (FlagEmbedding, 1024d)
+  5. BGE-M3 hybrid (dense + sparse + ColBERT)
+  6. ColBERTv2 (late_interaction, 768→128 linear projection)
 
 (Cross-encoder rerank 已删除 — full corpus CE 不实际,Stage 5 默认
 BM25 top-100 + cross-encoder 的 BM25-only rerank pipeline 见已弃用版本
 `stage8_5_rerank_*`。)
 
 输出:
-  scratch2/.../stage8_5_retrieval_per_query.json  (per-query intermediate, 7 retrievers)
+  scratch2/.../stage8_5_retrieval_per_query.json  (per-query intermediate, 6 retrievers)
   result/syntactic_evaluation/retrieval_summary.json  (per-retriever headline + volatility)
   result/syntactic_evaluation/volatility.json  (canonical volatility, sim09 slice)
 """
@@ -153,9 +150,6 @@ def build_meta_corpus(force: bool = False):  # noqa: ARG001
 RETRIEVERS = [
     {"name": "bm25", "kind": "sparse_lexical", "hf_id": None, "dim": 0},
     {"name": "splade", "kind": "sparse_learned", "hf_id": "naver/splade-cocondenser-ensembledistil", "dim": 0},
-    {"name": "minilm", "kind": "dense", "hf_id": "sentence-transformers/all-MiniLM-L6-v2", "dim": 384},
-    {"name": "mpnet", "kind": "dense", "hf_id": "sentence-transformers/all-mpnet-base-v2", "dim": 768},
-    {"name": "bge_base_v15", "kind": "dense", "hf_id": "BAAI/bge-base-en-v1.5", "dim": 768},
     {"name": "gte_base", "kind": "dense", "hf_id": "thenlper/gte-base", "dim": 768},
     {"name": "bge_m3", "kind": "dense_bge_m3", "hf_id": "BAAI/bge-m3", "dim": 1024},
     {"name": "bge_m3_hybrid", "kind": "dense_bge_m3_hybrid", "hf_id": "BAAI/bge-m3", "dim": 1024,
@@ -591,7 +585,7 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
 
 
 # ===========================================================================
-# Dense bi-encoders (MiniLM / MPNet / BGE / GTE)
+# Dense bi-encoder (GTE-base only)
 # ===========================================================================
 def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
                    target_indices: np.ndarray, *,
@@ -671,7 +665,7 @@ def dense_retrieve(retr_name: str, hf_id: str, queries: list[str],
     corpus_gpu = torch.from_numpy(corpus_embeds).cuda()
     q_gpu = torch.from_numpy(q_embeds).cuda()
     results = []
-    BATCH = 4000 if retr_name == "minilm" else 2000
+    BATCH = 2000
     tgt_all = torch.as_tensor(target_indices, device="cuda", dtype=torch.long)
     topk_buffer: list[np.ndarray] = [] if save_topk_path is not None else None
     for s in range(0, q_gpu.shape[0], BATCH):
@@ -1545,10 +1539,9 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
                                     sim_threshold: float = 0.9) -> dict:
     """Compute per-ASIN volatility (flip rate + RR std) for one retriever.
 
-    q_embeds is the canonical sim09 reference embedding (always minilm's 384d
-    dense), shared across all retrievers per user directive 2026-08-29.
-    The retriever's own rank/RR are used for flip detection; only the
-    pairwise query-query similarity threshold (sim09) comes from minilm.
+    q_embeds is the canonical sim09 reference embedding (GTE-base, 768d),
+    shared across all retrievers per current model policy. BM25/SPLADE have no
+    pooled embedding and borrow GTE-base for query-query similarity.
     """
     by_asin: dict[str, list] = collections.defaultdict(list)
     for r in per_query:
@@ -1621,33 +1614,37 @@ def compute_volatility_by_retriever(per_query: list[dict], retr_name: str,
 # ===========================================================================
 # MAIN
 # ===========================================================================
-def _load_minilm_q_embeds_for_volatility(query_records: list[dict], selection_sig: str) -> np.ndarray:
-    minilm_q_cache = EMBED_CACHE_DIR / "minilm" / "query_embeds.npy"
-    if minilm_q_cache.exists():
-        candidate = np.load(minilm_q_cache)
-        if candidate.shape[0] == len(query_records):
-            log(f"  ✓ loaded minilm q_embeds from disk ({candidate.shape}) "
-                f"for canonical sim09 reference")
-            return candidate
-        log(f"  ⚠ stale minilm q_embeds cache ({candidate.shape[0]} != "
-            f"{len(query_records)}); re-encoding only query embeddings")
+def _load_gte_q_embeds_for_volatility(query_records: list[dict], selection_sig: str) -> np.ndarray:
+    gte_q_cache = EMBED_CACHE_DIR / "gte_base" / "query_embeds.npy"
+    gte_sig_file = _sig_path_for(gte_q_cache)
+    if gte_q_cache.exists() and gte_sig_file.exists():
+        cached_sig = gte_sig_file.read_text().strip()
+        if cached_sig == selection_sig:
+            candidate = np.load(gte_q_cache)
+            if candidate.ndim == 2 and candidate.shape == (len(query_records), 768):
+                log(f"  ✓ loaded GTE-base q_embeds from disk ({candidate.shape}) "
+                    f"for canonical sim09 reference")
+                return candidate
+            log(f"  ⚠ stale GTE-base q_embeds shape {candidate.shape}; re-encoding")
+        else:
+            log(f"  ⚠ stale GTE-base q_embeds signature ({cached_sig} != "
+                f"{selection_sig}); re-encoding")
     from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(
-        "sentence-transformers/all-MiniLM-L6-v2",
+        "thenlper/gte-base",
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
-    cached_minilm = model.encode(
+    cached_gte = model.encode(
         [q["query"] for q in query_records], batch_size=512,
         show_progress_bar=False, convert_to_numpy=True,
         normalize_embeddings=True,
     )
-    np.save(minilm_q_cache, cached_minilm)
-    _sig_path_for(minilm_q_cache).write_text(selection_sig)
+    np.save(gte_q_cache, cached_gte)
+    gte_sig_file.write_text(selection_sig)
     del model
     torch.cuda.empty_cache()
-    log(f"  ✓ rebuilt minilm q_embeds ({cached_minilm.shape})")
-    return cached_minilm
-
+    log(f"  ✓ rebuilt GTE-base q_embeds ({cached_gte.shape})")
+    return cached_gte
 
 def _migrate_hit20_fields(query_records: list[dict]) -> None:
     for record in query_records:
@@ -1656,25 +1653,39 @@ def _migrate_hit20_fields(query_records: list[dict]) -> None:
             record[f"{retr_name}_hit20"] = int(rank is not None and rank <= 20)
 
 
+def _remove_retired_retriever_fields(
+        query_records: list[dict], previous_names: list[str] | set[str]) -> None:
+    retired_names = set(previous_names) - set(RETR_NAMES)
+    if not retired_names:
+        return
+    prefixes = tuple(f"{name}_" for name in retired_names)
+    for record in query_records:
+        for key in tuple(record):
+            if key.startswith(prefixes):
+                del record[key]
+    log(f"  removed retired retriever fields: {sorted(retired_names)}")
+
+
 def _finalize_from_cached_queries(
         query_records: list[dict], cached: dict, selection_sig: str,
         t_start: float) -> None:
+    _remove_retired_retriever_fields(
+        query_records, cached.get("config", {}).get("retrievers", []))
     _migrate_hit20_fields(query_records)
     cached["queries"] = query_records
-    cached["config"]["retrievers"] = sorted(
-        set(cached.get("config", {}).get("retrievers", [])) | set(RETR_NAMES))
+    cached["config"]["retrievers"] = list(RETR_NAMES)
     with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
         json.dump(cached, f, ensure_ascii=False)
     asins_count = cached["config"]["corpus_size"]
-    cached_minilm = _load_minilm_q_embeds_for_volatility(query_records, selection_sig)
-    retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
+    cached_gte = _load_gte_q_embeds_for_volatility(query_records, selection_sig)
+    retr_q_embeds_cached = {n: cached_gte for n in RETR_NAMES}
     missing_topk = [n for n in RETR_NAMES
                     if not (TOPK_SAVE_DIR / f"{n}_top100.npz").exists()]
     if missing_topk:
         log(f"  ⚠ top-100 cache missing for {missing_topk}, "
             f"delete {PER_QUERY_OUT} to re-run retrievers and populate top-100 cache")
     _build_aggregates_and_save(query_records, asins_count, t_start,
-                               retr_q_embeds_cached, "minilm")
+                               retr_q_embeds_cached, "gte_base")
 
 
 def _run_one_retriever(retr: dict, queries: list[str], corpus_texts: list[str],
@@ -1739,7 +1750,7 @@ def main_task_body():
 
     # ---- 0. Cache check (selection signature) ----
     # If PER_QUERY_OUT already has results for the current selection,
-    # skip all 7 retrievers and go straight to aggregate.
+    # skip the configured retrievers and go straight to aggregate.
     log("\n=== 0. Selection signature + cache check ===")
     selection = json.load(open(SEL_IN))
     entries = _flatten_selection(selection)
@@ -1788,12 +1799,10 @@ def main_task_body():
         target_indices = np.array([asin_to_idx.get(r["asin"], -1) for r in query_records])
         corpus_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
         retr_results: dict[str, list[dict]] = {}
-        retr_q_embeds_new: dict[str, np.ndarray | None] = {}
         for retr in todo:
-            results, q_embeds = _run_one_retriever(
+            results, _ = _run_one_retriever(
                 retr, queries, corpus_texts, target_indices, corpus_sig, selection_sig)
             retr_results[retr["name"]] = results
-            retr_q_embeds_new[retr["name"]] = q_embeds
         for gi, r in enumerate(query_records):
             for n, res_list in retr_results.items():
                 res = res_list[gi]
@@ -1803,18 +1812,18 @@ def main_task_body():
                 r[f"{n}_hit5"] = res["hit5"]
                 r[f"{n}_hit10"] = res["hit10"]
                 r[f"{n}_hit20"] = res["hit20"]
-        cached["config"]["retrievers"] = sorted(existing_retrs | set(retr_results))
+        _remove_retired_retriever_fields(query_records, existing_retrs)
+        cached["config"]["retrievers"] = sorted(
+            (existing_retrs & set(RETR_NAMES)) | set(retr_results)
+        )
         cached["queries"] = query_records
         with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
             json.dump(cached, f, ensure_ascii=False)
         log(f"  wrote → {PER_QUERY_OUT} (added {list(retr_results)})")
-        cached_minilm = _load_minilm_q_embeds_for_volatility(query_records, selection_sig)
-        retr_q_embeds_full = {n: cached_minilm for n in RETR_NAMES}
-        for n, emb in retr_q_embeds_new.items():
-            if emb is not None:
-                retr_q_embeds_full[n] = emb
+        cached_gte = _load_gte_q_embeds_for_volatility(query_records, selection_sig)
+        retr_q_embeds_full = {n: cached_gte for n in RETR_NAMES}
         _build_aggregates_and_save(
-            query_records, len(asins), t_start, retr_q_embeds_full, "minilm")
+            query_records, len(asins), t_start, retr_q_embeds_full, "gte_base")
         return
 
     if (
@@ -1824,70 +1833,12 @@ def main_task_body():
         and set(RETR_NAMES).issubset(set(cached.get("config", {}).get("retrievers", [])))
     ):
         log(f"  ✓ cache hit ({PER_QUERY_OUT.stat().st_size / 1e6:.1f} MB, "
-            f"sig={selection_sig}), skipping all 7 retrievers")
+            f"sig={selection_sig}), skipping all {len(RETR_NAMES)} retrievers")
         log(f"  ✓ loaded {cached.get('n_queries', 0)} cached query records")
-        # ---- 4-10 from cache: build aggregates ----
         query_records = cached["queries"]
-        # Older per-query caches predate Hit@20.  Their exact retrieval rank
-        # is already present, so migrate the field without rerunning retrieval.
-        for record in query_records:
-            for retr_name in RETR_NAMES:
-                rank = record.get(f"{retr_name}_rank")
-                record[f"{retr_name}_hit20"] = int(
-                    rank is not None and rank <= 20
-                )
-        # Persist the migrated schema so Stage 12/13 consumers see Hit@20
-        # even when Stage 11 itself was served from its old query cache.
-        cached["queries"] = query_records
-        with open(PER_QUERY_OUT, "w", encoding="utf-8") as f:
-            json.dump(cached, f, ensure_ascii=False)
-        asins_count = cached["config"]["corpus_size"]
-
-        # Load minilm q_embeds from disk so canonical sim09 reference is available
-        # without re-running all 7 retrievers
-        minilm_q_cache = EMBED_CACHE_DIR / "minilm" / "query_embeds.npy"
-        cached_minilm = None
-        if minilm_q_cache.exists():
-            candidate = np.load(minilm_q_cache)
-            if candidate.shape[0] == len(query_records):
-                cached_minilm = candidate
-                log(f"  ✓ loaded minilm q_embeds from disk ({candidate.shape}) "
-                    f"for canonical sim09 reference")
-            else:
-                log(f"  ⚠ stale minilm q_embeds cache ({candidate.shape[0]} != "
-                    f"{len(query_records)}); re-encoding only query embeddings")
-        if cached_minilm is None:
-            # Stage 12 uses the same retriever module and can overwrite the
-            # shared query cache with typo queries.  Rebuild only the
-            # canonical MiniLM query vectors; retrieval ranks remain cached.
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer(
-                "sentence-transformers/all-MiniLM-L6-v2",
-                device="cuda" if torch.cuda.is_available() else "cpu",
-            )
-            cached_minilm = model.encode(
-                [q["query"] for q in query_records], batch_size=512,
-                show_progress_bar=False, convert_to_numpy=True,
-                normalize_embeddings=True,
-            )
-            np.save(minilm_q_cache, cached_minilm)
-            _sig_path_for(minilm_q_cache).write_text(selection_sig)
-            del model
-            torch.cuda.empty_cache()
-            log(f"  ✓ rebuilt minilm q_embeds ({cached_minilm.shape})")
-        retr_q_embeds_cached = {n: cached_minilm for n in RETR_NAMES}
-        canonical_name = "minilm"
-        # 2026-09-19: top-100 cache 已被 fresh-run 路径保存 (主循环中所有 retriever
-        # 都调用 save_topk_path=topk_path). 这里是 cache-hit 路径, top-100 应已存在.
-        missing_topk = [n for n in RETR_NAMES
-                        if not (TOPK_SAVE_DIR / f"{n}_top100.npz").exists()]
-        if missing_topk:
-            log(f"  ⚠ top-100 cache missing for {missing_topk}, "
-                f"delete {PER_QUERY_OUT} to re-run retrievers and populate top-100 cache")
-        _build_aggregates_and_save(query_records, asins_count, t_start,
-                                   retr_q_embeds_cached, canonical_name)
+        _finalize_from_cached_queries(query_records, cached, selection_sig, t_start)
         return
-    log("  no cache hit (signature mismatch or missing), running 7 retrievers fresh")
+    log(f"  no cache hit (signature mismatch or missing), running {len(RETR_NAMES)} retrievers fresh")
 
     # ---- 1. Load selection (already done above) ----
     log("\n=== 1. Building query_records from selection ===")
@@ -1922,7 +1873,7 @@ def main_task_body():
         log(f"  WARNING: {n_missing} queries have missing target ASINs in corpus")
 
     # ---- 3. Retrieve with each retriever ----
-    log("\n=== 3. Per-retriever retrieval (7 retrievers, no rerank) ===")
+    log(f"\n=== 3. Per-retriever retrieval ({len(RETR_NAMES)} retrievers, no rerank) ===")
     corpus_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
     query_sig = selection_sig  # selection_sig already computed in step 0
     log(f"  corpus_sig={corpus_sig}  query_sig={query_sig}")
@@ -1931,7 +1882,7 @@ def main_task_body():
 
     for retr in RETRIEVERS:
         kind = retr["kind"]
-        # 2026-09-19: Top-100 candidates cache for LLM rerank on all 7 retrievers.
+        # Top-100 candidate cache for every configured retriever.
         topk_path = TOPK_SAVE_DIR / f"{retr['name']}_top100.npz"
         if kind == "sparse_lexical":
             results = bm25_retrieve(queries, corpus_texts, target_indices,
@@ -1979,26 +1930,25 @@ def main_task_body():
             raise ValueError(f"Unknown retriever kind: {kind}")
         retr_results[retr["name"]] = results
 
-    # ---- 3b. Canonical sim09 reference embedding (minilm) ----
-    # Per user directive 2026-08-29: ALL retrievers use the same query-query
-    # similarity threshold for sim09 clustering, anchored to minilm's 384d
-    # dense embedding. BM25/SPLADE have no dense query embed — they borrow
-    # minilm's. This makes cross-retriever volatility comparable.
-    canonical_q_embeds = retr_q_embeds.get("minilm")
+    # ---- 3b. Canonical sim09 reference embedding (GTE-base) ----
+    # Every retriever uses the same query-query similarity reference, anchored
+    # to the sole Dense Bi-Encoder (GTE-base, 768d).
+    canonical_q_embeds = retr_q_embeds.get("gte_base")
     if canonical_q_embeds is None:
-        # Fallback: pick any available dense retriever's embeds
-        for n in ("mpnet", "bge_base_v15", "gte_base", "bge_m3", "colbertv2"):
+        # A partial retriever run can fall back to another embedding-capable method.
+        for n in ("bge_m3", "bge_m3_hybrid", "colbertv2"):
             if retr_q_embeds.get(n) is not None:
                 canonical_q_embeds = retr_q_embeds[n]
-                log(f"  canonical sim09 reference: minilm missing → using {n}")
+                log(f"  GTE-base missing → using {n} for sim09 reference")
                 break
     if canonical_q_embeds is None:
-        raise RuntimeError("No dense retriever produced query embeddings; cannot build sim09 reference")
-    canonical_embeds_name = "minilm" if retr_q_embeds.get("minilm") is not None else \
-        next((n for n in ("mpnet", "bge_base_v15", "gte_base", "bge_m3", "colbertv2")
+        raise RuntimeError("No retriever produced query embeddings; cannot build sim09 reference")
+    canonical_embeds_name = "gte_base" if retr_q_embeds.get("gte_base") is not None else \
+        next((n for n in ("bge_m3", "bge_m3_hybrid", "colbertv2")
               if retr_q_embeds.get(n) is not None), "unknown")
-    log(f"  canonical sim09 reference: {canonical_embeds_name} (shape={canonical_q_embeds.shape})")
-    # Override: every retriever's sim09 clustering uses canonical_embeds
+    log(f"  canonical sim09 reference: {canonical_embeds_name} "
+        f"(shape={canonical_q_embeds.shape})")
+    # Override: every retriever's sim09 clustering uses canonical_embeds.
     for n in RETR_NAMES:
         retr_q_embeds[n] = canonical_q_embeds
 
@@ -2047,7 +1997,7 @@ def main_task_body():
 def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
                                t_start: float,
                                retr_q_embeds: dict[str, np.ndarray | None] | None = None,
-                               canonical_embeds_name: str = "minilm") -> None:
+                               canonical_embeds_name: str = "gte_base") -> None:
     """Build headline + volatility + save summary JSONs.
 
     retr_q_embeds is None when called from cache-hit path (volatility is skipped
@@ -2074,7 +2024,7 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
     with open(SUMMARY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Stage 5 unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to minilm 384d for ALL retrievers (BM25/SPLADE borrow minilm embed).",
+                "description": "Stage 5 unified multi-retriever volatility (sim09 selected_only slice, NO rerank). sim09 clustering anchored to GTE-base 768d for ALL retrievers (BM25/SPLADE borrow GTE-base embed).",
                 "retrievers": RETR_NAMES,
                 "n_retrievers": len(RETR_NAMES),
                 "sim09_reference": canonical_embeds_name,
@@ -2101,10 +2051,10 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
         }, f, ensure_ascii=False, indent=2)
     log(f"  wrote → {SUMMARY_OUT}")
 
-    # ---- 9. Save volatility.json (canonical, backward-compat) ----
-    # Keep BM25 + MiniLM as headline volatility for back-compat with existing dashboards
+    # ---- 9. Save volatility.json (canonical headline) ----
+    # Keep BM25 + GTE-base as headline volatility.
     canonical_volatility: dict = {}
-    for n in ("bm25", "minilm"):
+    for n in ("bm25", "gte_base"):
         v = volatility[n]
         canonical_volatility[n] = {
             "n_asins": v.get("n_asins", 0),
@@ -2123,11 +2073,9 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
     with open(VOLATILITY_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "config": {
-                "description": "Canonical Stage 5 volatility (BM25 + MiniLM, selected_only_sim09 slice) — "
-                               "supersedes prior volatility.json. Full multi-retriever volatility "
-                               "see retrieval_summary.json.",
+                "description": "Canonical Stage 5 volatility (BM25 + GTE-base, selected_only_sim09 slice). Full multi-retriever volatility see retrieval_summary.json.",
                 "slices": ["selected_only_sim09"],
-                "retrievers": ["bm25", "minilm"],
+                "retrievers": ["bm25", "gte_base"],
             },
             "stability_flip": {
                 "selected_only_sim09": canonical_volatility,
