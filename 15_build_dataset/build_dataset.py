@@ -8,8 +8,9 @@ Source inputs (per category):
       - ``results`` is a flat list of {uid, asin, original_query, typo_query, ...}.
 
 Output (per category): result/15_build_dataset/<subdir>/dataset.json
-  Flat list of per-sample records — each sample keeps only the four primary
-  fields: {asin, uid, syntax_query, typo_query (or null)}.
+  A dict keyed by ASIN; each ASIN maps to a list of per-sample records. Each
+  sample keeps only the four primary fields:
+      {asin, uid, syntax_query, typo_query (or null)}
 
 Pairing rule: a Stage 10 entry only joins a Stage 08 entry on the exact triple
 (asin, uid, original_query == query). If Stage 10 did not produce a typo for a
@@ -41,7 +42,7 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_for_category(subdir: str) -> list[dict]:
+def build_for_category(subdir: str) -> dict[str, list[dict]]:
     """Build the per-ASIN dataset JSON for one category."""
     sel_path = REPO_ROOT / f"result/08_select_query/{subdir}/selected_queries.json"
     typo_path = REPO_ROOT / f"result/10_typo_injection/{subdir}/typo_injection_results.json"
@@ -73,9 +74,10 @@ def build_for_category(subdir: str) -> list[dict]:
             continue
         stage10_index[key] = pair
 
-    # Build the per-ASIN output as a flat list of per-sample records.
+    # Build the per-ASIN output: a dict keyed by ASIN, each value is a list of
+    # per-sample records belonging to that ASIN.
     asins = sorted(stage08_by_asin.keys())
-    rows: list[dict] = []
+    by_asin: dict[str, list[dict]] = {asin: [] for asin in asins}
     n_queries_total = 0
     n_typo_paired = 0
     n_clean_only = 0
@@ -86,7 +88,7 @@ def build_for_category(subdir: str) -> list[dict]:
             key = (asin, u["uid"], q_clean)
             typo_rec = stage10_index.get(key)
             if typo_rec is None:
-                rows.append({
+                by_asin[asin].append({
                     "asin":         asin,
                     "uid":          u["uid"],
                     "syntax_query": q_clean,
@@ -94,7 +96,7 @@ def build_for_category(subdir: str) -> list[dict]:
                 })
                 n_clean_only += 1
             else:
-                rows.append({
+                by_asin[asin].append({
                     "asin":         asin,
                     "uid":          u["uid"],
                     "syntax_query": typo_rec["original_query"],
@@ -113,12 +115,12 @@ def build_for_category(subdir: str) -> list[dict]:
     n_unmatched_typo = sum(1 for k in stage10_index.keys() if k not in matched_stage10_keys)
 
     with open(out_path, "w") as f:
-        json.dump(rows, f, indent=2)
+        json.dump(by_asin, f, indent=2)
 
     log(f"  [{subdir}] asins={len(asins)} queries={n_queries_total} "
         f"typo_paired={n_typo_paired} clean_only={n_clean_only} "
         f"unmatched_typo={n_unmatched_typo} -> {out_path.relative_to(REPO_ROOT)}")
-    return rows
+    return by_asin
 
 
 def main_task_body() -> None:
