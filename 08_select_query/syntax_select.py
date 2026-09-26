@@ -106,7 +106,6 @@ CORAL_ART_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp1
 CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
 TRAINED_UIDS_PATH = REPO_ROOT / "result/03_spacy_encode/cohort3_trained_uids.json"
 STRICT3_NPZ = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/strict3_embeddings.npz")
-Z_PROFILE_POOL = Path("/home/wlia0047/hj82_scratch2/wenyu/coral_cohort3mlp16_30/z_profile_review_cohort3mlp16_30.npz")
 ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
 EPSILON_REL = 0.1              # 2026-09-19: 加大 Tikhonov regularization 让 A 接近 identity, 避免 query z 被过度压缩
 COND_THRESHOLD = 1e3
