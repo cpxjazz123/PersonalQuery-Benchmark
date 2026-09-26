@@ -4,21 +4,19 @@
 Source inputs (per category):
   * Stage 08 selected queries: result/08_select_query/<subdir>/selected_queries.json
       - ``selections`` is a list of {asin, users: [{uid, query, logp, d2, margin}, ...]}
-      - ``kept`` is the {asin: [query, ...]} convenience map used by Stage 10 to build
-        the paired pool.
   * Stage 10 typo injection: result/10_typo_injection/<subdir>/typo_injection_results.json
       - ``results`` is a flat list of {uid, asin, original_query, typo_query, edits,
         n_typos_applied, semantic_sim, d2_before, d2_after, ...}.
 
 Output (per category): result/15_build_dataset/<subdir>/dataset.json
-  - {asin: {"queries": [{uid, query_clean, query_typo, n_typos_applied,
-                          semantic_sim, d2_before, d2_after, edits,
-                          logp, d2, margin}, ...]}}.
+  Top-level: {config, diagnostics, data}.  ``data`` is a list of per-sample
+  records — each sample keeps only the four primary fields:
+      {asin, uid, syntax_query, typo_query (or null)}
 
 Pairing rule: a Stage 10 entry only joins a Stage 08 entry on the exact triple
 (asin, uid, original_query == query). If Stage 10 did not produce a typo for a
 Stage 08 query (e.g. all gates failed), the Stage 08 row is still emitted with
-query_typo = null so downstream consumers know the clean-only cell exists.
+typo_query = null so downstream consumers know the clean-only cell exists.
 If Stage 10 produced a typo whose original_query is absent from Stage 08, it is
 logged as an unmatched typo and skipped (Stage 10's pool is built from Stage 08
 selections, so this should not normally happen, but we guard against drift).
@@ -77,51 +75,37 @@ def build_for_category(subdir: str) -> dict:
             continue
         stage10_index[key] = pair
 
-    # Build the per-ASIN output.
+    # Build the per-ASIN output as a flat list of per-sample records.
     asins = sorted(stage08_by_asin.keys())
-    out: dict[str, dict] = {}
+    rows: list[dict] = []
+    seen_asins: set[str] = set()
     n_queries_total = 0
     n_typo_paired = 0
     n_clean_only = 0
 
     for asin in asins:
-        rows = []
+        seen_asins.add(asin)
         for u in stage08_by_asin[asin]:
             q_clean = u["query"]
             key = (asin, u["uid"], q_clean)
             typo_rec = stage10_index.get(key)
             if typo_rec is None:
                 rows.append({
-                    "uid":             u["uid"],
-                    "query_clean":     q_clean,
-                    "query_typo":      None,
-                    "n_typos_applied": 0,
-                    "semantic_sim":    None,
-                    "d2_before":       None,
-                    "d2_after":        None,
-                    "edits":           [],
-                    "logp":            u["logp"],
-                    "d2":              u["d2"],
-                    "margin":          u["margin"],
+                    "asin":         asin,
+                    "uid":          u["uid"],
+                    "syntax_query": q_clean,
+                    "typo_query":   None,
                 })
                 n_clean_only += 1
             else:
                 rows.append({
-                    "uid":             u["uid"],
-                    "query_clean":     typo_rec["original_query"],
-                    "query_typo":      typo_rec["typo_query"],
-                    "n_typos_applied": typo_rec.get("n_typos_applied", len(typo_rec.get("edits", []))),
-                    "semantic_sim":    typo_rec.get("semantic_sim"),
-                    "d2_before":       typo_rec.get("d2_before"),
-                    "d2_after":        typo_rec.get("d2_after"),
-                    "edits":           typo_rec.get("edits", []),
-                    "logp":            u["logp"],
-                    "d2":              u["d2"],
-                    "margin":          u["margin"],
+                    "asin":         asin,
+                    "uid":          u["uid"],
+                    "syntax_query": typo_rec["original_query"],
+                    "typo_query":   typo_rec["typo_query"],
                 })
                 n_typo_paired += 1
             n_queries_total += 1
-        out[asin] = {"queries": rows}
 
     # Sanity check: any Stage 10 typos whose (asin, uid, original_query) never
     # matched a Stage 08 row?  This can only happen if Stage 10 was run on a
@@ -137,22 +121,24 @@ def build_for_category(subdir: str) -> dict:
             "stage08_source": str(sel_path.relative_to(REPO_ROOT)),
             "stage10_source": str(typo_path.relative_to(REPO_ROOT)),
             "pairing_key":    ["asin", "uid", "original_query == stage08.query"],
+            "schema_per_sample": ["asin", "uid", "syntax_query", "typo_query"],
             "note": (
-                "Per-ASIN aggregation of Stage 08 selected clean queries and "
-                "Stage 10 paired typo queries. Clean-only rows (query_typo=null) "
-                "are kept for completeness when Stage 10 gates rejected the "
-                "candidate; unmatched Stage 10 typos are dropped and counted in "
-                "diagnostics.unmatched_typo_count."
+                "Per-sample list aggregated from Stage 08 selected clean queries "
+                "and Stage 10 paired typo queries. Each sample carries the four "
+                "primary fields (asin, uid, syntax_query, typo_query). Clean-only "
+                "rows (typo_query=null) are kept for completeness when Stage 10 "
+                "gates rejected the candidate; unmatched Stage 10 typos are "
+                "dropped and counted in diagnostics.unmatched_typo_count."
             ),
         },
         "diagnostics": {
-            "n_asins":              len(out),
+            "n_asins":              len(seen_asins),
             "n_queries":            n_queries_total,
             "n_typo_paired":        n_typo_paired,
             "n_clean_only":         n_clean_only,
             "unmatched_typo_count": n_unmatched_typo,
         },
-        "data": out,
+        "data": rows,
     }
 
     with open(out_path, "w") as f:
