@@ -67,10 +67,17 @@ CATEGORY_INPUTS = [
 STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank"
 
 # 2026-09-22: Stage 14 baseline = Stage 13 (same reranker on clean query).
-# When True, skip LLM rerank and reuse cached per_query_typo_rerank_by_retriever
-# from existing llm_rerank_typo_results_<variant>.json; only recompute the
-# paired_degradation table against Stage 13 baseline.
-REGEN_FROM_CACHE = os.environ.get("STAGE14_REGEN_FROM_CACHE") == "1"
+# The typo-side rerank output (per_query_typo_rerank_by_retriever) is fully
+# determined by (reranker variant, typo pairs, BM25 typo Top-100 cache) — none
+# of which change once Stage 10/12 are finalized. To avoid paying for two
+# separate LLM calls per variant×domain cell, the typo-side top-25 is loaded
+# from the cached ``llm_rerank_typo_results_<variant>.json`` and only the
+# paired_degradation table (orig Hit@K / MRR vs typo Hit@K / MRR, including
+# the standard N-denominator MRR) is recomputed. Set
+# ``STAGE14_FORCE_RERANK=1`` (or pass ``regen_from_cache=False`` to
+# ``run_typo_paired_degradation``) only when the typo-side cache is missing
+# or the reranker itself has changed.
+USE_CACHED_TYPO_RERANK = os.environ.get("STAGE14_FORCE_RERANK") != "1"
 
 
 def load_typo_pairs(smoke: bool = False) -> list[dict]:
@@ -252,7 +259,7 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
         cache_path = OUT_DIR / f"llm_rerank_typo_results_{variant}.json"
         if not cache_path.exists():
             raise FileNotFoundError(
-                f"REGEN_FROM_CACHE=True but cached Stage 14 result missing: {cache_path}")
+                f"USE_CACHED_TYPO_RERANK=True but cached Stage 14 result missing: {cache_path}")
         with open(cache_path) as f:
             cached = json.load(f)
         cached_typ_top10_by_retr = cached.get("per_query_typo_rerank_by_retriever", {})
@@ -564,7 +571,7 @@ def main_task_body() -> None:
         RERANKER_VARIANTS = all_reranker_variants
 
     log(f"=== Stage 14 typo paired rerank (loops over {len(RERANKER_VARIANTS)} reranker(s)) ===")
-    log(f"  SMOKE={SMOKE}  REGEN_FROM_CACHE={REGEN_FROM_CACHE}  "
+    log(f"  SMOKE={SMOKE}  USE_CACHED_TYPO_RERANK={USE_CACHED_TYPO_RERANK}  "
         f"variants={[v[0] for v in RERANKER_VARIANTS]}")
     t_global = time.time()
     for variant, model_path in RERANKER_VARIANTS:
@@ -577,7 +584,7 @@ def main_task_body() -> None:
 
         t0 = time.time()
         out14 = run_typo_paired_degradation(smoke=SMOKE, variant=variant,
-                                           regen_from_cache=REGEN_FROM_CACHE)
+                                           regen_from_cache=USE_CACHED_TYPO_RERANK)
         variant_out = OUT_DIR / f"llm_rerank_typo_results_{variant}.json"
         with open(variant_out, "w") as f:
             json.dump(out14, f, indent=2)
