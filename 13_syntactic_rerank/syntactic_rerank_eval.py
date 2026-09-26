@@ -3,16 +3,14 @@
 2026-09-21: Refactored to focus solely on the Stage 11 syntactic rerank.
 The Stage 12 typo paired rerank has moved to
 ``14_typo_rerank/typo_rerank_eval.py``; importing it from this module
-raises. Stage 11 / 12 retrieval pipelines must remain retrieval-only
-(no LLM calls). For each of the 7 retrievers in
-{bm25, splade, minilm, mpnet, bge_base_v15, gte_base, colbertv2}:
+raises. Stage 11 / 12 retrieval pipelines remain retrieval-only (no LLM calls).
+Stage 13 uses the Stage 11 hybrid retriever's Top-100 candidates and reranks
+the first 25 with the selected LLM/cross-encoder variant:
 
-    retriever Top-100 -> Qwen P(Yes) rerank on the first 25 -> top-25.
+    bge_m3_hybrid Top-100 -> reranker scores top-25 -> top-25.
 
-The same LLM (Qwen via ``llm_client``), same prompt, same Top-100 depth,
-same scoring rule are used across retrievers. The LLM score has no
-contribution from the original retrieval score; the original rank is
-used only as an exact tie-breaker.
+Each variant scores candidates with its native prompt/scoring path and shares
+the same rank-prior fusion; raw retrieval scores are not added to LLM scores.
 """
 from __future__ import annotations
 
@@ -24,6 +22,10 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
+
+os.environ["HF_HUB_CACHE"] = (
+    "/home/wlia0047/hj82_scratch2/wenyu/hf_cache/hub"
+)
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 sys.path.insert(0, str(REPO_ROOT))
@@ -46,7 +48,7 @@ CATEGORY_INPUTS = [
     ("Video_Games",         "video_games"),
 ]
 
-RETRIEVERS = ["bm25"]
+RETRIEVERS = ["bge_m3_hybrid"]
 
 LLM_RERANK_TOPK = 25
 LLM_RERANK_CANDIDATES = 25
@@ -62,11 +64,8 @@ LLM_RERANK_STRIDE = 10
 LLM_RERANK_LISTWISE_MAX_TOKENS = 64
 KS = (1, 5, 10, 20, 25)
 N_SMOKE = 5
-ONLY_BM25_SMOKE = True
 SMOKE = os.environ.get("STAGE13_SMOKE") == "1"
-# 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
-# 保留全量 1947 queries（不像 SMOKE 那样截断到 1 个）。结果仍写入 STAGE11_OUT。
-BM25_ONLY = True
+# Stage 13 reranks only the Stage 11 hybrid candidates by default.
 
 
 def log(msg: str) -> None:
@@ -162,6 +161,20 @@ _BGE_GEMMA2_DOCUMENT_TEMPLATE = (
     "<start_of_turn>model\n"
 )
 
+# Llama 3.1 Instruct chat format; score the next-token Yes/No logits.
+_LLAMA31_RERANKER_PROMPT_PREFIX = (
+    "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+    "You are an expert product-search relevance judge. Determine whether "
+    "the document is relevant to the query. Answer only Yes or No."
+    "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+    "<Query>: "
+)
+_LLAMA31_RERANKER_DOCUMENT_TEMPLATE = (
+    "\n<Document>: {document}\n"
+    "Is this document relevant to the query? Answer Yes or No only."
+    "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+)
+
 # RankLLaMA (castorini/rankllama-v1-7b-lora-passage) is a
 # SequenceClassification reranker (num_labels=1) on top of Llama-2-7b-hf.
 # It does NOT use a chat template or yes/no logits — instead it takes
@@ -176,11 +189,8 @@ _RANKLLAMA_PEFT = (
 )
 _RANKLLAMA_TITLE_SEP = ""  # official format joins title+passage by space
 
-# Active reranker variant. Hardcoded in __main__ to one of:
-#   "qwen3"      - Qwen3-Reranker (default; Qwen chat template)
-#   "bge_gemma2" - BAAI/bge-reranker-v2-gemma (Gemma2 chat template)
-#   "rankllama"  - castorini/rankllama-v1-7b-lora-passage
-#                  (SequenceClassification on Llama-2-7b-hf)
+# Supported active reranker variants.
+#   qwen3, bge_gemma2, rankllama, llama31
 RERANKER_VARIANT = "qwen3"
 
 
@@ -189,10 +199,9 @@ def _active_prompt_prefix() -> str:
         return _QWEN3_RERANKER_PROMPT_PREFIX
     if RERANKER_VARIANT == "bge_gemma2":
         return _BGE_GEMMA2_PROMPT_PREFIX
+    if RERANKER_VARIANT == "llama31":
+        return _LLAMA31_RERANKER_PROMPT_PREFIX
     if RERANKER_VARIANT == "rankllama":
-        # The rankllama path does NOT use the chat-template prompt;
-        # score_seqcls builds its own ``"query: {q}" / "document: ..."``
-        # SentencePair tokenization internally.
         return ""
     raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
 
@@ -202,6 +211,8 @@ def _active_document_template() -> str:
         return _QWEN3_RERANKER_DOCUMENT_TEMPLATE
     if RERANKER_VARIANT == "bge_gemma2":
         return _BGE_GEMMA2_DOCUMENT_TEMPLATE
+    if RERANKER_VARIANT == "llama31":
+        return _LLAMA31_RERANKER_DOCUMENT_TEMPLATE
     if RERANKER_VARIANT == "rankllama":
         return "{document}"
     raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
@@ -217,17 +228,13 @@ def _model_label_for_variant() -> str:
             "castorini/rankllama-v1-7b-lora-passage "
             "(Llama-2-7b-hf + LoRA, SequenceClassification logits)"
         )
+    if RERANKER_VARIANT == "llama31":
+        return "meta-llama/Llama-3.1-8B-Instruct (vLLM Yes/No logit score)"
     raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
 
 
 def _resolve_yes_no_ids(client) -> tuple[list[int], list[int]]:
-    """Resolve yes/no token ids for Qwen3-Reranker's LogitScore head.
-
-    Sentence-transformers 默认用 `` yes`` / `` no``(前导空格),Qwen3
-    tokenizer 同时也有无空格 ``yes`` / ``Yes`` / ``No`` / ``no`` 等 token。
-    返回所有这些 id,score_logit_diff 在生成首个 token 的 top-k logprobs
-    中取最大值,容忍空格/大小写变体。
-    """
+    """Resolve candidate Yes/No token ids for causal-LM logit scoring."""
     client._init_backend()
     # ``QwenLocalClient._backend`` is either a vLLM ``LLM`` (has
     # ``.get_tokenizer()``) or a ``(model, tokenizer)`` tuple under the
@@ -241,10 +248,9 @@ def _resolve_yes_no_ids(client) -> tuple[list[int], list[int]]:
         out = []
         for s in token_strs:
             ids = tok.encode(s, add_special_tokens=False)
+            # score_logit_diff compares one generated token only.
             if len(ids) == 1:
                 out.append(ids[0])
-            else:
-                out.extend(ids)
         # De-dup while preserving order.
         seen = set()
         uniq = []
@@ -258,7 +264,7 @@ def _resolve_yes_no_ids(client) -> tuple[list[int], list[int]]:
     no_ids = _all_ids([" No", "No", " no", "no"])
     if not yes_ids or not no_ids:
         raise RuntimeError(
-            f"Failed to resolve yes/no token ids for Qwen3-Reranker; "
+            f"Failed to resolve single-token Yes/No ids; "
             f"yes={yes_ids} no={no_ids}"
         )
     return yes_ids, no_ids
@@ -273,19 +279,12 @@ def _build_reranker_prompt(query: str, doc_text: str) -> str:
 
 
 def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client):
-    """Rerank each retriever's Top-K candidates via the active reranker.
+    """Rerank each retriever's candidates with the active model.
 
-    Dispatches to two scoring paths based on ``RERANKER_VARIANT``:
-      - ``"qwen3"`` (default): vLLM next-token LogitScore via
-        ``client.score_logit_diff`` on the Qwen chat-template prompt.
-      - ``"bge_gemma2"``: transformers cross-encoder score via
-        ``client.score_pairs`` on the BAAI/FlagEmbedding official
-        ``"<bos>{query}</s>\\n{paragraph}"`` prompt (last non-padding
-        position yes/no logit diff → sigmoid).
-
-    The rank-prior fusion ``final_score = 1.0*LLM + 0.1*rank_prior`` is
-    applied identically for both variants so absolute numbers stay
-    comparable across the Stage13 rerank variants.
+    Qwen3 and Llama 3.1 use vLLM batched Yes/No next-token logits. BGE
+    Gemma2 uses its Transformers score head; RankLLaMA uses sequence
+    classification logits. All variants share the configured rank-prior
+    fusion and return candidates sorted by final relevance score.
     """
     if len(topk_asins_list) != len(queries_text):
         raise ValueError(
@@ -364,11 +363,8 @@ def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client)
                 f"{len(all_scores)} != {n_total}"
             )
         log(f"  RankLLaMA score_seqcls done in {time.time()-t0:.1f}s")
-    else:
-        # Qwen3 is scored from the first generated token through vLLM.
-        # ``flat`` already contains the official Qwen3-Reranker prompt; unlike
-        # the Transformers path, vLLM can batch requests without materializing
-        # the full vocabulary logits in Python.
+    elif RERANKER_VARIANT in ("qwen3", "llama31"):
+        # Causal-LM rerankers use the batched first-token Yes/No logit path.
         all_scores = client.score_logit_diff(
             flat,
             yes_tokens=yes_ids,
@@ -377,10 +373,12 @@ def llm_rerank_per_retriever(queries_text, topk_asins_list, asin_to_doc, client)
         )
         if len(all_scores) != n_total:
             raise RuntimeError(
-                f"Qwen3 score_logit_diff output mismatch: "
+                f"{RERANKER_VARIANT} score_logit_diff output mismatch: "
                 f"{len(all_scores)} != {n_total}"
             )
-        log(f"  Qwen3-Reranker (vLLM) rerank done in {time.time()-t0:.1f}s")
+        log(f"  {RERANKER_VARIANT} score_logit_diff done in {time.time()-t0:.1f}s")
+    else:
+        raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
 
     for (qi, asin, retrieval_rank), llm_score in zip(keep, all_scores):
         rank_prior = (n_candidates - retrieval_rank) / (n_candidates - 1) if n_candidates > 1 else 1.0
@@ -579,17 +577,27 @@ def load_typo_pairs(smoke=False) -> list[dict]:
 
 
 def run_stage11_llm_rerank(smoke=False):
-    log("=== Stage 13 / Stage 11 LLM rerank (per-retriever top-100 + Qwen P(Yes)) ===")
+    log("=== Stage 13 / Stage 11 hybrid candidate reranking ===")
     entries = load_stage8_selection()
     selection_indices = list(range(len(entries)))
+    smoke_retriever = RETRIEVERS[0]
     if smoke:
-        bm25_cache = load_topk_cache(STAGE11_TOPK_DIR, "bm25")
-        if bm25_cache is None:
-            raise FileNotFoundError("Stage 11 BM25 top-100 cache missing for eligible smoke")
+        smoke_cache = load_topk_cache(STAGE11_TOPK_DIR, smoke_retriever)
+        if smoke_cache is None:
+            raise FileNotFoundError(
+                f"Stage 11 {smoke_retriever} top-100 cache missing for smoke"
+            )
+        if smoke_cache.shape[0] != len(entries):
+            raise ValueError(
+                f"[{smoke_retriever}] cache has {smoke_cache.shape[0]} rows, "
+                f"expected {len(entries)}"
+            )
         _asin_to_doc_smoke, _asins_smoke = load_corpus()
         eligible_keys = []
         for idx, (asin, query) in enumerate(entries):
-            row_asins = {_asins_smoke[int(x)] for x in bm25_cache[idx][:LLM_RERANK_TOPK]}
+            row_asins = set(idx_to_asin(
+                smoke_cache[idx:idx + 1, :LLM_RERANK_TOPK], _asins_smoke
+            )[0])
             if asin in row_asins:
                 eligible_keys.append((idx, (asin, query)))
                 if len(eligible_keys) >= N_SMOKE:
@@ -598,7 +606,8 @@ def run_stage11_llm_rerank(smoke=False):
             selection_indices = [idx for idx, _ in eligible_keys]
             entries = [pair for _, pair in eligible_keys]
         else:
-            log("  smoke has no BM25 Hit@10 query; using first pair without LLM reranking")
+            log(f"  smoke has no {smoke_retriever} Hit@{LLM_RERANK_TOPK} query; "
+                "using first pair without LLM reranking")
             selection_indices = [0]
             entries = [entries[0]]
     log(f"  loaded {len(entries)} query pairs")
@@ -607,13 +616,8 @@ def run_stage11_llm_rerank(smoke=False):
     queries_asin_pairs = [(a, q) for a, q in entries]
 
     per_retr_topk_idx: dict[str, np.ndarray] = {}
-    # 2026-09-23: BM25_ONLY 模式 — 跑全量 queries 但只 bm25 retriever（用户指令）
-    if BM25_ONLY:
-        _retr_list = ["bm25"]
-        _typo_retr_list = ["bm25"]
-    else:
-        _retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
-        _typo_retr_list = _retr_list if SMOKE else RETRIEVERS
+    _retr_list = list(RETRIEVERS)
+    _typo_retr_list = list(RETRIEVERS)
     log(f"  smoke retriever set: stage11={_retr_list} stage12={_typo_retr_list}")
     for retr in _retr_list:
         topk_idx = load_topk_cache(STAGE11_TOPK_DIR, retr)
@@ -633,10 +637,8 @@ def run_stage11_llm_rerank(smoke=False):
     topk_by_retr = {retr: idx_to_asin(arr, asins) for retr, arr in per_retr_topk_idx.items()}
 
     from llm_client import get_client
-    # Qwen3 uses vLLM's batched first-token logprob path. BGE Gemma2 and
-    # RankLLaMA keep the Transformers cross-encoder/sequence-classification
-    # paths because they are not supported by this vLLM client.
-    backend = "vllm" if RERANKER_VARIANT == "qwen3" else "transformers"
+    # Qwen3 and Llama 3.1 use vLLM's batched Yes/No token-logit path.
+    backend = "vllm" if RERANKER_VARIANT in ("qwen3", "llama31") else "transformers"
     client = get_client(backend=backend)
 
     per_retriever_metrics = {}
@@ -970,16 +972,12 @@ def main_task_body() -> None:
     RUN_STAGE12 = False
 
     # === reranker selection ===
-    # Hardcoded list of 3 supported rerankers; the script loops over all of
-    # them in one nohup invocation. Supported variants:
-    #   "qwen3"      -> Qwen3-Reranker (Qwen chat template)
-    #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma (Gemma2 chat template)
-    #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
-    #                   (SequenceClassification on Llama-2-7b-hf)
+    # Supported reranker variants; use STAGE13_RERANKERS to select a subset.
     all_reranker_variants = [
         ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
         ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
         ("rankllama",  _RANKLLAMA_BASE, _RANKLLAMA_PEFT),
+        ("llama31",    "meta-llama/Llama-3.1-8B-Instruct", None),
     ]
     reranker_filter = os.environ.get("STAGE13_RERANKERS", "").strip()
     if reranker_filter:
