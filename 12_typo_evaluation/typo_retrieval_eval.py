@@ -48,10 +48,15 @@ TOPK_SAVE_K = 100
 # Hardcoded (Rule 3)
 SMOKE = os.environ.get("STAGE12_SMOKE") == "1"
 N_SMOKE_PAIRS = 5
+STAGE12_RETRIEVERS = tuple(
+    name.strip() for name in os.environ.get("STAGE12_RETRIEVERS", "").split(",")
+    if name.strip()
+)
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
 STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
 ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+STAGE11_PER_QUERY_PATH = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
 META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/12_typo_evaluation/<subdir>/.
@@ -132,7 +137,17 @@ def main_task_body():
 
     # ---- Load 11 module ----
     retr_mod = _load_retrieval_module()
-    log(f"  loaded retrievers: {retr_mod.RETR_NAMES}")
+    all_retrievers = list(retr_mod.RETRIEVERS)
+    all_names = {retr["name"] for retr in all_retrievers}
+    unknown_names = set(STAGE12_RETRIEVERS) - all_names
+    if unknown_names:
+        raise ValueError(f"Unknown STAGE12_RETRIEVERS: {sorted(unknown_names)}")
+    active_retrievers = [
+        retr for retr in all_retrievers
+        if not STAGE12_RETRIEVERS or retr["name"] in STAGE12_RETRIEVERS
+    ]
+    active_names = [retr["name"] for retr in active_retrievers]
+    log(f"  active retrievers: {active_names}")
 
     # ---- Load 45 pairs (uid, asin, original, typo) ----
     pairs = load_pairs()
@@ -214,7 +229,7 @@ def main_task_body():
     retr_typo: dict[str, list[dict]] = {}
     TOPK_DIR_TYPO.mkdir(parents=True, exist_ok=True)
 
-    for retr in retr_mod.RETRIEVERS:
+    for retr in active_retrievers:
         kind = retr["kind"]
         name = retr["name"]
         topk_typo = TOPK_DIR_TYPO / f"{name}_top100.npz"
@@ -242,6 +257,19 @@ def main_task_body():
                 corpus_sig=corpus_sig, query_sig=query_sig_typo,
                 save_topk_path=topk_typo,
             )
+        elif kind == "dense_bge_m3_hybrid":
+            weights = retr.get("weights", (1.0, 0.3, 1.0))
+            try:
+                weights = tuple(float(os.environ.get(key, weights[i]))
+                                for i, key in enumerate(
+                                    ("BGE_M3_W_D", "BGE_M3_W_S", "BGE_M3_W_C")))
+            except (TypeError, ValueError):
+                pass
+            typo_results, _q_embeds = retr_mod.bge_m3_hybrid_retrieve(
+                typo_queries, corpus_texts, typo_target_indices,
+                corpus_sig=corpus_sig, query_sig=query_sig_typo,
+                save_topk_path=topk_typo, weights=weights,
+            )
         elif kind == "late_interaction":
             typo_results, _q_embeds = retr_mod.colbertv2_retrieve(
                 typo_queries, corpus_texts, typo_target_indices,
@@ -255,7 +283,7 @@ def main_task_body():
 
     # ---- Pair back: orig = Stage 11 cache rows, typo = fresh run above ----
     retr_results: dict[str, tuple[list[dict], list[dict]]] = {}
-    for retr in retr_mod.RETRIEVERS:
+    for retr in active_retrievers:
         name = retr["name"]
         topk_orig_path = STAGE11_TOPK_DIR / f"{name}_top100.npz"
         if not topk_orig_path.exists():
@@ -292,7 +320,7 @@ def main_task_body():
 
     # ---- Pair back: orig_records[i], typo_records[i] for each record ----
     for ri, rec in enumerate(records):
-        for retr in retr_mod.RETR_NAMES:
+        for retr in active_names:
             res_orig, res_typo = retr_results[retr]
             for k in KS:
                 rec[f"{retr}_hit{k}_orig"] = bool(res_orig[ri][f"hit{k}"])
@@ -302,6 +330,64 @@ def main_task_body():
                 rec[f"{retr}_RR_orig"] = res_orig[ri]["RR"]
                 rec[f"{retr}_RR_typo"] = res_typo[ri]["RR"]
 
+    summary_names = list(active_names)
+    if not SMOKE and OUT_PER_QUERY.exists() and OUT_DEGRADATION.exists():
+        with open(OUT_PER_QUERY, encoding="utf-8") as f:
+            previous_per_query = json.load(f)
+        with open(OUT_DEGRADATION, encoding="utf-8") as f:
+            previous_summary = json.load(f)
+        previous_config = previous_per_query.get("config", {})
+        previous_records = previous_per_query.get("records", [])
+        if (previous_config.get("query_sig") != query_sig
+                or len(previous_records) != len(records)
+                or previous_summary.get("config", {}).get("corpus_sig") != corpus_sig):
+            raise RuntimeError(
+                "Existing Stage 12 results do not match current typo pairs/corpus; "
+                "refusing to overwrite without a valid merge."
+            )
+
+        def pair_key(record):
+            return (record["uid"], record["asin"],
+                    record["original_query"], record["typo_query"])
+
+        previous_by_key = {pair_key(record): record for record in previous_records}
+        current_keys = {pair_key(record) for record in records}
+        if len(previous_by_key) != len(previous_records) or current_keys != set(previous_by_key):
+            raise RuntimeError("Existing Stage 12 records do not align with current typo pairs.")
+        records = [
+            {**previous_by_key[pair_key(record)], **record}
+            for record in records
+        ]
+        summary_names = sorted(
+            set(previous_summary.get("per_retriever", {})) | set(active_names)
+        )
+        log(f"  merged active retrievers into existing results: {summary_names}")
+
+    with open(STAGE11_PER_QUERY_PATH, encoding="utf-8") as f:
+        stage11_queries = json.load(f)["queries"]
+    clean_by_key = {(record["asin"], record["query"]): record
+                    for record in stage11_queries}
+    if len(clean_by_key) != len(stage11_queries):
+        raise RuntimeError("Stage 11 clean per-query data has duplicate (asin, query) keys.")
+    for record in records:
+        clean = clean_by_key.get((record["asin"], record["original_query"]))
+        if clean is None:
+            raise RuntimeError(
+                f"Clean Stage 11 query missing for {record['asin']}: "
+                f"{record['original_query']!r}"
+            )
+        for name in summary_names:
+            rr_key = f"{name}_RR"
+            if rr_key not in clean:
+                raise RuntimeError(f"Stage 11 clean RR missing for {name}.")
+            record[f"{name}_rank_orig"] = clean.get(f"{name}_rank")
+            record[f"{name}_RR_orig"] = float(clean[rr_key])
+            for k in KS:
+                hit_key = f"{name}_hit{k}"
+                if hit_key not in clean:
+                    raise RuntimeError(f"Stage 11 clean Hit@{k} missing for {name}.")
+                record[f"{name}_hit{k}_orig"] = bool(clean[hit_key])
+
     # ---- Aggregate: per retriever × per k, mean orig/typo hit@k + degradation ----
     summary = {
         "config": {
@@ -309,10 +395,14 @@ def main_task_body():
             "n_pairs": len(records),
             "smoke": SMOKE,
             "ks": list(KS),
+            "retrievers": summary_names,
             "corpus_size": len(asins),
             "query_sig": query_sig,
             "corpus_sig": corpus_sig,
-            "note": "paired degradation: orig - typo hit@k; positive = typo hurts recall",
+            "note": (
+                "paired degradation: orig - typo hit@k and RR; "
+                "clean ranks are sourced from Stage 11 full-corpus per-query results"
+            ),
         },
         "per_retriever": {},
     }
@@ -321,7 +411,7 @@ def main_task_body():
              "".join(f" {'hit@'+str(k)+'_typo':>14}" for k in KS) + \
              "".join(f" {'deg@'+str(k):>8}" for k in KS)
     log(header)
-    for retr in retr_mod.RETR_NAMES:
+    for retr in summary_names:
         per_k = {}
         for k in KS:
             orig_arr = np.array([rec[f"{retr}_hit{k}_orig"] for rec in records], dtype=np.float32)
@@ -333,10 +423,23 @@ def main_task_body():
                 "degradation_mean": float(deg.mean()),
                 "degradation_median": float(np.median(deg)),
                 "n_pairs": len(records),
-                "n_typo_helps": int((deg < 0).sum()),    # negative deg = typo IMPROVED
-                "n_typo_hurts": int((deg > 0).sum()),    # positive deg = typo HURT
+                "n_typo_helps": int((deg < 0).sum()),
+                "n_typo_hurts": int((deg > 0).sum()),
                 "n_typo_neutral": int((deg == 0).sum()),
             }
+        rr_orig = np.array([rec[f"{retr}_RR_orig"] for rec in records], dtype=np.float64)
+        rr_typo = np.array([rec[f"{retr}_RR_typo"] for rec in records], dtype=np.float64)
+        rr_deg = rr_orig - rr_typo
+        per_k["MRR"] = {
+            "orig_mean": float(rr_orig.mean()),
+            "typo_mean": float(rr_typo.mean()),
+            "degradation_mean": float(rr_deg.mean()),
+            "degradation_median": float(np.median(rr_deg)),
+            "n_pairs": len(records),
+            "n_typo_helps": int((rr_deg < 0).sum()),
+            "n_typo_hurts": int((rr_deg > 0).sum()),
+            "n_typo_neutral": int((rr_deg == 0).sum()),
+        }
         summary["per_retriever"][retr] = per_k
         row = f"{retr:<14}"
         for k in KS:
@@ -374,7 +477,7 @@ def main() -> None:
     然后调原 main_task_body() (保持原有逻辑不动). 产物写到
     result/<stage>/<baby|musical|video_games>/ 子目录.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO, STAGE11_TOPK_DIR, STAGE11_SEL_PATH, ASIN_TO_DOC_CACHE  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO, STAGE11_TOPK_DIR, STAGE11_SEL_PATH, STAGE11_PER_QUERY_PATH, ASIN_TO_DOC_CACHE  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -382,7 +485,8 @@ def main() -> None:
                  "META_FILE", "OUT_DIR", "OUT_PATH",
                  "OUT_PER_QUERY", "OUT_DEGRADATION",
                  "TYPO_RESULTS", "TOPK_DIR_ORIG", "TOPK_DIR_TYPO",
-                 "STAGE11_TOPK_DIR", "STAGE11_SEL_PATH", "ASIN_TO_DOC_CACHE"}
+                 "STAGE11_TOPK_DIR", "STAGE11_SEL_PATH", "STAGE11_PER_QUERY_PATH",
+                 "ASIN_TO_DOC_CACHE"}
         and isinstance(v, Path)
     }
     base_out = REPO_ROOT / "result" / Path(__file__).parent.name
@@ -430,6 +534,8 @@ def main() -> None:
                                 / subdir / saved["STAGE11_TOPK_DIR"].name)
         if "STAGE11_SEL_PATH" in saved:
             STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE11_SEL_PATH"].name
+        if "STAGE11_PER_QUERY_PATH" in saved:
+            STAGE11_PER_QUERY_PATH = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / "per_query.json"
         if "ASIN_TO_DOC_CACHE" in saved:
             ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
                                  / subdir / saved["ASIN_TO_DOC_CACHE"].name)
