@@ -4,10 +4,10 @@
 The Stage 12 typo paired rerank has moved to
 ``14_typo_rerank/typo_rerank_eval.py``; importing it from this module
 raises. Stage 11 / 12 retrieval pipelines remain retrieval-only (no LLM calls).
-Stage 13 uses the Stage 11 hybrid retriever's Top-100 candidates and reranks
+Stage 13 uses the Stage 11 BM25 Top-100 candidates and reranks
 the first 25 with the selected LLM/cross-encoder variant:
 
-    bge_m3_hybrid Top-100 -> reranker scores top-25 -> top-25.
+    BM25 Top-100 -> reranker scores top-25 -> top-25.
 
 Each variant scores candidates with its native prompt/scoring path and shares
 the same rank-prior fusion; raw retrieval scores are not added to LLM scores.
@@ -48,7 +48,7 @@ CATEGORY_INPUTS = [
     ("Video_Games",         "video_games"),
 ]
 
-RETRIEVERS = ["bge_m3_hybrid"]
+RETRIEVERS = ["bm25"]
 
 LLM_RERANK_TOPK = 25
 LLM_RERANK_CANDIDATES = 25
@@ -65,7 +65,7 @@ LLM_RERANK_LISTWISE_MAX_TOKENS = 64
 KS = (1, 5, 10, 20, 25)
 N_SMOKE = 5
 SMOKE = os.environ.get("STAGE13_SMOKE") == "1"
-# Stage 13 reranks only the Stage 11 hybrid candidates by default.
+# Stage 13 reranks only the Stage 11 BM25 candidates.
 
 
 def log(msg: str) -> None:
@@ -229,7 +229,7 @@ def _model_label_for_variant() -> str:
             "(Llama-2-7b-hf + LoRA, SequenceClassification logits)"
         )
     if RERANKER_VARIANT == "llama31":
-        return "meta-llama/Llama-3.1-8B-Instruct (vLLM Yes/No logit score)"
+        return "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit (Llama 3.1 8B, vLLM 4-bit Yes/No logits)"
     raise ValueError(f"Unknown RERANKER_VARIANT: {RERANKER_VARIANT}")
 
 
@@ -577,7 +577,7 @@ def load_typo_pairs(smoke=False) -> list[dict]:
 
 
 def run_stage11_llm_rerank(smoke=False):
-    log("=== Stage 13 / Stage 11 hybrid candidate reranking ===")
+    log("=== Stage 13 / Stage 11 BM25 candidate reranking ===")
     entries = load_stage8_selection()
     selection_indices = list(range(len(entries)))
     smoke_retriever = RETRIEVERS[0]
@@ -977,7 +977,7 @@ def main_task_body() -> None:
         ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
         ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
         ("rankllama",  _RANKLLAMA_BASE, _RANKLLAMA_PEFT),
-        ("llama31",    "meta-llama/Llama-3.1-8B-Instruct", None),
+        ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit", None),
     ]
     reranker_filter = os.environ.get("STAGE13_RERANKERS", "").strip()
     if reranker_filter:

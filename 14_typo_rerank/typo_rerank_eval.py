@@ -4,19 +4,14 @@
 syntactic rerank now lives in ``13_syntactic_rerank/syntactic_rerank_eval.py``;
 this script owns the Stage 12 typo paired degradation evaluation.
 
-For each of the 7 retrievers in
-{bm25, splade, minilm, mpnet, bge_base_v15, gte_base, colbertv2}:
+For the configured BM25 retriever:
 
-    typo query → typo retriever Top-100 → Qwen P(Yes) rerank → top-25
+    clean query → BM25 Top-100 → selected reranker → top-25
+    typo query  → BM25 Top-100 → same reranker → top-25
 
-We compare the resulting rerank Top-25 against the Stage 13 rerank Top-25
-for the *original* (clean) query to obtain the paired Hit@K degradation
-and MRR degradation.
-
-The same LLM (Qwen via ``llm_client``), same prompt, same Top-100 depth,
-same scoring rule are used across retrievers. The LLM score has no
-contribution from the original retrieval score; the original rank is
-used only as an exact tie-breaker.
+Stage 14 compares the typo-query rerank against the paired Stage 13 clean-query
+result to measure Hit@K and MRR degradation. Candidate ordering uses the same
+reranker-score and BM25 rank-prior fusion as Stage 13.
 """
 from __future__ import annotations
 
@@ -37,7 +32,6 @@ from syntactic_rerank_eval import (  # noqa: E402  (sys.path tweak above)
     KS,
     LLM_RERANK_TOPK,
     N_SMOKE,
-    ONLY_BM25_SMOKE,
     SMOKE,
     log,
     load_corpus,
@@ -55,9 +49,6 @@ OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 STAGE12_OUT = OUT_DIR / "llm_rerank_typo_results.json"
 
-# 2026-09-23: 用户指令 — 只对 bm25 做 rerank，跳过 dense / late-interaction retriever。
-# 与 Stage 13 保持一致（BM25_ONLY 在 syntactic_rerank_eval.py 中定义）。
-from syntactic_rerank_eval import BM25_ONLY
 STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank/llm_rerank_results.json"
 
 TYPO_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_typo")
@@ -218,11 +209,8 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
     asin_to_doc, asins = load_corpus()
 
     per_retr_typo_idx: dict[str, np.ndarray] = {}
-    # 2026-09-23: BM25_ONLY 模式 — 跑全量 typo pairs 但只 bm25 retriever（与 Stage 13 一致）
-    if BM25_ONLY:
-        typo_retr_list = ["bm25"]
-    else:
-        typo_retr_list = ["bm25"] if SMOKE and ONLY_BM25_SMOKE else RETRIEVERS
+    # Use the same configured retriever set as Stage 13 (currently BM25 only).
+    typo_retr_list = list(RETRIEVERS)
     log(f"  typo retriever set: {typo_retr_list}")
     for retr in typo_retr_list:
         topk_idx = load_topk_cache(TYPO_TOPK_DIR, retr)
@@ -246,10 +234,9 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
     topk_by_retr = {retr: idx_to_asin(arr, asins) for retr, arr in per_retr_typo_idx.items()}
 
     from llm_client import get_client
-    # Qwen3 uses vLLM's batched first-token logprob path. BGE Gemma2 and
-    # RankLLaMA keep the Transformers cross-encoder/sequence-classification
-    # paths because they are not supported by this vLLM client.
-    backend = "vllm" if variant == "qwen3" else "transformers"
+    # Qwen3 and Llama 3.1 use vLLM's batched Yes/No logit path; the remaining
+    # variants use their Transformers score heads.
+    backend = "vllm" if variant in ("qwen3", "llama31") else "transformers"
     client = get_client(backend=backend) if not regen_from_cache else None
 
     per_retriever_typo_metrics = {}
@@ -561,12 +548,13 @@ def main_task_body() -> None:
     #   "qwen3"      -> Qwen3-Reranker
     #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma
     #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
-    #                   (SequenceClassification on Llama-2-7b-hf)
+    #   "llama31"    -> unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit (public 4-bit mirror)
     all_reranker_variants = [
         ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
         ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
         ("rankllama",  "/fs04/scratch2/hj82/wenyu/RAG/Llama-2-7b-hf",
                        "/fs04/scratch2/hj82/wenyu/RAG/rankllama-v1-7b-lora-passage"),
+        ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit", None),
     ]
     reranker_filter = os.environ.get("STAGE14_RERANKERS", "").strip()
     if reranker_filter:
