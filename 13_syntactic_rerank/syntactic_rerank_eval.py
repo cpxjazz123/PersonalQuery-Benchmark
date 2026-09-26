@@ -767,12 +767,12 @@ STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.j
 
 
 def load_stage11_baseline_metrics() -> dict[str, dict]:
-    """Aggregate Stage 11 retrieval baseline hit@1/@5/@10/@20/MRR per retriever.
+    """Aggregate Stage 11 retrieval baseline hit@1/@5/@10/MRR per retriever.
 
-    Only hit@1/@5/@10/MRR are required: hit@20 is added when present in the
-    Stage 11 per-query cache (older caches were written before the Hit@20
-    migration; ``Stage 11`` rebuilds it on next run via
-    ``_migrate_hit20_fields``).
+    Returns only the retrievers that Stage 13 actually reranks (BM25). Hit@20
+    is added when present in the Stage 11 per-query cache; older caches
+    written before the Hit@20 migration simply omit it (Stage 11 rebuilds it
+    on next run via ``_migrate_hit20_fields``).
     """
     if not STAGE11_PER_QUERY.exists():
         raise FileNotFoundError(f"Stage 11 per_query.json missing: {STAGE11_PER_QUERY}")
@@ -781,7 +781,7 @@ def load_stage11_baseline_metrics() -> dict[str, dict]:
     queries = d["queries"]
     if not queries:
         raise ValueError("Stage 11 per_query.json has empty queries")
-    retrs = ["bm25", "gte_base"]
+    retrs = list(RETRIEVERS)  # only the retrievers Stage 13 reranks
     out: dict[str, dict] = {retr: {} for retr in retrs}
     for retr in retrs:
         for metric_norm, key_suffix in (("hit@1", "hit1"), ("hit@5", "hit5"),
