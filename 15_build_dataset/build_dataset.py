@@ -114,8 +114,8 @@ def build_for_category(subdir: str) -> dict[str, list[dict]]:
             matched_stage10_keys.add((asin, u["uid"], u["query"]))
     n_unmatched_typo = sum(1 for k in stage10_index.keys() if k not in matched_stage10_keys)
 
-    with open(out_path, "w") as f:
-        json.dump(by_asin, f, indent=2)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(by_asin, f, indent=2, ensure_ascii=False)
 
     log(f"  [{subdir}] asins={len(asins)} queries={n_queries_total} "
         f"typo_paired={n_typo_paired} clean_only={n_clean_only} "
