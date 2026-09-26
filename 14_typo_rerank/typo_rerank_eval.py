@@ -54,8 +54,8 @@ STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank/llm_rerank_results.json"
 TYPO_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_typo")
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
-STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/per_query.json"
-STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/per_query.json"
+STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/baby/per_query.json"
+STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
 # 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
 # main() 改为串行跑 3 个 domain, 产物写到 result/14_typo_rerank/<subdir>/.
 CATEGORY_INPUTS = [
@@ -234,10 +234,8 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
     topk_by_retr = {retr: idx_to_asin(arr, asins) for retr, arr in per_retr_typo_idx.items()}
 
     from llm_client import get_client
-    # Qwen3 and Llama 3.1 use vLLM's batched Yes/No logit path; the remaining
-    # variants use their Transformers score heads.
-    backend = "vllm" if variant in ("qwen3", "llama31") else "transformers"
-    client = get_client(backend=backend) if not regen_from_cache else None
+    # Qwen3 and Llama 3.1 both use vLLM's batched Yes/No logit path.
+    client = get_client(backend="vllm") if not regen_from_cache else None
 
     per_retriever_typo_metrics = {}
     per_retriever_typo_diagnostics = {}
@@ -544,17 +542,13 @@ def build_and_save_stage14_paired_table(stage14_out: dict,
 
 def main_task_body() -> None:
     # === reranker selection ===
-    # Match the Stage 13 reranker variant. Supported:
-    #   "qwen3"      -> Qwen3-Reranker
-    #   "bge_gemma2" -> BAAI/bge-reranker-v2-gemma
-    #   "rankllama"  -> castorini/rankllama-v1-7b-lora-passage
-    #   "llama31"    -> unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit (public 4-bit mirror)
+    # Match the Stage 13 reranker variant. Supported (Qwen3 + Llama 3.1 only,
+    # per 2026-09-26):
+    #   "qwen3"   -> Qwen3-Reranker (vLLM Yes/No logits)
+    #   "llama31" -> unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit
     all_reranker_variants = [
-        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B", None),
-        ("bge_gemma2", "/home/wlia0047/hj82_scratch2/wenyu/RAG/BGE-reranker-Gemma2-9B", None),
-        ("rankllama",  "/fs04/scratch2/hj82/wenyu/RAG/Llama-2-7b-hf",
-                       "/fs04/scratch2/hj82/wenyu/RAG/rankllama-v1-7b-lora-passage"),
-        ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit", None),
+        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"),
+        ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"),
     ]
     reranker_filter = os.environ.get("STAGE14_RERANKERS", "").strip()
     if reranker_filter:
@@ -569,11 +563,10 @@ def main_task_body() -> None:
     log(f"  SMOKE={SMOKE}  REGEN_FROM_CACHE={REGEN_FROM_CACHE}  "
         f"variants={[v[0] for v in RERANKER_VARIANTS]}")
     t_global = time.time()
-    for variant, model_path, peft_adapter in RERANKER_VARIANTS:
+    for variant, model_path in RERANKER_VARIANTS:
         log(f"\n--- [{variant}] ---")
         import llm_client  # noqa: E402
         llm_client.DEFAULT_QWEN_MODEL = model_path
-        llm_client.DEFAULT_PEFT_ADAPTER = peft_adapter
         llm_client.reset_client()
         import syntactic_rerank_eval as base_mod  # noqa: E402
         base_mod.RERANKER_VARIANT = variant
