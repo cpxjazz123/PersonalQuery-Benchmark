@@ -70,7 +70,7 @@ STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank"
 # When True, skip LLM rerank and reuse cached per_query_typo_rerank_by_retriever
 # from existing llm_rerank_typo_results_<variant>.json; only recompute the
 # paired_degradation table against Stage 13 baseline.
-REGEN_FROM_CACHE = False
+REGEN_FROM_CACHE = os.environ.get("STAGE14_REGEN_FROM_CACHE") == "1"
 
 
 def load_typo_pairs(smoke: bool = False) -> list[dict]:
@@ -351,13 +351,17 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
                 orig_hits[k].append(orig_hit)
                 typo_hits[k].append(typo_hit)
                 deg_per_k[k].append(orig_hit - typo_hit)
-            if orig_rank is not None:
-                orig_rrs.append(1.0 / orig_rank)
+            # Standard MRR with N denominator: every paired query contributes
+            # 1.0/rank when the target appears in the rerank top-K (K=25 here),
+            # 0.0 when it does not. This is the standard MRR definition used
+            # by Stage 13 (compute_hit_metrics); the previous implementation
+            # averaged only the hit samples, which mathematically decoupled
+            # MRR from the Hit@K numbers reported in the same row.
+            orig_rrs.append(1.0 / orig_rank if orig_rank is not None else 0.0)
             typo_top20 = typo_reranked[pi].get("top20", typo_reranked[pi]["top10"])
             typo_rank_final = typo_top20.index(target) + 1 \
                 if target in typo_top20 else None
-            if typo_rank_final is not None:
-                typo_rrs.append(1.0 / typo_rank_final)
+            typo_rrs.append(1.0 / typo_rank_final if typo_rank_final is not None else 0.0)
             n_paired += 1
         if n_paired == 0:
             raise ValueError(
@@ -367,8 +371,8 @@ def run_typo_paired_degradation(smoke: bool = False, variant: str | None = None,
             paired[f"orig_hit@{k}"] = float(np.mean(orig_hits[k])) if orig_hits[k] else 0.0
             paired[f"typo_hit@{k}"] = float(np.mean(typo_hits[k])) if typo_hits[k] else 0.0
             paired[f"deg_hit@{k}"] = float(np.mean(deg_per_k[k])) if deg_per_k[k] else 0.0
-        paired["orig_MRR"] = float(np.mean(orig_rrs)) if orig_rrs else 0.0
-        paired["typo_MRR"] = float(np.mean(typo_rrs)) if typo_rrs else 0.0
+        paired["orig_MRR"] = float(np.sum(orig_rrs) / n_paired)
+        paired["typo_MRR"] = float(np.sum(typo_rrs) / n_paired)
         paired["MRR_deg"] = paired["orig_MRR"] - paired["typo_MRR"]
         per_retriever_paired_deg[retr] = paired
         log(f"  [{retr}] orig_hit@10={paired['orig_hit@10']*100:.2f}% "
