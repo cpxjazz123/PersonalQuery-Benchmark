@@ -7,7 +7,7 @@ Source inputs (per category):
   * Stage 10 typo injection: result/10_typo_injection/<subdir>/typo_injection_results.json
       - ``results`` is a flat list of {uid, asin, original_query, typo_query, ...}.
 
-Output (per category): result/15_build_dataset/<subdir>/dataset.json
+Output (per category): result/15_build_dataset/<subdir>.json
   A dict keyed by ASIN; each ASIN maps to a list of per-sample records. Each
   sample keeps only the four primary fields:
       {asin, uid, syntax_query, typo_query (or null)}
@@ -46,7 +46,7 @@ def build_for_category(subdir: str) -> dict[str, list[dict]]:
     """Build the per-ASIN dataset JSON for one category."""
     sel_path = REPO_ROOT / f"result/08_select_query/{subdir}/selected_queries.json"
     typo_path = REPO_ROOT / f"result/10_typo_injection/{subdir}/typo_injection_results.json"
-    out_path = REPO_ROOT / f"result/15_build_dataset/{subdir}/dataset.json"
+    out_path = REPO_ROOT / f"result/15_build_dataset/{subdir}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     sel = json.load(open(sel_path))
