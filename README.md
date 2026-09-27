@@ -83,12 +83,12 @@ The clean and noisy queries are always paired, so consumers can treat them as a 
 
 ### Dataset Statistics
 
-| Category | ASINs | User–Product Pairs |
-|----------|-------|--------------------|
-| Baby_Products | 1,428 | 2,714 |
-| Musical_Instruments | 1,603 | 3,052 |
-| Video_Games | 1,661 | 3,084 |
-| **Total** | **4,692** | **8,850** |
+| Category | ASINs | User–Product Pairs | `syntax_query` | `typo_query` |
+|----------|-------|--------------------|----------------|--------------|
+| Baby_Products | 1,428 | 2,714 | 2,714 | 2,714 |
+| Musical_Instruments | 1,603 | 3,052 | 3,052 | 3,052 |
+| Video_Games | 1,661 | 3,084 | 3,084 | 3,084 |
+| **Total** | **4,692** | **8,850** | **8,850** | **8,850** |
 
 ### Example Record
 
