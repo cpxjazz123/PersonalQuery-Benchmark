@@ -32,7 +32,12 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Data / scratch base directories (Rule 4): overridable via env vars so the script
+# works on machines where these paths don't exist verbatim.
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+PQ_DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 EVAL_DIR = REPO_ROOT / "12_typo_evaluation"
 sys.path.insert(0, str(REPO_ROOT / "11_syntactic_evaluation"))
 sys.path.insert(0, str(EVAL_DIR))
@@ -42,8 +47,8 @@ OUT_DEGRADATION = REPO_ROOT / "result/12_typo_evaluation/retrieval_degradation.j
 
 # 2026-09-19: top-100 cache for orig and typo queries (used by Stage 12 LLM rerank).
 # Two parallel directories keyed by query type (orig vs typo).
-TOPK_DIR_ORIG = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_orig")
-TOPK_DIR_TYPO = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_typo")
+TOPK_DIR_ORIG = SCRATCH / "stage12_typo_cache" / "baby" / "top100_cache_orig"
+TOPK_DIR_TYPO = SCRATCH / "stage12_typo_cache" / "baby" / "top100_cache_typo"
 TOPK_SAVE_K = 100
 
 # Hardcoded (Rule 3)
@@ -54,11 +59,11 @@ STAGE12_RETRIEVERS = tuple(
     if name.strip()
 )
 TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
-STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
+STAGE11_TOPK_DIR = SCRATCH / "stage11_retrieval_cache" / "baby" / "top100_cache"
 STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
-ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+ASIN_TO_DOC_CACHE = SCRATCH / "stage11_corpus_cache" / "baby" / "asin_to_doc.json"
 STAGE11_PER_QUERY_PATH = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
-META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
+META_FILE = PQ_DATA_DIR / "meta_Baby_Products_2023.jsonl"
 # Per-category evaluation: 3 independent runs (Baby / Musical / Video_Games).
 # main() loops over all three domains sequentially and writes outputs to
 # result/12_typo_evaluation/<subdir>/.
@@ -93,10 +98,10 @@ def _load_retrieval_module():
     mod.ASIN_TO_DOC_CACHE = ASIN_TO_DOC_CACHE
     mod.META_FILE = META_FILE
     mod.SEL_IN = STAGE11_SEL_PATH
-    mod.PER_QUERY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/per_query_stage11.json")
-    mod.SUMMARY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/retrieval_summary_stage11.json")
-    mod.VOLATILITY_OUT = Path("/home/wlia0047/hj82_scratch2/wenyu/typo_eval/volatility_stage11.json")
-    mod.EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
+    mod.PER_QUERY_OUT = SCRATCH / "typo_eval" / "per_query_stage11.json"
+    mod.SUMMARY_OUT = SCRATCH / "typo_eval" / "retrieval_summary_stage11.json"
+    mod.VOLATILITY_OUT = SCRATCH / "typo_eval" / "volatility_stage11.json"
+    mod.EMBED_CACHE_DIR = SCRATCH / "gaussian_vades" / "multiretrieval_embeds"
     spec.loader.exec_module(mod)
     # The imported script assigns its defaults during execution, so apply the
     # current category again after exec_module.
@@ -108,7 +113,7 @@ def _load_retrieval_module():
     mod.SUMMARY_OUT = OUT_PER_QUERY.parent / "stage11_summary_unused.json"
     mod.VOLATILITY_OUT = OUT_PER_QUERY.parent / "stage11_volatility_unused.json"
     mod.TOPK_SAVE_DIR = STAGE11_TOPK_DIR
-    mod.EMBED_CACHE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+    mod.EMBED_CACHE_DIR = (SCRATCH /
                            "gaussian_vades/multiretrieval_embeds" /
                            OUT_PER_QUERY.parent.name)
     return mod
@@ -515,7 +520,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = PQ_DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -529,7 +534,7 @@ def main() -> None:
         if "OUT_DEGRADATION" in saved:
             OUT_DEGRADATION = base_out / subdir / saved["OUT_DEGRADATION"].name
         if SMOKE:
-            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+            smoke_dir = (SCRATCH /
                          "stage12_smoke" / subdir)
             OUT_DIR = smoke_dir
             OUT_PER_QUERY = smoke_dir / saved["OUT_PER_QUERY"].name
@@ -537,20 +542,20 @@ def main() -> None:
         if "TYPO_RESULTS" in saved:
             TYPO_RESULTS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_RESULTS"].name
         if "TOPK_DIR_ORIG" in saved:
-            TOPK_DIR_ORIG = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache")
+            TOPK_DIR_ORIG = (SCRATCH / "stage12_typo_cache"
                              / subdir / saved["TOPK_DIR_ORIG"].name)
         if "TOPK_DIR_TYPO" in saved:
-            TOPK_DIR_TYPO = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache")
+            TOPK_DIR_TYPO = (SCRATCH / "stage12_typo_cache"
                              / subdir / saved["TOPK_DIR_TYPO"].name)
         if "STAGE11_TOPK_DIR" in saved:
-            STAGE11_TOPK_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+            STAGE11_TOPK_DIR = (SCRATCH / "stage11_retrieval_cache"
                                 / subdir / saved["STAGE11_TOPK_DIR"].name)
         if "STAGE11_SEL_PATH" in saved:
             STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE11_SEL_PATH"].name
         if "STAGE11_PER_QUERY_PATH" in saved:
             STAGE11_PER_QUERY_PATH = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / "per_query.json"
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+            ASIN_TO_DOC_CACHE = (SCRATCH / "stage11_corpus_cache"
                                  / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None

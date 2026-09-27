@@ -5,16 +5,20 @@ Runs in the required pq_env interpreter. Reads and writes fixed JSONL paths;
 the parent launches this script once per category so the model is loaded once
 for that category's batched sentences.
 
-Inputs: /home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl
+Inputs: $PQ_SCRATCH/tmp/gec_in.jsonl
   Each line: {"i": <int>, "text": "<original sentence>"}
 
-Outputs: /home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl
+Outputs: $PQ_SCRATCH/tmp/gec_out.jsonl
   Each line: {"i": <int>, "text": "<corrected sentence>"}
   (preserves original order index `i`; caller must sort by i)
 
 Usage (Rule 3: no parameters):
-  /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \\
-      /home/wlia0047/ar57/wenyu/PersoanlQuery/09_sercl_user_profile/gector_subprocess.py
+  $PQ_PYTHON $(dirname "$0")/gector_subprocess.py
+
+Path resolution:
+  REPO_ROOT = directory containing this script's parent
+  SCRATCH   = $PQ_SCRATCH (default: <repo_root>/scratch)
+  HF_CACHE_ROOT = $PQ_HF_CACHE (default: <repo_root>/scratch/hf_cache)
 """
 from __future__ import annotations
 
@@ -25,12 +29,15 @@ import threading
 import time
 from pathlib import Path
 
-# ----- Hardcoded paths (Rule 3) -----
-INPUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl")
-OUTPUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl")
-WEIGHTS = Path("/home/wlia0047/hj82/wenyu/hf_cache/gector/gector-2024-roberta-large.th")
-VOCAB_DIR = Path("/home/wlia0047/hj82/wenyu/hf_cache/gector/vocab")
-HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
+# ----- Paths (Rule A: REPO_ROOT; Rule C: no absolute path defaults) -----
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+HF_CACHE_ROOT = Path(os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache")))
+INPUT_JSONL = SCRATCH / "tmp" / "gec_in.jsonl"
+OUTPUT_JSONL = SCRATCH / "tmp" / "gec_out.jsonl"
+WEIGHTS = HF_CACHE_ROOT / "gector" / "gector-2024-roberta-large.th"
+VOCAB_DIR = HF_CACHE_ROOT / "gector" / "vocab"
+HF_CACHE = str(HF_CACHE_ROOT)
 
 # GECToR hyperparams
 GEC_TRANSFORMER = "roberta-large"
@@ -46,7 +53,7 @@ os.environ["HF_HOME"] = HF_CACHE
 os.environ["HF_HUB_CACHE"] = HF_CACHE
 
 # Make gotutiyan/gector importable
-sys.path.insert(0, "/home/wlia0047/hj82_scratch2/wenyu/external/gector/src")
+sys.path.insert(0, str(SCRATCH / "external" / "gector" / "src"))
 
 import torch
 from transformers import AutoTokenizer

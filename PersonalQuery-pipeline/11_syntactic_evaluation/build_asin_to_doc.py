@@ -18,7 +18,7 @@ Cleaning rules design goals:
   - No fallback (Rule 7): rule miss -> keep original text, do not substitute.
   - Do not modify source data: META_FILE is read-only.
   - Cache signature includes META_FILE mtime+size + n_asins, invalidates on source change.
-  - Output overwrites `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<category>/asin_to_doc.json`;
+  - Output overwrites `$PQ_SCRATCH/stage11_corpus_cache/<category>/asin_to_doc.json`;
     downstream BM25/SPLADE/MiniLM/MPNet/BGE/GTE/ColBERTv2 (7 retrievers) auto-consume the cleaned version.
 
 Consumers:
@@ -26,8 +26,8 @@ Consumers:
   - 12_typo_evaluation / 13_syntactic_rerank / 14_typo_rerank all consume the same json.
 
 Run (no CLI args, per Rule 4):
-  cd /home/wlia0047/ar57/wenyu/PersoanlQuery
-  /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python 11_syntactic_evaluation/build_asin_to_doc.py
+  cd "$REPO_ROOT"
+  $PQ_PYTHON 11_syntactic_evaluation/build_asin_to_doc.py
 """
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ import collections
 import hashlib
 import html
 import json
+import os
 import re
 import time
 import unicodedata
@@ -44,11 +45,13 @@ from typing import Iterable
 # ===========================================================================
 # PATHS (hardcoded, per Rule 4)
 # ===========================================================================
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 # User directive 2026-09-23: data directory migrated from REPO_ROOT/data to hj82 same-name data directory.
-DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
-ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+PQ_PYTHON = os.environ.get("PQ_PYTHON", sys.executable)
+ASIN_TO_DOC_CACHE = SCRATCH / "stage11_corpus_cache" / "baby" / "asin_to_doc.json"
 # All 3 category corpus caches are written to hj82_scratch2 to avoid stacking cache under result/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
@@ -631,7 +634,7 @@ def main() -> None:
 
     For each category, bind META_FILE and ASIN_TO_DOC_CACHE to the category-specific path,
     then call main_task_body() to build the corpus cache at
-    `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<subdir>/`.
+    `$PQ_SCRATCH/stage11_corpus_cache/<subdir>/`.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE  # noqa
     # backup current (Baby) defaults
@@ -654,7 +657,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -664,7 +667,7 @@ def main() -> None:
         if "OUT_PATH" in saved:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+            ASIN_TO_DOC_CACHE = (SCRATCH / "stage11_corpus_cache"
                                  / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None

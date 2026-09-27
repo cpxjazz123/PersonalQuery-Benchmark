@@ -35,9 +35,9 @@ Design:
     - d2_qXX_theoretical still given by chi2(16, q) (consistent with current schema)
 
 Usage:
-    nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
+    nohup $PQ_PYTHON \
         04_gaussian/trainable_per_user_gaussian.py \
-        > /home/wlia0047/hj82_scratch2/wenyu/trainable_gaussian.log 2>&1 &
+        > $PQ_SCRATCH/trainable_gaussian.log 2>&1 &
 """
 from __future__ import annotations
 
@@ -51,8 +51,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+import os
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+CACHE_DIR = SCRATCH / "pcfg_cache"
 # User instruction 2026-09-23: one per category (Baby / Musical / Video_Games),
 # main() runs 3 domains serially, writes outputs to result/04_gaussian/<subdir>/.
 CATEGORY_INPUTS = [
@@ -477,7 +479,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

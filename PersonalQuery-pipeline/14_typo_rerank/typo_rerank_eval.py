@@ -23,7 +23,9 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "13_syntactic_rerank"))
 
@@ -51,9 +53,9 @@ STAGE12_OUT = OUT_DIR / "llm_rerank_typo_results.json"
 
 STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank/llm_rerank_results.json"
 
-TYPO_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache/baby/top100_cache_typo")
+TYPO_TOPK_DIR = SCRATCH / "stage12_typo_cache/baby/top100_cache_typo"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
-ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+ASIN_TO_DOC = SCRATCH / "stage11_corpus_cache/baby/asin_to_doc.json"
 STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/baby/per_query.json"
 STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
 # User directive 2026-09-23: one output per category (Baby / Musical_Instruments / Video_Games);
@@ -558,7 +560,7 @@ def main_task_body() -> None:
     #   "qwen3"   -> Qwen3-Reranker (vLLM Yes/No logits)
     #   "llama31" -> unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit
     all_reranker_variants = [
-        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"),
+        ("qwen3",      str(SCRATCH / "RAG" / "Qwen3-Reranker-8B")),
         ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"),
     ]
     reranker_filter = os.environ.get("STAGE14_RERANKERS", "").strip()
@@ -646,7 +648,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -660,12 +662,12 @@ def main() -> None:
         if "STAGE11_OUT" in saved:
             STAGE11_OUT = REPO_ROOT / "result/13_syntactic_rerank" / subdir / saved["STAGE11_OUT"].name
         if "TYPO_TOPK_DIR" in saved:
-            TYPO_TOPK_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage12_typo_cache")
+            TYPO_TOPK_DIR = (SCRATCH / "stage12_typo_cache"
                              / subdir / saved["TYPO_TOPK_DIR"].name)
         if "TYPO_PAIRS" in saved:
             TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
         if "ASIN_TO_DOC" in saved:
-            ASIN_TO_DOC = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+            ASIN_TO_DOC = (SCRATCH / "stage11_corpus_cache"
                            / subdir / saved["ASIN_TO_DOC"].name)
         if "STAGE12_PER_QUERY" in saved:
             STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation" / subdir / saved["STAGE12_PER_QUERY"].name
@@ -674,12 +676,12 @@ def main() -> None:
         if "STAGE13_RESULTS_DIR" in saved:
             STAGE13_RESULTS_DIR = REPO_ROOT / "result/13_syntactic_rerank" / subdir
         if SMOKE:
-            smoke_out = Path("/home/wlia0047/hj82_scratch2/wenyu/stage14_smoke") / subdir
+            smoke_out = SCRATCH / "stage14_smoke" / subdir
             OUT_DIR = smoke_out
             STAGE12_OUT = smoke_out / saved["STAGE12_OUT"].name
-            STAGE11_OUT = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke")
+            STAGE11_OUT = (SCRATCH / "stage13_smoke"
                            / subdir / saved["STAGE11_OUT"].name)
-            STAGE13_RESULTS_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke") / subdir
+            STAGE13_RESULTS_DIR = SCRATCH / "stage13_smoke" / subdir
             OUT_DIR.mkdir(parents=True, exist_ok=True)
             STAGE12_OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None

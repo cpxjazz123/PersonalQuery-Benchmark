@@ -25,22 +25,28 @@ from pathlib import Path
 
 import numpy as np
 
-os.environ["HF_HUB_CACHE"] = (
-    "/home/wlia0047/hj82_scratch2/wenyu/hf_cache/hub"
-)
-
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+
+# Scratch / data / HF cache roots — override via env vars (see path_context.md).
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
+HF_CACHE_ROOT = Path(os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache")))
+
+os.environ["HF_HUB_CACHE"] = os.environ.get(
+    "PQ_HF_HUB_CACHE",
+    str(Path(os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache"))) / "hub"),
+)
 
 OUT_DIR = REPO_ROOT / "result/13_syntactic_rerank"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 STAGE11_OUT = OUT_DIR / "llm_rerank_results.json"
 TYPO_OUT_DIR = REPO_ROOT / "result/14_typo_rerank"
 
-STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
+STAGE11_TOPK_DIR = SCRATCH / "stage11_retrieval_cache" / "baby" / "top100_cache"
 STAGE8_SEL = REPO_ROOT / "result/08_select_query/selected_queries.json"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
-ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+ASIN_TO_DOC = SCRATCH / "stage11_corpus_cache" / "baby" / "asin_to_doc.json"
 # User directive 2026-09-23: produce one output per category (Baby / Musical / Video_Games),
 # main() runs 3 domains serially, artifacts written under result/13_syntactic_rerank/<subdir>/.
 CATEGORY_INPUTS = [
@@ -892,7 +898,7 @@ def main_task_body() -> None:
     # Supported reranker variants (Qwen3 + Llama 3.1 only, per 2026-09-26):
     # use STAGE13_RERANKERS to select a subset.
     all_reranker_variants = [
-        ("qwen3",      "/home/wlia0047/hj82_scratch2/wenyu/RAG/Qwen3-Reranker-8B"),
+        ("qwen3",      str(SCRATCH / "RAG" / "Qwen3-Reranker-8B")),
         ("llama31",    "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"),
     ]
     reranker_filter = os.environ.get("STAGE13_RERANKERS", "").strip()
@@ -972,7 +978,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -984,19 +990,19 @@ def main() -> None:
         if "STAGE11_OUT" in saved:
             STAGE11_OUT = base_out / subdir / saved["STAGE11_OUT"].name
         if "STAGE11_TOPK_DIR" in saved:
-            STAGE11_TOPK_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+            STAGE11_TOPK_DIR = (SCRATCH / "stage11_retrieval_cache"
                                 / subdir / saved["STAGE11_TOPK_DIR"].name)
         if "STAGE8_SEL" in saved:
             STAGE8_SEL = REPO_ROOT / "result/08_select_query" / subdir / saved["STAGE8_SEL"].name
         if "TYPO_PAIRS" in saved:
             TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection" / subdir / saved["TYPO_PAIRS"].name
         if "ASIN_TO_DOC" in saved:
-            ASIN_TO_DOC = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+            ASIN_TO_DOC = (SCRATCH / "stage11_corpus_cache"
                            / subdir / saved["ASIN_TO_DOC"].name)
         if "STAGE11_PER_QUERY" in saved:
             STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation" / subdir / saved["STAGE11_PER_QUERY"].name
         if SMOKE:
-            smoke_out = Path("/home/wlia0047/hj82_scratch2/wenyu/stage13_smoke") / subdir
+            smoke_out = SCRATCH / "stage13_smoke" / subdir
             OUT_DIR = smoke_out
             STAGE11_OUT = smoke_out / saved["STAGE11_OUT"].name
             OUT_DIR.mkdir(parents=True, exist_ok=True)

@@ -45,7 +45,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 import torch
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "10_typo_injection"))
 
 # Stub for legacy typo_classifier imports (merged into this file at line 172).
@@ -141,14 +141,17 @@ MAX_EDIT_DISTANCE = 5            # max edit distance for stress-test typo inject
 MAX_LEN_DELTA = 3                # |len(typo) - len(orig)| upper bound for stress-test injection
 
 ENCODER_DEVICE = "cpu"           # CPU for spaCy-based encoder
-ENCODER_PT = "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"
-SVD_COMPONENTS_PATH = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/svd_components.npz"
-CORAL_ASIN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_30/coral_asin_cohort2_mlp16_30.npz"
-PCFG_PIPELINE = "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode/syntax_encoder.py"
+ENCODER_PT = str(REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt")
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+SVD_COMPONENTS_PATH = str(SCRATCH / "pcfg_cache" / "svd_components.npz")
+CORAL_ASIN_PATH = str(SCRATCH / "coral_asin_cohort2_mlp16_30" / "coral_asin_cohort2_mlp16_30.npz")
+PCFG_PIPELINE = str(REPO_ROOT / "03_spacy_encode" / "syntax_encoder.py")
 SEMANTIC_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 SEMANTIC_THRESHOLD = 0.78
-SEMANTIC_CACHE_DIR = Path("/home/wlia0047/hj82/wenyu/hf_cache")
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+HF_CACHE_DIR = Path(os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache")))
+SEMANTIC_CACHE_DIR = HF_CACHE_DIR
+CACHE_DIR = SCRATCH / "pcfg_cache"
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 
 
 
@@ -2124,13 +2127,13 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
-        cache_dir = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+        cache_dir = SCRATCH / f"pcfg_cache_{subdir}"
         CACHE_DIR = cache_dir
-        ENCODER_PT = str(REPO_ROOT / "result/03_spacy_encode" / subdir /
+        ENCODER_PT = str(REPO_ROOT / "result" / "03_spacy_encode" / subdir /
                          "cohort2_mlp16_30_30ep.pt")
         SVD_COMPONENTS_PATH = str(cache_dir / "svd_components.npz")
         CORAL_ASIN_PATH = str(
-            Path("/home/wlia0047/hj82_scratch2/wenyu") /
+            SCRATCH /
             f"coral_asin_cohort2_mlp16_30_{subdir}" /
             "coral_asin_cohort2_mlp16_30.npz"
         )
@@ -2148,7 +2151,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -2168,8 +2171,7 @@ def main() -> None:
         if "OUT_SUMMARY" in saved:
             OUT_SUMMARY = base_out / subdir / saved["OUT_SUMMARY"].name
         if SMOKE:
-            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
-                         "stage10_alignment_smoke" / subdir)
+            smoke_dir = SCRATCH / "stage10_alignment_smoke" / subdir
             OUT_RESULTS = smoke_dir / "typo_injection_results.json"
             OUT_SUMMARY = smoke_dir / "cohort_summary.json"
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None

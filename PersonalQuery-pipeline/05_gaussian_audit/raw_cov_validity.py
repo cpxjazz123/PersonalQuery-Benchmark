@@ -28,16 +28,17 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode")
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "03_spacy_encode"))
 
 import torch
 from scipy.stats import chi2 as _chi2
 from scipy.stats import spearmanr  # noqa: E402  (avoid local import in hot loop)
 from syntax_encoder import StyleMLP
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+CACHE_DIR = SCRATCH / "pcfg_cache"
 EMBED_PATH = CACHE_DIR / "strict3_embeddings.npz"
 MANIFEST_PATH = CACHE_DIR / "strict3_manifest.json"
 READY_PATH = CACHE_DIR / "cache_ready.json"
@@ -57,17 +58,16 @@ CATEGORY_INPUTS = [
 ]
 
 ENCODER_WEIGHTS_CANDIDATES = [
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_10_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp32_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_10ep.pt",
 ]
-TRAINED_UIDS_PATH = Path(
-    "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
+TRAINED_UIDS_PATH = REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_trained_uids.json"
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 SEED = 42
 
@@ -666,7 +666,7 @@ def main() -> None:
         # User instruction 2026-09-23: Stage 03a writes to pcfg_cache_<subdir>/,
         # so Stage 05 must rebind CACHE_DIR per subdir.
         if "CACHE_DIR" in saved:
-            CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+            CACHE_DIR = SCRATCH / f"pcfg_cache_{subdir}"
             # User instruction 2026-09-23: EMBED_PATH and other derived paths were
             # bound at import time, so they must be recomputed here.
             globals()["EMBED_PATH"] = CACHE_DIR / "strict3_embeddings.npz"
@@ -690,7 +690,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

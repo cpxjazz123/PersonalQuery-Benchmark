@@ -20,12 +20,12 @@ empty → 99.2% fallback to generic.
 2026-09-23: One output per category, no merge (user directive).
 2026-09-23: Keep only .pkl (downstream is Python-only, drop .json to save ~2GB).
 """
-import gzip, hashlib, html, json, pickle, re
+import gzip, hashlib, html, json, os, pickle, re
 from pathlib import Path
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-SCRATCH = Path('/home/wlia0047/hj82_scratch2/wenyu')
-DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 OUT_DIR = REPO_ROOT / "result" / "02_user_review_sentence_extract"
 
 # User directive 2026-09-23: One output per category (no merge); filenames

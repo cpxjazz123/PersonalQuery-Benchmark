@@ -20,7 +20,7 @@ Output:
   result/06_training_model/eval_sft_vs_base.json      (Stage C paired eval)
 
 Usage (Rule 3: no args, env vars only):
-  cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+  cd <REPO_ROOT>
   SFT_TRAIN_SMOKE=1     $PY 06_training_model/sft_pipeline.py
   SFT_TRAIN_FULL=1      $PY 06_training_model/sft_pipeline.py
   SFT_EVAL_INDEPENDENT=1 $PY 06_training_model/sft_pipeline.py
@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 OUT_DIR = REPO_ROOT / "result/06_training_model"
@@ -54,7 +54,7 @@ CATEGORY_INPUTS = [
     ("Musical_Instruments", "musical"),
     ("Video_Games",         "video_games"),
 ]
-os.environ.setdefault("HF_HOME", "/home/wlia0047/hj82/wenyu/hf_cache")
+os.environ.setdefault("HF_HOME", os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache")))
 
 # --- Hardcoded hyperparams (Rule 3) ---
 SFT_SEED = 42
@@ -109,7 +109,7 @@ def _build_sft_prompt(attrs: Dict[str, str]) -> str:
 def _load_sft_dataset(n_pairs: int) -> List[Dict[str, str]]:
     """Load SFT training samples.
 
-    User-provided path 2026-09-05: /home/wlia0047/ar57/wenyu/PersoanlQuery/query_samples_100.json
+    User-provided path 2026-09-05: <REPO_ROOT>/query_samples_100.json
     Format: JSON array [{id, attributes: {k: v}, query: str}, ...]
     """
     # Primary path: user-provided
@@ -487,7 +487,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

@@ -14,13 +14,14 @@ Output: result/09_sercl_user_profile/user_sercl_profile.json
         result/09_sercl_user_profile/cohort_summary.json
 
 Usage (Rule 3: no arguments):
-  cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+  cd <REPO_ROOT>
   $PY 09_sercl_user_profile/sercl_user_profile.py
 """
 from __future__ import annotations
 
 import collections
 import json
+import os
 import pickle
 import random
 import subprocess
@@ -29,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 OUT_DIR = REPO_ROOT / "result/09_sercl_user_profile"
@@ -43,10 +44,11 @@ SERCL_SEED = 42
 # GECToR-2024 RoBERTa-large uses the required project pq_env subprocess.
 # GECToR's token-level confidence gate preserves review-domain specificity.
 SERCL_GEC_MODEL = "gector-2024-roberta-large"  # 355M RoBERTa-large, Write&Improve+CoNLL14+JFLEG
-SERCL_GEC_SUBPROCESS_PY = "/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python"
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+SERCL_GEC_SUBPROCESS_PY = os.environ.get("PQ_PYTHON", sys.executable)
 SERCL_GEC_SUBPROCESS_SCRIPT = str(REPO_ROOT / "09_sercl_user_profile/gector_subprocess.py")
-SERCL_GEC_IN_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl")
-SERCL_GEC_OUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl")
+SERCL_GEC_IN_JSONL = SCRATCH / "tmp" / "gec_in.jsonl"
+SERCL_GEC_OUT_JSONL = SCRATCH / "tmp" / "gec_out.jsonl"
 SERCL_ALPHA = 0.1                   # Laplace smoothing
 SERCL_D3_TUPLE = ("dep", "pos")     # (child.dep, child.pos, parent.pos) — 3-tuple string
 # ERRANT error types
@@ -146,7 +148,7 @@ def gec_correct_batch(sents: List[str]) -> List[str]:
     if proc.returncode != 0:
         raise RuntimeError(
             f"GECToR subprocess failed with exit code {proc.returncode}. "
-            f"See stderr above (tail logs in /home/wlia0047/hj82_scratch2/wenyu/logs/)."
+            f"See stderr above (tail logs in {SCRATCH / 'logs'}.)"
         )
 
     # Read output JSONL, sort by index
@@ -502,7 +504,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

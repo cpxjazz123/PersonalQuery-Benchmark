@@ -13,7 +13,7 @@ Design:
   - generate_candidates() / get_or_create_llm() reused by 08_select_query regen
 
 Usage (Rule 3: no args):
-  cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+  cd <REPO_ROOT>
   $PY 07_gen_query/sft_pool_generate.py
 
 Output:
@@ -24,18 +24,24 @@ from __future__ import annotations
 import json
 import pickle
 import random
+import os
 import re
 import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+
+# Portable data, scratch, and cache paths (override via env vars).
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+HF_CACHE_DIR = os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache"))
 
 OUT_DIR = REPO_ROOT / "result/07_gen_query"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-RAW_CACHE_ROOT = Path("/home/wlia0047/hj82_scratch2/wenyu/stage07_pool_cache")
+RAW_CACHE_ROOT = SCRATCH / "stage07_pool_cache"
 RAW_CACHE_PATH = RAW_CACHE_ROOT / "baby" / "raw_per_asin_cache.json"
 
 # Stage 04 cohort3mlp lowrank+diag artifact supplies fitted users and ASIN cohort coverage.
@@ -50,7 +56,7 @@ if CONTRASTIVE_5558:
     SFT_POOL_SOURCE = "stage04_fitted_cohort_5558_contrastive"
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
-HF_CACHE_DIR = "/home/wlia0047/hj82/wenyu/hf_cache"
+HF_CACHE_DIR = os.environ.get("PQ_HF_CACHE", str(REPO_ROOT / "scratch" / "hf_cache"))
 SFT_ADAPTER_DIR = REPO_ROOT / "result/06_training_model/sft_lora"
 # User instruction 2026-09-23: product_attributes switched to pkl-only (Stage 01 already switched).
 ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes_baby.pkl"
@@ -804,7 +810,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

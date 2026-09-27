@@ -23,8 +23,8 @@ TASK = "cohort3"    (Stage 03b; (user, ASIN) multi-positive InfoNCE)
         real_cohort3_training_summary.json
 
 Usage (per Rule 3, no args):
-  TASK=supervised  cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
-  TASK=cohort3     cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
+  TASK=supervised  python3 03_spacy_encode/syntax_encoder.py
+  TASK=cohort3     python3 03_spacy_encode/syntax_encoder.py
 
 2026-09-23: switched to serial execution of the 3 categories (Baby / Musical_Instruments / Video_Games).
   Each category writes artifacts to result/03_spacy_encode/<baby|musical|video_games>/.
@@ -57,9 +57,10 @@ from scipy.sparse import csr_matrix, load_npz, save_npz
 # Constants (hardcoded per Rule 3)
 # ============================================================================
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
 # User directive 2026-09-23: migrate data dir from REPO_ROOT/data to the hj82 mirror of the same data dir.
-DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 # User directive 2026-09-23: each of the 3 categories has its own Stage 02 artifact (Baby / Musical / Video_Games).
 # User directive 2026-09-23: switch to serial execution over the 3 categories (default still Baby; full artifacts under <out>/<category>/).
 CATEGORY_INPUTS = [
@@ -79,7 +80,7 @@ SENT_CACHE = CATEGORY_INPUTS[0][2]
 OUT_DIR = REPO_ROOT / "result/03_spacy_encode"
 # User directive 2026-09-23: split cache per-category (one copy for Baby / Musical / Video_Games),
 # default points at Baby; the dispatcher loop rebinds them.
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache_baby")
+CACHE_DIR = SCRATCH / "pcfg_cache_baby"
 RAW_DATA = CATEGORY_INPUTS[0][1]
 
 # === Supervised (TASK=supervised) ===
@@ -1457,7 +1458,7 @@ def main():
     global SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR
     saved = (SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR)
     base_out = REPO_ROOT / "result/03_spacy_encode"
-    base_cache = Path("/home/wlia0047/hj82_scratch2/wenyu")
+    base_cache = SCRATCH
 
     for category, raw_data_path, sent_cache_path, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")

@@ -24,8 +24,9 @@ import scipy.sparse as sp
 import torch
 
 # Re-use all the kernel / gates / numba JIT code from the canonical Stage 4 script
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "03_spacy_encode"))
 from fit_per_user_gaussian import (
     fit_one_user,
     _build_numba_kernel,
@@ -51,18 +52,17 @@ from fit_per_user_gaussian import (
 )
 from syntax_encoder import StyleMLP  # in 03_spacy_encode/
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 ENCODER_WEIGHTS_CANDIDATES = [
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_10_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp32_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_10ep.pt",
 ]
-COHORT3_TRAINED_UIDS = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
+COHORT3_TRAINED_UIDS = REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_trained_uids.json"
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 # User instruction 2026-09-23: produce one output per category (Baby / Musical / Video_Games);
@@ -73,8 +73,8 @@ CATEGORY_INPUTS = [
     ("Musical_Instruments", "musical"),
     ("Video_Games",         "video_games"),
 ]
-OUT_VARIANT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp16_30.json")
-OUT_VARIANT_RANK1 = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_rank1.json")
+OUT_VARIANT = REPO_ROOT / "result" / "04_gaussian" / "user_gaussian_stats_cohort3mlp16_30.json"
+OUT_VARIANT_RANK1 = REPO_ROOT / "result" / "04_gaussian" / "user_gaussian_stats_cohort3mlp16_30_rank1.json"
 OUT_VARIANT.parent.mkdir(parents=True, exist_ok=True)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 SEED = 42
@@ -356,7 +356,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

@@ -18,7 +18,7 @@ Reused assets:
   - ASIN→users:     result/02_user_review_sentence_extract/asin_to_users.json
 
 Usage (Rule 3: no args):
-  cd /home/wlia0047/ar57/wenyu/PersoanlQuery
+  cd $REPO_ROOT
   $PY 08_select_query/syntax_select_mahalanobis_gate.py
 
 Outputs:
@@ -42,7 +42,9 @@ import torch
 import torch.nn as nn
 from scipy.stats import chi2 as _chi2_dist
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "03_spacy_encode"))
 from syntax_encoder import StyleMLP  # cohort3 MLP (F.normalize + ReLU)
@@ -84,16 +86,16 @@ MARGIN_MIN = 0.0                  # min user-vs-competitor margin (log_p[u*] - m
 SEED_SVDMLP = 42
 HARD_MIN_QUERIES_PER_ASIN = 1     # keep at least 1 query/ASIN in logp_delta mode
 BATCH_SIZE = 256                  # spaCy pipe batch size
-SVD_COMPONENTS = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/svd_components.npz"
+SVD_COMPONENTS = str(SCRATCH / "pcfg_cache" / "svd_components.npz")
 SVD_NPZ = SVD_COMPONENTS
 SVD_DIM = 256
-MLP_ENCODER = "/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"
+MLP_ENCODER = str(REPO_ROOT / "result/03_spacy_encode/cohort2_mlp16_30_30ep.pt")
 MLP_PT = MLP_ENCODER
-CORAL_ASIN_PATH = "/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_30/coral_asin_cohort2_mlp16_30.npz"
-CORAL_ART_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/coral_asin_cohort2_mlp16_30")
+CORAL_ASIN_PATH = str(SCRATCH / "coral_asin_cohort2_mlp16_30/coral_asin_cohort2_mlp16_30.npz")
+CORAL_ART_DIR = SCRATCH / "coral_asin_cohort2_mlp16_30"
 CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
 TRAINED_UIDS_PATH = REPO_ROOT / "result/03_spacy_encode/cohort3_trained_uids.json"
-STRICT3_NPZ = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/strict3_embeddings.npz")
+STRICT3_NPZ = SCRATCH / "pcfg_cache/strict3_embeddings.npz"
 ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
 EPSILON_REL = 0.1              # 2026-09-19: enlarge Tikhonov regularization so A is close to identity and query z is not over-compressed
 COND_THRESHOLD = 1e3
@@ -103,7 +105,7 @@ CORAL_MODE = "global"
 APPLY_CORAL = False
 SMOKE = os.environ.get("STAGE08_ALIGNMENT_SMOKE") == "1"
 SMOKE_ASIN_LIMIT = 5
-VOCAB_PATH = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/vocab.json"
+VOCAB_PATH = str(SCRATCH / "pcfg_cache/vocab.json")
 GAUSSIAN_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank1.json"
 OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
 OUT_STATS_PATH = REPO_ROOT / "result/08_select_query/selection_stats.json"
@@ -179,7 +181,7 @@ def _svdmlp_query_cache_key(
 
 
 def _svdmlp_query_cache_path(cache_key: str) -> Path:
-    return Path("/home/wlia0047/hj82_scratch2/wenyu/pool_query_cache") / (
+    return SCRATCH / "pool_query_cache" / (
         f"qcache_{cache_key[:16]}.npz")
 
 
@@ -202,7 +204,7 @@ def _svdmlp_encode_queries(
       4) row-normalize -> SVD projection (256d) -> MLP (64d)
 
     Cache: spaCy parse + sparse build + SVD-z projection are memoized to
-    /home/wlia0047/hj82_scratch2/wenyu/pool_query_cache/. The MLP forward +
+    $SCRATCH/pool_query_cache/. The MLP forward +
     CORAL alignment always run fresh because they depend on the encoder
     weights and CORAL alignment matrix (cheaper to recompute than to cache).
     """
@@ -987,7 +989,7 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         _svdmlp_log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
-        cache_dir = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+        cache_dir = SCRATCH / f"pcfg_cache_{subdir}"
         SVD_COMPONENTS = str(cache_dir / "svd_components.npz")
         SVD_NPZ = SVD_COMPONENTS
         VOCAB_PATH = str(cache_dir / "vocab.json")
@@ -997,7 +999,7 @@ def main() -> None:
         TRAINED_UIDS_PATH = (REPO_ROOT / "result/03_spacy_encode" / subdir /
                              "cohort3_trained_uids.json")
         STRICT3_NPZ = cache_dir / "strict3_embeddings.npz"
-        CORAL_ART_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+        CORAL_ART_DIR = (SCRATCH /
                          f"coral_asin_cohort2_mlp16_30_{subdir}")
         CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
         CORAL_ASIN_PATH = str(CORAL_ART_DIR / "coral_asin_cohort2_mlp16_30.npz")
@@ -1010,7 +1012,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -1022,7 +1024,7 @@ def main() -> None:
         if "OUT_STATS_PATH" in saved:
             OUT_STATS_PATH = base_out / subdir / saved["OUT_STATS_PATH"].name
         if SMOKE:
-            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+            smoke_dir = (SCRATCH /
                          "stage08_alignment_smoke" / subdir)
             OUT_PATH = smoke_dir / "selected_queries.json"
             OUT_STATS_PATH = smoke_dir / "selection_stats.json"

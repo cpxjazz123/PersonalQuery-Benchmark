@@ -30,13 +30,13 @@ import re
 from multiprocessing import Pool
 from pathlib import Path
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # === Inputs ===
 # User directive 2026-09-23: data dir migrated wholesale from
 # ar57 (PersoanlQuery/data) to hj82; cross-LUSTRE same-disk move preserving
 # all existing product paths. Downstream scripts update DATA_DIR uniformly.
-DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 
 # User directive 2026-09-23: each of three categories gets its own meta and
 # its own output file (not merged). All three share the same extract /

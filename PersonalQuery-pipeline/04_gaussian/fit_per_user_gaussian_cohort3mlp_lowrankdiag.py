@@ -18,6 +18,7 @@ or the rank1 cohort3mlp artifacts.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -25,8 +26,8 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
-sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery/03_spacy_encode")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "03_spacy_encode"))
 
 import torch
 from fit_per_user_gaussian import (
@@ -50,18 +51,20 @@ from fit_per_user_gaussian import (
 )
 from syntax_encoder import StyleMLP
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
 ENCODER_WEIGHTS_CANDIDATES = [
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_10_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort2_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp16_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp32_30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_30ep.pt"),
-    Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_mlp30_10ep.pt"),
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_10_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp16_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp32_30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_30ep.pt",
+    REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_mlp30_10ep.pt",
 ]
-TRAINED_UIDS_PATH = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
+TRAINED_UIDS_PATH = REPO_ROOT / "result" / "03_spacy_encode" / "cohort3_trained_uids.json"
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 
@@ -77,10 +80,7 @@ K_DIM = 16        # cohort3 MLP output dim (current run)
 K_RANK = 1         # low-rank dimension; 1 → rank1 + per-dim diag residual
 DIAG_FLOOR = 1e-4  # floor on per-dim residual sigma^2 (avoids /0)
 
-OUT_VARIANT = Path(
-    f"/home/wlia0047/ar57/wenyu/PersoanlQuery/result/04_gaussian/"
-    f"user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank{K_RANK}.json"
-)
+OUT_VARIANT = REPO_ROOT / "result" / "04_gaussian" / f"user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank{K_RANK}.json"
 OUT_VARIANT.parent.mkdir(parents=True, exist_ok=True)
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 SEED = 42
@@ -338,7 +338,7 @@ def main() -> None:
         
         if "CACHE_DIR" in saved:
             import fit_per_user_gaussian as _fug
-            new_cache = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+            new_cache = SCRATCH / f"pcfg_cache_{subdir}"
             _fug.CACHE_DIR = new_cache
             CACHE_DIR = new_cache
             
@@ -367,7 +367,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

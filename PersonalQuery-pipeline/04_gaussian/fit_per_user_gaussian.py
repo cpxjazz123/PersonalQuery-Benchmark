@@ -29,8 +29,9 @@ from scipy.stats import chi2
 
 import numpy as np
 
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+CACHE_DIR = SCRATCH / "pcfg_cache"
 # User request 2026-09-23: 3 categories, one copy each (Baby / Musical / Video_Games);
 # main() is changed to run the 3 domains serially, outputs to result/04_gaussian/<subdir>/.
 CATEGORY_INPUTS = [
@@ -216,8 +217,7 @@ def _fit_chunk(chunk: list) -> list[tuple[str, dict | None, dict | None]]:
         import importlib.util as _ilu
         spec = _ilu.spec_from_file_location(
             "_stage04_kernel",
-            "/home/wlia0047/ar57/wenyu/PersoanlQuery/04_gaussian/"
-            "fit_per_user_gaussian.py")
+            str(Path(__file__).resolve()))
         mod = _ilu.module_from_spec(spec)
         spec.loader.exec_module(mod)
         fit_fn = mod.fit_one_user
@@ -602,7 +602,7 @@ def main_task_body() -> None:
 
         def _init_worker():
             import sys as _sys
-            _sys.path.insert(0, "/home/wlia0047/ar57/wenyu/PersoanlQuery")
+            _sys.path.insert(0, str(REPO_ROOT))
 
         # Submit in chunks to limit pickle overhead
         chunk_size = max(64, len(tasks) // (n_workers * 4))
@@ -771,7 +771,7 @@ def main() -> None:
         # Reset all known category-dependent paths to point at the per-category subdir.
         # User request 2026-09-23: Stage 03a writes to pcfg_cache_<subdir>/, so 04 must rebind CACHE_DIR per subdir.
         if "CACHE_DIR" in saved:
-            CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
+            CACHE_DIR = SCRATCH / f"pcfg_cache_{subdir}"
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:
@@ -781,7 +781,8 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
+            META_FILE = DATA_DIR / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",

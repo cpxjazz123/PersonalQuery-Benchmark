@@ -30,6 +30,7 @@ import json
 import os
 import pickle
 import sys
+import sysconfig
 import time
 from pathlib import Path
 
@@ -53,7 +54,7 @@ import enum as _enum
 import importlib.machinery as _im
 import types as _types
 _tv = _types.ModuleType("torchvision")
-_tv.__path__ = ["/home/wlia0047/ar57_scratch/wenyu/pq_env/lib/python3.10/site-packages/torchvision"]
+_tv.__path__ = [os.path.join(sysconfig.get_paths()["purelib"], "torchvision")]
 _tv.__spec__ = _im.ModuleSpec("torchvision", None, is_package=True)
 sys.modules["torchvision"] = _tv
 
@@ -99,14 +100,15 @@ _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 # ===========================================================================
 # PATHS (inlined from common/syntax_subspace_utils.py 2026-09-06: common/ deleted)
 # ===========================================================================
-REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 # User directive 2026-09-23: data directory migrated from REPO_ROOT/data to the
 # same-named data directory on hj82.
-DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
-ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
+DATA_DIR = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data")))
+SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
+ASIN_TO_DOC_CACHE = SCRATCH / "stage11_corpus_cache" / "baby" / "asin_to_doc.json"
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
-SEL_IN = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/08_select_query/selected_queries.json")  # 2026-09-19: canonical = current Stage 8 output
-RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
+SEL_IN = REPO_ROOT / "result" / "08_select_query" / "selected_queries.json"  # 2026-09-19: canonical = current Stage 8 output
+RESULT_DIR = REPO_ROOT / "result" / "11_syntactic_evaluation"
 PER_QUERY_OUT = RESULT_DIR / f"per_query{_SEL_SUFFIX}.json"
 SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
 VOLATILITY_OUT = RESULT_DIR / f"volatility{_SEL_SUFFIX}.json"
@@ -119,11 +121,11 @@ CATEGORY_INPUTS = [
     ("Musical_Instruments", "musical"),
     ("Video_Games",         "video_games"),
 ]
-EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multiretrieval_embeds")
+EMBED_CACHE_DIR = SCRATCH / "gaussian_vades" / "multiretrieval_embeds"
 
 # 2026-09-19: Top-100 candidates cache for each retriever (used by Stage 11/12 LLM rerank).
 # Each retriever writes <topk_save_dir>/<retr_name>_top100.npz with key 'topk_asins' (n_queries, 100).
-TOPK_SAVE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
+TOPK_SAVE_DIR = SCRATCH / "stage11_retrieval_cache" / "baby" / "top100_cache"
 TOPK_SAVE_K = 100
 
 # Hard-coded runtime configuration (Rule 3); the first run MUST validate the
@@ -171,7 +173,9 @@ RETRIEVERS = [
     {"name": "colbertv2", "kind": "late_interaction", "hf_id": "colbert-ir/colbertv2.0", "dim": 128},
 ]
 RETR_NAMES = [r["name"] for r in RETRIEVERS]
-BGE_M3_HF_CACHE = Path("/home/wlia0047/hj82/wenyu/hf_cache")
+BGE_M3_HF_CACHE = Path(os.environ.get("PQ_HF_CACHE", str(SCRATCH / "hf_cache")))
+# Shared alias used by SPLADE / ColBERTv2 retrievers below.
+HF_CACHE = os.environ.get("PQ_HF_CACHE", str(SCRATCH / "hf_cache"))
 # 2026-09-25: raise batch — bs=64 used ~2.5GB/46GB VRAM; larger batch cuts steps.
 BGE_M3_CORPUS_BATCH = 512
 BGE_M3_QUERY_BATCH = 512
@@ -466,7 +470,7 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
     cache_dir = EMBED_CACHE_DIR / "splade"
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = "naver/splade-cocondenser-ensembledistil"
-    HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
+    HF_CACHE = os.environ.get("PQ_HF_CACHE", str(SCRATCH / "hf_cache"))
     tok = AutoTokenizer.from_pretrained(name, cache_dir=HF_CACHE)
     model = AutoModelForMaskedLM.from_pretrained(name, cache_dir=HF_CACHE).to("cuda").eval()
 
@@ -1416,7 +1420,7 @@ def colbertv2_retrieve(queries: list[str], corpus_texts: list[str],
     cache_dir = EMBED_CACHE_DIR / "colbertv2"
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = "colbert-ir/colbertv2.0"
-    HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
+    HF_CACHE = os.environ.get("PQ_HF_CACHE", str(SCRATCH / "hf_cache"))
     snap_root = Path(HF_CACHE) / "models--colbert-ir--colbertv2.0" / "snapshots"
     snap_dir = snap_root / sorted([p.name for p in snap_root.iterdir()])[0]
 
@@ -2151,7 +2155,7 @@ def main() -> None:
         if "ATTRIBUTES_PATH" in saved:
             ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction" / f"product_attributes_{subdir}.pkl"
         if "META_FILE" in saved:
-            META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data") / {
+            META_FILE = Path(os.environ.get("PQ_DATA_DIR", str(REPO_ROOT / "data"))) / {
                 "baby": "meta_Baby_Products_2023.jsonl",
                 "musical": "meta_Musical_Instruments.jsonl",
                 "video_games": "meta_Video_Games.jsonl",
@@ -2161,7 +2165,7 @@ def main() -> None:
         if "OUT_PATH" in saved:
             OUT_PATH = base_out / subdir / saved["OUT_PATH"].name
         if "ASIN_TO_DOC_CACHE" in saved:
-            ASIN_TO_DOC_CACHE = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache")
+            ASIN_TO_DOC_CACHE = (SCRATCH / "stage11_corpus_cache"
                                  / subdir / saved["ASIN_TO_DOC_CACHE"].name)
         if "SEL_IN" in saved:
             SEL_IN = REPO_ROOT / "result/08_select_query" / subdir / saved["SEL_IN"].name
@@ -2174,18 +2178,17 @@ def main() -> None:
         if "VOLATILITY_OUT" in saved:
             VOLATILITY_OUT = base_out / subdir / saved["VOLATILITY_OUT"].name
         if SMOKE:
-            smoke_dir = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
-                         "stage11_smoke" / subdir)
+            smoke_dir = (SCRATCH / "stage11_smoke" / subdir)
             OUT_DIR = smoke_dir
             RESULT_DIR = smoke_dir
             PER_QUERY_OUT = smoke_dir / saved["PER_QUERY_OUT"].name
             SUMMARY_OUT = smoke_dir / saved["SUMMARY_OUT"].name
             VOLATILITY_OUT = smoke_dir / saved["VOLATILITY_OUT"].name
         if "TOPK_SAVE_DIR" in saved:
-            TOPK_SAVE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache")
+            TOPK_SAVE_DIR = (SCRATCH / "stage11_retrieval_cache"
                              / subdir / saved["TOPK_SAVE_DIR"].name)
         if "EMBED_CACHE_DIR" in saved:
-            EMBED_CACHE_DIR = (Path("/home/wlia0047/hj82_scratch2/wenyu") /
+            EMBED_CACHE_DIR = (SCRATCH /
                                "gaussian_vades/multiretrieval_embeds" / subdir)
         OUT_DIR.mkdir(parents=True, exist_ok=True) if "OUT_DIR" in saved else None
         OUT_PATH.parent.mkdir(parents=True, exist_ok=True) if "OUT_PATH" in saved else None
