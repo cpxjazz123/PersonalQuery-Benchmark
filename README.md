@@ -46,74 +46,66 @@ Overall, the pipeline maps:
 
 ## Dataset Architecture
 
-The released dataset is a clustered user-product query dataset with optional noisy query variants. It is structured around three product categories and exposes a single record envelope that consumers can rely on regardless of which category they target.
+The released dataset groups users by target product and pairs each user with a clean personalized query and a noisy personalized variant derived from the user's own writing-error profile. The dataset is structured around three product categories and exposes a fixed per-record schema that consumers can rely on regardless of which category they target.
 
 ### Categories
 
 The dataset covers three product domains:
 
 - `Baby_Products`
-- `Grocery_and_Gourmet_Food`
-- `Pet_Supplies`
+- `Musical_Instruments`
+- `Video_Games`
 
 Each category has one corresponding dataset file in the release. Consumers index into the file by category name; downstream processing is otherwise identical across categories.
 
-### Record Envelope
+### File Layout
 
-Each grouped record corresponds to one user-product pair. A grouped record contains one query entry per cluster that the pair appears in.
+Each dataset file is a JSON object keyed by ASIN (the target product identifier). The value at each key is a list of all users who contributed a personalized query for that product.
 
-The fixed envelope of every grouped record is:
+```
+<ASIN>: [
+  { <user record 1> },
+  { <user record 2> },
+  ...
+]
+```
 
-- `category`: product domain
-- `uuid`: user identifier
-- `asin`: target product identifier
-- `queries`: list of query entries (see below)
+### Record Schema
 
-Each query entry has a variable shape:
+Every user record inside an ASIN's list has a fixed four-field shape:
 
-- `cluster`: integer query-cluster index
-- `correct_query`: the correct personalized query
+- `asin`: target product identifier (mirrors the surrounding key)
+- `uid`: user identifier
+- `syntax_query`: the clean personalized query generated for this user–product pair
+- `typo_query`: the noisy variant of `syntax_query`, produced by injecting writing errors sampled from this user's writing-error profile
 
-If a writing error was injected for this entry, two additional fields are present:
-
-- `noisy_query`: the noisy query variant (always non-empty when present)
-- `error_pattern`: the writing error injected into the query (object with `correct_word` and `error_word` fields)
-  - `correct_word`: the correct word from `correct_query` that was replaced
-  - `error_word`: the error word that replaced it in `noisy_query`
-
-When no error was injected, the entry has only `cluster` and `correct_query`; the `noisy_query` and `error_pattern` fields are omitted. This is the dominant case: most user-product pairs in the dataset do not have a personalized noise variant.
+The clean and noisy queries are always paired, so consumers can treat them as a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible `typo_query` text; the underlying error pattern is recoverable by diffing the two strings if needed.
 
 ### Dataset Statistics
 
-| Category | Total | With Noise | Without Noise |
-|----------|-------|------------|---------------|
-| Baby_Products | 6,535 | 540 | 5,995 |
-| Grocery_and_Gourmet_Food | 6,141 | 536 | 5,605 |
-| Pet_Supplies | 13,933 | 1,166 | 12,767 |
-| **Total** | **26,609** | **2,242** | **24,367** |
+| Category | ASINs | User–Product Pairs |
+|----------|-------|--------------------|
+| Baby_Products | 1,428 | 2,714 |
+| Musical_Instruments | 1,603 | 3,052 |
+| Video_Games | 1,661 | 3,084 |
+| **Total** | **4,692** | **8,850** |
 
-### Example Record (with noise injection)
+### Example Record
 
 ```json
 {
-  "category": "Baby_Products",
-  "uuid": "AE27EZJGURITRHDXGP6RODDKD7PA",
-  "asin": "B0891R8DT2",
-  "queries": [
+  "B0891R8DT2": [
     {
-      "cluster": 0,
-      "correct_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-      "noisy_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-      "error_pattern": {
-        "correct_word": "looking",
-        "error_word": "laying"
-      }
+      "asin": "B0891R8DT2",
+      "uid": "AE27EZJGURITRHDXGP6RODDKD7PA",
+      "syntax_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
+      "typo_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage."
     }
   ]
 }
 ```
 
-In this example, the word "looking" in the personalized query was replaced with "laying" to create a realistic noisy query variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
+In this example, the word "looking" in the clean query was replaced with "laying" to create the noisy variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
 
 ## Documentation Layout
 
