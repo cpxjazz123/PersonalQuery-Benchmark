@@ -76,19 +76,21 @@ Every user record inside an ASIN's list has a fixed four-field shape:
 
 - `asin`: target product identifier (mirrors the surrounding key)
 - `uid`: user identifier
-- `syntax_query`: the clean personalized query generated for this user–product pair
-- `typo_query`: the noisy variant of `syntax_query`, produced by injecting writing errors sampled from this user's writing-error profile
+- `syntax_query`: the clean personalized query generated for this user–product pair (always non-empty)
+- `typo_query`: the noisy variant of `syntax_query`, produced by injecting writing errors sampled from this user's writing-error profile; the empty string when no writing error was sampled for this pair (see Dataset Statistics for the non-empty rate)
 
-The clean and noisy queries are always paired, so consumers can treat them as a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible `typo_query` text; the underlying error pattern is recoverable by diffing the two strings if needed.
+When `typo_query` is non-empty, the clean and noisy queries form a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible `typo_query` text; the underlying error pattern is recoverable by diffing the two strings if needed.
 
 ### Dataset Statistics
 
 | Category | ASINs | User–Product Pairs | `syntax_query` | `typo_query` |
 |----------|-------|--------------------|----------------|--------------|
-| Baby_Products | 1,428 | 2,714 | 2,714 | 2,714 |
-| Musical_Instruments | 1,603 | 3,052 | 3,052 | 3,052 |
-| Video_Games | 1,661 | 3,084 | 3,084 | 3,084 |
-| **Total** | **4,692** | **8,850** | **8,850** | **8,850** |
+| Baby_Products | 1,428 | 2,714 | 2,714 | 2,017 |
+| Musical_Instruments | 1,603 | 3,052 | 3,052 | 2,428 |
+| Video_Games | 1,661 | 3,084 | 3,084 | 2,386 |
+| **Total** | **4,692** | **8,850** | **8,850** | **6,831** |
+
+`typo_query` is non-empty for the majority of pairs (about 77% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, `typo_query` is the empty string and `syntax_query` should be used as the only query. Consumers should treat `syntax_query` as always present and `typo_query` as present only when non-empty.
 
 ### Example Record
 
