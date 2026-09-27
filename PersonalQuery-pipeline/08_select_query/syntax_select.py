@@ -2,26 +2,26 @@
 """Query selection: per-user trainable svd_mlp Gaussian + logp_delta=2.0 gate.
 
 Pipeline (canonical, 2026-09-17):
-  1. 加载 svd_mlp trainable Gaussian (Stage 04b user_gaussian_stats_trainable.json)
-  2. 加载 SVD components + StyleMLP encoder (Stage 03b)
-  3. spaCy.pipe 编码 pool queries -> SVD 256d -> MLP 64d
-  4. 对每个 query: 计算对所有 cohort 用户的 log p(z | N(μ_u, diag(σ_u²)))
-  5. best-fit user = argmax logp; 保留 logp ≥ max_logp - LOGP_DELTA 的所有 query
-  6. 输出 per-ASIN kept queries
+  1. Load svd_mlp trainable Gaussian (Stage 04b user_gaussian_stats_trainable.json)
+  2. Load SVD components + StyleMLP encoder (Stage 03b)
+  3. spaCy.pipe encode pool queries -> SVD 256d -> MLP 64d
+  4. For each query: compute log p(z | N(mu_u, diag(sigma_u^2))) against every cohort user
+  5. best-fit user = argmax logp; keep queries with logp >= max_logp - LOGP_DELTA
+  6. Output per-ASIN kept queries
 
-复用资产:
+Reused assets:
   - SVD components: pcfg_cache/svd_components.npz (256d)
-  - MLP encoder:    pcfg_cache/svd_mlp_encoder.pt (256→128→64)
+  - MLP encoder:    pcfg_cache/svd_mlp_encoder.pt (256->128->64)
   - Vocab:          pcfg_cache/vocab.json
   - Stage 04b:      result/04_gaussian/user_gaussian_stats_trainable.json (21521 users × 64d)
   - Pool queries:   result/07_gen_query/pool_queries.json
   - ASIN→users:     result/02_user_review_sentence_extract/asin_to_users.json
 
-用法 (Rule 3: 无参数):
+Usage (Rule 3: no args):
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
   $PY 08_select_query/syntax_select_mahalanobis_gate.py
 
-输出:
+Outputs:
   - result/08_select_query/selected_queries_svdmlp.json
   - result/08_select_query/selection_stats_svdmlp.json
 """
@@ -50,10 +50,7 @@ _cohort3_StyleMLP = StyleMLP
 StyleMLP = _cohort3_StyleMLP  # override alias so downstream 'StyleMLP(...)' uses cohort3 MLP
 
 POOL_PATH = REPO_ROOT / "result/07_gen_query/pool_queries.json"
-# 用户指令 2026-09-23: asin_to_users 改 pkl-only (Stage 02 已切换).
 ASIN_USERS_PATH = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/08_select_query/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -68,12 +65,7 @@ LATENT_DIM = 16                   # cohort3 MLP output dim (this run)
 GATE_MODE = "per_user_top1"     # per-user Top-1 with chi²_{D,0.95} fit + user-vs-competitor margin
 LOGP_DELTA = 2.0                  # unused under per_user_top1 (kept for legacy reference)
 GATE_Q = 0.05                     # unused under per_user_top1
-# 2026-09-25: 用户指令 — 每个ASIN 超过 2 个 cohort user 时, 只保留前 2 个 user
-# 参与 selection (截断 user 子集后再做 chi² uniqueness gate).
 MAX_USERS_PER_ASIN = 2
-# 2026-09-25: 用户指令 — uniqueness 放宽, ASIN 内允许 2 user 共享 (CORAL 把
-# query 拉到 user mean 附近, n_inside_per_q>1 是常态). 设为 1 严格, 设为 2
-# 宽松 (允许 user 对共享), 设为更大更宽松.
 UNIQUENESS_MAX_USER_OVERLAP = 2
 # Chi² percentile gate (controls uniqueness radius): sweep over [0.75, 0.55,
 # 0.35, 0.15, 0.005, 0.95]. The hard uniqueness rule D²(u*)≤chi² AND
@@ -85,16 +77,12 @@ D2_CHI2_Q95 = float(_chi2_dist.ppf(0.95, LATENT_DIM))   # chi²_{16, 0.95} theor
 CHI2_SWEEP_Q = [0.95, 0.75, 0.55, 0.35, 0.15, 0.05, 0.005]
 CHI2_SWEEP_THRESHOLDS = {q: float(_chi2_dist.ppf(q, LATENT_DIM))
                          for q in CHI2_SWEEP_Q}
-# 2026-09-25: 加一个 observed-d² percentile sweep. 当前 user Gaussian 在16d 上
-# calibration 偏离 chi²_{16} ~10× (observed p99≈3.08 vs theoretical 26.3),
-# 用经验 d² 分位数作为 uniqueness 阈值更合理.
-D2_OBSERVED_SWEEP = [0.50, 0.75, 0.90, 0.95, 0.99]   # observed d² percentiles
-# D2_OBSERVED_THRESHOLDS 在 selection 完成后基于 all_d2 数组填充 (在 main_task_body 内).
+D2_OBSERVED_SWEEP = [0.50, 0.75, 0.90, 0.95, 0.99]   # observed d^2 percentiles
                                   # pool queries now sit on the review manifold so the theoretical
                                   # threshold becomes meaningful again.
 MARGIN_MIN = 0.0                  # min user-vs-competitor margin (log_p[u*] - max_{v≠u*} log_p[v])
 SEED_SVDMLP = 42
-HARD_MIN_QUERIES_PER_ASIN = 1     # logp_delta mode 下保留至少 1 query/ASIN
+HARD_MIN_QUERIES_PER_ASIN = 1     # keep at least 1 query/ASIN in logp_delta mode
 BATCH_SIZE = 256                  # spaCy pipe batch size
 SVD_COMPONENTS = "/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/svd_components.npz"
 SVD_NPZ = SVD_COMPONENTS
@@ -107,14 +95,10 @@ CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
 TRAINED_UIDS_PATH = REPO_ROOT / "result/03_spacy_encode/cohort3_trained_uids.json"
 STRICT3_NPZ = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache/strict3_embeddings.npz")
 ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
-EPSILON_REL = 0.1              # 2026-09-19: 加大 Tikhonov regularization 让 A 接近 identity, 避免 query z 被过度压缩
+EPSILON_REL = 0.1              # 2026-09-19: enlarge Tikhonov regularization so A is close to identity and query z is not over-compressed
 COND_THRESHOLD = 1e3
 MIN_USERS_PER_ASIN = 1
 MIN_QUERIES_PER_ASIN = 1
-# 2026-09-25: 用户指令 — global alignment (per-ASIN CORAL 把 query 拉到 user mean
-# 附近, 破坏 chi²_{16} calibration, d² 全集中在 0-3). 改为 APPLY_CORAL=False
-# (raw z_q, 不做 per-ASIN transform). 如果以后想加 global CORAL 只需打开
-# CORAL_MODE='global' + 提供 global A/mu_q/mu_r.
 CORAL_MODE = "global"
 APPLY_CORAL = False
 SMOKE = os.environ.get("STAGE08_ALIGNMENT_SMOKE") == "1"
@@ -131,7 +115,7 @@ def _svdmlp_log(msg: str) -> None:
 
 
 def _svdmlp_extract_struct_rules(doc):
-    """从 spaCy Doc 提取 dependency + POS rules (D4/D3/P3), 与 syntax_pcfg_pipeline.py 同源。"""
+    """Extract dependency + POS rules (D4/D3/P3) from a spaCy Doc; same source as syntax_pcfg_pipeline.py."""
     n = len(doc)
     if n < 3:
         return []
@@ -209,13 +193,13 @@ def _svdmlp_encode_queries(
     asin_alignment: dict | None = None,
     flat_records: list | None = None,
 ) -> tuple[np.ndarray, list[tuple[int, dict[int, float]]]]:
-    """queries -> 64d z (svd_mlp encoder 完整流程).
+    """queries -> 64d z (full svd_mlp encoder pipeline).
 
-    流程:
+    Steps:
       1) spaCy.pipe (batch=BATCH_SIZE) -> docs
-      2) extract_struct_rules -> 每句 set of rule_strs
+      2) extract_struct_rules -> per-sentence set of rule_strs
       3) rule_str -> vocab index -> sparse row (1, V)
-      4) row-normalize -> SVD 投影 (256d) -> MLP (64d)
+      4) row-normalize -> SVD projection (256d) -> MLP (64d)
 
     Cache: spaCy parse + sparse build + SVD-z projection are memoized to
     /home/wlia0047/hj82_scratch2/wenyu/pool_query_cache/. The MLP forward +
@@ -265,7 +249,6 @@ def _svdmlp_encode_queries(
         _svdmlp_log(f"  encoding {N} queries with spaCy batch=2048 n_process=16")
         t0 = time.time()
         rows_data = []
-        # 2026-09-18: 64-core 机器,n_process=16 + batch=2048,277K queries 跑 ~3500 docs/s
         for di, doc in enumerate(nlp.pipe(queries, batch_size=2048, n_process=16)):
             rules = extract_struct_rules(doc)
             counts: dict[int, float] = {}
@@ -306,7 +289,6 @@ def _svdmlp_encode_queries(
         else:
             Xn = X
 
-        # SVD 投影
         z_svd = (Xn @ Vt.T).astype(np.float32)
         _svdmlp_log(f"  SVD projection: {z_svd.shape}")
 
@@ -387,7 +369,7 @@ def _svdmlp_encode_queries(
 
 
 def _svdmlp_load_gaussian() -> tuple[dict, list, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """加载 cohort3mlp 32d lowrank+diag Gaussian; 预计算 mu(N,32), lambdas(N,K_RANK),
+    """Load cohort3mlp 32d lowrank+diag Gaussian; precompute mu(N,32), lambdas(N,K_RANK),
     V(N,32,K_RANK), sigma_diag_sq(N,32), uid_order(N,)."""
     _svdmlp_log(f"loading {GAUSSIAN_PATH}")
     with open(GAUSSIAN_PATH) as f:
@@ -657,7 +639,6 @@ def main_task_body() -> None:
     asin_to_users = pickle.load(open(ASIN_USERS_PATH, "rb"))
     _svdmlp_log(f"  pool: {len(pool)} ASINs")
 
-    # 2026-09-25: 加载 UID_TO_SENTS 一次 (用于 per-ASIN user 截断排序)
     uid_to_sents_path = globals().get("UID_TO_SENTS")
     if uid_to_sents_path is None or not Path(uid_to_sents_path).exists():
         # Fallback: derive from category subdir by inspecting OUT_PATH
@@ -681,9 +662,6 @@ def main_task_body() -> None:
     for asin, queries in pool.items():
         cohort_users = [u for u in asin_to_users.get(asin, [])
                         if u in fitted_uid_set]
-        # 2026-09-25: 用户指令 — 每个ASIN 超过 MAX_USERS_PER_ASIN 个 cohort
-        # user 时只保留前 MAX_USERS_PER_ASIN 个 (按 SENT_CACHE 已有 profile
-        # sents 数量降序; ties break by uid 字典序保持稳定).
         if len(cohort_users) > MAX_USERS_PER_ASIN:
             sent_cache = SENT_CACHE_LOADED
             cohort_users = sorted(
@@ -727,12 +705,8 @@ def main_task_body() -> None:
         flat_records=flat_records,
     )
 
-    # 还原 row -> flat_records index
     flat_idx_for_row = [rec_idx for rec_idx, _ in rows_data]
 
-    # 预计算每用户的 log-norm 常数 (low-rank + diag Gaussian):
-    #   log|Σ| = log|diag(σ_d²)| + log|I + V^T diag(1/σ_d²) V diag(λ)|
-    # 使用 Sylvester 行列式引理;额外加 d log 2π 项。
     inv_sigma_diag = 1.0 / sigma_diag_sq                          # (N, D)
     K_RANK = lambdas.shape[1]
     log_norm_per_user = np.zeros(len(uid_order), dtype=np.float64)
@@ -789,9 +763,6 @@ def main_task_body() -> None:
             q: int(np.sum(d2 <= thr))
             for q, thr in CHI2_SWEEP_THRESHOLDS.items()
         }
-        # 2026-09-25: observed-d² percentile uniqueness count (key prefix 'obs:')
-        # observed thresholds 在 all_d2 算完后才确定; 这里用 dict.setdefault 留
-        # 空占位, sweep loop 里再用 lazy lookup 算出实际 count.
         n_inside_per_q.update({
             f"obs:{int(q*100)}": 0
             for q in D2_OBSERVED_SWEEP
@@ -825,9 +796,6 @@ def main_task_body() -> None:
             f"max={float(all_d2.max()):.2f}"
         )
 
-    # 2026-09-25: 计算 observed d² percentile thresholds (用于经验 calibration
-    # sweep). 当前 user Gaussian 在 16d 上 calibration 偏离 chi²_{16} ~10×,
-    # 用经验分位数更合理.
     if len(all_d2) > 0:
         D2_OBSERVED_THRESHOLDS = {
             q: float(np.percentile(all_d2, q * 100))
@@ -851,9 +819,6 @@ def main_task_body() -> None:
         kept: dict[str, list[str]] = {}
         selections_block: list = []
         drops = {"above_d2": 0, "below_margin": 0, "multi_user_inside": 0}
-        # 2026-09-25: observed-percentile sweep 的 count 在 _run_gate 里基于
-        # per-query d² 重算 (不能用 n_inside_per_q 占位的 0, 因为阈值在
-        # all_d2 算出之后才确定).
         is_obs_key = isinstance(thr_key, str) and thr_key.startswith("obs:")
         for asin, cands in per_asin_records.items():
             bucket: dict[int, list[dict]] = {}
@@ -862,9 +827,6 @@ def main_task_body() -> None:
                     drops["above_d2"] += 1
                     continue
                 if is_obs_key:
-                    # observed sweep: 没有 ASIN 内 user 子集 d² 数组,
-                    # 用一个 lenient 假设: ASIN 内 user 数本来就 ≤ 2 (MAX_USERS_PER_ASIN),
-                    # 所以 n_in ≤ 2 几乎总成立. 这里直接放过.
                     pass
                 else:
                     n_in = c["n_inside_per_q"][thr_key]
@@ -937,7 +899,6 @@ def main_task_body() -> None:
         key = f"obs:{int(q*100)}"
         sweep_results[key] = _run_gate(key, thr, f"obs_p{int(q*100)}")
 
-    # 2026-09-25: 用户指令 — default q 固定 0.95 (chi²_{16,0.95}≈26.30, 理论阈值).
     canonical_key = "0.95"
     canonical = sweep_results[canonical_key]
     canonical_q = canonical_key
@@ -1007,11 +968,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """Run the 3 categories (Baby / Musical / Video_Games) serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script path constants to the
+    category-specific paths, then call the original main_task_body()
+    (logic unchanged). Outputs go to result/<stage>/<baby|musical|video_games>/.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS, SVD_COMPONENTS, SVD_NPZ, MLP_ENCODER, MLP_PT, VOCAB_PATH, TRAINED_UIDS_PATH, STRICT3_NPZ, CORAL_ART_DIR, CORAL_ASIN_PATH  # noqa
     # backup current (Baby) defaults

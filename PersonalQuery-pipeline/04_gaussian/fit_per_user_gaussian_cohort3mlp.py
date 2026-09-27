@@ -65,8 +65,8 @@ ENCODER_WEIGHTS_CANDIDATES = [
 COHORT3_TRAINED_UIDS = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spacy_encode/cohort3_trained_uids.json")
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/04_gaussian/<subdir>/.
+# User instruction 2026-09-23: produce one output per category (Baby / Musical / Video_Games);
+# main() runs the 3 domains serially, writes outputs to result/04_gaussian/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -329,11 +329,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User instruction 2026-09-23: run 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to category-specific
+    paths, then call the original main_task_body() (leaving its logic untouched).
+    Outputs are written to result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT, OUT_VARIANT_RANK1  # noqa
     # backup current (Baby) defaults

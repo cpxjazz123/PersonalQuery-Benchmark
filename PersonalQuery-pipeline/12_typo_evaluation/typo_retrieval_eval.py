@@ -59,8 +59,9 @@ STAGE11_SEL_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
 ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 STAGE11_PER_QUERY_PATH = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
 META_FILE = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data/meta_Baby_Products_2023.jsonl")
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/12_typo_evaluation/<subdir>/.
+# Per-category evaluation: 3 independent runs (Baby / Musical / Video_Games).
+# main() loops over all three domains sequentially and writes outputs to
+# result/12_typo_evaluation/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -483,11 +484,11 @@ def main_task_body():
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """Run all 3 categories sequentially (per 2026-09-23 user directive).
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to category-specific
+    paths, then call the original main_task_body() (logic unchanged). Outputs
+    land in result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PER_QUERY, OUT_DEGRADATION, TYPO_RESULTS, TOPK_DIR_ORIG, TOPK_DIR_TYPO, STAGE11_TOPK_DIR, STAGE11_SEL_PATH, STAGE11_PER_QUERY_PATH, ASIN_TO_DOC_CACHE  # noqa
     # backup current (Baby) defaults

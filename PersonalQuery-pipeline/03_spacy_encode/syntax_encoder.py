@@ -26,10 +26,10 @@ Usage (per Rule 3, no args):
   TASK=supervised  cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
   TASK=cohort3     cd /home/wlia0047/ar57/wenyu/PersoanlQuery && $PY 03_spacy_encode/syntax_encoder.py
 
-2026-09-23: 改为串行跑 3 个 category (Baby / Musical_Instruments / Video_Games).
-  每个 category 写产物到 result/03_spacy_encode/<baby|musical|video_games>/.
-  默认指向 Baby 的常量 (SENT_CACHE / RAW_DATA / OUT_DIR) 保持 Baby 路径, 不破坏
-  Stage 04/05/08/09 等下游只读 Baby 路径的兼容。
+2026-09-23: switched to serial execution of the 3 categories (Baby / Musical_Instruments / Video_Games).
+  Each category writes artifacts to result/03_spacy_encode/<baby|musical|video_games>/.
+  The default constants pointing at Baby (SENT_CACHE / RAW_DATA / OUT_DIR) keep the Baby path,
+  preserving compatibility with downstream stages (04/05/08/09) that only read the Baby path.
 
 History (canonical supervised 32d → 16d per Phase L8.7b; cohort3 was a
 separate script pre-2026-09-18 and has been merged here).
@@ -58,10 +58,10 @@ from scipy.sparse import csr_matrix, load_npz, save_npz
 # ============================================================================
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-# 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
+# User directive 2026-09-23: migrate data dir from REPO_ROOT/data to the hj82 mirror of the same data dir.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
-# 用户指令 2026-09-23: 3 个 category 各自一份 Stage 02 产物 (Baby / Musical / Video_Games).
-# 用户指令 2026-09-23: 改串行运行 3 个 category (默认仍走 Baby, 完整产物在 <out>/<category>/ 下).
+# User directive 2026-09-23: each of the 3 categories has its own Stage 02 artifact (Baby / Musical / Video_Games).
+# User directive 2026-09-23: switch to serial execution over the 3 categories (default still Baby; full artifacts under <out>/<category>/).
 CATEGORY_INPUTS = [
     # (category_key, raw_data_path, uid_to_sentences_pkl, output_subdir)
     ("Baby",                DATA_DIR / "Baby_Products_2023.jsonl",
@@ -74,21 +74,22 @@ CATEGORY_INPUTS = [
                             REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_video_games.pkl",
                             "video_games"),
 ]
-# 默认 SENT_CACHE / RAW_DATA / OUT_DIR 指向 Baby (向后兼容, Stage 04/05/08/09 只看 Baby).
+# Default SENT_CACHE / RAW_DATA / OUT_DIR point at Baby (back-compat; Stage 04/05/08/09 only read the Baby path).
 SENT_CACHE = CATEGORY_INPUTS[0][2]
 OUT_DIR = REPO_ROOT / "result/03_spacy_encode"
-# 用户指令 2026-09-23: cache 拆 per-category (Baby / Musical / Video_Games 各一份),
-# 默认指向 Baby. dispatcher 循环中重绑.
+# User directive 2026-09-23: split cache per-category (one copy for Baby / Musical / Video_Games),
+# default points at Baby; the dispatcher loop rebinds them.
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache_baby")
 RAW_DATA = CATEGORY_INPUTS[0][1]
 
 # === Supervised (TASK=supervised) ===
-# 用户指令 2026-09-23: 改用 en_core_web_trf 实测 GPU 反而比 sm 慢 7x (BERT-large + torch 2.14 + spacy-transformers 不跑满 GPU).
-# 实测: sm n_process=12 = 2400 sent/sec vs trf GPU batch=512 = 333 sent/sec.
-# 回退到 sm + n_process=12 (最优 baseline).
+# User directive 2026-09-23: switched to en_core_web_trf but measured GPU 7x slower than sm
+# (BERT-large + torch 2.14 + spacy-transformers does not saturate the GPU).
+# Measured: sm n_process=12 = 2400 sent/sec vs trf GPU batch=512 = 333 sent/sec.
+# Fall back to sm + n_process=12 (best baseline).
 SPACY_MODEL = "en_core_web_sm"
 PARSE_BATCH_SIZE = 1024
-PARSE_N_PROCESS = 12     # sm CPU 多 process, A40 单卡情况下 12 process 反而比 trf GPU 快
+PARSE_N_PROCESS = 12     # sm CPU multi-process; on a single A40 GPU, 12 sm processes beat trf GPU
 CHUNK_USERS = 2000
 SEED = 42
 HASH_SALT = "pcfg_lopo_v1"
@@ -664,9 +665,9 @@ def stage_cache():
                 f"vocab_size={cached_meta.get('vocab_size')})")
             return
         log("  stale stage_cache manifest; rebuilding")
-        # 用户指令 2026-09-23: 跨 category 跑时, 每个 category 的 cache 在自己的子目录
-        # (pcfg_cache_<subdir>/), 如果该子目录已存在但 cohort 不同 → 自动删 stale rules_chunks
-        # + 所有 cache 文件, 重新跑 spaCy parse. 不 raise 让上层重试.
+        # User directive 2026-09-23: when running across categories, each category's cache lives in its own subdir
+        # (pcfg_cache_<subdir>/); if the subdir exists but the cohort differs, automatically remove the stale
+        # rules_chunks plus all cache files and rerun the spaCy parse. Do not raise — let the caller retry.
         import shutil
         for stale in required_paths + [CACHE_DIR / "rules_chunks"]:
             if stale.exists():
@@ -675,8 +676,8 @@ def stage_cache():
                 else:
                     stale.unlink()
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    # 用户指令 2026-09-23: trf 实测 GPU 比 sm n_process=12 慢 7x, 回退 sm.
-    # sm 默认 tok2vec+tagger+parser. 禁用 ner/textcat/lemmatizer (只留 dep/pos/head).
+    # User directive 2026-09-23: measured trf GPU 7x slower than sm n_process=12, falling back to sm.
+    # sm defaults to tok2vec+tagger+parser. Disable ner/textcat/lemmatizer (keep only dep/pos/head).
     nlp = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
     log(f"loaded {SPACY_MODEL}")
 
@@ -693,8 +694,8 @@ def stage_cache():
     rules_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = rules_dir / "manifest.json"
     chunk_paths = sorted(rules_dir.glob("chunk_*.pkl"))
-    # 用户指令 2026-09-23: 跨 category 跑时, stale rules_chunks 已在上面自动删除,
-    # 这里不再 raise, 直接 dump 新 manifest.
+    # User directive 2026-09-23: when running across categories, stale rules_chunks were already auto-removed
+    # above, so we do not raise here — just dump the new manifest.
     if not manifest_path.exists():
         _atomic_json_dump(cohort_manifest, manifest_path)
 
@@ -1439,19 +1440,20 @@ def main_cohort3():
 # ============================================================================
 
 def main():
-    """用户指令 2026-09-23: 串行运行 3 个 category (Baby / Musical_Instruments / Video_Games).
+    """User directive 2026-09-23: serially run the 3 categories (Baby / Musical_Instruments / Video_Games).
 
-    每个 category 重新绑定全局 SENT_CACHE / RAW_DATA / OUT_DIR 为 <REPO_ROOT>/result/03_spacy_encode/<subdir>/,
-    然后调原有 main_supervised() 或 main_cohort3()。所有 cache / encoder / strict3 产物按 category
-    写到子目录, 不互相覆盖。
+    For each category, rebind the global SENT_CACHE / RAW_DATA / OUT_DIR to
+    <REPO_ROOT>/result/03_spacy_encode/<subdir>/, then call the original main_supervised() or
+    main_cohort3(). All cache / encoder / strict3 artifacts are written per-category under their
+    own subdir so they do not overwrite each other.
 
-    Task 切换仍走 TASK 环境变量 (supervised | cohort3)。
+    Task selection is still controlled by the TASK environment variable (supervised | cohort3).
     """
     task = os.environ.get("TASK", "supervised").lower()
     if task not in ("cohort3", "supervised"):
         raise ValueError(f"unknown TASK={task!r}; expected 'supervised' or 'cohort3'")
 
-    # 备份默认 (Baby) 路径, 循环结束后恢复.
+    # Back up the default (Baby) paths; restore them after the loop.
     global SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR
     saved = (SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR)
     base_out = REPO_ROOT / "result/03_spacy_encode"
@@ -1462,7 +1464,7 @@ def main():
         SENT_CACHE = sent_cache_path
         RAW_DATA = raw_data_path
         OUT_DIR = base_out / subdir
-        # 用户指令 2026-09-23: cache per-category, 每个 category 独立 pcfg_cache_<subdir>.
+        # User directive 2026-09-23: cache per-category, each category gets its own pcfg_cache_<subdir>.
         CACHE_DIR = base_cache / f"pcfg_cache_{subdir}"
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         try:
@@ -1474,7 +1476,7 @@ def main():
             log(f"[{category}] FAILED: {e!r}")
             raise
 
-    # 恢复默认 (为 import 后的 Stage 04/05/08/09 兼容, 它们只读 Baby 路径).
+    # Restore defaults (so import-time Stage 04/05/08/09 stay compatible — they only read the Baby path).
     SENT_CACHE, RAW_DATA, OUT_DIR, CACHE_DIR = saved
 
 

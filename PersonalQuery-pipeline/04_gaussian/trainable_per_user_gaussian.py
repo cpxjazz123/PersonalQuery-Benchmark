@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Stage 04b — Trainable per-user diagonal Gaussian via reparameterization.
 
-输入 (与 fit_per_user_gaussian.py 同源):
-  - pcfg_cache/strict3_embeddings.npz（Stage 03 输出的 80/20 z split）
+Input (same source as fit_per_user_gaussian.py):
+  - pcfg_cache/strict3_embeddings.npz (Stage 03 output 80/20 z split)
   - pcfg_cache/user_n_sents.json
 
-输出:
+Output:
   - result/04_gaussian/user_gaussian_stats_trainable.json
       schema:
         config: {schema_version=3, covariance="trainable_diag",
                  syntax_dim, latent_dim=16, kl_beta, n_epochs, lr,
                  init_from="empirical_diag", note}
         users[uid] = {
-            mu:  list[float len=16]    # trainable 中心
-            log_sigma2: list[float len=16]  # trainable 精度对数
-            sigma_inv_diag: list[float len=16]  # 1/sigma^2 (与 full Σ schema 对齐)
+            mu:  list[float len=16]    # trainable center
+            log_sigma2: list[float len=16]  # trainable log-precision
+            sigma_inv_diag: list[float len=16]  # 1/sigma^2 (aligned with full Sigma schema)
             sigma_diag: list[float len=16]
             n, n_val,
             d2_q50, d2_q75, d2_q95, d2_max: empirical val d^2 quantile
@@ -22,19 +22,19 @@
             d2_q50_theoretical, d2_q75_theoretical: chi2(16, q)
         }
 
-训练目标:
+Training objective:
     L = GaussianNLL(z_profile | mu_u, sigma_u) + beta * KL(N(mu_u, sigma_u^2) || N(0, I))
 
-设计:
-    - sigma_u 用对角 (16-dim log sigma^2_d)，不学 full 16x16 协方差：
-      * 21k 用户 × 256 元素 full cov = 5.4M 参数，训练不稳且过拟合
-      * 对角形式与下游 d2 = sum ((z-mu)/sigma)^2 一致
-    - 初始化：mu_u ← empirical mean, log_sigma2_u ← log(empirical var + eps)
-    - 仅 profile 句子进入训练；val 句子只用于评估 d^2 分位数
-    - d2 的 qXX 仍从 val 经验统计（保留与 fit_per_user_gaussian 同口径的 fall-back）
-    - d2_qXX_theoretical 仍由 chi2(16, q) 给出（与现有 schema 一致）
+Design:
+    - sigma_u uses diagonal (16-dim log sigma^2_d); not learning full 16x16 covariance:
+      * 21k users x 256-element full cov = 5.4M params, unstable and overfits
+      * Diagonal form is consistent with downstream d2 = sum ((z-mu)/sigma)^2
+    - Initialization: mu_u <- empirical mean, log_sigma2_u <- log(empirical var + eps)
+    - Only profile sentences enter training; val sentences only used to evaluate d^2 quantiles
+    - d2 qXX still from val empirical statistics (preserves fall-back consistent with fit_per_user_gaussian)
+    - d2_qXX_theoretical still given by chi2(16, q) (consistent with current schema)
 
-使用:
+Usage:
     nohup /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \
         04_gaussian/trainable_per_user_gaussian.py \
         > /home/wlia0047/hj82_scratch2/wenyu/trainable_gaussian.log 2>&1 &
@@ -53,8 +53,8 @@ from torch.utils.data import DataLoader, Dataset
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/04_gaussian/<subdir>/.
+# User instruction 2026-09-23: one per category (Baby / Musical / Video_Games),
+# main() runs 3 domains serially, writes outputs to result/04_gaussian/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -62,16 +62,17 @@ CATEGORY_INPUTS = [
     ("Video_Games",         "video_games"),
 ]
 OUT_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_trainable.json"
-# 允许环境变量覆盖输出路径（用于对照实验）
+# Allow env var to override output path (for ablation experiments)
 if "TG_OUT_PATH" in __import__("os").environ:
     OUT_PATH = Path(__import__("os").environ["TG_OUT_PATH"])
 
-# ---- 硬编码配置（Rule 3） ----
+# ---- Hardcoded configuration (Rule 3) ----
 SCHEMA_VERSION = 3
 # Embedding source: 'strict3' (default, 16d) or 'svd_mlp' (64d, SVD+MLP pipeline)
-# 通过 TG_SOURCE 环境变量切换；switching source 让同一个 trainable Gaussian
-# pipeline 既能消费 strict3 监督 encoder 也能消费 svd_mlp 两步降维 encoder,
-# 避免在 04_gaussian/ 下累积多版本主脚本 (Rule 3)
+# Switched via TG_SOURCE env var; switching source lets the same trainable Gaussian
+# pipeline consume either the strict3 supervised encoder or the svd_mlp two-step
+# dimensionality-reduction encoder, avoiding accumulating multiple main-script
+# versions under 04_gaussian/ (Rule 3)
 import os as _os
 SOURCE = _os.environ.get('TG_SOURCE', 'strict3')
 NPZ_BY_SOURCE = {
@@ -81,31 +82,31 @@ NPZ_BY_SOURCE = {
 if SOURCE not in NPZ_BY_SOURCE:
     raise ValueError(f"unknown TG_SOURCE={SOURCE!r}; valid: {list(NPZ_BY_SOURCE)}")
 NPZ_NAME = NPZ_BY_SOURCE[SOURCE]
-# Latent dim: svd_mlp 默认 64d, strict3 固定 16d; 后续 main() 会再用 npz 校验
+# Latent dim: svd_mlp defaults to 64d, strict3 fixed at 16d; main() later re-validates against npz
 LATENT_DIM = 64 if SOURCE == 'svd_mlp' else 16
 
 _KL_BETA_ENV = _os.environ.get('TG_KL_BETA')
-KL_BETA = float(_KL_BETA_ENV) if _KL_BETA_ENV is not None else 1e-3  # KL 系数；可用 TG_KL_BETA 覆盖
-N_EPOCHS = 20              # 20 epoch 通常足够收敛
-BATCH_USERS = 4096         # 每 step 采样多少样本
-SENTS_PER_USER_CAP = 200   # 每个用户 profile 子采样上限，控制 batch tensor 大小
+KL_BETA = float(_KL_BETA_ENV) if _KL_BETA_ENV is not None else 1e-3  # KL coefficient; overridable via TG_KL_BETA
+N_EPOCHS = 20              # 20 epochs usually sufficient for convergence
+BATCH_USERS = 4096         # number of samples per training step
+SENTS_PER_USER_CAP = 200   # per-user profile subsample cap, controls batch tensor size
 LR = 3e-3
 WEIGHT_DECAY = 0.0
-SIGMA2_FLOOR = 1e-4        # 数值下界，防止 sigma^2 → 0 导致 NLL 爆炸
+SIGMA2_FLOOR = 1e-4        # numerical floor, prevents sigma^2 -> 0 from blowing up NLL
 _LS2_OFF_ENV = _os.environ.get('TG_LOG_SIGMA2_OFFSET')
 LOG_SIGMA2_INIT_OFFSET = float(_LS2_OFF_ENV) if _LS2_OFF_ENV is not None else 0.0
 _SEED_ENV = _os.environ.get('TG_SEED')
 SEED = int(_SEED_ENV) if _SEED_ENV is not None else 42
-MIN_PROFILE_SENTS = 40     # 与 fit_per_user_gaussian 一致
+MIN_PROFILE_SENTS = 40     # consistent with fit_per_user_gaussian
 MIN_VAL_SENTS = 10
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# chi2(LATENT_DIM, q) 在 main() 启动时按当前 LATENT_DIM 动态计算
+# chi2(LATENT_DIM, q) is computed dynamically at main() startup based on current LATENT_DIM
 CHI2_THEORETICAL: dict = {}
 
 
 def _compute_chi2_table(df: int) -> dict:
-    """返回 chi2(df, q) 理论分位数表, 用于 d2_qXX_theoretical 字段。"""
+    """Returns chi2(df, q) theoretical quantile table for d2_qXX_theoretical fields."""
     from scipy.stats import chi2
     return {
         "q05": float(chi2.ppf(0.05, df)),
@@ -120,22 +121,22 @@ def log(msg: str) -> None:
 
 
 def load_split() -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, int]:
-    """加载当前 SOURCE 的 profile/val split（默认 strict3, svd_mlp 可切）。
+    """Loads profile/val split for the current SOURCE (default strict3, switchable to svd_mlp).
 
     Returns: (uid_list, z_profile_sorted, z_val_sorted, prof_offsets, val_offsets, z_dim)
-    z_dim 来自 npz 的 'z_dim' 字段 (svd_mlp 64, strict3 16); 用于后续校验 LATENT_DIM。
+    z_dim comes from the npz 'z_dim' field (svd_mlp 64, strict3 16); used later to validate LATENT_DIM.
     """
     npz_path = CACHE_DIR / NPZ_NAME
     n_sents_path = CACHE_DIR / "user_n_sents.json"
     with open(n_sents_path) as f:
         user_n_sents = [int(n) for n in json.load(f)]
-    npz = np.load(npz_path, allow_pickle=True)  # svd_mlp 含 object uid_list
+    npz = np.load(npz_path, allow_pickle=True)  # svd_mlp contains object uid_list
     uid_list = [str(u) for u in npz["uid_list"]]
     z_profile = np.asarray(npz["z_profile"], dtype=np.float32)
     z_val = np.asarray(npz["z_val"], dtype=np.float32)
     profile_idx = np.asarray(npz["profile_idx"], dtype=np.int64)
     val_idx = np.asarray(npz["val_idx"], dtype=np.int64)
-    # 校验 latent dim: svd_mlp 显式存 z_dim; strict3 fallback 16
+    # Validate latent dim: svd_mlp stores z_dim explicitly; strict3 falls back to 16
     if "z_dim" in npz.files:
         z_dim = int(np.asarray(npz["z_dim"]).item())
     else:
@@ -175,7 +176,7 @@ def compute_init_params(
     prof_offsets: np.ndarray,
     val_offsets: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, list[int]]:
-    """用经验矩初始化 mu 和 log_sigma2。"""
+    """Initializes mu and log_sigma2 with empirical moments."""
     N = len(uid_list)
     D = LATENT_DIM
     mu_init = np.zeros((N, D), dtype=np.float32)
@@ -193,9 +194,9 @@ def compute_init_params(
         var = np.maximum(var, SIGMA2_FLOOR)
         mu_init[u] = mu
         if _os.environ.get('TG_SIGMA_INIT', 'empirical') == 'one':
-            log_sigma2_init[u] = 0.0  # log(1) = 0 -> sigma=1 各维
+            log_sigma2_init[u] = 0.0  # log(1) = 0 -> sigma=1 in each dim
         elif _os.environ.get('TG_SIGMA_INIT') == 'big':
-            log_sigma2_init[u] = 1.0  # log(e) ~ 1 -> sigma~2.7 各维
+            log_sigma2_init[u] = 1.0  # log(e) ~ 1 -> sigma~2.7 in each dim
         else:
             log_sigma2_init[u] = np.log(var) + LOG_SIGMA2_INIT_OFFSET
         eligible.append(u)
@@ -207,7 +208,7 @@ def compute_init_params(
 
 
 class PerUserDiagGaussian(nn.Module):
-    """每个用户一个对角高斯分布 N(mu_u, diag(sigma_u^2))，参数可训练。"""
+    """One diagonal Gaussian per user N(mu_u, diag(sigma_u^2)); trainable parameters."""
 
     def __init__(self, n_users: int, latent_dim: int,
                  mu_init: np.ndarray, log_sigma2_init: np.ndarray):
@@ -222,7 +223,7 @@ class PerUserDiagGaussian(nn.Module):
         return self.mu(u_idx), self.log_sigma2(u_idx)
 
     def nll(self, z: torch.Tensor, u_idx: torch.Tensor) -> torch.Tensor:
-        """逐样本 Gaussian NLL (diagonal)。
+        """Per-sample Gaussian NLL (diagonal).
 
         NLL = 0.5 * sum_d [ (z-mu)^2 / sigma^2 + log sigma^2 ]
         """
@@ -234,7 +235,7 @@ class PerUserDiagGaussian(nn.Module):
         return nll
 
     def kl_to_prior(self, u_idx: torch.Tensor) -> torch.Tensor:
-        """KL( N(mu_u, diag(sigma_u^2)) || N(0, I) ) 逐用户。"""
+        """KL( N(mu_u, diag(sigma_u^2)) || N(0, I) ) per user."""
         mu, log_sigma2 = self.get_params(u_idx)
         sigma2 = torch.exp(log_sigma2).clamp_min(SIGMA2_FLOOR)
         kl = 0.5 * (mu ** 2 + sigma2 - 1.0 - log_sigma2).sum(dim=-1)
@@ -242,9 +243,9 @@ class PerUserDiagGaussian(nn.Module):
 
 
 class UserSentenceDataset(Dataset):
-    """返回 (z, uid) 样本用于训练。
+    """Returns (z, uid) samples for training.
 
-    profile 句子被展平为行；为节省内存采用 numpy 视图。
+    profile sentences are flattened as rows; numpy views are used to save memory.
     """
 
     def __init__(self, z_profile: np.ndarray, prof_offsets: np.ndarray,
@@ -276,7 +277,7 @@ def evaluate_val_d2(
     z_val: np.ndarray,
     val_offsets: np.ndarray,
 ) -> dict[str, dict]:
-    """用 trainable 参数在 val 句子上计算 d^2 分位数。"""
+    """Computes d^2 quantiles on val sentences using trainable parameters."""
     model.eval()
     out: dict[str, dict] = {}
     n_done = 0
@@ -298,8 +299,8 @@ def evaluate_val_d2(
             mu_np = mu.cpu().numpy()
             sigma2_np = sigma2.cpu().numpy()
             n_profile = int(
-                # 我们没有显式传入 prof_offsets；这里 n 用 val 量代替 schema 一致性
-                # 真正的 profile n 会在 caller 处重写
+                # prof_offsets is not passed in explicitly; n is set to 0 here for
+                # schema consistency, and the real profile n is rewritten by the caller
                 0
             )
             out[uid_list[u]] = {
@@ -331,7 +332,7 @@ def main_task_body() -> None:
     log(f"device={DEVICE}  source={SOURCE}  npz={NPZ_NAME}  latent_dim={LATENT_DIM}")
 
     uid_list, z_profile, z_val, prof_offsets, val_offsets, z_dim = load_split()
-    # 填 module-level dict, 让 evaluate_val_d2 通过 globals 读到
+    # Populate module-level dict so evaluate_val_d2 can read it via globals
     CHI2_THEORETICAL.clear()
     CHI2_THEORETICAL.update(_compute_chi2_table(z_dim))
     N = len(uid_list)
@@ -396,7 +397,7 @@ def main_task_body() -> None:
         model, uid_list, eligible, z_val, val_offsets,
     )
 
-    # 补齐 n 字段（profile 句数）
+    # Fill in the n field (profile sentence count)
     for u in eligible:
         users_out[uid_list[u]]["n"] = int(
             prof_offsets[u + 1] - prof_offsets[u]
@@ -449,11 +450,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User instruction 2026-09-23: run 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to category-specific paths,
+    then call the original main_task_body() (keep original logic untouched).
+    Outputs are written to result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH  # noqa
     # backup current (Baby) defaults

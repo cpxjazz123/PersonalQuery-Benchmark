@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""SFT pipeline for query generation (完全 SFT, 不再 GRPO).
+"""SFT pipeline for query generation (full SFT, replacing prior GRPO fresh-base route).
 
-用户 2026-09-05 决策: 完全 SFT 路线 (替换之前的 GRPO fresh-base 路线).
-等用户提供训练样本后, 在 _load_sft_dataset() 处接入.
+User instruction 2026-09-05: switch to full SFT (replacing prior GRPO fresh-base route).
+After user provides training samples, plug them in at _load_sft_dataset().
 
 Pipeline:
-  Stage A: 加载样本 -> {prompt, response} 对
+  Stage A: Load samples -> {prompt, response} pairs
   Stage B: LoRA SFT on Qwen2.5-0.5B-Instruct (masked answer loss)
-  Stage C: 独立 ASIN 配对评估 (base vs SFT)
+  Stage C: Independent ASIN paired evaluation (base vs SFT)
 
-输入 (等用户提供):
-  训练样本格式: list[dict], 每项含 "prompt" + "response"
+Input (awaiting user-provided samples):
+  Training sample format: list[dict], each item contains "prompt" + "response"
   prompt:    "You are shopping for a product with these 5 known attributes:..."
-  response:  已组织好的合格 query (cov=5, no rep, no extra)
+  response:  Pre-organized qualified query (cov=5, no rep, no extra)
 
-输出:
+Output:
   result/06_training_model/sft_lora/                  (LoRA adapter)
-  result/06_training_model/sft_training_log.json      (loss 曲线 + 配置)
-  result/06_training_model/eval_sft_vs_base.json      (Stage C 配对评估)
+  result/06_training_model/sft_training_log.json      (loss curve + config)
+  result/06_training_model/eval_sft_vs_base.json      (Stage C paired eval)
 
-用法 (Rule 3: no args, env vars only):
+Usage (Rule 3: no args, env vars only):
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
   SFT_TRAIN_SMOKE=1     $PY 06_training_model/sft_pipeline.py
   SFT_TRAIN_FULL=1      $PY 06_training_model/sft_pipeline.py
@@ -43,11 +43,11 @@ OUT_DIR = REPO_ROOT / "result/06_training_model"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 QWEN_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
-# 用户指令 2026-09-23: product_attributes 改 pkl-only (Stage 01 已切换).
+# User instruction 2026-09-23: product_attributes switched to pkl-only (Stage 01 migrated).
 ATTRIBUTES_PATH = REPO_ROOT / "result/01_attribute_extraction/product_attributes_baby.pkl"
 SFT_ADAPTER_DIR = OUT_DIR / "sft_lora"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/06_training_model/<subdir>/.
+# User instruction 2026-09-23: 3 categories (Baby / Musical / Video_Games), each with its own
+# input; main() changed to run 3 domains sequentially, writing outputs to result/06_training_model/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -68,13 +68,13 @@ SFT_MAX_SEQ_LEN = 256
 SFT_MAX_NEW_TOKENS = 40
 SFT_SAMPLE_TEMP = 0.7
 SFT_TOP_P = 0.95
-SFT_SMOKE_N_PAIRS = 32           # smoke 用 32 对
-SFT_FULL_N_PAIRS = 100           # full 用 100 对 (用户 query_samples_100.json 提供)
+SFT_SMOKE_N_PAIRS = 32           # smoke uses 32 pairs
+SFT_FULL_N_PAIRS = 100           # full uses 100 pairs (user-provided query_samples_100.json)
 SFT_EVAL_N_INDEPENDENT = 10
 SFT_EVAL_N_CANDS = 5
-SFT_EVAL_MAX_EXTRAS = 3          # 用户 2026-09-05 决策: 容忍 "I'd"/"like" 等填充词
-                                 # (用户样本 query 是长句模板, 词数 20-30, ≤1 太严)
-                                 # 训练时仍用 ≤1 (硬约束目标), eval 时用 ≤3 (实际可达)
+SFT_EVAL_MAX_EXTRAS = 3          # User instruction 2026-09-05: tolerate fillers like "I'd"/"like"
+                                 # (user sample queries are long templates, 20-30 words, so ≤1 is too strict)
+                                 # Training still uses ≤1 (hard constraint target), eval uses ≤3 (practical)
 
 
 def log(msg: str) -> None:
@@ -82,13 +82,14 @@ def log(msg: str) -> None:
 
 
 # ============================================================================
-# Prompt builder (复用 GRPO 的, 因为用户已确认新 prompt 设计)
+# Prompt builder (reuses GRPO design; user already confirmed new prompt)
 # ============================================================================
 def _build_sft_prompt(attrs: Dict[str, str]) -> str:
-    """用户 2026-09-05 确认的 prompt: 明确'用已知属性表达搜索需求'任务.
+    """Prompt confirmed by user 2026-09-05: explicit 'use known attributes to express search need' task.
 
-    末尾加 Qwen2.5 的 eos_token `<|im_end|>`, 让 model 学'生成 response 后立即停'.
-    否则 model 会继续生成 'Query: ... Answer: ...' 等 system echo 形式.
+    Append Qwen2.5's eos_token at the end so the model learns to stop immediately after
+    generating the response. Otherwise the model continues with system echo patterns
+    like 'Query: ... Answer: ...'.
     """
     attrs_text = "\n".join(f"- {k}: {v}" for k, v in attrs.items())
     return (
@@ -103,15 +104,15 @@ def _build_sft_prompt(attrs: Dict[str, str]) -> str:
 
 
 # ============================================================================
-# Dataset loading — 等用户给样本
+# Dataset loading — awaiting user samples
 # ============================================================================
 def _load_sft_dataset(n_pairs: int) -> List[Dict[str, str]]:
-    """加载 SFT 训练样本.
+    """Load SFT training samples.
 
-    用户 2026-09-05 提供: /home/wlia0047/ar57/wenyu/PersoanlQuery/query_samples_100.json
-    格式: JSON array [{id, attributes: {k: v}, query: str}, ...]
+    User-provided path 2026-09-05: /home/wlia0047/ar57/wenyu/PersoanlQuery/query_samples_100.json
+    Format: JSON array [{id, attributes: {k: v}, query: str}, ...]
     """
-    # 优先路径: 用户提供
+    # Primary path: user-provided
     user_path = REPO_ROOT / "query_samples_100.json"
     if user_path.exists():
         log(f"  loading SFT dataset from: {user_path}")
@@ -124,7 +125,7 @@ def _load_sft_dataset(n_pairs: int) -> List[Dict[str, str]]:
         rng.shuffle(data)
         return data[:n_pairs]
 
-    # Fallback 占位路径 (其他用户接入位置)
+    # Fallback placeholder paths (other user integration points)
     candidate_paths = [
         REPO_ROOT / "result/06_training_model/sft_samples_user_provided.jsonl",
         REPO_ROOT / "result/06_training_model/sft_samples.jsonl",
@@ -146,12 +147,12 @@ def _load_sft_dataset(n_pairs: int) -> List[Dict[str, str]]:
 
 
 def _normalize_sample(row: Dict) -> Dict[str, str]:
-    """归一化样本为 {prompt, response} 格式.
+    """Normalize a sample to {prompt, response} format.
 
-    支持:
+    Supports:
       - {'prompt': str, 'response': str}
       - {'attrs': {k: v}, 'query': str}
-      - {'attributes': {k: v}, 'query': str}  (用户 query_samples_100.json 格式)
+      - {'attributes': {k: v}, 'query': str}  (user-provided query_samples_100.json format)
     """
     if "prompt" in row and "response" in row:
         return {"prompt": row["prompt"], "response": row["response"]}
@@ -218,9 +219,9 @@ def stage_b_sft_train(smoke: bool = True) -> None:
     def _encode(samples_batch):
         prompts = [s["prompt"] for s in samples_batch]
         responses = [s["response"] for s in samples_batch]
-        # 用户 2026-09-05: 在 response 末尾追加 eos, 让 model 学"生成完 response 立即停",
-        # 避免续写 "Query: ... Answer: ..." 等 system echo.
-        # prompt 末尾已含 <|im_end|> (见 _build_sft_prompt), response 末尾也加一个.
+        # User instruction 2026-09-05: append eos at end of response so the model
+        # learns to stop immediately after generating the response, avoiding system
+        # with eos (see _build_sft_prompt); response gets the same treatment.
         full_texts = [p + r + tok.eos_token for p, r in zip(prompts, responses)]
         enc = tok(full_texts, return_tensors="pt", padding=True, truncation=True,
                   max_length=SFT_MAX_SEQ_LEN).to("cuda:0")
@@ -292,12 +293,12 @@ def stage_c_eval_independent():
 
     log("=== stage_c_eval_independent ===")
 
-    # 用户指令 2026-09-23: 改用 pickle.load (Stage 01 已切换 pkl-only).
+    # User instruction 2026-09-23: switched to pickle.load (Stage 01 already migrated to pkl-only).
     with open(ATTRIBUTES_PATH, "rb") as f:
         attrs_all = pickle.load(f)
     train_path = OUT_DIR / "sft_train_asins.json"
     if not train_path.exists():
-        # 排除 GRPO 训练集 (避免 overlap)
+        # Exclude GRPO training set (avoid overlap)
         grpo_path = OUT_DIR / "grpo_train_asins.json"
         if grpo_path.exists():
             with open(grpo_path) as f:
@@ -344,8 +345,7 @@ def stage_c_eval_independent():
 
     def _gen(model, asins):
         results = []
-        # Qwen2.5 eos_token 是 <|im_end|> (151645). prompt 末尾已加 <|im_end|>,
-        # model 应学会生成 response 后立即 emit eos 停. 用 eos_token_id 强制停.
+        # model should learn to emit eos immediately after response. Force-stop with eos_token_id.
         eos_id = tok.eos_token_id
         for a in asins:
             attrs = dict(list(attrs_all[a].items())[:5])
@@ -382,7 +382,7 @@ def stage_c_eval_independent():
                 cov, miss, rep, extras = check_content(c, r["attrs"])
                 F = compute_fluency(c)
                 n_words = len(tokenize(c))
-                # 用户 2026-09-05: eval 阈值 ≤3 容忍 "I'd"/"like" 填充词
+                # User instruction 2026-09-05: eval threshold ≤3 tolerates fillers like "I'd"/"like"
                 content_pass = (len(miss) == 0 and len(rep) == 0
                                 and len(extras) <= SFT_EVAL_MAX_EXTRAS)
                 per_asin["cands"].append({
@@ -460,11 +460,11 @@ def main_task_body():
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User instruction 2026-09-23: run 3 categories sequentially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to category-specific
+    paths, then call main_task_body() (original logic untouched). Outputs go to
+    result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SFT_ADAPTER_DIR  # noqa
     # backup current (Baby) defaults

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Stage 04 — 拟合 32d per-user Gaussian 与 ASIN cohort gate。
+"""Stage 04 — fit 32d per-user Gaussian and ASIN cohort gate.
 
-输入:
-  - pcfg_cache/strict3_embeddings.npz（Stage 03 stage_strict3() 输出的 profile/val z）
-  - pcfg_cache/user_n_sents.json（uid 顺序与句子总数）
-  - result/02_user_review_sentence_extract/asin_to_users.json（parent_asin cohort）
+Inputs:
+  - pcfg_cache/strict3_embeddings.npz (Stage 03 stage_strict3() output: profile/val z)
+  - pcfg_cache/user_n_sents.json (uid order and sentence counts)
+  - result/02_user_review_sentence_extract/asin_to_users.json (parent_asin cohort)
 
-输出:
+Outputs:
   - result/04_gaussian/user_gaussian_stats.json (canonical, raw_full Σ_u)
   - result/04_gaussian/user_gaussian_stats_rank1.json (rank1+isotropic residual)
 
@@ -14,8 +14,8 @@ Schema 1 (full): users[uid] = {mu, sigma_inv, n, n_val, d2_q50/q75/q95/max}
 Schema 2 (rank1): users[uid] = {mu, lambda1, v1, sigma_res, n, n_val,
                                 d2_q50/q75/q95/max}
 
-Stage 04 是唯一的 Gaussian 生产阶段。Stage 08 和 Stage 10 只读取 canonical
-artifact，不在运行时重新拟合 Gaussian。
+Stage 04 is the sole Gaussian production stage. Stages 08 and 10 only read
+the canonical artifact; they do not refit the Gaussian at runtime.
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ import numpy as np
 
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/pcfg_cache")
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/04_gaussian/<subdir>/.
+# User request 2026-09-23: 3 categories, one copy each (Baby / Musical / Video_Games);
+# main() is changed to run the 3 domains serially, outputs to result/04_gaussian/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -41,24 +41,24 @@ CATEGORY_INPUTS = [
 ]
 OUT_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats.json"
 OUT_PATH_RANK1 = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_rank1.json"
-# 用户指令 2026-09-23: asin_to_users 改 pkl-only (Stage 02 已切换).
+# User request 2026-09-23: asin_to_users changed to pkl-only (Stage 02 already switched).
 ASIN_USERS_PATH = (
     REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
 )
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-# 硬编码配置（Rule 3）
+# Hardcoded configuration (Rule 3)
 SCHEMA_VERSION = 1
 SCHEMA_VERSION_RANK1 = 2
 CANONICAL_PRODUCT_KEY = "parent_asin"
 SMOKE = False               # 2026-09-14: full cohort q20
-N_SMOKE_USERS = 500        # 500 users 足够做 O_u 分布估计
+N_SMOKE_USERS = 500        # 500 users is enough to estimate the O_u distribution
 N_SMOKE_ASINS = 5
 MIN_PROFILE_SENTS = 40
 MIN_VAL_SENTS = 10
 MIN_EIGEN_RATIO = 1e-8
-PSD_FLOOR = 1e-6          # 数值 PSD clip, 覆盖 n≈40-50 in 32d 的 fp64 roundoff 负特征值 (~1e-7)
-GATE_QUANTILE = 0.05       # 2026-09-14: q=0.20→0.05 目标 O_u≤0.05
+PSD_FLOOR = 1e-6          # Numerical PSD clip to cover fp64 roundoff negative eigenvalues (~1e-7) for n~40-50 in 32d
+GATE_QUANTILE = 0.05       # 2026-09-14: q=0.20->0.05, target O_u<=0.05
 # 2026-09-15: theoretical gate (χ²(d, q)) — Stage 08 high-side (q=0.95) inclusion,
 # Stage 10 low-side (q=0.05) rejection. Replaces empirical d2_qXX from val sentences.
 THEORETICAL_QS = (0.05, 0.50, 0.75, 0.95)
@@ -74,10 +74,11 @@ def log(msg: str) -> None:
 
 def _validate_strict3_contract(npz, uid_list: list[str],
                               user_n_sents: list[int]) -> None:
-    """强制 strict3 NPZ 与 cache manifest 完全一致（UID/partition/finite）。
+    """Enforce strict3 NPZ / cache manifest agreement (UID/partition/finite).
 
-    2026-09-15: strict3 改为 2-way 80/20, z_test/test_idx 是 z_val/val_idx 别名,
-    partition 验证只看 profile+val, test 字段要求存在且形状对齐 val。
+    2026-09-15: strict3 changed to 2-way 80/20; z_test/test_idx are aliases
+    for z_val/val_idx. Partition validation looks only at profile+val, and
+    the test fields must exist and have shapes that align with val.
     """
     required_fields = ("z_profile", "z_val",
                        "profile_idx", "val_idx", "uid_list",
@@ -110,7 +111,7 @@ def _validate_strict3_contract(npz, uid_list: list[str],
             raise ValueError(f"strict3 {key} shape invalid: {z.shape}")
         if not np.isfinite(z).all():
             raise ValueError(f"strict3 {key} contains NaN/Inf")
-    # 2026-09-15: 接受 test=val 别名 (Stage 03 strict3 80/20 no test)
+    # 2026-09-15: accept test=val alias (Stage 03 strict3 80/20 no test)
     if "z_test" in npz and "test_idx" in npz:
         z_test = np.asarray(npz["z_test"])
         test_idx = np.asarray(npz["test_idx"], dtype=np.int64)
@@ -124,11 +125,11 @@ def _validate_strict3_contract(npz, uid_list: list[str],
 
 
 def _load_embedding_groups() -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray, np.ndarray]:
-    """加载 z 并按 uid 排序，返回每个 uid 的连续 profile/val 分组索引。
+    """Load z sorted by uid, and return consecutive profile/val group indices per uid.
 
-    输入: pcfg_cache/strict3_embeddings.npz
-      (Stage 03 stage_strict3() 产出的 2-way 80/20 split embeddings, 无 test;
-       z_test/test_idx 字段如存在则 = z_val/val_idx 别名)
+    Input: pcfg_cache/strict3_embeddings.npz
+      (Stage 03 stage_strict3() output: 2-way 80/20 split embeddings, no test;
+       z_test/test_idx fields, if present, are aliases for z_val/val_idx)
     """
     npz_path = CACHE_DIR / "strict3_embeddings.npz"
     manifest_path = CACHE_DIR / "strict3_manifest.json"
@@ -392,9 +393,9 @@ def _build_numba_kernel():
 
 
 def fit_one_user(z_prof: np.ndarray, z_val: np.ndarray) -> tuple[dict | None, dict | None]:
-    """拟合一个用户的 full Σ_u (Numba 内核加速, ~10-30× speedup).
+    """Fit one user's full Σ_u (Numba kernel accelerated, ~10-30x speedup).
 
-    Returns (full_stats, rank1_stats). 任一失败则对应项为 None.
+    Returns (full_stats, rank1_stats). On failure the corresponding entry is None.
     """
     n_prof, n_val = len(z_prof), len(z_val)
     if n_prof < MIN_PROFILE_SENTS or n_val < MIN_VAL_SENTS:
@@ -439,7 +440,7 @@ def _load_asin_users() -> dict[str, list[str]]:
         raise FileNotFoundError(
             f"missing: {ASIN_USERS_PATH} (run 02_user_review_sentence_extract first)"
         )
-    # 用户指令 2026-09-23: 改用 pickle.load (Stage 02 已切换 pkl-only).
+    # User request 2026-09-23: switch to pickle.load (Stage 02 already pkl-only).
     with open(ASIN_USERS_PATH, "rb") as f:
         raw = pickle.load(f)
     if not isinstance(raw, dict):
@@ -459,7 +460,7 @@ def _build_cohort_gates(
     users: dict[str, dict],
     smoke_asins: list[str] | None = None,
 ) -> dict[str, dict[str, dict]]:
-    """从独立 ASIN cohort mapping 建立 compact gate，不复制 Gaussian 矩阵。"""
+    """Build a compact gate from an independent ASIN cohort mapping, without copying the Gaussian matrix."""
     eligible: list[tuple[str, list[str]]] = []
     for asin, uids in asin_to_users.items():
         if smoke_asins is not None and asin not in smoke_asins:
@@ -486,9 +487,9 @@ def _build_cohort_gates(
 
 
 def _add_theoretical_gates(stats_path: Path, label: str, z_dim: int) -> None:
-    """后处理: 给已有 user_gaussian_stats.json 加 d2_qXX_theoretical 字段 + cohort theo gate。
+    """Postprocess: add d2_qXX_theoretical fields and the cohort theoretical gate to an existing user_gaussian_stats.json.
 
-    等价于 rewrite_gaussian_with_theoretical_gate.py (已被合并)。
+    Equivalent to rewrite_gaussian_with_theoretical_gate.py (already merged).
     """
     log(f"=== theoretical gate postprocess: {label} ===")
     if not stats_path.exists():
@@ -738,8 +739,8 @@ def main_task_body() -> None:
     )
     log(f"=== Stage 04 DONE in {time.time() - t0:.1f}s ===")
 
-    # 2026-09-15: 自动 post-process 给两个产物加 theoretical gate 字段
-    # (等价于旧 rewrite_gaussian_with_theoretical_gate.py, 已被合并)
+    # 2026-09-15: automatic post-process to add theoretical gate fields to both artifacts
+    # (equivalent to the old rewrite_gaussian_with_theoretical_gate.py, already merged)
     _add_theoretical_gates(OUT_PATH, "full Σ schema", z_dim=int(z_profile.shape[1]))
     _add_theoretical_gates(OUT_PATH_RANK1, "rank1+residual schema", z_dim=int(z_profile.shape[1]))
 
@@ -749,11 +750,12 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User request 2026-09-23: run the 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the path constants used by this script to the
+    category-specific paths, then call the original main_task_body()
+    (keeping the original logic unchanged). Outputs go to the
+    result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_PATH_RANK1, CACHE_DIR  # noqa
     # backup current (Baby) defaults
@@ -767,7 +769,7 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
-        # 用户指令 2026-09-23: Stage 03a 写到 pcfg_cache_<subdir>/, 04 必须按 subdir 重绑 CACHE_DIR.
+        # User request 2026-09-23: Stage 03a writes to pcfg_cache_<subdir>/, so 04 must rebind CACHE_DIR per subdir.
         if "CACHE_DIR" in saved:
             CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
         if "SENT_CACHE" in saved:

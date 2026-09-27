@@ -1,30 +1,31 @@
-"""构建并清洗 scratch 中的 Stage 11 产品文档缓存。
+"""Build and clean Stage 11 product document cache in scratch.
 
-本脚本从 `syntax_subspace_retrieval_unified.py` 中分离出来（2026-09-22），
-承担两件事：
-  1. 把 `data/meta_Baby_Products_2023.jsonl` 的每条记录组装成结构化文档
-     （product / brand / category / dimensions / weight / description / features）
-  2. 对组装好的 doc 字符串施加 4 层清洗：
-       Tier 1：营销话术剥离（Brand Story / From the Manufacturer / See more /
-               Add to Cart / Worry-free / Customer Service 等纯模板噪声）
-       Tier 2：内容去重（dimensions/weight 在 description 中重复、product 标题
-               在 description / features 中重复、features 首条 == product 全名）
-       Tier 3：格式规范化（features 编号重排、ALL CAPS 行转 title case、URL /
-               hashtag 清理）
-       Tier 5：编码修复（mojibake、混合非英文字符）
+Split out of `syntax_subspace_retrieval_unified.py` on 2026-09-22.
+Two responsibilities:
+  1. Assemble each record of `data/meta_Baby_Products_2023.jsonl` into a structured
+     document (product / brand / category / dimensions / weight / description / features).
+  2. Apply 4 cleaning tiers to the assembled doc string:
+       Tier 1: marketing noise stripping (Brand Story / From the Manufacturer /
+               See more / Add to Cart / Worry-free / Customer Service template noise)
+       Tier 2: content dedup (dimensions/weight repeated in description,
+               product title repeated in description/features,
+               features[0] == full product name)
+       Tier 3: format normalization (features renumber, ALL CAPS lines to title case,
+               URL / hashtag cleanup)
+       Tier 5: encoding repair (mojibake, mixed non-English chars)
 
-清洗规则的设计目标：
-  - 不引入 fallback（Rule 7）：规则不命中 → 保留原文，不替换
-  - 不修改源数据：META_FILE 只读
-  - 缓存签名包含 META_FILE mtime+size + n_asins，源文件变化自动失效
-  - 输出覆盖 `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<category>/asin_to_doc.json`，下游
-    BM25/SPLADE/MiniLM/MPNet/BGE/GTE/ColBERTv2 7 个检索器自动消费清洗后版本
+Cleaning rules design goals:
+  - No fallback (Rule 7): rule miss -> keep original text, do not substitute.
+  - Do not modify source data: META_FILE is read-only.
+  - Cache signature includes META_FILE mtime+size + n_asins, invalidates on source change.
+  - Output overwrites `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<category>/asin_to_doc.json`;
+    downstream BM25/SPLADE/MiniLM/MPNet/BGE/GTE/ColBERTv2 (7 retrievers) auto-consume the cleaned version.
 
-被引用方：
-  - 11_syntactic_evaluation/syntax_subspace_retrieval_unified.py（main + dense_retrieve）
-  - 12_typo_evaluation / 13_syntactic_rerank / 14_typo_rerank 均消费同一份 json
+Consumers:
+  - 11_syntactic_evaluation/syntax_subspace_retrieval_unified.py (main + dense_retrieve)
+  - 12_typo_evaluation / 13_syntactic_rerank / 14_typo_rerank all consume the same json.
 
-运行方式（无 CLI 参数，按 Rule 4）：
+Run (no CLI args, per Rule 4):
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
   /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python 11_syntactic_evaluation/build_asin_to_doc.py
 """
@@ -41,14 +42,14 @@ from pathlib import Path
 from typing import Iterable
 
 # ===========================================================================
-# PATHS (硬编码，按 Rule 4)
+# PATHS (hardcoded, per Rule 4)
 # ===========================================================================
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-# 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
+# User directive 2026-09-23: data directory migrated from REPO_ROOT/data to hj82 same-name data directory.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
 ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
-# 三个 category 的 corpus cache 均写入 hj82_scratch2，避免把缓存堆在 result/。
+# All 3 category corpus caches are written to hj82_scratch2 to avoid stacking cache under result/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -65,16 +66,16 @@ def log(msg: str) -> None:
 
 
 # ===========================================================================
-# 基础字符清理（与原文件 _clean_doc_text 等价）
+# Basic character cleaning (equivalent to original _clean_doc_text)
 # ===========================================================================
 _ALLOWED_PUNCTUATION = set("-_/.,:%&+()[]'\"#")
 
 
 def _clean_doc_text(value) -> str:
-    """基础字符清理：HTML escape、emoji、非字母数字符号 → 空格。
+    """Basic character cleaning: HTML escape, emoji, non-alphanumeric symbols -> space.
 
-    保留 # / & / + 等产品文档常见符号（features 用 '#N:' 编号、category 用 '/'
-    分隔、dimensions 用 'x' 分隔）。
+    Preserves # / & / + and other common product-doc symbols (features use '#N:' numbering,
+    category uses '/' separator, dimensions use 'x' separator).
     """
     if isinstance(value, list):
         value = " ".join(str(x) for x in value if x is not None)
@@ -96,9 +97,9 @@ def _clean_doc_text(value) -> str:
 
 
 # ===========================================================================
-# Tier 5：编码修复（轻量 ftfy 替代，不引第三方库）
+# Tier 5: encoding repair (lightweight ftfy replacement, no third-party libs)
 # ===========================================================================
-# 常见 mojibake 字节残留（UTF-8/Latin-1/CP1252 互转错误）
+# Common mojibake byte residues (UTF-8/Latin-1/CP1252 cross-decoding errors)
 _MOJIBAKE_MAP = {
     "\u00c2\u00a0": " ",       # NBSP via UTF-8 of Latin-1 0xA0
     "\u00c2\u2019": "'",       # curly quote
@@ -125,11 +126,11 @@ _MOJIBAKE_MAP = {
 }
 _MOJIBAKE_PATTERN = re.compile("|".join(re.escape(k) for k in _MOJIBAKE_MAP.keys()))
 
-# 孤立 mojibake 字符（Latin-1/CP1252 字节被错误解码为 UTF-8）
+# Isolated mojibake chars (Latin-1/CP1252 bytes erroneously decoded as UTF-8)
 _ISOLATED_MOJIBAKE_RE = re.compile(r"[\u00c2\u00e2](?!\S)")
-# 在单词内部的孤立 â（剩余 mojibake 残留，非源数据）；保留为 ''
+# Isolated â inside words (residual mojibake, not source data); preserved as ''
 
-# 非英文字符（CJK + 西文重音字母 + 西里尔 + 希腊 + 阿拉伯 + 希伯来）
+# Non-English chars (CJK + Latin diacritics + Cyrillic + Greek + Arabic + Hebrew)
 _NON_EN_RE = re.compile(
     r"[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af"
     r"\u0400-\u04ff\u0370-\u03ff\u0590-\u05ff"
@@ -138,9 +139,10 @@ _NON_EN_RE = re.compile(
 
 
 def _fix_encoding(text: str) -> str:
-    """修复 mojibake + 剥离混合的非英文字符。
+    """Repair mojibake + strip mixed non-English characters.
 
-    mojibake 是确定性的字符替换；混合 CJK 等字符通常是数据采集错误，整段剥离。
+    Mojibake is a deterministic character replacement; mixed CJK and similar characters
+    are typically data collection errors, stripped wholesale.
     """
     if not text:
         return text
@@ -151,27 +153,27 @@ def _fix_encoding(text: str) -> str:
 
 
 # ===========================================================================
-# Tier 1：营销话术剥离
+# Tier 1: marketing noise stripping
 # ===========================================================================
-# 这些模式描述的子句/片段在产品描述中无信息价值。
-# 匹配方式：每个模式是一个 regex，匹配 description / features 中的子句。
-# 设计原则：仅匹配"成句"或"独立短语"，避免误删真实产品信息。
+# These patterns describe clauses/fragments that carry no information value in product descriptions.
+# Match form: each pattern is a regex matching clauses in description / features.
+# Design principle: only match "full sentences" or "standalone phrases" to avoid deleting real product info.
 _MARKETING_SENTENCE_PATTERNS = [
-    # UI / 模板 header
+    # UI / template header
     r"^\s*Product Description\s*[:.\-]?\s*$",
     r"^\s*Product Details\s*[:.\-]?\s*$",
     r"^\s*From the Manufacturer\s*[:.\-]?\s*$",
     r"^\s*Brand Story\s*(?:By\s+[\w\s&\-'.]+)?\s*[:.\-]?\s*$",
     r"^\s*See more\s*\.?\s*$",
     r"^\s*Read more\s*\.?\s*$",
-    # CTA / 销售话术
+    # CTA / sales pitch
     r"^\s*Click(?:\s+[\"'])?Add to Cart(?:\s+[\"'])?\s+now\.?\s*$",
     r"^\s*Add to Cart(?:\s+now)?\.?\s*$",
     r"^\s*Order\s+Now(?:\s+Without\s+Risk)?\.?\s*$",
     r"^\s*Buy it now\.?\s*$",
     r"^\s*Don'?t hesitate(?:\s+any\s+more)?(?:,)?\s*buy it now\.?\s*$",
     r"^\s*Make these?\s+[\w\s]+part of your\s+[\w\s]+(?:daily\s+life|essentials?)\.?\s*$",
-    # 售后承诺
+    # after-sales promises
     r"^\s*24[\- ]?hour\s+friendly\s+customer\s+service\.?\s*$",
     r"^\s*24[\- ]?h\s+(?:friendly\s+)?customer\s+service\.?\s*$",
     r"^\s*We offer\s+24[\- ]?h(?:our)?\s+(?:friendly\s+)?(?:customer\s+)?service\.?\s*$",
@@ -182,13 +184,13 @@ _MARKETING_SENTENCE_PATTERNS = [
     r"^\s*Please do not hesitate to contact us.*?\.?\s*$",
     r"^\s*(?:Contact|Reach out to) us (?:at once|right away|now).*?\.?\s*$",
     r"^\s*We (?:offer|provide) 24h? service.*?\.?\s*$",
-    # 营销泛化
+    # generic marketing phrases
     r"^\s*It(?:'s| is) (?:really |so )?(?:a )?(?:great|good|nice|perfect|amazing) (?:gift|choice|option)(?:\s+for\s+(?:the\s+)?[\w\s]+)?\.?\s*$",
     r"^\s*The (?:perfect|ideal|best) (?:gift|choice|option) for\s+.*?\.?\s*$",
     r"^\s*Makes? (?:a )?(?:great|perfect|ideal) (?:gift|present)\.?\s*$",
-    # 全大写标题行（marketing slogan）：以全大写词开头
+    # all-caps header line (marketing slogan): starts with all-caps word
     r"^\s*([A-Z][A-Z&\-]{2,}\s+){3,}[A-Z][A-Z&\-:]*\s*\.?\s*$",
-    # 子串级（必须整段匹配才删）
+    # substring-level (only delete on full match)
 ]
 _MARKETING_SUBSTRING_PATTERNS = [
     (r"\bBrand Story\s+By\s+\S+(?:\s+\S+){0,3}\.?\s*", " "),
@@ -205,11 +207,11 @@ _MARKETING_SUBSTRING_PATTERNS = [
 
 
 def _strip_marketing_noise(text: str) -> str:
-    """Tier 1：删除纯营销话术子句/片段。"""
+    """Tier 1: delete pure marketing-noise clauses/fragments."""
     if not text:
         return text
-    # Step 1：按子句级删除整句（sentence-level）
-    # 句子切分：以 . ! ? 加 换行/大写字母起首 作为边界
+    # Step 1: clause-level whole-sentence deletion (sentence-level)
+    # Sentence split: uses . ! ? + newline / capital-letter start as boundaries
     sentences = re.split(r"(?<=[.!?])\s+|(?<=\.)\s*\n", text)
     kept = []
     for s in sentences:
@@ -224,28 +226,28 @@ def _strip_marketing_noise(text: str) -> str:
         if not is_marketing:
             kept.append(s)
     text = " ".join(kept)
-    # Step 2：子串级删除（部分话术不在句首）
+    # Step 2: substring-level deletion (some phrases are not at sentence start)
     for pat, repl in _MARKETING_SUBSTRING_PATTERNS:
         text = re.sub(pat, repl, text, flags=re.IGNORECASE)
-    # Step 3：URL 清理
+    # Step 3: URL cleanup
     text = re.sub(r"https?://\S+", " ", text)
     text = re.sub(r"\bwww\.\S+", " ", text)
-    # 收尾空白
+    # Trailing whitespace cleanup
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
 # ===========================================================================
-# Tier 2：内容去重
+# Tier 2: content dedup
 # ===========================================================================
 def _extract_numeric_tokens(text: str) -> list[str]:
-    """提取文本中的数字/单位 token（用于 dimensions/weight 重复检测）。"""
+    """Extract numeric / unit tokens from text (used for dimensions/weight dup detection)."""
     return re.findall(r"\d+(?:\.\d+)?", text)
 
 
 def _dedup_repeated_content(desc: str, dims: str, wt: str, product_title: str) -> str:
-    """Tier 2：从 description 中删除与 dimensions/weight 数值重复的子句，
-    以及首句如果是 product 标题全文。
+    """Tier 2: from description, delete clauses whose numbers repeat dimensions/weight,
+    and the first sentence if it equals the full product title.
     """
     if not desc:
         return desc
@@ -257,22 +259,22 @@ def _dedup_repeated_content(desc: str, dims: str, wt: str, product_title: str) -
         s_strip = s.strip()
         if not s_strip:
             continue
-        # 检查：是否本句主要在复述 dimensions 数字？
+        # Check: does this sentence mostly repeat dimensions numbers?
         nums_in_s = _extract_numeric_tokens(s_strip)
         if dim_nums and len(nums_in_s) >= 2:
             overlap = sum(1 for n in nums_in_s if n in dim_nums)
-            # 本句数字多数(≥2且覆盖超 80%)与 dimensions 数字重叠 → 复述尺寸
+            # Most numbers (>=2 and >=80% coverage) overlap with dimensions -> restating size
             if overlap >= max(2, int(len(nums_in_s) * 0.8)):
                 continue
-        # 检查：是否本句主要在复述 weight 数字？
+        # Check: does this sentence mostly repeat weight numbers?
         if wt_nums and len(nums_in_s) == 1:
             if nums_in_s[0] in wt_nums and len(s_strip) < 60:
                 continue
-        # 检查：是否本句 == product 标题全文（重复）
+        # Check: does this sentence equal the full product title (duplicate)?
         if product_title and len(product_title) >= 20:
             pt_lower = product_title.lower()
             s_lower = s_strip.lower()
-            # 句子包含 product_title 且长度不超过 title 的 1.5倍 → 复述
+            # Sentence contains product_title and length <= 1.5x of title -> restating
             if pt_lower in s_lower and len(s_strip) <= int(len(product_title) * 1.5):
                 continue
         kept.append(s)
@@ -281,25 +283,25 @@ def _dedup_repeated_content(desc: str, dims: str, wt: str, product_title: str) -
 
 
 def _dedup_features_title(features: list[str], product_title: str) -> list[str]:
-    """Tier 2：若 features[0] 与 product 标题相同或高度相似，删除该条。"""
+    """Tier 2: if features[0] equals or is highly similar to product title, delete it."""
     if not features or not product_title or len(product_title) < 15:
         return features
     pt_lower = product_title.lower()
     first = features[0].strip()
     first_lower = first.lower()
-    # features[0] 包含 product_title 且长度不超过 1.5x → 复述
+    # features[0] contains product_title and length <= 1.5x -> restating
     if pt_lower in first_lower and len(first) <= int(len(product_title) * 1.5):
         return features[1:]
-    # features[0] 与 product_title 完全相同
+    # features[0] exactly equals product_title
     if first_lower == pt_lower:
         return features[1:]
     return features
 
 
 # ===========================================================================
-# Tier 3：格式规范化
+# Tier 3: format normalization
 # ===========================================================================
-# 已知产品缩写 / 商标 / 材质缩写，转 title case 时应保留全大写
+# Known product abbreviations / trademarks / material acronyms; preserve uppercase when title-casing
 _KEEP_UPPER = {
     "BPA", "CPSIA", "FDA", "LFGB", "PVC", "PEVA", "PE", "PU", "PP",
     "USA", "UK", "EU", "USD", "TOG", "NICU", "PVC", "TPU", "TPE",
@@ -316,16 +318,16 @@ _KEEP_UPPER = {
 
 
 def _normalize_caps_line(line: str) -> str:
-    """Tier 3.1：检测行首前 N 个词是否全大写（marketing 标题型），若是 → 转 title case。
+    """Tier 3.1: detect if first N words are all uppercase (marketing-title style); if so -> title case.
 
-    阈值：前 5 个字母词中 uppercase >= 4 个 且长度 > 30 字符。
+    Threshold: of first 5 alpha words, uppercase >= 4 and length > 30 chars.
     """
     if len(line) < 30:
         return line
     words = line.split()
     if len(words) < 3:
         return line
-    # 取行首前 5 个有字母的词
+    # Take first 5 words containing letters
     head_words = []
     for w in words:
         if any(c.isalpha() for c in w):
@@ -334,11 +336,11 @@ def _normalize_caps_line(line: str) -> str:
             break
     if len(head_words) < 3:
         return line
-    # 检查 head_words 中是否大多数 uppercase
+    # Check if most head_words are uppercase
     upper_cnt = sum(1 for w in head_words if w.isupper() or sum(1 for c in w if c.isupper()) >= len([c for c in w if c.isalpha()]) - 1)
     if upper_cnt < 3:
         return line
-    # 转为 title case：保留缩写词大写
+    # Convert to title case: preserve acronyms uppercase
     out = []
     for w in words:
         stripped = w.strip(".,:;()[]'\"")
@@ -354,31 +356,31 @@ def _normalize_caps_line(line: str) -> str:
 
 
 def _renumber_features(features: list[str]) -> list[str]:
-    """Tier 3.2：features 重编号（按当前顺序 1..N），原 '#N:' 前缀会被替换。"""
+    """Tier 3.2: renumber features (in current order 1..N); existing '#N:' prefix is replaced."""
     cleaned = [f.strip() for f in features if f and f.strip()]
     return [f"#{i}: {feat}" for i, feat in enumerate(cleaned, 1)]
 
 
 # ===========================================================================
-# 字段级清洗管道
+# Field-level cleaning pipeline
 # ===========================================================================
 def _clean_description(desc: str, dims: str, weight: str, product_title: str) -> str:
-    """对 description 字段施加 全部 4 层清洗。"""
+    """Apply all 4 cleaning tiers to the description field."""
     if not desc:
         return desc
     desc = _strip_marketing_noise(desc)
     # Tier 5
     desc = _fix_encoding(desc)
-    # Tier 2：与 dimensions/weight 数字重复 + product 标题重复 → 子句级删除
+    # Tier 2: dimensions/weight number duplicates + product title duplicates -> clause-level delete
     desc = _dedup_repeated_content(desc, dims, weight, product_title)
-    # Tier 3.1：ALL CAPS 行规范化
-    # description 已经被规范化成单行（build_meta_corpus 时已 \n → space）
+    # Tier 3.1: ALL CAPS line normalization
+    # description has already been normalized to single line (\n -> space in build_meta_corpus)
     desc = _normalize_caps_line(desc)
     return desc
 
 
 def _clean_features(features: list[str], product_title: str) -> list[str]:
-    """对 features 列表施加清洗：Tier 1 (marketing) + Tier 2 (title dup) + Tier 3 (renumber)。"""
+    """Clean features list: Tier 1 (marketing) + Tier 2 (title dup) + Tier 3 (renumber)."""
     cleaned = []
     for f in features:
         if not f:
@@ -387,14 +389,14 @@ def _clean_features(features: list[str], product_title: str) -> list[str]:
         c = _fix_encoding(c)
         if c:
             cleaned.append(c)
-    # Tier 2：features[0] 是否与 product 标题重复
+    # Tier 2: does features[0] duplicate the product title?
     cleaned = _dedup_features_title(cleaned, product_title)
-    # Tier 3.2：重编号
+    # Tier 3.2: renumber
     return _renumber_features(cleaned)
 
 
 def _clean_simple_field(value: str) -> str:
-    """对 brand / category / dimensions / weight 等简单字段做 Tier 5 + Tier 1 子串清理。"""
+    """Apply Tier 5 + Tier 1 substring cleanup to simple fields like brand / category / dimensions / weight."""
     if not value:
         return value
     value = _strip_marketing_noise(value)
@@ -403,7 +405,7 @@ def _clean_simple_field(value: str) -> str:
 
 
 # ===========================================================================
-# 缓存签名（与 syntax_subspace_retrieval_unified.py 兼容）
+# Cache signature (compatible with syntax_subspace_retrieval_unified.py)
 # ===========================================================================
 def _asin_content_sha1(asin_to_doc: dict[str, str]) -> str:
     """Compute sha1 over asin_to_doc sorted contents (40 hex chars)."""
@@ -422,17 +424,18 @@ def _asin_content_sha1(asin_to_doc: dict[str, str]) -> str:
 
 def _corpus_signature(asin_to_doc: dict[str, str] | None = None,
                      meta_file: Path | None = None) -> str:
-    """Fast corpus fingerprint。
+    """Fast corpus fingerprint.
 
-    公式：`sha1(meta_mtime+size + "|" + content_sha1)[:16]`
+    Formula: `sha1(meta_mtime+size + "|" + content_sha1)[:16]`
 
-    - meta_mtime+size：META_FILE 状态变化失效
-    - content_sha1：清洗后内容变化失效
-    - 16 hex 截断：紧凑指纹
-    - 2026-09-23：修复 self-reference bug——旧版读 .sig 文件内容作 ad_sig
-      输入指纹，但 .sig 内容本身是上一次的指纹（含 meta mtime+size），导致
-      cache check 与 build 末尾的两次算法输入不一致，永远 mismatch 死循环。
-      新版要求 .sig 第一行是 content_sha1（40 hex），cache check 直接读第一行。
+    - meta_mtime+size: META_FILE state change invalidates
+    - content_sha1: cleaned content change invalidates
+    - 16 hex truncation: compact fingerprint
+    - 2026-09-23: fixed self-reference bug - old version read .sig file content as
+      fingerprint input, but .sig content itself is the previous fingerprint (incl.
+      meta mtime+size), causing the cache check vs build-end algorithm inputs to
+      never match, creating an infinite mismatch loop. New version requires .sig
+      line 1 to be content_sha1 (40 hex); cache check reads line 1 directly.
     """
     mf = Path(meta_file) if meta_file is not None else META_FILE
     st = mf.stat()
@@ -441,7 +444,7 @@ def _corpus_signature(asin_to_doc: dict[str, str] | None = None,
     elif mf == META_FILE:
         sig_path = ASIN_TO_DOC_CACHE.with_suffix(ASIN_TO_DOC_CACHE.suffix + ".sig")
         if sig_path.exists():
-            # .sig 第一行 = content_sha1 (40 hex)，其余为兼容历史注释行
+            # .sig line 1 = content_sha1 (40 hex), remaining lines are backward-compat comment lines
             content_sha1 = sig_path.read_text(encoding="utf-8").splitlines()[0].strip()
         else:
             content_sha1 = "0" * 40
@@ -459,26 +462,26 @@ def _sig_path_for(cache_path: Path) -> Path:
 
 
 # ===========================================================================
-# 主入口：build_meta_corpus
+# Main entry: build_meta_corpus
 # ===========================================================================
 def build_meta_corpus(force: bool = False) -> dict[str, str]:
-    """构建并清洗结构化产品文档，缓存到 ASIN_TO_DOC_CACHE。
+    """Build and clean structured product documents, cached to ASIN_TO_DOC_CACHE.
 
     Args:
-        force: 强制重建（忽略 sig 命中）。默认 False → sig 命中时直接读缓存。
+        force: Force rebuild (ignore sig hit). Default False -> on sig hit, read cache directly.
 
     Returns:
-        dict[asin, doc_text]。
+        dict[asin, doc_text].
 
     Raises:
-        FileNotFoundError: META_FILE 不存在（Rule 7：不静默 fallback）
-        ValueError: META_FILE 中记录缺少必填字段（Rule 7：不静默 fallback）
+        FileNotFoundError: META_FILE missing (Rule 7: no silent fallback)
+        ValueError: META_FILE record missing required fields (Rule 7: no silent fallback)
     """
     sig_path = _sig_path_for(ASIN_TO_DOC_CACHE)
     if not force and ASIN_TO_DOC_CACHE.exists() and sig_path.exists():
         current_sig = _corpus_signature(meta_file=META_FILE)
-        # .sig 文件格式：第一行 content_sha1 (40 hex)，第二行 fingerprint (16 hex)。
-        # cache check 比的是 fingerprint（第二行），与 _corpus_signature 输出对齐。
+        # .sig file format: line 1 = content_sha1 (40 hex), line 2 = fingerprint (16 hex).
+        # Cache check compares the fingerprint (line 2), aligned with _corpus_signature output.
         cached_sig = sig_path.read_text(encoding="utf-8").splitlines()
         cached_fingerprint = cached_sig[1].strip() if len(cached_sig) >= 2 else cached_sig[0].strip()
         if cached_fingerprint == current_sig:
@@ -529,7 +532,7 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
                     f"Required details field is not an object for ASIN {asin}"
                 )
             raw_title = r.get("title")
-            # title 缺失为预期内（数据源 217k 条中有 14 条，占 0.006%）：跳过记录
+            # Missing title is expected (14 of 217k records, ~0.006%): skip record
             if not raw_title:
                 n_skip_no_title += 1
                 continue
@@ -544,7 +547,7 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
                     f"Required features field is not a list for ASIN {asin}"
                 )
 
-            # 字段级清洗
+            # Field-level cleaning
             title = _clean_doc_text(raw_title)
             brand = _clean_simple_field(_clean_doc_text(details.get("Brand")))
             category = " / ".join(
@@ -563,11 +566,11 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
             raw_feature_values = [x for x in raw_feature_values if x]
             features = _clean_features(raw_feature_values, title)
             if len(features) < len(raw_feature_values):
-                # features 被清洗掉至少一条
+                # at least one feature was cleaned away
                 if features and features[0] != f"#1: {raw_feature_values[0]}":
                     n_dropped_title_dup += 1
 
-            # 组装
+            # Assemble
             lines = [f"product: {title}"]
             if brand:
                 lines.append(f"brand: {brand}")
@@ -594,8 +597,8 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
     with open(ASIN_TO_DOC_CACHE, "w", encoding="utf-8") as f:
         json.dump(asin_to_doc, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    # 2026-09-23: .sig 第一行写 content_sha1（40 hex），第二行写 fingerprint（16 hex）。
-    # 下次 cache check 读 .sig 第一行 → inline 算 fingerprint → 必 cache hit。
+    # 2026-09-23: .sig line 1 writes content_sha1 (40 hex), line 2 writes fingerprint (16 hex).
+    # Next cache check reads .sig line 1 -> inline-compute fingerprint -> guaranteed cache hit.
     content_sha1 = _asin_content_sha1(asin_to_doc)
     current_sig = _corpus_signature(asin_to_doc=asin_to_doc, meta_file=META_FILE)
     sig_path = _sig_path_for(ASIN_TO_DOC_CACHE)
@@ -607,10 +610,10 @@ def build_meta_corpus(force: bool = False) -> dict[str, str]:
 
 
 # ===========================================================================
-# CLI 入口
+# CLI entry
 # ===========================================================================
 def main_task_body(force: bool = False) -> None:
-    """独立运行入口：生成并清洗 asin_to_doc.json。"""
+    """Standalone run entry: generate and clean asin_to_doc.json."""
     log("=== build_asin_to_doc.py ===")
     log(f"  META_FILE = {META_FILE}")
     log(f"  OUTPUT    = {ASIN_TO_DOC_CACHE}")
@@ -624,10 +627,10 @@ def main_task_body(force: bool = False) -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User directive 2026-09-23: run 3 categories serially.
 
-    每个 category 将 META_FILE 和 ASIN_TO_DOC_CACHE 绑定到类别专属路径,
-    然后调用 main_task_body() 构建 corpus cache 至
+    For each category, bind META_FILE and ASIN_TO_DOC_CACHE to the category-specific path,
+    then call main_task_body() to build the corpus cache at
     `/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/<subdir>/`.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE  # noqa

@@ -158,8 +158,8 @@ STAGE04_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_cohort3mlp16_
 SELECTED = REPO_ROOT / "result/08_select_query/selected_queries.json"
 OUT_RESULTS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 OUT_SUMMARY = REPO_ROOT / "result/10_typo_injection/cohort_summary.json"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/10_typo_injection/<subdir>/.
+# User instruction 2026-09-23: 3 categories (Baby / Musical / Video_Games),
+# main() runs 3 domains serially, outputs go to result/10_typo_injection/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -212,10 +212,10 @@ def load_inputs():
     gate_q = config.get("gate_quantile") if isinstance(config, dict) else None
     if gate_q is None:
         raise ValueError("Stage 04 config missing gate_quantile")
-    # 2026-09-19: 用 gate_quantile (config 0.05) 走 d2_q05_theoretical (Stage 4 标定值)
-    gate_q = 0.05  # 与 Stage 8 cohort gate 一致
-    # 2026-09-15: 读理论 χ²(d, gate_quantile) = d2_q{nn}_theoretical
-    # Stage 10 用低侧 rejection: gate_quantile=0.05 → d2_q05_theoretical = χ²(16, 0.05)
+    # 2026-09-19: use gate_quantile (config 0.05) for d2_q05_theoretical (Stage 4 calibration value)
+    gate_q = 0.05  # aligned with Stage 8 cohort gate
+    # 2026-09-15: read theoretical χ²(d, gate_quantile) = d2_q{nn}_theoretical
+    # Stage 10 uses low-side rejection: gate_quantile=0.05 → d2_q05_theoretical = χ²(16, 0.05)
     d2_key = f"d2_q{int(gate_q * 100):02d}_theoretical"
     expanded_cohort = {}
     for asin, gates in cohort.items():
@@ -225,28 +225,28 @@ def load_inputs():
         for uid, gate in gates.items():
             if uid not in mahal:
                 raise ValueError(f"cohort {asin} references missing user {uid}")
-            # Stage 04 产物字段适配:
-            # - 低侧 (pre_theoretical_gate): 只有 gate_T (empirical)
-            # - 高侧 (canonical/theoretical_gate): gate_T_low_theoretical + gate_T_high_theoretical
+            # Stage 04 artifact field adaptation:
+            # - low-side (pre_theoretical_gate): only gate_T (empirical)
+            # - high-side (canonical/theoretical_gate): gate_T_low_theoretical + gate_T_high_theoretical
             has_theoretical = isinstance(gate, dict) and "gate_T_high_theoretical" in gate and "gate_T_low_theoretical" in gate
             if not has_theoretical and (not isinstance(gate, dict) or "gate_T" not in gate):
                 raise ValueError(
                     f"cohort {asin}/{uid} missing gate_T — "
                     "rerun 04_gaussian/fit_per_user_gaussian.py")
             user_stats = mahal[uid]
-            # 2026-09-19: cohort3mlp16_30 用 lowrank+diag (sigma_diag_sq + V + lambdas),
-            # 而非 canonical sigma_inv. 适配两种格式:
-            # - canonical:  user 必有 'sigma_inv' (full cov inverse)
-            # - lowrank+diag: user 有 'sigma_diag_sq', 'lambdas', 'V' → 在此构造 sigma_inv
-            # 2026-09-19: gate_q=1.0 改用 d2_max (实测最大 d² 兜底) 而非 theoretical q100
+            # 2026-09-19: cohort3mlp16_30 uses lowrank+diag (sigma_diag_sq + V + lambdas),
+            # instead of canonical sigma_inv. Handle both formats:
+            # - canonical:  user has 'sigma_inv' (full cov inverse)
+            # - lowrank+diag: user has 'sigma_diag_sq', 'lambdas', 'V' → construct sigma_inv here
+            # 2026-09-19: gate_q=1.0 uses d2_max (empirical max d² fallback) instead of theoretical q100
             if gate_q >= 1.0:
                 d2_key = "d2_max"
             if d2_key not in user_stats or "mu" not in user_stats:
                 raise ValueError(f"Stage 04 user {uid} is missing Gaussian field {d2_key}")
             if "sigma_inv" not in user_stats:
-                # 构造 sigma_inv = (λ vv^T + diag(σ_d²))^{-1}
-                # 用 Woodbury: (A + UCV)^{-1} = A^{-1} - A^{-1} U (C^{-1} + V A^{-1} U)^{-1} V A^{-1}
-                # 这里 A = diag(σ_d²), U = v, C = λ^{-1} (1×1), V = v^T
+                # Construct sigma_inv = (λ vv^T + diag(σ_d²))^{-1}
+                # Use Woodbury: (A + UCV)^{-1} = A^{-1} - A^{-1} U (C^{-1} + V A^{-1} U)^{-1} V A^{-1}
+                # Here A = diag(σ_d²), U = v, C = λ^{-1} (1×1), V = v^T
                 # sigma_inv ≈ diag(1/σ_d²) - (1/σ_d² ⊗ v) (1/λ + v^T (1/σ_d² ⊗ v))^{-1} (v^T ⊗ 1/σ_d²)
                 sd = np.asarray(user_stats["sigma_diag_sq"], dtype=np.float64)
                 lam = float(np.asarray(user_stats["lambdas"]).reshape(-1)[0])
@@ -259,21 +259,21 @@ def load_inputs():
                 Av = inv_sd * V                       # (D,)
                 sigma_inv = (Ainv - np.outer(Av, Av) / M).astype(np.float32)
                 user_stats["sigma_inv"] = sigma_inv.tolist()
-            # 2026-09-19: gate_q>=1.0 时 d2_key=d2_max, cohort gate 用实测 gate_T_high (skip np.isclose 校准)
+            # 2026-09-19: gate_q>=1.0 → d2_key=d2_max, cohort gate uses empirical gate_T_high (skip np.isclose calibration)
             if gate_q >= 1.0:
                 pass
             elif has_theoretical and not np.isclose(float(gate["gate_T_high_theoretical"]),
                               float(user_stats[d2_key]),
                               rtol=0.0, atol=1.0):
-                # 2026-09-19: cohort gate 用 empirical d2_q95, 用户统计用 theoretical d2_q05,
-                # 数值不相等; 用 atol=1.0 容忍 (q95_empirical≈22, q05_theoretical≈8, 差 ~14).
+                # 2026-09-19: cohort gate uses empirical d2_q95, user stats use theoretical d2_q05,
+                # values are unequal; use atol=1.0 tolerance (q95_empirical≈22, q05_theoretical≈8, diff ~14).
                 pass
             expanded_cohort[asin][uid] = {
                 "mu": user_stats["mu"],
                 "sigma_inv": user_stats["sigma_inv"],
                 "user_stats": user_stats,
-                # 2026-09-19: target user 主 gate 用 q95 theoretical (26.30); comp gate 在 _is_batch_comp_gate
-                # 用 ratio 比较 (typo 后 d²_target × 1.5 vs d²_c).
+                # 2026-09-19: target user main gate uses q95 theoretical (26.30); comp gate in _is_batch_comp_gate
+                # uses ratio comparison (typo'd d²_target × 1.5 vs d²_c).
                 "gate_T": float(gate["gate_T_high_theoretical"]) if (gate_q < 1.0 and has_theoretical) else (float(user_stats["d2_max"]) if gate_q >= 1.0 else float(gate["gate_T"])),
                 "n": int(gate.get("n_profile", user_stats["n"])),
                 "n_val": int(gate.get("n_val", user_stats.get("n_val", 0))),
@@ -286,11 +286,11 @@ def load_inputs():
     for entry in sel["selections"]:
         asin = entry.get("asin")
         if asin not in expanded_cohort:
-            continue   # 2026-09-19: cohort3mlp16_30 pre_theoretical_gate 只 2934 ASINs, skip 不覆盖的
+            continue   # 2026-09-19: cohort3mlp16_30 pre_theoretical_gate covers only 2934 ASINs, skip uncovered
         for selected_user in entry.get("users", []):
             uid = selected_user.get("uid")
             if uid not in mahal or uid not in expanded_cohort[asin]:
-                continue   # 2026-09-19: skip uid 缺失 (cohort3mlp16_30 仅 985 trained uids)
+                continue   # 2026-09-19: skip missing uid (cohort3mlp16_30 has only 985 trained uids)
     log(f"  loaded {len(sel['selections'])} selections")
     n_pairs = sum(len(c) for c in expanded_cohort.values())
     log(f"  loaded Stage 04: {len(mahal)} users, {len(expanded_cohort)} ASIN cohort gates, "
@@ -307,7 +307,7 @@ def collect_pairs(selections, mahal, cohort=None):
             uid = u["uid"]
             if uid not in mahal:
                 continue
-            # 2026-09-19: cohort gate skip pair 不在 cohort3mlp16_30 pre_theoretical_gate 子集
+            # 2026-09-19: cohort gate skip pairs not in cohort3mlp16_30 pre_theoretical_gate subset
             if cohort is not None and (asin not in cohort or uid not in cohort[asin]):
                 continue
             pairs.append((uid, asin, u["query"]))
@@ -1057,8 +1057,8 @@ def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str,
                         vocab_size: int) -> np.ndarray:
     """texts → 16d StyleMLP z (Stage 8 pipeline: rules → SVD → MLP).
 
-    2026-09-19: 当 encoder 是 StyleMLP (cohort2_mlp16_30_30ep.pt) 时走 SVD→MLP 路径;
-    当 encoder 是 _SupEncoder (strict3_encoder.pt) 时直接吃 counts.
+    2026-09-19: when encoder is StyleMLP (cohort2_mlp16_30_30ep.pt), use SVD→MLP path;
+    when encoder is _SupEncoder (strict3_encoder.pt), directly consume counts.
     """
     _pcfg = _is_load_pcfg_module()
     extract_struct_rules = _pcfg.extract_struct_rules
@@ -1078,7 +1078,7 @@ def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str,
                 f"({100 * (i+1) / n:.1f}%), "
                 f"elapsed={time.time() - encode_started:.1f}s")
     # Stage 08 uses binary rule presence with ROW_NORMALIZE=False.
-    # 检测 encoder 类型
+    # Detect encoder type
     is_style_mlp = "StyleMLP" in type(encoder).__name__
     if is_style_mlp:
         # SVD (256d) → StyleMLP (16d)
@@ -1164,9 +1164,9 @@ def _is_mahalanobis_d2(z: np.ndarray, mu: np.ndarray, sigma_inv: np.ndarray,
       - diagonal of inverse variances (svd_mlp 64d).
     Detect via ndim.
 
-    2026-09-19: 优先用 rank1+diag 显式公式 (与 Stage 8 cohort gates 数值一致),
-    避免 Woodbury σ_inv 数值放大 (rank=1 矩阵近奇异, 误差 100-300×).
-    user_stats 含 sigma_diag_sq / V / lambdas → 显式 d² = (V^T r)² / λ + r_resid² / σ_d²
+    2026-09-19: prefer the rank1+diag explicit formula (matches Stage 8 cohort gates numerically),
+    avoiding numerical amplification from Woodbury σ_inv (rank=1 matrix is near-singular, error 100-300×).
+    user_stats with sigma_diag_sq / V / lambdas → explicit d² = (V^T r)² / λ + r_resid² / σ_d²
     """
     if user_stats is not None and "sigma_diag_sq" in user_stats and "V" in user_stats:
         r = (z - mu).astype(np.float64)
@@ -1444,9 +1444,9 @@ def _is_batch_gate(
 def _is_batch_comp_gate(items: List[Dict], enabled: bool = True) -> List[Dict]:
     """Per-comp d² gate for exclusive cohort (Stage 10 user-specific).
 
-    enabled=False: 2026-09-19 移除 user-specific comp gate — 与 Stage 8 cohort gate 重复,
-    1915/1916 fail 是过度限制. 改为全部 pass (typo injection 不需"远离 comp user",
-    只需保证 typo 后仍属 target user cohort).
+    enabled=False: 2026-09-19 removed user-specific comp gate — duplicates Stage 8 cohort gate,
+    1915/1916 fails were over-restrictive. Pass all (typo injection does not require "far from comp user",
+    only that typo'd query still belongs to target user cohort).
     """
     for it in items:
         if not enabled:
@@ -1777,11 +1777,11 @@ def main_task_body():
     surface_form_only_skip_total = 0
     minimality_fail_total = 0
 
-    # 2026-09-19: uid not in profiles 时使用 generic_fallback profile (基于 global P_global),
-    # 这样所有 pair 都 attempted, 而不是只 sample 6 user。
+    # 2026-09-19: when uid not in profiles, use generic_fallback profile (based on global P_global),
+    # so that all pairs are attempted instead of sampling only 6 users.
     _generic_profile = {"__generic__": profiles.get("__generic__")}
     if "__generic__" not in profiles:
-        # 构造 generic fallback profile: 各 mechanism 概率均匀 (1/n_mechanisms)
+        # Construct generic fallback profile: uniform mechanism probabilities (1/n_mechanisms)
         from collections import defaultdict as _dd
         _char_mechs = ["keyboard_adjacent", "keyboard_layout", "letter_swap",
                       "letter_repetition", "letter_insertion", "letter_deletion",
@@ -1790,21 +1790,21 @@ def main_task_body():
             "p_u_err": 0.5,
             "n_tokens": 0,
             "n_edits": 0,
-            "n_char_level_edits": 1,    # 2026-09-19: 非0 才能让 line 1232 不 early-return -1
-            "p_u_char_level_err": 0.5, # 2026-09-19: 让 _el_char_level_rate_hierarchical 返回 >0
+            "n_char_level_edits": 1,    # 2026-09-19: non-zero so line 1232 does not early-return -1
+            "p_u_char_level_err": 0.5, # 2026-09-19: makes _el_char_level_rate_hierarchical return >0
             "context_probs": {},
             "error_rate_by_context": {},
-            "char_level_rate_by_context": {},  # 兜底用 p_u_char_level_err
+            "char_level_rate_by_context": {},  # fallback uses p_u_char_level_err
             "char_level_mechanism_probs": {m: 1.0 / len(_char_mechs) for m in _char_mechs},
             "char_level_mechanism_totals": {m: 1 for m in _char_mechs},
             "transformation_history": {},
         }
 
-    # 每个 query 最多注入 3 个独立 typo。
+    # Up to 3 independent typos per query.
     N_TYPOS_PER_QUERY = 3
     for i, (uid, asin, query) in enumerate(pairs):
         if uid not in mahal or asin not in cohort:
-            continue   # 2026-09-19: skip pair 不在 cohort3mlp16_30 pre_theoretical_gate 子集
+            continue   # 2026-09-19: skip pair not in cohort3mlp16_30 pre_theoretical_gate subset
         user_model = profiles.get(uid, _generic_profile["__generic__"])
         stats = mahal[uid]
         d2_threshold = stats[f"d2_{D2_THRESHOLD_QUANTILE}"]
@@ -1842,7 +1842,7 @@ def main_task_body():
                 "query_before": sampler_info["query_before"],
                 "query_after": sampler_info["query_after"],
             })
-            current_query = injected  # chain: 第 2 个 typo 应用到第 1 个 typo 后
+            current_query = injected  # chain: 2nd typo applied after 1st typo
 
         if not pair_typos:
             continue
@@ -1910,7 +1910,7 @@ def main_task_body():
     log(f"  encoded {len(items)*2} texts, d²_before/after computed")
     log("Phase 3: batch semantic + comp gates")
     items = _is_batch_semantic(items)
-    # 2026-09-19: 移除 user-specific comp gate — 1915/1916 fail 是过度限制, 与 Stage 8 select 语义冲突
+    # 2026-09-19: removed user-specific comp gate — 1915/1916 fails were over-restrictive, conflicts with Stage 8 select semantics
     items = _is_batch_comp_gate(items, enabled=False)
     log(f"  all gates computed")
 
@@ -2104,11 +2104,11 @@ def main_task_body():
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User instruction 2026-09-23: run 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebinds the script's path constants to category-specific paths,
+    then calls the original main_task_body() (logic unchanged). Outputs go to
+    result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SERCL_PROFILE, STAGE04_PATH, SELECTED, OUT_RESULTS, OUT_SUMMARY, ENCODER_PT, SVD_COMPONENTS_PATH, CORAL_ASIN_PATH, CACHE_DIR, _encoder, _encoder_vocab_size, _rule_to_id, _coral_data  # noqa
     # backup current (Baby) defaults

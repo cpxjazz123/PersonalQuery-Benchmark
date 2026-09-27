@@ -9,15 +9,16 @@ numeric values), and writes one pickle file per category:
   - result/01_attribute_extraction/product_attributes_musical.pkl      (Musical_Instruments)
   - result/01_attribute_extraction/product_attributes_video_games.pkl  (Video_Games)
 
-Each output dict maps asin -> {field_name: string_value}. 三个 category
-各自独立文件, 不合并 (用户指令 2026-09-23).
+Each output dict maps asin -> {field_name: string_value}. Three categories
+get separate files; not merged (user directive 2026-09-23).
 
-2026-09-23: 改 pickle 输出 (下游全是 Python 消费, 删 json 省 ~30MB).
+2026-09-23: switch to pickle output (downstream is Python-only; dropping json
+saves ~30MB).
 
 Also exports select_top_attrs() utility used by gaussian/build_user.py
 to pick top-N attrs per ASIN with numeric value exclusion.
 
-参数全部硬编码 (Rule 3), 不接受 CLI 参数.
+All parameters hard-coded (Rule 3); no CLI arguments.
 """
 from __future__ import annotations
 
@@ -32,17 +33,19 @@ from pathlib import Path
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
 
 # === Inputs ===
-# 用户指令 2026-09-23: data 目录从 ar57(PersoanlQuery/data) 整体迁移到 hj82,
-# 跨 LUSTRE 同盘瞬移, 保留所有现有产物路径. 下游脚本统一改 DATA_DIR.
+# User directive 2026-09-23: data dir migrated wholesale from
+# ar57 (PersoanlQuery/data) to hj82; cross-LUSTRE same-disk move preserving
+# all existing product paths. Downstream scripts update DATA_DIR uniformly.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 
-# 用户指令 2026-09-23: 三个 category 各自一份 meta, 各自一份产物 (不合并)。
-# 三份 share 同一套 extract / filter / select 逻辑, 输出文件名按 category
-# 后缀区分 (semantic suffix, 不是版本号 — Rule 17 合规).
-# 用户指令 2026-09-23: 改 .pkl (下游 Python-only).
+# User directive 2026-09-23: each of three categories gets its own meta and
+# its own output file (not merged). All three share the same extract /
+# filter / select logic; output filenames are distinguished by a
+# semantic category suffix (not a version number — Rule 17 compliant).
+# User directive 2026-09-23: switch to .pkl (downstream Python-only).
 META_INPUTS = [
     # (category_key, input_path, output_path)
-    # 用户指令 2026-09-23: 保留 Baby / Musical_Instruments / Video_Games.
+    # User directive 2026-09-23: keep Baby / Musical_Instruments / Video_Games.
     ("Baby",               DATA_DIR / "meta_Baby_Products_2023.jsonl",
                            REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes_baby.pkl"),
     ("Musical_Instruments", DATA_DIR / "meta_Musical_Instruments.jsonl",
@@ -51,38 +54,45 @@ META_INPUTS = [
                            REPO_ROOT / "result" / "01_attribute_extraction" / "product_attributes_video_games.pkl"),
 ]
 
-# 用户指令 2026-09-04: multiprocessing 加速 (13 cores, 留 3 给 OS/IO).
+# User directive 2026-09-04: multiprocessing speedup (13 cores, reserve 3
+# for OS/IO).
 N_WORKERS = min(10, max(1, (os.cpu_count() or 4) - 3))
-# chunk size: 每 worker 一次拿 N 条, 减少 IPC 开销
+# chunk size: each worker takes N lines at once to reduce IPC overhead
 CHUNK_SIZE = 5_000
 
-# === Step 1 — extract_attrs 参数 ===
+# === Step 1 — extract_attrs parameters ===
 MAX_STR_LEN = 200
 TOP_LEVEL_NUMERIC_FIELDS = ("average_rating", "rating_number", "price")
 
-# 用户指令 2026-09-04: 源头过滤含数字的 attr (单 attr 维度).
+# User directive 2026-09-04: filter attrs whose value contains digits at the
+# source (single-attr dimension).
 EXCLUDE_NUMERIC_VALUES = True
 
-# 用户指令 2026-09-04: 过滤数字后, attrs 数 < MIN_ATTRS 的 ASIN 整条跳过.
+# User directive 2026-09-04: after numeric filtering, skip the whole ASIN
+# when its surviving attr count drops below MIN_ATTRS_PER_ASIN.
 MIN_ATTRS_PER_ASIN = 5
 
-# 用户指令 2026-09-04: 短语 attr 过滤 — value word 数 > MAX_VALUE_WORDS
-# 视为短语跳过 (>3 words 的 value 多为 Feature 整句描述, 难被 LLM 自然注入 query).
+# User directive 2026-09-04: phrase attr filter — a value whose word count
+# exceeds MAX_VALUE_WORDS is treated as a phrase and skipped (>3-word
+# values are usually full Feature sentences that are hard for an LLM to
+# inject naturally into a query).
 MAX_VALUE_WORDS = 3
 
-# 用户指令 2026-09-04: yes/no 单值 attr 过滤 — value 是 yes/no/true/false
-# 的 attr 是二元 metadata (e.g. 'Is Discontinued By Manufacturer: Yes'),
-# 对 LLM 生成自然 query 无信息量, 跳过.
+# User directive 2026-09-04: yes/no single-value attr filter — an attr whose
+# value is yes/no/true/false is binary metadata (e.g. 'Is Discontinued By
+# Manufacturer: Yes') that carries no information for natural-query
+# generation, so skip it.
 _YES_NO_VALUES = {"yes", "no", "true", "false"}
 
 
 def _has_ascii_alpha(s: str) -> bool:
-    """value/key 是否至少含一个 ASCII 英文字母."""
+    """Whether value/key contains at least one ASCII letter."""
     return any(c.isascii() and c.isalpha() for c in str(s))
 
 
 def _is_non_cjk(s: str) -> bool:
-    """value/key 不含 CJK (中文/日文/韩文) 字符. accented (ü/é/ñ) 允许."""
+    """Whether value/key contains no CJK (Chinese/Japanese/Korean) chars.
+    Accented Latin (ü/é/ñ) is allowed."""
     return not any(
         0x4E00 <= ord(c) <= 0x9FFF  # CJK Unified Ideographs
         or 0x3040 <= ord(c) <= 0x309F  # Hiragana
@@ -91,7 +101,7 @@ def _is_non_cjk(s: str) -> bool:
         for c in str(s)
     )
 
-# === select_top_attrs 参数 (供下游 cohort construction 共用) ===
+# === select_top_attrs parameters (shared with downstream cohort construction) ===
 MAX_ATTRS = 5
 MAX_ATTR_VALUE_LEN = 100
 EXCLUDE_NUMERIC_ATTRS = True
@@ -101,18 +111,20 @@ _NUMERIC_KEYWORDS = {"price", "average rating", "rating number", "item weight",
                      "minimum weight recommendation",
                      "maximum weight recommendation",
                      "batteries required", "is discontinued by manufacturer"}
-# 用户指令 2026-08-29: 非语义属性类型一并过滤 (和数值属性同等处理)。
-# 这些 key 描述的是商品 metadata (路由/分类/产地/计数/日期/排名),
-# 而非商品本身的语义特征 (品牌/颜色/材质/尺寸等)。LLM 用这些 attrs 生成
-# query 时无意义 (例如 "Main Category: Baby Products" 对 query 无信息量)。
+# User directive 2026-08-29: filter non-semantic attribute types as well
+# (treated the same as numeric attrs). These keys describe product
+# metadata (routing/category/origin/counts/date/rank) rather than the
+# product's own semantic features (brand/color/material/size, etc.).
+# They are useless when an LLM uses them to generate a query — e.g.
+# "Main Category: Baby Products" adds nothing to a query.
 _NON_SEMANTIC_KEYWORDS = {
-    # 路由/分类 (非特征)
+    # routing/category (not a feature)
     "main category", "department",
-    # 产地 (metadata)
+    # origin (metadata)
     "country", "country of origin", "country/region of origin",
-    # 计数 (非特征)
+    # counts (not a feature)
     "number of items", "number of pieces", "unit count",
-    # 日期/排名 (metadata)
+    # date / rank (metadata)
     "date", "date listed", "best sellers rank",
 }
 ATTR_PRIORITY = [
@@ -183,12 +195,14 @@ def extract_attrs(d: dict) -> dict:
             continue
         out[field.replace("_", " ").title().replace(" ", " ")] = v
 
-    # 用户指令 2026-09-04: 源头过滤含数字的 (k, v) (单 attr 维度)
+    # User directive 2026-09-04: filter (k, v) whose value contains digits
+    # at the source (single-attr dimension)
     if EXCLUDE_NUMERIC_VALUES:
         out = {k: v for k, v in out.items() if not has_digit(str(v))}
 
-    # 用户指令 2026-09-04: value 去重 (大小写不敏感), 同一 value 已出现过则
-    # 跳过新的 (k, v) — 保留首次出现的 key
+    # User directive 2026-09-04: value de-duplication (case-insensitive) —
+    # if the same value already appeared, drop the new (k, v) and keep the
+    # first-seen key
     seen_values: set[str] = set()
     deduped: dict = {}
     for k, v in out.items():
@@ -199,38 +213,41 @@ def extract_attrs(d: dict) -> dict:
         deduped[k] = v
     out = deduped
 
-    # 用户指令 2026-09-04: 短语过滤 — value word 数 > MAX_VALUE_WORDS 视为短语跳过
+    # User directive 2026-09-04: phrase filter — value word count above
+    # MAX_VALUE_WORDS is treated as a phrase and skipped
     out = {
         k: v
         for k, v in out.items()
         if len(re.findall(r"\S+", str(v))) <= MAX_VALUE_WORDS
     }
 
-    # 用户指令 2026-09-04: yes/no 二元值过滤
+    # User directive 2026-09-04: yes/no binary value filter
     out = {
         k: v
         for k, v in out.items()
         if str(v).strip().lower() not in _YES_NO_VALUES
     }
 
-    # 用户指令 2026-09-04: 非英文 key/value 过滤 — key 和 value 都至少
-    # 需含一个 ASCII 英文字母 (CJK / 纯数字 / 纯符号全部跳过)
+    # User directive 2026-09-04: non-English key/value filter — both key
+    # and value must contain at least one ASCII letter (CJK / pure digits
+    # / pure symbols are all skipped)
     out = {
         k: v
         for k, v in out.items()
         if _has_ascii_alpha(k) and _has_ascii_alpha(v) and _is_non_cjk(v)
     }
 
-    # 用户指令 2026-09-04: 多值取首段 — value 含逗号时只保留第一段 (e.g.
-    # 'Lightweight, Breathable' → 'Lightweight'), 取首段后重新过 yes/no /
-    # 短语 / 英文过滤
+    # User directive 2026-09-04: take first segment of multi-value — when a
+    # value contains a comma, keep only the first segment (e.g.
+    # 'Lightweight, Breathable' → 'Lightweight'), then re-run yes/no /
+    # phrase / English filtering on the first segment
     cleaned: dict = {}
     for k, v in out.items():
         if "," in str(v):
             first = str(v).split(",", 1)[0].strip()
             if not first:
                 continue
-            # 重新过严过滤
+            # re-run strict filtering
             if (
                 _has_ascii_alpha(k)
                 and _has_ascii_alpha(first)
@@ -254,7 +271,7 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
     order ATTR_PRIORITY first, then any remaining fields.
 
     Numeric exclusion: any value with digits, or any key in _NUMERIC_KEYWORDS,
-    is dropped. Implements 用户指令 2026-08-28: "属性数值过滤".
+    is dropped. Implements user directive 2026-08-28: "filter numeric attr values".
 
     Args:
         asin_attrs: dict of field_name -> string_value from extract_attrs()
@@ -264,7 +281,8 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
         if not s or len(s) > MAX_ATTR_VALUE_LEN:
             return True
         k_low = k.lower()
-        # 用户指令 2026-08-29: 非语义属性类型过滤 (与数值属性同等处理)
+        # User directive 2026-08-29: non-semantic attribute type filter (treated
+        # the same as numeric attrs)
         if any(nk in k_low for nk in _NON_SEMANTIC_KEYWORDS):
             return True
         if EXCLUDE_NUMERIC_ATTRS:
@@ -302,10 +320,11 @@ def select_top_attrs(asin_attrs: dict, max_n: int = MAX_ATTRS) -> dict:
 
 
 def _process_one(raw_line: str):
-    """Worker 入口: 1 行 metadata → (asin, attrs) 或 None.
+    """Worker entry: 1 metadata line → (asin, attrs) or None.
 
-    必须 module-level + 纯函数, 让 multiprocessing.Pool 能 pickle.
-    返回值用 None 标记 skip (无 asin / attrs < MIN),主进程 reduce 时忽略。
+    Must be module-level + pure function so multiprocessing.Pool can pickle
+    it. Returning None signals skip (no asin or attrs < MIN); the main
+    process ignores None during reduce.
     """
     line = raw_line.strip()
     if not line:
@@ -324,9 +343,10 @@ def _process_one(raw_line: str):
 
 
 def _process_chunk(chunk: list[str]):
-    """Worker 入口 (chunked): N 行 metadata → list of (asin, attrs).
+    """Worker entry (chunked): N metadata lines → list of (asin, attrs).
 
-    比 _process_one 减少 IPC 次数, 主进程 imap_unordered 按 chunk 喂。
+    Reduces IPC round-trips versus _process_one; the main process feeds
+    chunks via imap_unordered.
     """
     out = []
     for line in chunk:
@@ -349,10 +369,11 @@ def _process_chunk(chunk: list[str]):
 
 def step1_extract_attrs(category: str, meta_path: Path,
                         out_path: Path) -> dict[str, dict]:
-    """提取单个 category 的 meta → attrs dict, 写到 out_path.
+    """Extract one category's meta → attrs dict and write it to out_path.
 
-    用户指令 2026-09-23: 从单一 Baby 拓展到 Baby / Pet_Supplies /
-    Grocery_and_Gourmet_Food 三个 category, 每个 category 独立文件。
+    User directive 2026-09-23: expanded from a single Baby run to three
+    categories (Baby / Pet_Supplies / Grocery_and_Gourmet_Food); each
+    category gets its own output file.
     """
     log(f"=== Step 1: extract_attrs [{category}] ===")
     log(f"  input={meta_path}")
@@ -366,8 +387,9 @@ def step1_extract_attrs(category: str, meta_path: Path,
     n_top_level_only = 0
     field_counter: dict[str, int] = {}
 
-    # 主进程先一次性读取所有行到内存 (1.5 GB), 避免 worker fork 后
-    # 多进程争抢同一个文件描述符 (POSIX 行为).
+    # Main process reads all lines into memory at once (1.5 GB) to avoid
+    # workers contending for the same file descriptor after fork (POSIX
+    # behaviour).
     if not meta_path.exists():
         raise FileNotFoundError(f"meta file not found: {meta_path}")
     _open = gzip.open if str(meta_path).endswith('.gz') else open
@@ -401,7 +423,8 @@ def step1_extract_attrs(category: str, meta_path: Path,
                         field_counter[k] = field_counter.get(k, 0) + 1
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # 用户指令 2026-09-23: 改 pickle.dump (下游 Python-only, 删 json 省 ~30MB).
+    # User directive 2026-09-23: switch to pickle.dump (downstream
+    # Python-only; dropping json saves ~30MB).
     with open(out_path, 'wb') as f:
         pickle.dump(product_attrs, f, protocol=pickle.HIGHEST_PROTOCOL)
     log(f"  [{category}] total metadata products={n_total}, with attrs={n_with_attrs}")

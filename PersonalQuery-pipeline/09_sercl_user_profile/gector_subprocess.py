@@ -12,7 +12,7 @@ Outputs: /home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl
   Each line: {"i": <int>, "text": "<corrected sentence>"}
   (preserves original order index `i`; caller must sort by i)
 
-用法 (Rule 3: 无参数):
+Usage (Rule 3: no parameters):
   /home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python \\
       /home/wlia0047/ar57/wenyu/PersoanlQuery/09_sercl_user_profile/gector_subprocess.py
 """
@@ -35,9 +35,9 @@ HF_CACHE = "/home/wlia0047/hj82/wenyu/hf_cache"
 # GECToR hyperparams
 GEC_TRANSFORMER = "roberta-large"
 GEC_MAX_LENGTH = 80
-GEC_BATCH_SIZE = 64          # 2026-09-06: 16→64, A40 45GB 只用 1.9GB 浪费; smoke 64 验过 memory OK
-GEC_N_ITER = 3               # 2026-09-06: 5→3; smoke 50sents iter3 已 <1% 残留
-GEC_USE_BF16 = True          # 2026-09-06: 加 autocast(dtype=bfloat16), RoBERTa 2× 加速
+GEC_BATCH_SIZE = 64
+GEC_N_ITER = 3
+GEC_USE_BF16 = True
 GEC_MIN_ERROR_PROB = 0.0
 GEC_KEEP_CONFIDENCE = 0.0
 

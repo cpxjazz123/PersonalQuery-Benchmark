@@ -41,8 +41,8 @@ STAGE11_TOPK_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_ca
 STAGE8_SEL = REPO_ROOT / "result/08_select_query/selected_queries.json"
 TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/13_syntactic_rerank/<subdir>/.
+# User directive 2026-09-23: produce one output per category (Baby / Musical / Video_Games),
+# main() runs 3 domains serially, artifacts written under result/13_syntactic_rerank/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -56,7 +56,7 @@ LLM_RERANK_TOPK = 25
 LLM_RERANK_CANDIDATES = 25
 LLM_WEIGHT = 1.0
 RETRIEVAL_WEIGHT = 0.1
-# 兼容旧 λ sweep: 若代码里仍引用 RANK_PRIOR_LAMBDA,默认 2.0(本公式不再使用)
+# Backward-compat with the old lambda sweep: if any code still references RANK_PRIOR_LAMBDA, default 2.0 (no longer used by the current formula)
 RANK_PRIOR_LAMBDA = 2.0
 # score_logit_diff receives the full LLM_RERANK_BATCH (Qwen3/Llama 3.1 vLLM
 # path). 1024 keeps each forward call well within vLLM's KV-cache budget.
@@ -934,11 +934,12 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User directive 2026-09-23: run 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the path constants used by this script to the
+    category-specific paths, then invoke the original main_task_body()
+    (existing logic untouched). Artifacts are written to
+    result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE11_OUT, STAGE11_TOPK_DIR, STAGE8_SEL, TYPO_PAIRS, ASIN_TO_DOC, STAGE11_PER_QUERY  # noqa
     # backup current (Baby) defaults

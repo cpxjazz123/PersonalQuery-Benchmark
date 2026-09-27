@@ -1,22 +1,24 @@
 """
-Baby / Musical_Instruments / Video_Games 原始数据 → 用户评论句子提取
+Extract user review sentences from Baby / Musical_Instruments / Video_Games raw data.
 
-从 <DATA_DIR>/<category>_*.jsonl 提取每个用户的全部句子，
-按 user_id 聚合，保存为 pickle（dict[user_id] -> [sentences]）。
+Reads <DATA_DIR>/<category>_*.jsonl, aggregates sentences per user_id, and saves
+as pickle (dict[user_id] -> [sentences]).
 
-输出 (用户指令 2026-09-23, 与 01_attribute_extraction 一致的不合并策略):
+Outputs (user directive 2026-09-23, no merge across categories — matches Stage 01):
   - Baby              → result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl
                        + asin_to_users_baby.pkl
-                       + cohort_manifest_baby.json  (供 Stage 03/04/05/09 cross-validation)
+                       + cohort_manifest_baby.json  (for Stage 03/04/05/09 cross-validation)
   - Musical_Instruments → ..._musical.pkl × 2 / cohort_manifest_musical.json
   - Video_Games       → ..._video_games.pkl × 2 / cohort_manifest_video_games.json
 
-2026-09-12: 新增 _clean_html() 在写文件前清洗 raw sentences (HTML entity decode +
-HTML tag strip + space collapse)。原因为 GECToR 把 HTML 残留当作文本错误,产出污染
-的 edit pairs → Stage 10 transformation_history 全空 → 99.2% fallback 到 generic。
-2026-09-12: 新增 MIN_USER_SENTS=10 过滤,丢弃 <10 句子的用户(asin_to_users 同步移除)。
-2026-09-23: 三个 category 各自一份输出, 不合并 (用户指令)。
-2026-09-23: 只保留 .pkl (下游全是 Python 消费, 删 .json 省 ~2GB 空间).
+2026-09-12: Added _clean_html() to clean raw sentences before write (HTML entity
+decode + HTML tag strip + space collapse). Reason: GECToR treats HTML residue as
+text errors, producing polluted edit pairs → Stage 10 transformation_history all
+empty → 99.2% fallback to generic.
+2026-09-12: Added MIN_USER_SENTS=10 filter, drop users with <10 sentences
+(asin_to_users also pruned accordingly).
+2026-09-23: One output per category, no merge (user directive).
+2026-09-23: Keep only .pkl (downstream is Python-only, drop .json to save ~2GB).
 """
 import gzip, hashlib, html, json, pickle, re
 from pathlib import Path
@@ -26,12 +28,12 @@ SCRATCH = Path('/home/wlia0047/hj82_scratch2/wenyu')
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 OUT_DIR = REPO_ROOT / "result" / "02_user_review_sentence_extract"
 
-# 用户指令 2026-09-23: 三个 category 各自一份输出 (不合并), 文件名按 category
-# 后缀区分 (semantic suffix, 非版本号 — Rule 17 合规).
-# 用户指令 2026-09-23: 只写 .pkl (下游 Python-only, 删 .json 节省磁盘).
+# User directive 2026-09-23: One output per category (no merge); filenames
+# distinguished by category suffix (semantic suffix, not version — Rule 17).
+# User directive 2026-09-23: Write .pkl only (downstream is Python-only, drop .json to save disk).
 CATEGORY_INPUTS = [
     # (category_key, raw_data_path, uid_to_sents_pkl, asin_to_users_pkl, manifest_out)
-    # 用户指令 2026-09-23: Baby / Musical_Instruments / Video_Games.
+    # User directive 2026-09-23: Baby / Musical_Instruments / Video_Games.
     ("Baby",
      DATA_DIR / "Baby_Products_2023.jsonl",
      OUT_DIR / "uid_to_sentences_baby.pkl",
@@ -52,10 +54,11 @@ CATEGORY_INPUTS = [
 # === Tuning constants ===
 SENT_SPLIT = re.compile(r'(?<=[.!?])\s+')
 
-# 用户最少句子数过滤(<10 句子的用户丢弃;Stage 09 GECToR 跑不动 + Stage 10 transformation_history 为空)
+# Minimum sentence count filter (drop users with <10 sentences; Stage 09 GECToR
+# cannot run + Stage 10 transformation_history empty for them)
 MIN_USER_SENTS = 10
 
-# HTML artifact cleaning (Stage 02 出口,2026-09-12)
+# HTML artifact cleaning (Stage 02 output, 2026-09-12)
 _HTML_TAG_RE = re.compile(r"<br\s*/?>")
 _HTML_OTHER_RE = re.compile(r"</?[a-zA-Z][^>]*>")
 _MULTI_SPACE_RE = re.compile(r" {2,}")
@@ -88,9 +91,9 @@ def run_for_category(category: str, raw_path: Path,
                      uid_sents_pkl: Path,
                      asin_users_pkl: Path,
                      manifest_out: Path) -> None:
-    """提取单个 category 的 raw review → uid_to_sentences_<cat>.pkl + asin_to_users_<cat>.pkl + cohort_manifest_<cat>.json."""
+    """Process a single category's raw reviews into uid_to_sentences_<cat>.pkl + asin_to_users_<cat>.pkl + cohort_manifest_<cat>.json."""
     print(f"\n========== [{category}] ==========")
-    print(f"Stage 0: 加载原始数据 from {raw_path}")
+    print(f"Stage 0: Loading raw data from {raw_path}")
     if not raw_path.exists():
         raise FileNotFoundError(f"raw data not found: {raw_path}")
     uid_to_sents: dict[str, list[str]] = {}
@@ -120,21 +123,21 @@ def run_for_category(category: str, raw_path: Path,
             asin_to_users.setdefault(asin, set()).add(uid)
 
     asin_to_users = {asin: sorted(users) for asin, users in sorted(asin_to_users.items())}
-    print(f"  用户数: {len(uid_to_sents)}")
-    print(f"  parent_asin 数: {len(asin_to_users)}")
+    print(f"  n_users: {len(uid_to_sents)}")
+    print(f"  n_parent_asins: {len(asin_to_users)}")
     print(f"  HTML-cleaned reviews: {n_cleaned} / {n_total} ({100*n_cleaned/max(n_total,1):.2f}%)")
     counts = sorted([len(v) for v in uid_to_sents.values()], reverse=True)
-    print(f"  句子数分布: min={min(counts)} median={counts[len(counts)//2]} max={max(counts)}")
-    print(f"  用户≥100句: {sum(1 for c in counts if c >= 100)}")
-    print(f"  用户≥50句: {sum(1 for c in counts if c >= 50)}")
-    print(f"  用户≥20句: {sum(1 for c in counts if c >= 20)}")
+    print(f"  sentence-count distribution: min={min(counts)} median={counts[len(counts)//2]} max={max(counts)}")
+    print(f"  users>=100 sentences: {sum(1 for c in counts if c >= 100)}")
+    print(f"  users>=50 sentences: {sum(1 for c in counts if c >= 50)}")
+    print(f"  users>=20 sentences: {sum(1 for c in counts if c >= 20)}")
 
-    # 过滤 < MIN_USER_SENTS 句子的用户
+    # Filter users with < MIN_USER_SENTS sentences
     n_before_users = len(uid_to_sents)
     n_before_asins = len(asin_to_users)
     uid_to_sents = {uid: sents for uid, sents in uid_to_sents.items()
                     if len(sents) >= MIN_USER_SENTS}
-    # 反向重建 asin_to_users (使用过滤后的 uid_to_sents)
+    # Reverse-rebuild asin_to_users from the filtered uid_to_sents
     new_asin_to_users: dict[str, list[str]] = {}
     for asin, uids in asin_to_users.items():
         kept = [u for u in uids if u in uid_to_sents]
@@ -147,7 +150,7 @@ def run_for_category(category: str, raw_path: Path,
     print(f"    users: {n_before_users} → {n_after_users} (dropped {n_before_users - n_after_users})")
     print(f"    asins: {n_before_asins} → {n_after_asins} (dropped {n_before_asins - n_after_asins} all-empty)")
 
-    # 用户指令 2026-09-23: 只写 .pkl (下游全是 Python 消费, 删 .json 省 ~2GB 空间).
+    # User directive 2026-09-23: Write .pkl only (downstream is Python-only, drop .json to save ~2GB).
     uid_sents_pkl.parent.mkdir(parents=True, exist_ok=True)
     with open(uid_sents_pkl, 'wb') as f:
         pickle.dump(uid_to_sents, f, protocol=pickle.HIGHEST_PROTOCOL)

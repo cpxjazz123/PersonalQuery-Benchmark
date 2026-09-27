@@ -1,20 +1,21 @@
 """Stage 5 unified multi-retriever on strict alignment (NO rerank).
 
-按当前检索配置，在 Stage 4 选出的 strict_personalized queries 上运行 6 个 retrievers，计算 per-retriever headline + volatility。
+Given the current retrieval configuration, runs 6 retrievers on the strict_personalized
+queries selected in Stage 4 and computes per-retriever headline + volatility.
 
 6 retrievers:
   1. BM25 (lexical_sparse, bm25s lucene k1=1.5 b=0.75)
   2. SPLADE (learned_sparse, naver/splade-cocondenser-ensembledistil)
-  3. GTE-base (唯一 Dense Bi-Encoder, 768d)
+  3. GTE-base (only Dense Bi-Encoder, 768d)
   4. BGE-M3 dense (FlagEmbedding, 1024d)
   5. BGE-M3 hybrid (dense + sparse + ColBERT)
-  6. ColBERTv2 (late_interaction, 768→128 linear projection)
+  6. ColBERTv2 (late_interaction, 768->128 linear projection)
 
-(Cross-encoder rerank 已删除 — full corpus CE 不实际,Stage 5 默认
-BM25 top-100 + cross-encoder 的 BM25-only rerank pipeline 见已弃用版本
-`stage8_5_rerank_*`。)
+(Cross-encoder rerank removed -- full corpus CE is not practical; Stage 5 defaults to
+BM25 top-100 without cross-encoder. The BM25-only rerank pipeline using
+`stage8_5_rerank_*` is the deprecated version.)
 
-输出:
+Outputs:
   scratch2/.../stage8_5_retrieval_per_query.json  (per-query intermediate, 6 retrievers)
   result/syntactic_evaluation/retrieval_summary.json  (per-retriever headline + volatility)
   result/syntactic_evaluation/volatility.json  (canonical volatility, sim09 slice)
@@ -35,16 +36,19 @@ from pathlib import Path
 import numpy as np
 import torch
 
-# 2026-09-23: pq_env 多版本 dist-info 残留（torch ×5, transformers ×4, accelerate ×2, torchvision ×4），
-# 实际加载的是 transformers 4.57.6 + accelerate 1.15.0，但 site-packages 同时存在的
-# torchvision 0.19.0 与 torch 2.14.0 不兼容，import torchvision 时 `_meta_registrations`
-# 注册 fake `torchvision::nms` 抛 RuntimeError，级联导致 transformers.image_utils 加载失败，
-# 进而 sentence_transformers / TrainerCallback 全部炸。
-# 解决：在 import sentence_transformers 前 stub torchvision.transforms（提供 InterpolationMode
-# enum）和 torchvision.transforms.v2.functional（空模块），让 transformers 检测到 torchvision
-# "已安装"但不会触发原生 _meta_registrations。同时把 4.57.6 已移除的 AutoProcessor 从
-# processing_auto 子模块重新 export 到顶层（sentence_transformers 4.x 仍依赖 `from transformers
-# import AutoProcessor`）。
+# 2026-09-23: pq_env has multi-version dist-info residue (torch x5, transformers x4,
+# accelerate x2, torchvision x4). What actually loads is transformers 4.57.6 +
+# accelerate 1.15.0, but site-packages simultaneously contains torchvision 0.19.0
+# which is incompatible with torch 2.14.0. Importing torchvision triggers
+# `_meta_registrations` to register a fake `torchvision::nms` and raises RuntimeError,
+# cascading to transformers.image_utils loading failure, then sentence_transformers /
+# TrainerCallback all explode.
+# Fix: before importing sentence_transformers, stub torchvision.transforms (provides
+# the InterpolationMode enum) and torchvision.transforms.v2.functional (empty module),
+# so transformers detects torchvision as "installed" without triggering native
+# _meta_registrations. Also re-export AutoProcessor (removed in 4.57.x) from the
+# processing_auto submodule back to the transformers top-level (sentence_transformers
+# 4.x still depends on `from transformers import AutoProcessor`).
 import enum as _enum
 import importlib.machinery as _im
 import types as _types
@@ -80,20 +84,24 @@ import transformers as _transformers
 from transformers.models.auto.processing_auto import AutoProcessor as _AutoProcessor
 _transformers.AutoProcessor = _AutoProcessor
 
-# Stage 11 只读 scratch 中预构建的 asin_to_doc corpus cache。
-# 构建/清洗由 `11_syntactic_evaluation/build_asin_to_doc.py` 独立负责。
-# 本脚本不再调用 `build_meta_corpus`。cache invalidation 指纹由 builder 维护。
-# 注意：_corpus_signature 包含 asin_to_doc 内容 hash，下游 corpus_sig 随清洗变化。
+# Stage 11 only reads the pre-built asin_to_doc corpus cache from scratch.
+# Build/clean is handled independently by `11_syntactic_evaluation/build_asin_to_doc.py`.
+# This script no longer calls `build_meta_corpus`. Cache invalidation fingerprints are
+# maintained by the builder.
+# Note: _corpus_signature contains the asin_to_doc content hash; downstream corpus_sig
+# changes whenever the cache is rebuilt/cleaned.
 from build_asin_to_doc import _corpus_signature, _sig_path_for
 
-# 用户指令 2026-08-30: 支持 SEL_OUT_SUFFIX 让 strict34 cohort 跑独立 cache, 不覆盖 canonical
+# User directive 2026-08-30: support SEL_OUT_SUFFIX so strict34 cohort runs an
+# independent cache and does not overwrite canonical.
 _SEL_SUFFIX = os.environ.get("SEL_OUT_SUFFIX", "")
 
 # ===========================================================================
 # PATHS (inlined from common/syntax_subspace_utils.py 2026-09-06: common/ deleted)
 # ===========================================================================
 REPO_ROOT = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery")
-# 用户指令 2026-09-23: data 目录从 REPO_ROOT/data 迁移到 hj82 同名 data 目录.
+# User directive 2026-09-23: data directory migrated from REPO_ROOT/data to the
+# same-named data directory on hj82.
 DATA_DIR = Path("/home/wlia0047/hj82/wenyu/PersoanlQuery/data")
 ASIN_TO_DOC_CACHE = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 META_FILE = DATA_DIR / "meta_Baby_Products_2023.jsonl"
@@ -102,8 +110,9 @@ RESULT_DIR = REPO_ROOT / "result/11_syntactic_evaluation"
 PER_QUERY_OUT = RESULT_DIR / f"per_query{_SEL_SUFFIX}.json"
 SUMMARY_OUT = RESULT_DIR / f"retrieval_summary{_SEL_SUFFIX}.json"
 VOLATILITY_OUT = RESULT_DIR / f"volatility{_SEL_SUFFIX}.json"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/11_syntactic_evaluation/<subdir>/.
+# User directive 2026-09-23: each of the 3 categories (Baby / Musical / Video_Games)
+# gets its own copy; main() is changed to run 3 domains serially, and outputs go to
+# result/11_syntactic_evaluation/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -117,7 +126,8 @@ EMBED_CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/gaussian_vades/multir
 TOPK_SAVE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_retrieval_cache/baby/top100_cache")
 TOPK_SAVE_K = 100
 
-# 硬编码运行配置（Rule 3）；首次运行必须先用最小 smoke 验证端到端链路。
+# Hard-coded runtime configuration (Rule 3); the first run MUST validate the
+# end-to-end pipeline with the minimum smoke before anything else.
 SMOKE = os.environ.get("STAGE11_SMOKE") == "1"
 N_SMOKE_QUERIES = 5
 
@@ -128,14 +138,18 @@ def log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
-# 2026-09-23: Stage 12 / Stage 14 通过 module-level 调用 `retr_mod.build_meta_corpus()`。
-# 提供 read-only 包装：直接读 ASIN_TO_DOC_CACHE（已被 build_asin_to_doc.py 写入），不再重建。
-# 删除后会影响 12_typo_evaluation/typo_retrieval_eval.py 与 14_typo_rerank/typo_rerank_eval.py。
+# 2026-09-23: Stage 12 / Stage 14 call `retr_mod.build_meta_corpus()` at module level.
+# Provide a read-only wrapper: directly read ASIN_TO_DOC_CACHE (already written by
+# build_asin_to_doc.py); do not rebuild.
+# Removing this affects 12_typo_evaluation/typo_retrieval_eval.py and
+# 14_typo_rerank/typo_rerank_eval.py.
 def build_meta_corpus(force: bool = False):  # noqa: ARG001
     """Read-only loader for ASIN_TO_DOC_CACHE (replaces former builder).
 
-    2026-09-23: asin_to_doc.json 的构建/清洗已迁移到 `build_asin_to_doc.py`（独立模块）。
-    本函数仅在 Stage 12 / 14 通过 module-level 调用时保留——直接读 cache，不重建。
+    2026-09-23: building/cleaning of asin_to_doc.json was migrated to
+    `build_asin_to_doc.py` (a standalone module). This function is retained only
+    because Stage 12 / 14 call it at module level -- it just reads the cache,
+    no rebuilding.
     """
     if not ASIN_TO_DOC_CACHE.exists():
         raise FileNotFoundError(
@@ -193,10 +207,11 @@ def _compute_selection_signature(selection: dict) -> str:
 
 
 def _flatten_selection(selection: dict) -> list[dict]:
-    """兼容新 schema (selections=[{asin, users:[{uid, query}]}]) 与旧 schema (entries=[...])。
+    """Compatible with both new schema (selections=[{asin, users:[{uid, query}]}])
+    and old schema (entries=[...]).
 
-    2026-09-06: 新产物的 selections block 展开为 flat entries, 每条形如
-        {"asin": a, "user_id": u, "selected": {"query": q, ...}}
+    2026-09-06: the selections block in new artifacts is expanded into flat entries,
+    each shaped like {"asin": a, "user_id": u, "selected": {"query": q, ...}}.
     """
     if "entries" in selection:
         return selection["entries"]
@@ -215,7 +230,8 @@ def _flatten_selection(selection: dict) -> list[dict]:
 # ===========================================================================
 # HELPERS
 # ===========================================================================
-# _corpus_signature / _sig_path_for 同目录 build_asin_to_doc（2026-09-22，曾外移至 common/ 已撤回）
+# _corpus_signature / _sig_path_for live alongside build_asin_to_doc (2026-09-22;
+# previously moved out to common/, but the move was reverted).
 
 
 def _queries_signature(queries: list[str]) -> str:
@@ -433,11 +449,12 @@ def splade_retrieve(queries: list[str], corpus_texts: list[str],
                     corpus_sig: str, query_sig: str,
                     save_topk_path: Path | None = None,
                     topk_k: int = TOPK_SAVE_K) -> list[dict]:
-    # 2026-09-22: monkey-patch transformers' is_torch_greater_or_equal —
-    # pq_env 装了 5 个 torch dist-info（2.4/2.5.1/2.9.0/2.13.0/2.14.0），
-    # importlib.metadata.version('torch') 返回 '2.5.1' 但实际加载是 2.9.0+cu128。
-    # transformers 4.57.6 的 check_torch_load_is_safe() 错误判断为 torch<2.6，
-    # 在 SPLADE 加载 .bin 权重时 raise ValueError。这里强制返回 True 以跳过检查。
+    # 2026-09-22: monkey-patch transformers' is_torch_greater_or_equal --
+    # pq_env has 5 torch dist-infos installed (2.4/2.5.1/2.9.0/2.13.0/2.14.0);
+    # importlib.metadata.version('torch') returns '2.5.1' but what actually loads is
+    # 2.9.0+cu128. transformers 4.57.6's check_torch_load_is_safe() incorrectly judges
+    # torch<2.6 and raises ValueError when SPLADE loads .bin weights. Force-return True
+    # here to skip the check.
     import transformers.utils.import_utils as _tui
     import torch as _torch_for_patch
     from packaging import version as _v_for_patch
@@ -2104,11 +2121,12 @@ def _build_aggregates_and_save(query_records: list[dict], asins_count: int,
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User directive 2026-09-23: run 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the path constants used by this script to the
+    category-specific paths, then call the original main_task_body() (preserving the
+    original logic unchanged). Outputs go to result/<stage>/<baby|musical|video_games>/
+    subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, ASIN_TO_DOC_CACHE, SEL_IN, RESULT_DIR, PER_QUERY_OUT, SUMMARY_OUT, VOLATILITY_OUT, TOPK_SAVE_DIR, EMBED_CACHE_DIR  # noqa
     # backup current (Baby) defaults

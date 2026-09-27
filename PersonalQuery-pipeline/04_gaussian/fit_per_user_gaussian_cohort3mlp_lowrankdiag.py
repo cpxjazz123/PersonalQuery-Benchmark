@@ -65,8 +65,7 @@ TRAINED_UIDS_PATH = Path("/home/wlia0047/ar57/wenyu/PersoanlQuery/result/03_spac
 SVD_COMPONENTS = CACHE_DIR / "svd_components.npz"
 SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/04_gaussian/<subdir>/.
+
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -318,11 +317,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """Run main_task_body serially across the configured categories.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to the
+    category-specific paths, then call the original main_task_body().
+    Outputs are written to result/<stage>/<baby|musical|video_games>/.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_VARIANT, CACHE_DIR, ENCODER_WEIGHTS_CANDIDATES, TRAINED_UIDS_PATH, SVD_COMPONENTS, SENT_VECTORS  # noqa
     # backup current (Baby) defaults
@@ -336,16 +335,13 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
-        # 用户指令 2026-09-23: CACHE_DIR 是从 fit_per_user_gaussian import 的, 必须同时更新
-        # fit_per_user_gaussian 的 module-level CACHE_DIR (Stage 04b 用的是 import 引用, 需要
-        # 通过 importlib reload 或直接 mutate 原 module).
+        
         if "CACHE_DIR" in saved:
             import fit_per_user_gaussian as _fug
             new_cache = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
             _fug.CACHE_DIR = new_cache
             CACHE_DIR = new_cache
-            # 用户指令 2026-09-23: derived paths (SVD_COMPONENTS, SENT_VECTORS) module-level Path, 
-            # import 时已用初始 CACHE_DIR 算好. 必须直接 mutate this script + _fug module globals.
+            
             new_svd = new_cache / "svd_components.npz"
             new_sv = new_cache / "sent_vectors.npz"
             globals()["SVD_COMPONENTS"] = new_svd

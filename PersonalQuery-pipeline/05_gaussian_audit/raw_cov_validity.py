@@ -11,10 +11,10 @@
 
 valid_gaussian = A1 ∧ A2 ∧ A3.
 
-数据源: strict3 profile/val z × SVD-z × cohort3 MLP → 16d,
-       用户限定在 cohort3-trained uids (与 Stage 04 cohort3mlp 一致)。
+Inputs: strict3 profile/val z × SVD-z × cohort3 MLP -> 16d,
+        restricted to cohort3-trained uids (matches Stage 04 cohort3mlp).
 
-输出:
+Output:
   result/05_gaussian_audit/raw_cov_validity.json  (A1/A2/A3 schema)
 """
 from __future__ import annotations
@@ -47,8 +47,8 @@ SENT_VECTORS = CACHE_DIR / "sent_vectors.npz"
 
 OUT_DIR = REPO_ROOT / "result/05_gaussian_audit"
 OUT_PATH = OUT_DIR / "raw_cov_validity.json"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/05_gaussian_audit/<subdir>/.
+# User instruction 2026-09-23: one audit per category (Baby / Musical / Video_Games),
+# main() runs 3 domains serially, output written to result/05_gaussian_audit/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -124,7 +124,7 @@ def _sanitize_json(value):
 
 
 def _validate_strict3_artifact(npz, n_sents: list[int]) -> None:
-    """拒绝不属于当前 Stage 02 cohort 的 strict3 artifact。"""
+    """Reject strict3 artifacts that do not belong to the current Stage 02 cohort."""
     for path in (MANIFEST_PATH, READY_PATH):
         if not path.exists():
             raise FileNotFoundError(
@@ -288,11 +288,11 @@ def _a1_pass(fit: dict, d2_v: np.ndarray, n_v: int) -> tuple[bool, list[str]]:
     logdet = (float(np.log(np.clip(lambdas, 1e-30, None)).sum()
                     + np.log(np.clip(sigma_diag_sq, 1e-30, None)).sum()))
     if not np.isfinite(logdet):
-        reasons.append(f"A1 log|Σ| 非有限 (logdet={logdet:.3e})")
+        reasons.append(f"A1 log|Sigma| non-finite (logdet={logdet:.3e})")
     if n_v < MIN_VAL_SENTS:
         reasons.append(f"A1 n_v<{MIN_VAL_SENTS} (n_v={n_v})")
     if len(d2_v) and not bool(np.all(np.isfinite(d2_v))):
-        reasons.append("A1 val D² 包含非有限值")
+        reasons.append("A1 val D^2 contains non-finite values")
     bad_lambda = bool(np.any(lambdas <= 0))
     bad_sigma = bool(np.any(sigma_diag_sq <= 0))
     bad_logdet = not np.isfinite(logdet)
@@ -358,7 +358,7 @@ def _a3_stability(P: np.ndarray, V: np.ndarray, K: int,
 def evaluate_one(P: np.ndarray, V: np.ndarray, K: int,
                  rng: np.random.Generator,
                  chi2_thr: float | None = None) -> dict:
-    """A1 ∧ A2 ∧ A3 三项 hard rule 评估."""
+    """A1 and A2 and A3 three hard rule evaluation."""
     if chi2_thr is None:
         chi2_thr = _chi2_thr_for_K(K)
 
@@ -569,17 +569,17 @@ def main_task_body() -> None:
         arr = [x for x in arr if np.isfinite(x)]
         return np.percentile(arr, qs).tolist() if arr else None
 
-    log(f"    A2 coverage95 (全体)   P25/50/75 = "
+    log(f"    A2 coverage95 (overall) P25/50/75 = "
         f"{_pct(a2_coverages, [25, 50, 75])}")
-    log(f"    A2 val_d2_p50 (全体)   P25/50/90 = "
+    log(f"    A2 val_d2_p50 (overall) P25/50/90 = "
         f"{_pct(a2_d2_p50s, [25, 50, 90])}")
-    log(f"    A2 val_d2_p95 (全体)   P50/90/99 = "
+    log(f"    A2 val_d2_p95 (overall) P50/90/99 = "
         f"{_pct(a2_d2_p95s, [50, 90, 99])}")
-    log(f"    A3 valid_fit_rate (全体) P10/50/90 = "
+    log(f"    A3 valid_fit_rate (overall) P10/50/90 = "
         f"{_pct(a3_fit_rates, [10, 50, 90])}")
-    log(f"    A3 spearman_rho (全体) P10/50/90 = "
+    log(f"    A3 spearman_rho (overall) P10/50/90 = "
         f"{_pct(a3_rhos, [10, 50, 90])}")
-    log(f"    A3 gate_agreement (全体) P10/50/90 = "
+    log(f"    A3 gate_agreement (overall) P10/50/90 = "
         f"{_pct(a3_agrees, [10, 50, 90])}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -645,11 +645,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User instruction 2026-09-23: serially run 3 categories.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    Each category rebinds this script's path constants to category-specific paths,
+    then calls the original main_task_body() (preserves existing logic unchanged).
+    Output written to result/<stage>/<baby|musical|video_games>/ subdirectory.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, CACHE_DIR, EMBED_PATH, MANIFEST_PATH, READY_PATH, N_SENTS_PATH, SVD_COMPONENTS, SENT_VECTORS, ENCODER_WEIGHTS_CANDIDATES, TRAINED_UIDS_PATH  # noqa
     # backup current (Baby) defaults
@@ -663,10 +663,12 @@ def main() -> None:
     for category, subdir in CATEGORY_INPUTS:
         log(f"\n========== [{category}] (subdir={subdir}) ==========")
         # Reset all known category-dependent paths to point at the per-category subdir.
-        # 用户指令 2026-09-23: Stage 03a 写到 pcfg_cache_<subdir>/, 05 必须按 subdir 重绑 CACHE_DIR.
+        # User instruction 2026-09-23: Stage 03a writes to pcfg_cache_<subdir>/,
+        # so Stage 05 must rebind CACHE_DIR per subdir.
         if "CACHE_DIR" in saved:
             CACHE_DIR = Path("/home/wlia0047/hj82_scratch2/wenyu") / f"pcfg_cache_{subdir}"
-            # 用户指令 2026-09-23: EMBED_PATH 等 derived paths 在 import 时已绑定, 必须重新计算.
+            # User instruction 2026-09-23: EMBED_PATH and other derived paths were
+            # bound at import time, so they must be recomputed here.
             globals()["EMBED_PATH"] = CACHE_DIR / "strict3_embeddings.npz"
             globals()["MANIFEST_PATH"] = CACHE_DIR / "strict3_manifest.json"
             globals()["READY_PATH"] = CACHE_DIR / "cache_ready.json"

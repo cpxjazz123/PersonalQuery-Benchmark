@@ -56,8 +56,8 @@ TYPO_PAIRS = REPO_ROOT / "result/10_typo_injection/typo_injection_results.json"
 ASIN_TO_DOC = Path("/home/wlia0047/hj82_scratch2/wenyu/stage11_corpus_cache/baby/asin_to_doc.json")
 STAGE12_PER_QUERY = REPO_ROOT / "result/12_typo_evaluation/baby/per_query.json"
 STAGE11_PER_QUERY = REPO_ROOT / "result/11_syntactic_evaluation/baby/per_query.json"
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/14_typo_rerank/<subdir>/.
+# User directive 2026-09-23: one output per category (Baby / Musical_Instruments / Video_Games);
+# main() runs the 3 domains serially, artifacts written under result/14_typo_rerank/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -608,11 +608,11 @@ def main_task_body() -> None:
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User directive 2026-09-23: serially run the 3 categories.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind the script's path constants to the category-specific
+    paths, then call the original main_task_body() (logic untouched). Artifacts
+    are written under result/<stage>/<baby|musical|video_games>/.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, STAGE12_OUT, STAGE11_OUT, TYPO_TOPK_DIR, TYPO_PAIRS, ASIN_TO_DOC, STAGE12_PER_QUERY, STAGE11_PER_QUERY, STAGE13_RESULTS_DIR  # noqa
     # backup current (Baby) defaults

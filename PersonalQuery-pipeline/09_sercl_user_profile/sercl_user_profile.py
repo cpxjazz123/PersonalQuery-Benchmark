@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """SErCL user-profile: per-user syntax-conditioned error co-occurrence.
 
-设计 (用户 2026-09-06 提案):
-  用户真实 review x → GEC 改正 → x' → ERRANT edit alignment → UD parse(before/after)
-  → SErCL error type (op + UPOS + DEP + morph change) → D3 context (parent.dep.child)
-  → 累加 C_u(r, e) matrix → P_u(e|r) + personalization lift L_u(r, e) = log P_u/P_global
+Design (user proposal 2026-09-06):
+  user real review x -> GEC correction -> x' -> ERRANT edit alignment -> UD parse(before/after)
+  -> SErCL error type (op + UPOS + DEP + morph change) -> D3 context (parent.dep.child)
+  -> accumulate C_u(r, e) matrix -> P_u(e|r) + personalization lift L_u(r, e) = log P_u/P_global
 
-与现有 Gaussian profile 正交: μ_u + Σ_u (写作风格) + P_u(e|r) (写作错误规律)
+Orthogonal to existing Gaussian profile: μ_u + Σ_u (writing style) + P_u(e|r) (writing-error patterns)
 
-输入: result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl
-输出: result/09_sercl_user_profile/user_sercl_profile.json
-       (包含 user_profiles + user_word_edits: per-uid 词级 incorrect→corrected pair)
-       result/09_sercl_user_profile/cohort_summary.json
+Input:  result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl
+Output: result/09_sercl_user_profile/user_sercl_profile.json
+        (contains user_profiles + user_word_edits: per-uid word-level incorrect->corrected pairs)
+        result/09_sercl_user_profile/cohort_summary.json
 
-用法 (Rule 3: 无参数):
+Usage (Rule 3: no arguments):
   cd /home/wlia0047/ar57/wenyu/PersoanlQuery
   $PY 09_sercl_user_profile/sercl_user_profile.py
 """
@@ -36,9 +36,9 @@ OUT_DIR = REPO_ROOT / "result/09_sercl_user_profile"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ----- Hardcoded hyperparams (Rule 3) -----
-SERCL_N_USERS = None                # 2026-09-06 full: None = 全量符合条件的 selected uids
-SERCL_MIN_SENTS = 30                # 每个用户至少这么多句子 (Rule 20: smoke 小)
-SERCL_MAX_SENTS_PER_USER = 50    # 2026-09-06: 每用户最多 50 句 (None=不限); tradeoff: stats stability vs compute
+SERCL_N_USERS = None                # 2026-09-06 full: None = all eligible selected uids
+SERCL_MIN_SENTS = 30                # at least this many sentences per user (Rule 20: smoke small)
+SERCL_MAX_SENTS_PER_USER = 50    # 2026-09-06: max 50 sents per user (None=unlimited); tradeoff: stats stability vs compute
 SERCL_SEED = 42
 # GECToR-2024 RoBERTa-large uses the required project pq_env subprocess.
 # GECToR's token-level confidence gate preserves review-domain specificity.
@@ -47,18 +47,18 @@ SERCL_GEC_SUBPROCESS_PY = "/home/wlia0047/ar57_scratch/wenyu/pq_env/bin/python"
 SERCL_GEC_SUBPROCESS_SCRIPT = str(REPO_ROOT / "09_sercl_user_profile/gector_subprocess.py")
 SERCL_GEC_IN_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_in.jsonl")
 SERCL_GEC_OUT_JSONL = Path("/home/wlia0047/hj82_scratch2/wenyu/tmp/gec_out.jsonl")
-SERCL_ALPHA = 0.1                   # Laplace 平滑
+SERCL_ALPHA = 0.1                   # Laplace smoothing
 SERCL_D3_TUPLE = ("dep", "pos")     # (child.dep, child.pos, parent.pos) — 3-tuple string
 # ERRANT error types
 SERCL_OPS = ("R:", "M:", "U:")      # replacement / missing / unnecessary
-# 高频 error type 白名单 (后续可扩展)
-SERCL_TOP_ERROR_TYPES = None        # None = 不限; v1 不限, 看分布
+# high-frequency error-type whitelist (extendable later)
+SERCL_TOP_ERROR_TYPES = None        # None = unlimited; v1 unlimited, observe distribution
 
-# 用户指令 2026-09-23: uid_to_sentences 改 pkl-only (下游 Python 消费).
+# User directive 2026-09-23: uid_to_sentences switched to pkl-only (consumed by downstream Python).
 UID_TO_SENTS = REPO_ROOT / "result/02_user_review_sentence_extract/uid_to_sentences_baby.pkl"
 SELECTED_QUERIES = REPO_ROOT / "result/08_select_query/selected_queries.json"  # 2026-09-19: Stage 8 canonical output
-# 用户指令 2026-09-23: 3 个 category 各自一份 (Baby / Musical / Video_Games),
-# main() 改为串行跑 3 个 domain, 产物写到 result/09_sercl_user_profile/<subdir>/.
+# User directive 2026-09-23: one file per category (Baby / Musical / Video_Games),
+# main() runs the 3 domains serially, outputs under result/09_sercl_user_profile/<subdir>/.
 CATEGORY_INPUTS = [
     # (category_key, subdir)
     ("Baby",                "baby"),
@@ -72,12 +72,12 @@ def log(msg: str) -> None:
 
 
 # ===========================================================================
-# Stage 1: Load cohort (2026-09-06: 必须来自 selected_queries.json)
+# Stage 1: Load cohort (2026-09-06: must come from selected_queries.json)
 # ===========================================================================
 def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
     """Cohort = uids with ≥MIN_SENTS sentences AND appearing in selected_queries.json.
 
-    按 uid 字典序排序保证可复现, 取前 N_USERS 作为 smoke cohort。
+    Sort by uid lexicographically for reproducibility; take the first N_USERS as smoke cohort.
     """
     log(f"=== Stage 1: load cohort from {SELECTED_QUERIES.name} ∩ {UID_TO_SENTS.name} ===")
     # Step 1: extract uids from selected_queries.json
@@ -92,7 +92,7 @@ def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
     log(f"  unique uids in selected_queries.json: {len(selected_uids)}")
 
     # Step 2: load sentences (pickle dict: {uid: [sent, ...]})
-    # 用户指令 2026-09-23: 改用 pickle.load (Stage 02 已切换 pkl-only).
+    # User directive 2026-09-23: switched to pickle.load (Stage 02 already on pkl-only).
     with open(UID_TO_SENTS, "rb") as f:
         all_uids = pickle.load(f)
     log(f"  total uids in uid_to_sentences: {len(all_uids)}")
@@ -121,7 +121,7 @@ def load_cohort() -> Tuple[List[str], Dict[str, List[str]]]:
 # ===========================================================================
 # Run GECToR in the required pq_env subprocess, not in-process.
 # JSONL IPC loads the model once per category and batch-corrects its sentences.
-# Subprocess 通过 JSONL 文件 IPC, 单次启动加载模型一次, 跑完所有句子.
+# Subprocess IPC via JSONL file: load the model once per startup, then process all sentences.
 
 
 def gec_correct_batch(sents: List[str]) -> List[str]:
@@ -208,7 +208,7 @@ def _morph_diff(t_orig, t_cor) -> str:
         v_c = next((x.split("=")[1] for x in m_cor if x.startswith(f + "=")), "_")
         if v_o != v_c:
             diffs.append(f"{f}:{v_o}→{v_c}")
-    return ";".join(diffs[:3])  # 限制 morph diff 长度
+    return ";".join(diffs[:3])  # cap morph diff length
 
 
 def extract_error_records(orig_sents: List[str], cor_sents: List[str]
@@ -475,11 +475,11 @@ def main_task_body():
 # ============================================================================
 
 def main() -> None:
-    """用户指令 2026-09-23: 串行运行 3 个 category.
+    """User directive 2026-09-23: run the 3 categories serially.
 
-    每个 category 重新绑定该脚本使用的路径常量为 category-specific 路径,
-    然后调原 main_task_body() (保持原有逻辑不动). 产物写到
-    result/<stage>/<baby|musical|video_games>/ 子目录.
+    For each category, rebind this script's path constants to the category-specific paths,
+    then call the original main_task_body() (keeping its logic intact). Outputs are written
+    under result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
     global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SELECTED_QUERIES  # noqa
     # backup current (Baby) defaults
