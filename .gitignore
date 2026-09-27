@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+.venv/
+venv/
+
+.DS_Store
+*.swp
+*.swo
+
+*.log
+nohup.out
