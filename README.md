@@ -76,10 +76,10 @@ Every user record inside an ASIN's list has a fixed four-field shape:
 
 - `asin`: target product identifier (mirrors the surrounding key)
 - `uid`: user identifier
-- `syntax_query`: the clean personalized query generated for this user–product pair (always non-empty)
-- `typo_query`: the noisy variant of `syntax_query`, produced by injecting writing errors sampled from this user's writing-error profile; the empty string when no writing error was sampled for this pair (see Dataset Statistics for the non-empty rate)
+- `syntax_query` (personalized syntactic expression query): the clean personalized query generated for this user–product pair (always non-empty)
+- `typo_query` (personalized writing-error query): the noisy variant of the personalized syntactic expression query, produced by injecting writing errors sampled from this user's writing-error profile; the empty string when no writing error was sampled for this pair (see Dataset Statistics for the non-empty rate)
 
-When `typo_query` is non-empty, the clean and noisy queries form a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible `typo_query` text; the underlying error pattern is recoverable by diffing the two strings if needed.
+When the personalized writing-error query is non-empty, the clean and noisy queries form a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible writing-error query text; the underlying error pattern is recoverable by diffing the two strings if needed.
 
 ### Dataset Statistics
 
@@ -90,7 +90,7 @@ When `typo_query` is non-empty, the clean and noisy queries form a within-record
 | Video_Games | 1,257 | 2,514 | 1,991 |
 | **Total** | **1,827** | **3,654** | **2,862** |
 
-`typo_query` is non-empty for the majority of pairs (about 78% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, `typo_query` is the empty string and `syntax_query` should be used as the only query. Consumers should treat `syntax_query` as always present and `typo_query` as present only when non-empty.
+The personalized writing-error query is non-empty for the majority of pairs (about 78% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, it is the empty string and the personalized syntactic expression query should be used as the only query. Consumers should treat the personalized syntactic expression query as always present and the personalized writing-error query as present only when non-empty.
 
 ### Example Record
 
