@@ -114,13 +114,3 @@ The personalized writing-error query is non-empty for the majority of pairs (abo
 ```
 
 Each retained ASIN carries two distinct users with their own query texts. In the first record, the word "mount" in the clean query was corrupted to "moun" to create the noisy variant; the second record shows several such edits ("mount" to "munt", "from" to "frm", "requires" to "reqires"). These writing errors were detected from each user's historical writing patterns in the writing-pattern analysis stage.
-
-## Documentation Layout
-
-The repository's top-level documentation is organized as:
-
-- `README.md` (this file) — conceptual architecture and dataset schema
-- `pipeline.png` — end-to-end pipeline diagram
-- Subdirectory READMEs — per-stage architectural notes (where applicable)
-
-Consumers of the dataset and readers of the paper should treat this file as the canonical entry point. Code-level and run-level documentation live next to their implementation rather than being duplicated here.
