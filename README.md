@@ -83,12 +83,12 @@ When `typo_query` is non-empty, the clean and noisy queries form a within-record
 
 ### Dataset Statistics
 
-| Category | ASINs | User–Product Pairs | `syntax_query` | `typo_query` |
-|----------|-------|--------------------|----------------|--------------|
-| Baby_Products | 199 | 398 | 398 | 298 |
-| Musical_Instruments | 371 | 742 | 742 | 573 |
-| Video_Games | 1,257 | 2,514 | 2,514 | 1,991 |
-| **Total** | **1,827** | **3,654** | **3,654** | **2,862** |
+| Category | ASINs | Personalized syntactic expression query | Personalized writing-error query |
+|----------|-------|--------------------------------------|-------------------------------------|
+| Baby_Products | 199 | 398 | 298 |
+| Musical_Instruments | 371 | 742 | 573 |
+| Video_Games | 1,257 | 2,514 | 1,991 |
+| **Total** | **1,827** | **3,654** | **2,862** |
 
 `typo_query` is non-empty for the majority of pairs (about 78% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, `typo_query` is the empty string and `syntax_query` should be used as the only query. Consumers should treat `syntax_query` as always present and `typo_query` as present only when non-empty.
 
