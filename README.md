@@ -76,8 +76,8 @@ Every user record inside an ASIN's list has a fixed four-field shape:
 
 - `asin`: target product identifier (mirrors the surrounding key)
 - `uid`: user identifier
-- `syntax_query` (personalized syntactic expression query): the clean personalized query generated for this user–product pair (always non-empty)
-- `typo_query` (personalized writing-error query): the noisy variant of the personalized syntactic expression query, produced by injecting writing errors sampled from this user's writing-error profile; the empty string when no writing error was sampled for this pair (see Dataset Statistics for the non-empty rate)
+- personalized syntactic expression query: the clean personalized query generated for this user–product pair (always non-empty)
+- personalized writing-error query: the noisy variant of the personalized syntactic expression query, produced by injecting writing errors sampled from this user's writing-error profile; the empty string when no writing error was sampled for this pair (see Dataset Statistics for the non-empty rate)
 
 When the personalized writing-error query is non-empty, the clean and noisy queries form a within-record comparison unit for robustness evaluation. There is no per-record error annotation beyond the visible writing-error query text; the underlying error pattern is recoverable by diffing the two strings if needed.
 
@@ -100,14 +100,14 @@ The personalized writing-error query is non-empty for the majority of pairs (abo
     {
       "asin": "B09BHWCH2M",
       "uid": "AERYYQ2LT6B427JFUK626KQY3ESA",
-      "syntax_query": "I'm looking for a child door mount made of white foam, where the brand is Wittle and the style is child.",
-      "typo_query": "I'm looking for a child door moun made of white foam, where the brand is Wittle and the style is child."
+      "personalized syntactic expression query": "I'm looking for a child door mount made of white foam, where the brand is Wittle and the style is child.",
+      "personalized writing-error query": "I'm looking for a child door moun made of white foam, where the brand is Wittle and the style is child."
     },
     {
       "asin": "B09BHWCH2M",
       "uid": "AG4APLODR5CG5TCC5NVIICMQRHNQ",
-      "syntax_query": "I'm after a white foam door mount from Wittle, with a child's style and a door that requires mounting on a wall.",
-      "typo_query": "I'm after a white foam door munt frm Wittle, with a child's style and a door that reqires mounting on a wall."
+      "personalized syntactic expression query": "I'm after a white foam door mount from Wittle, with a child's style and a door that requires mounting on a wall.",
+      "personalized writing-error query": "I'm after a white foam door munt frm Wittle, with a child's style and a door that reqires mounting on a wall."
     }
   ]
 }
