@@ -3,7 +3,7 @@
 
 Loads:
   - result/09_sercl_user_profile/user_sercl_profile.json        (per-user edits + mechanism histograms)
-  - result/04_gaussian/user_gaussian_stats.json                  (per-user μ_u + Σ_u⁻¹ + cohort gates)
+  - result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank1.json  (per-user μ_u + Σ_u⁻¹ + cohort gates)
   - result/08_select_query/selected_queries.json                  (uid/asin/query source)
 
 For each (uid, query) in selected_queries:
@@ -144,7 +144,6 @@ ENCODER_DEVICE = "cpu"           # CPU for spaCy-based encoder
 ENCODER_PT = str(REPO_ROOT / "result" / "03_spacy_encode" / "cohort2_mlp16_30_30ep.pt")
 SCRATCH = Path(os.environ.get("PQ_SCRATCH", str(REPO_ROOT / "scratch")))
 SVD_COMPONENTS_PATH = str(SCRATCH / "pcfg_cache" / "svd_components.npz")
-CORAL_ASIN_PATH = str(SCRATCH / "coral_asin_cohort2_mlp16_30" / "coral_asin_cohort2_mlp16_30.npz")
 PCFG_PIPELINE = str(REPO_ROOT / "03_spacy_encode" / "syntax_encoder.py")
 SEMANTIC_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 SEMANTIC_THRESHOLD = 0.78
@@ -199,7 +198,7 @@ def load_inputs():
 
     if not STAGE04_PATH.exists():
         raise FileNotFoundError(
-            f"missing: {STAGE04_PATH} (run 04_gaussian/fit_per_user_gaussian.py)"
+            f"missing: {STAGE04_PATH} (run 04_gaussian/fit_per_user_gaussian_cohort3mlp_lowrankdiag.py)"
         )
     with open(STAGE04_PATH) as f:
         stage04 = json.load(f)
@@ -235,7 +234,7 @@ def load_inputs():
             if not has_theoretical and (not isinstance(gate, dict) or "gate_T" not in gate):
                 raise ValueError(
                     f"cohort {asin}/{uid} missing gate_T — "
-                    "rerun 04_gaussian/fit_per_user_gaussian.py")
+                    "rerun 04_gaussian/fit_per_user_gaussian_cohort3mlp_lowrankdiag.py")
             user_stats = mahal[uid]
             # 2026-09-19: cohort3mlp16_30 uses lowrank+diag (sigma_diag_sq + V + lambdas),
             # instead of canonical sigma_inv. Handle both formats:
@@ -1018,44 +1017,6 @@ def _is_load_rule_to_id() -> Dict[str, int]:
     return _rule_to_id
 
 
-_coral_data = None
-
-
-def _is_load_coral() -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Load category-specific per-ASIN CORAL; missing ASINs are fatal."""
-    global _coral_data
-    if _coral_data is None:
-        if not Path(CORAL_ASIN_PATH).is_file():
-            raise FileNotFoundError(f"per-ASIN CORAL artifact missing: {CORAL_ASIN_PATH}")
-        with np.load(CORAL_ASIN_PATH, allow_pickle=True) as coral:
-            keys = [str(key) for key in coral["asin_keys"]]
-            transforms = {
-                key: (A, mu_q, mu_r)
-                for key, A, mu_q, mu_r in zip(
-                    keys, coral["A_per_asin"], coral["mu_q_per_asin"],
-                    coral["mu_r_per_asin"])
-            }
-        if not transforms or len(transforms) != len(keys):
-            raise ValueError("per-ASIN CORAL keys are empty or duplicated")
-        for asin, (A, mu_q, mu_r) in transforms.items():
-            if (A.shape != (16, 16) or mu_q.shape != (16,) or mu_r.shape != (16,)
-                    or not np.isfinite(A).all()
-                    or not np.isfinite(mu_q).all()
-                    or not np.isfinite(mu_r).all()):
-                raise ValueError(f"invalid per-ASIN CORAL parameters for {asin}")
-        _coral_data = transforms
-    return _coral_data
-
-
-def _is_apply_coral(z: np.ndarray, asin: str) -> np.ndarray:
-    """Apply the required ASIN-specific affine CORAL transform."""
-    transform = _is_load_coral().get(asin)
-    if transform is None:
-        raise KeyError(f"per-ASIN CORAL transform missing for {asin}")
-    A, mu_q, mu_r = transform
-    return (mu_r + (z.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
-
-
 def _is_encode_queries_32d(texts: List[str], nlp, encoder, rule_to_id: Dict[str, int],
                         vocab_size: int) -> np.ndarray:
     """texts → 16d StyleMLP z (Stage 8 pipeline: rules → SVD → MLP).
@@ -1398,10 +1359,9 @@ def _is_batch_gate(
     encoder,
     rule_to_id: Dict[str, int],
     vocab_size: int,
-    asin_to_A: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]],
 ) -> List[Dict]:
-    """Phase-2 batch gate: batch-encode all orig+inj, apply CORAL, compute d²,
-    comp gate. Returns list of updated items with d2_before/after/comp_pass."""
+    """Phase-2 batch gate: batch-encode all orig+inj, compute diagnostic d².
+    Returns list of updated items with d2_before/after."""
     if not items:
         return []
     # Collect all texts: orig then inj
@@ -1417,77 +1377,32 @@ def _is_batch_gate(
     for k, it in enumerate(items):
         z_orig = z_all[2 * k]
         z_inj = z_all[2 * k + 1]
-        # Apply the same centered ASIN-specific CORAL transform as Stage 08.
-        try:
-            A, mu_q, mu_r = asin_to_A[it["asin"]]
-        except KeyError as exc:
-            raise KeyError(
-                f"per-ASIN CORAL transform missing for {it['asin']}") from exc
-        z_orig_aligned = (mu_r + (z_orig.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
-        z_inj_aligned = (mu_r + (z_inj.astype(np.float32) - mu_q) @ A.T).astype(np.float32)
         mu = it["mu"]
         stats = it["user_stats"]
-        d2_before = _is_mahalanobis_d2(z_orig_aligned, mu, it["sigma_inv"], user_stats=stats)
-        d2_after = _is_mahalanobis_d2(z_inj_aligned, mu, it["sigma_inv"], user_stats=stats)
-        d2_threshold = it["d2_threshold"]
-        it["z_orig_aligned"] = z_orig_aligned
-        it["z_inj_aligned"] = z_inj_aligned
-        it["d2_before"] = d2_before
-        it["d2_after"] = d2_after
+        it["d2_before"] = _is_mahalanobis_d2(z_orig, mu, it["sigma_inv"], user_stats=stats)
+        it["d2_after"] = _is_mahalanobis_d2(z_inj, mu, it["sigma_inv"], user_stats=stats)
         # Mahalanobis is diagnostic-only for this stress test; do not reject typo
         # candidates based on the user Gaussian threshold.
         it["gaussian_pass"] = True
         if (k + 1) % checkpoint_every == 0 or k + 1 == len(items):
             log(f"    Gaussian gate processed {k+1}/{len(items)} pairs "
-                f"({100 * (k+1) / len(items):.1f}%), "
+                f"({100 * (k + 1) / len(items):.1f}%), "
                 f"elapsed={time.time() - gate_started:.1f}s")
     return items
 
 
-def _is_batch_comp_gate(items: List[Dict], enabled: bool = True) -> List[Dict]:
-    """Per-comp d² gate for exclusive cohort (Stage 10 user-specific).
+def _is_batch_comp_gate(items: List[Dict]) -> List[Dict]:
+    """Per-comp d² exclusivity gate — permanently pass-all.
 
-    enabled=False: 2026-09-19 removed user-specific comp gate — duplicates Stage 8 cohort gate,
-    1915/1916 fails were over-restrictive. Pass all (typo injection does not require "far from comp user",
-    only that typo'd query still belongs to target user cohort).
+    2026-09-19 removed the user-specific comp gate: it duplicated the Stage 8
+    cohort gate and rejected 1915/1916 pairs as over-restrictive. Typo injection
+    does not require "far from competitor user", only that the typo'd query still
+    belongs to the target user cohort.
     """
     for it in items:
-        if not enabled:
-            it["exclusive_pass"] = True
-            it["min_d_competitor"] = -1.0
-            it["n_competitors"] = 0
-            continue
-        if not it.get("gaussian_pass", False):
-            it["exclusive_pass"] = True
-            it["min_d_competitor"] = -1.0
-            it["n_competitors"] = 0
-            continue
-        competitors = it.get("competitors", {})
-        if not competitors:
-            it["exclusive_pass"] = True
-            it["min_d_competitor"] = -1.0
-            it["n_competitors"] = 0
-            continue
-        z = it["z_inj_aligned"]
-        d2_target = it["d2_after"]
-        min_d = float("inf")
-        n_comps = 0
-        exclusive_pass = True
-        for cuid, comp in competitors.items():
-            if cuid == it["uid"]:
-                continue
-            c_mu = np.asarray(comp["mu"], dtype=np.float32)
-            c_inv = np.asarray(comp["sigma_inv"], dtype=np.float32)
-            d2_c = _is_mahalanobis_d2(z, c_mu, c_inv, user_stats=comp.get("user_stats"))
-            n_comps += 1
-            if d2_c < min_d:
-                min_d = d2_c
-            if d2_c < d2_target * 1.5:
-                exclusive_pass = False
-                break
-        it["exclusive_pass"] = exclusive_pass
-        it["min_d_competitor"] = min_d if min_d != float("inf") else -1.0
-        it["n_competitors"] = n_comps
+        it["exclusive_pass"] = True
+        it["min_d_competitor"] = -1.0
+        it["n_competitors"] = 0
     return items
 
 
@@ -1550,10 +1465,8 @@ def _is_sample_injection(
             f"vocab_size ({vocab_size}) != len(rule_to_id) ({len(rule_to_id)}); "
             "encoder.pt and vocab.json come from different cohort")
 
-    # Encode original query (32d)
+    # Encode original query (16d)
     feat_orig = _is_encode_queries_32d([query], nlp, encoder, rule_to_id, vocab_size)[0]
-    if asin is not None:
-        feat_orig = _is_apply_coral(feat_orig, asin)  # 2026-09-19: per-ASIN CORAL align
     d2_before = _is_mahalanobis_d2(feat_orig, mu_u, sigma_inv, user_stats=user_stats)
 
     # Per-token contexts
@@ -1664,14 +1577,12 @@ def _is_sample_injection(
         )
         return None, meta
 
-    # Gaussian constraint
+    # Gaussian constraint (diagnostic only — does not reject candidates)
     feat_inj = _is_encode_queries_32d([injected], nlp, encoder, rule_to_id, vocab_size)[0]
-    if asin is not None:
-        feat_inj = _is_apply_coral(feat_inj, asin)
     d2_after = _is_mahalanobis_d2(feat_inj, mu_u, sigma_inv, user_stats=user_stats)
     import os as _o  # noqa
     if False and _o.environ.get("TYPO_DEBUG") and d2_after > d2_threshold:
-        print(f"DEBUG_CORAL: uid={uid[:12]} asin={asin[:14]} d2_before={d2_before:.2f} d2_after={d2_after:.2f} thresh={d2_threshold:.2f}", flush=True)
+        print(f"DEBUG_GAUSS: uid={uid[:12]} asin={asin[:14]} d2_before={d2_before:.2f} d2_after={d2_after:.2f} thresh={d2_threshold:.2f}", flush=True)
     gaussian_pass = bool(d2_after <= d2_threshold)
     pass
 
@@ -1751,6 +1662,7 @@ def main_task_body():
     items = []  # batch items buffer
 
     results = []
+    no_typo_pairs: list[tuple[str, str, str]] = []   # selected cells with no sampled typo
     debug_metas = []   # collect meta from each pair for diagnosis (SMOKE only)
     n_total_processed = 0
     per_user_stats = defaultdict(lambda: {
@@ -1848,6 +1760,12 @@ def main_task_body():
             current_query = injected  # chain: 2nd typo applied after 1st typo
 
         if not pair_typos:
+            # Issue #7 migration fix: a selected Stage 08 cell must NEVER vanish
+            # merely because no typo could be sampled. Record it here and emit a
+            # clean row (empty typo_query) below, so the emitted row count stays
+            # equal to the number of selected (asin, uid, query) cells instead of
+            # silently dropping ~21% of them.
+            no_typo_pairs.append((uid, asin, query))
             continue
 
         # Final injected = last chained injection
@@ -1901,20 +1819,13 @@ def main_task_body():
     log(f"Phase 1 done: {len(items)}/{n_total_processed} pairs sampled (rest: no-candidate)")
 
     # Phase 2: batch encode + gate
-    asin_to_A = _is_load_coral()
-    missing_asins = sorted({it["asin"] for it in items} - set(asin_to_A))
-    if missing_asins:
-        raise RuntimeError(
-            f"Stage 10 per-ASIN CORAL missing for {len(missing_asins)} "
-            f"selected ASINs; examples={missing_asins[:10]}")
     log("Phase 2: batch encoding all (orig, inj) pairs")
     items = _is_batch_gate(
-        items, None, encoder, rule_to_id, vocab_size, asin_to_A)
+        items, None, encoder, rule_to_id, vocab_size)
     log(f"  encoded {len(items)*2} texts, d²_before/after computed")
     log("Phase 3: batch semantic + comp gates")
     items = _is_batch_semantic(items)
-    # 2026-09-19: removed user-specific comp gate — 1915/1916 fails were over-restrictive, conflicts with Stage 8 select semantics
-    items = _is_batch_comp_gate(items, enabled=False)
+    items = _is_batch_comp_gate(items)
     log(f"  all gates computed")
 
     # Phase 4: collect results + stats
@@ -1990,6 +1901,23 @@ def main_task_body():
 
         if (i + 1) % 50 == 0:
             log(f"  processed {i+1}/{len(pairs)} pairs")
+
+    # Issue #7 migration fix: emit a clean record for every selected cell that
+    # produced no typo, so no Stage 08 cell is silently discarded. Downstream
+    # consumers already treat an empty typo_query as "clean query only".
+    for _uid, _asin, _query in no_typo_pairs:
+        results.append({
+            "uid": _uid,
+            "asin": _asin,
+            "original_query": _query,
+            "typo_query": "",
+            "edits": [],
+            "n_typos_applied": 0,
+            "semantic_sim": None,
+            "d2_before": None,
+            "d2_after": None,
+            "no_typo_reason": "no_typo_sampled",
+        })
 
     log(f"done. {len(results)} injected pairs (from {n_total_processed} attempted) in {time.time()-t0:.1f}s")
 
@@ -2113,7 +2041,7 @@ def main() -> None:
     then calls the original main_task_body() (logic unchanged). Outputs go to
     result/<stage>/<baby|musical|video_games>/ subdirectories.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SERCL_PROFILE, STAGE04_PATH, SELECTED, OUT_RESULTS, OUT_SUMMARY, ENCODER_PT, SVD_COMPONENTS_PATH, CORAL_ASIN_PATH, CACHE_DIR, _encoder, _encoder_vocab_size, _rule_to_id, _coral_data  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, SERCL_PROFILE, STAGE04_PATH, SELECTED, OUT_RESULTS, OUT_SUMMARY, ENCODER_PT, SVD_COMPONENTS_PATH, CACHE_DIR, _encoder, _encoder_vocab_size, _rule_to_id  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -2132,16 +2060,10 @@ def main() -> None:
         ENCODER_PT = str(REPO_ROOT / "result" / "03_spacy_encode" / subdir /
                          "cohort2_mlp16_30_30ep.pt")
         SVD_COMPONENTS_PATH = str(cache_dir / "svd_components.npz")
-        CORAL_ASIN_PATH = str(
-            SCRATCH /
-            f"coral_asin_cohort2_mlp16_30_{subdir}" /
-            "coral_asin_cohort2_mlp16_30.npz"
-        )
         # These lazy caches otherwise retain Baby assets on later iterations.
         _encoder = None
         _encoder_vocab_size = None
         _rule_to_id = {}
-        _coral_data = None
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:

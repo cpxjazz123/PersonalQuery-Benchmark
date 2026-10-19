@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Query selection: per-user trainable svd_mlp Gaussian + logp_delta=2.0 gate.
+"""Query selection: per-user svd_mlp Gaussian (Stage 04 cohort3mlp16_30 lowrank+diag) + logp_delta=2.0 gate.
 
 Pipeline (canonical, 2026-09-17):
-  1. Load svd_mlp trainable Gaussian (Stage 04b user_gaussian_stats_trainable.json)
+  1. Load Stage 04 cohort3mlp16_30_lowrankdiag_rank1 Gaussian (mu, lambdas, V, sigma_diag_sq)
   2. Load SVD components + StyleMLP encoder (Stage 03b)
   3. spaCy.pipe encode pool queries -> SVD 256d -> MLP 64d
   4. For each query: compute log p(z | N(mu_u, diag(sigma_u^2))) against every cohort user
@@ -13,7 +13,7 @@ Reused assets:
   - SVD components: pcfg_cache/svd_components.npz (256d)
   - MLP encoder:    pcfg_cache/svd_mlp_encoder.pt (256->128->64)
   - Vocab:          pcfg_cache/vocab.json
-  - Stage 04b:      result/04_gaussian/user_gaussian_stats_trainable.json (21521 users × 64d)
+  - Stage 04b:      n/a (Stage 04b trainable Gaussian artifact deprecated; only cohort3mlp16_30_lowrankdiag is consumed)
   - Pool queries:   result/07_gen_query/pool_queries.json
   - ASIN→users:     result/02_user_review_sentence_extract/asin_to_users.json
 
@@ -91,20 +91,13 @@ SVD_NPZ = SVD_COMPONENTS
 SVD_DIM = 256
 MLP_ENCODER = str(REPO_ROOT / "result/03_spacy_encode/cohort2_mlp16_30_30ep.pt")
 MLP_PT = MLP_ENCODER
-CORAL_ASIN_PATH = str(SCRATCH / "coral_asin_cohort2_mlp16_30/coral_asin_cohort2_mlp16_30.npz")
-CORAL_ART_DIR = SCRATCH / "coral_asin_cohort2_mlp16_30"
-CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
 TRAINED_UIDS_PATH = REPO_ROOT / "result/03_spacy_encode/cohort3_trained_uids.json"
 STRICT3_NPZ = SCRATCH / "pcfg_cache/strict3_embeddings.npz"
 ASIN_TO_USERS = REPO_ROOT / "result/02_user_review_sentence_extract/asin_to_users_baby.pkl"
-EPSILON_REL = 0.1              # 2026-09-19: enlarge Tikhonov regularization so A is close to identity and query z is not over-compressed
-COND_THRESHOLD = 1e3
-MIN_USERS_PER_ASIN = 1
-MIN_QUERIES_PER_ASIN = 1
-CORAL_MODE = "global"
-APPLY_CORAL = False
 SMOKE = os.environ.get("STAGE08_ALIGNMENT_SMOKE") == "1"
 SMOKE_ASIN_LIMIT = 5
+# Stage 28 sets this to dump the frozen per-candidate scoring table.
+CANDIDATE_DUMP: Path | None = None
 VOCAB_PATH = str(SCRATCH / "pcfg_cache/vocab.json")
 GAUSSIAN_PATH = REPO_ROOT / "result/04_gaussian/user_gaussian_stats_cohort3mlp16_30_lowrankdiag_rank1.json"
 OUT_PATH = REPO_ROOT / "result/08_select_query/selected_queries.json"
@@ -192,7 +185,6 @@ def _svdmlp_encode_queries(
     mlp: StyleMLP,
     nlp,
     cohort_filter_signature: str | None = None,
-    asin_alignment: dict | None = None,
     flat_records: list | None = None,
 ) -> tuple[np.ndarray, list[tuple[int, dict[int, float]]]]:
     """queries -> 64d z (full svd_mlp encoder pipeline).
@@ -204,9 +196,8 @@ def _svdmlp_encode_queries(
       4) row-normalize -> SVD projection (256d) -> MLP (64d)
 
     Cache: spaCy parse + sparse build + SVD-z projection are memoized to
-    $SCRATCH/pool_query_cache/. The MLP forward +
-    CORAL alignment always run fresh because they depend on the encoder
-    weights and CORAL alignment matrix (cheaper to recompute than to cache).
+    $SCRATCH/pool_query_cache/. The MLP forward always runs fresh because it
+    depends on the encoder weights (cheaper to recompute than to cache).
     """
     V = len(vocab)
     rule2idx = {r: i for i, r in enumerate(vocab)}
@@ -339,34 +330,6 @@ def _svdmlp_encode_queries(
             z_all[s:e] = mlp(xb).cpu().numpy()
     _svdmlp_log(f"  MLP encode done, shape {z_all.shape}")
 
-    if APPLY_CORAL:
-        if CORAL_MODE != "asin":
-            raise ValueError("CORAL_MODE must be 'asin'; global alignment is forbidden")
-        if asin_alignment is None or flat_records is None:
-            raise ValueError("per-ASIN CORAL requires asin_alignment + flat_records")
-        asin_keys = asin_alignment["asin_keys"]
-        A_per = asin_alignment["A_per_asin"]
-        muq_per = asin_alignment["mu_q_per_asin"]
-        mur_per = asin_alignment["mu_r_per_asin"]
-        asin_to_idx = {str(a): i for i, a in enumerate(asin_keys)}
-        missing = sorted({
-            str(flat_records[rec_idx][0])
-            for rec_idx, _ in rows_data
-            if str(flat_records[rec_idx][0]) not in asin_to_idx
-        })
-        if missing:
-            raise RuntimeError(
-                f"per-ASIN CORAL missing {len(missing)} encoded ASINs; "
-                f"examples={missing[:10]}")
-        for row_i, (rec_idx, _) in enumerate(rows_data):
-            asin = str(flat_records[rec_idx][0])
-            ai = asin_to_idx[asin]
-            z_all[row_i] = (
-                mur_per[ai] + (z_all[row_i] - muq_per[ai]) @ A_per[ai].T
-            )
-        _svdmlp_log(
-            f"  CORAL per-ASIN applied: {len(rows_data)} rows aligned, "
-            "0 fallback rows")
     return z_all, rows_data
 
 
@@ -404,195 +367,7 @@ def _svdmlp_load_gaussian() -> tuple[dict, list, np.ndarray, np.ndarray, np.ndar
     return uid_idx, uid_order, mu, lambdas, V, sigma_diag_sq, d2_q
 
 
-def _fit_coral_one(z_q_asin: np.ndarray, z_r_asin: np.ndarray,
-                   epsilon_rel: float = EPSILON_REL,
-                   return_cond: bool = False):
-    """Fit regularized per-ASIN CORAL A = C_r^{1/2} C_q^{-1/2}."""
-    K = z_q_asin.shape[1]
-    mu_q = z_q_asin.mean(axis=0).astype(np.float32)
-    mu_r = z_r_asin.mean(axis=0).astype(np.float32)
-
-    def _covariance(x: np.ndarray) -> np.ndarray:
-        if x.shape[0] <= 1:
-            return np.zeros((K, K), dtype=np.float64)
-        cov = np.asarray(np.cov(x.astype(np.float64), rowvar=False), dtype=np.float64)
-        if cov.ndim == 0:
-            return np.zeros((K, K), dtype=np.float64)
-        return cov.reshape(K, K)
-
-    Cq = _covariance(z_q_asin)
-    Cr = _covariance(z_r_asin)
-    eps = max(float(np.trace(Cq) / K) * epsilon_rel, 1e-6)
-    Cr_reg = Cr + eps * np.eye(K, dtype=np.float64)
-    Cq_reg = Cq + eps * np.eye(K, dtype=np.float64)
-    w_r, V_r = np.linalg.eigh((Cr_reg + Cr_reg.T) / 2)
-    w_q, V_q = np.linalg.eigh((Cq_reg + Cq_reg.T) / 2)
-    w_r = np.clip(w_r, 0.0, None)
-    w_q = np.clip(w_q, 0.0, None)
-    Sr = V_r @ np.diag(np.sqrt(w_r)) @ V_r.T
-    Sq_inv = V_q @ np.diag(1.0 / np.clip(np.sqrt(w_q), 1e-12, None)) @ V_q.T
-    A = Sr @ Sq_inv
-    U, singular_values, Vh = np.linalg.svd(A, full_matrices=False)
-    if not np.isfinite(singular_values).all() or singular_values[0] <= 0:
-        raise np.linalg.LinAlgError("non-finite or zero per-ASIN CORAL transform")
-    singular_values = np.maximum(
-        singular_values, singular_values[0] / COND_THRESHOLD)
-    A = ((U * singular_values) @ Vh).astype(np.float32)
-    if not np.isfinite(A).all() or not np.isfinite(mu_q).all() or not np.isfinite(mu_r).all():
-        raise np.linalg.LinAlgError("non-finite per-ASIN CORAL parameters")
-    if return_cond:
-        return A, mu_q, mu_r, float(np.linalg.cond(A.astype(np.float64)))
-    return A, mu_q, mu_r
-
-
-def _fit_coral_ensure_artifacts(pool: dict, vocab: list[str],
-                                Vt: np.ndarray, mlp, fitted_uid_set: set[str]
-                                ) -> dict:
-    """Fit and persist one regularized CORAL transform for every candidate ASIN."""
-    _svdmlp_log("=== Per-ASIN CORAL fit (global fallback disabled) ===")
-
-    with open(GAUSSIAN_PATH) as f:
-        gaussian_users = json.load(f)["users"]
-    review_uid_order = sorted(gaussian_users)
-    z_r_user = np.asarray(
-        [gaussian_users[uid]["mu"] for uid in review_uid_order],
-        dtype=np.float32,
-    )
-    real_uid_to_zr_row = {uid: i for i, uid in enumerate(review_uid_order)}
-    _svdmlp_log(f"  Gaussian profile-review means: {z_r_user.shape}")
-
-    rule2idx = {r: i for i, r in enumerate(vocab)}
-    flat_records: list[tuple[str, str, int]] = [
-        (asin, query, local_idx)
-        for asin, queries in pool.items()
-        for local_idx, query in enumerate(queries)
-    ]
-    queries_text = [record[1] for record in flat_records]
-    _svdmlp_log(
-        f"  encoding {len(queries_text)} pool queries for per-ASIN fitting")
-
-    nlp_local = spacy.load(SPACY_MODEL, disable=["ner", "textcat", "lemmatizer"])
-    query_asin_kept: list[str] = []
-    rows_data: list[tuple[int, dict[int, float]]] = []
-    t0 = time.time()
-    checkpoint_every = max(1, len(flat_records) // 20)
-    for rec_idx, doc in enumerate(
-            nlp_local.pipe(queries_text, batch_size=2048, n_process=16)):
-        asin = flat_records[rec_idx][0]
-        idx_set = {
-            rule2idx[rule]
-            for rule in _svdmlp_extract_struct_rules(doc)
-            if rule in rule2idx
-        }
-        if idx_set:
-            query_asin_kept.append(asin)
-            rows_data.append((rec_idx, dict.fromkeys(idx_set, 1.0)))
-        if (rec_idx + 1) % checkpoint_every == 0:
-            elapsed = time.time() - t0
-            _svdmlp_log(
-                f"    spaCy {rec_idx + 1}/{len(flat_records)} "
-                f"elapsed={elapsed:.1f}s")
-    if not rows_data:
-        raise RuntimeError("no candidate query produced structural features")
-
-    n_rows = len(rows_data)
-    row_lens = [len(counts) for _, counts in rows_data]
-    data = np.ones(sum(row_lens), dtype=np.float32)
-    indices = np.concatenate([
-        np.fromiter(counts.keys(), dtype=np.int32)
-        for _, counts in rows_data
-    ])
-    indptr = np.zeros(n_rows + 1, dtype=np.int32)
-    np.cumsum(row_lens, out=indptr[1:])
-    X = sp.csr_matrix((data, indices, indptr), shape=(n_rows, len(vocab)))
-    z_svd = (X @ Vt.T).astype(np.float32)
-    mlp.eval()
-    with torch.no_grad():
-        z_q_all = np.empty((n_rows, LATENT_DIM), dtype=np.float32)
-        for start in range(0, n_rows, 1024):
-            end = min(start + 1024, n_rows)
-            xb = torch.from_numpy(z_svd[start:end]).to(DEVICE)
-            z_q_all[start:end] = mlp(xb).cpu().numpy()
-    _svdmlp_log(f"  encoded fitting queries: {z_q_all.shape}")
-
-    asin_to_qrows: dict[str, list[int]] = {}
-    for row_idx, asin in enumerate(query_asin_kept):
-        asin_to_qrows.setdefault(asin, []).append(row_idx)
-
-    with open(ASIN_TO_USERS, "rb") as f:
-        asin_to_users_raw = pickle.load(f)
-    asin_to_ruser: dict[str, list[int]] = {}
-    for asin, uids in asin_to_users_raw.items():
-        r_idx = [
-            real_uid_to_zr_row[uid]
-            for uid in uids
-            if uid in real_uid_to_zr_row
-        ]
-        if r_idx:
-            asin_to_ruser[str(asin)] = r_idx
-
-    candidate_asins = set(pool)
-    missing_queries = sorted(candidate_asins - set(asin_to_qrows))
-    missing_reviews = sorted(candidate_asins - set(asin_to_ruser))
-    if missing_queries or missing_reviews:
-        raise RuntimeError(
-            "cannot align every candidate ASIN: "
-            f"{len(missing_queries)} lack query embeddings "
-            f"(examples={missing_queries[:10]}), "
-            f"{len(missing_reviews)} lack cohort review means "
-            f"(examples={missing_reviews[:10]})")
-
-    out_keys: list[str] = []
-    out_A: list[np.ndarray] = []
-    out_mu_q: list[np.ndarray] = []
-    out_mu_r: list[np.ndarray] = []
-    for index, asin in enumerate(sorted(candidate_asins), start=1):
-        q_idx = asin_to_qrows[asin]
-        r_idx = asin_to_ruser[asin]
-        if len(q_idx) < MIN_QUERIES_PER_ASIN or len(r_idx) < MIN_USERS_PER_ASIN:
-            raise RuntimeError(
-                f"cannot fit per-ASIN CORAL for {asin}: "
-                f"queries={len(q_idx)}, review_users={len(r_idx)}")
-        A, mu_q, mu_r, condition = _fit_coral_one(
-            z_q_all[q_idx], z_r_user[r_idx], return_cond=True)
-        if not np.isfinite(condition) or condition > COND_THRESHOLD * (1 + 1e-5):
-            raise RuntimeError(
-                f"unstable per-ASIN CORAL for {asin}: cond={condition:g}")
-        out_keys.append(asin)
-        out_A.append(A)
-        out_mu_q.append(mu_q)
-        out_mu_r.append(mu_r)
-        if index % max(1, len(candidate_asins) // 20) == 0:
-            _svdmlp_log(
-                f"    CORAL fit {index}/{len(candidate_asins)} ASINs")
-
-    if set(out_keys) != candidate_asins:
-        raise RuntimeError("per-ASIN CORAL coverage differs from candidate pool")
-    asin_alignment = {
-        "asin_keys": np.asarray(out_keys, dtype=object),
-        "A_per_asin": np.stack(out_A, axis=0),
-        "mu_q_per_asin": np.stack(out_mu_q, axis=0),
-        "mu_r_per_asin": np.stack(out_mu_r, axis=0),
-    }
-    np.savez(
-        CORAL_ASIN_PATH,
-        asin_keys=asin_alignment["asin_keys"],
-        A_per_asin=asin_alignment["A_per_asin"],
-        mu_q_per_asin=asin_alignment["mu_q_per_asin"],
-        mu_r_per_asin=asin_alignment["mu_r_per_asin"],
-        min_users_per_asin=np.int32(MIN_USERS_PER_ASIN),
-        min_queries_per_asin=np.int32(MIN_QUERIES_PER_ASIN),
-        cond_threshold=np.float32(COND_THRESHOLD),
-        epsilon=np.float32(EPSILON_REL),
-        dim=np.int32(LATENT_DIM),
-    )
-    _svdmlp_log(
-        f"  fitted and saved per-ASIN CORAL for {len(out_keys)} ASINs "
-        f"→ {Path(CORAL_ASIN_PATH).name}")
-    return asin_alignment
-
-
-def main_task_body() -> None:
+def main_task_body() -> dict:
     _svdmlp_log(f"device={DEVICE}  GATE_MODE={GATE_MODE}  "
         f"LOGP_DELTA={LOGP_DELTA}  GATE_Q={GATE_Q}  LATENT_DIM={LATENT_DIM}")
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -692,18 +467,9 @@ def main_task_body() -> None:
     cohort_sig = hashlib.sha256(
         ("\n".join(sorted(fitted_uid_set))).encode("utf-8")
     ).hexdigest()
-    if APPLY_CORAL and CORAL_MODE == "asin":
-        asin_alignment = _fit_coral_ensure_artifacts(
-            pool, vocab, Vt, mlp, fitted_uid_set)
-        _svdmlp_log(
-            f"  per-ASIN CORAL: {len(asin_alignment['asin_keys'])}/"
-            f"{len(pool)} candidate ASINs aligned")
-    else:
-        asin_alignment = None  # 2026-09-25: raw z_q, no per-ASIN transform
     z_all, rows_data = _svdmlp_encode_queries(
         queries_text, vocab, Vt, mlp, nlp,
         cohort_filter_signature=cohort_sig,
-        asin_alignment=asin_alignment,
         flat_records=flat_records,
     )
 
@@ -776,6 +542,8 @@ def main_task_body() -> None:
             "margin": margin,
             "n_inside_per_q": n_inside_per_q,
             "query": q_text,
+            "local_idx": int(local_idx),
+            "z_idx": int(ri),
         })
         if (ri + 1) % selection_progress_every == 0 or ri + 1 == selection_total:
             _svdmlp_log(f"    query scoring {ri+1}/{selection_total} "
@@ -784,6 +552,38 @@ def main_task_body() -> None:
                         f"elapsed={time.time() - selection_started:.1f}s")
 
     _svdmlp_log(f"  queries with candidate: {sum(len(v) for v in per_asin_records.values())}/{len(flat_records)}")
+
+    # Optional per-candidate dump for Stage 28: the exact frozen per-query
+    # scores (best-fit user, D2, positive margin and region-overlap counts) that
+    # every selector arm must share. Nothing here changes the scoring itself.
+    if CANDIDATE_DUMP is not None:
+        CANDIDATE_DUMP.parent.mkdir(parents=True, exist_ok=True)
+        n_dumped = 0
+        z_rows = []
+        with open(CANDIDATE_DUMP, "w") as fh:
+            for _asin, _cands in per_asin_records.items():
+                for _c in _cands:
+                    _nin = _c["n_inside_per_q"]
+                    fh.write(json.dumps({
+                        "asin": _asin,
+                        "query": _c["query"],
+                        "local_idx": _c["local_idx"],
+                        "user_idx": _c["user_idx"],
+                        "logp": _c["logp"],
+                        "d2": _c["d2"],
+                        "margin": _c["margin"],
+                        "n_inside_95": _nin.get(0.95),
+                        "n_inside_75": _nin.get(0.75),
+                        "z_idx": _c["z_idx"],
+                    }) + "\n")
+                    z_rows.append(z_all[_c["z_idx"]])
+                    n_dumped += 1
+        # Row-aligned 16-d embeddings so downstream stages can re-score the very
+        # same candidates under an exact Gaussian without re-encoding.
+        np.save(str(CANDIDATE_DUMP.with_suffix(".z.npy")),
+                np.asarray(z_rows, dtype=np.float32))
+        _svdmlp_log(f"  candidate dump -> {CANDIDATE_DUMP} ({n_dumped} rows) "
+                    f"+ {CANDIDATE_DUMP.with_suffix('.z.npy').name}")
 
     # Diagnostic: d² distribution on best-fit per-query (before gates) for gate tuning
     all_d2 = np.concatenate([np.asarray([c["d2"] for c in v]) for v in per_asin_records.values()]) if per_asin_records else np.array([])
@@ -820,6 +620,7 @@ def main_task_body() -> None:
     def _run_gate(thr_key, thr_value, label):
         kept: dict[str, list[str]] = {}
         selections_block: list = []
+        supports: dict[str, dict[int, list[dict]]] = {}
         drops = {"above_d2": 0, "below_margin": 0, "multi_user_inside": 0}
         is_obs_key = isinstance(thr_key, str) and thr_key.startswith("obs:")
         for asin, cands in per_asin_records.items():
@@ -839,6 +640,11 @@ def main_task_body() -> None:
                     drops["below_margin"] += 1
                     continue
                 bucket.setdefault(c["user_idx"], []).append(c)
+            # Pre-Top-1 eligible support: every candidate that cleared all three
+            # gates, grouped by best-fit user. Stage 27 resamples from this
+            # instead of the single retained Top-1 query.
+            if bucket:
+                supports[asin] = bucket
             per_user_picks: list[dict] = []
             for uid_idx_in_asin, group in bucket.items():
                 best = max(group, key=lambda c: (c["logp"], c["margin"]))
@@ -877,6 +683,7 @@ def main_task_body() -> None:
             "threshold": thr_value,
             "kept": kept,
             "selections": selections_block,
+            "supports": supports,
             "stats": {
                 "label": label,
                 "d2_threshold": thr_value,
@@ -963,20 +770,225 @@ def main_task_body() -> None:
     with open(OUT_STATS_PATH, "w") as f:
         json.dump(summary_stats, f, indent=2)
     _svdmlp_log(f"DONE wrote {OUT_STATS_PATH}")
+    # Exposed for Stage 27: the canonical gate's pre-Top-1 eligible supports.
+    # The canonical artifacts written above are untouched.
+    return {
+        "subdir": OUT_PATH.parent.name,
+        "threshold": canonical["threshold"],
+        "supports": canonical["supports"],
+        "kept": canonical["kept"],
+        "uid_order": uid_order,
+        "n_total_queries": len(flat_records),
+        "n_total_asin": len(pool),
+        "n_no_user": n_no_user,
+        "stats": summary_stats,
+    }
+
+
+
+# ============================================================================
+# Canonical Stage 08 (Stage 32 P6): query-feasibility-aware strict USER-PAIR C3
+# ============================================================================
+# Historical main_task_body and its approximate scorer are retained ONLY for
+# experimental replay through explicit main(out_root=...); main() is P6.
+# This delegates the actual C3 predicate and Gaussian calculation to the
+# already-tested Stage 31/32 primitives.  No hand-copied Gaussian scorer.
+P6_EXPECTED_ASINS = {"baby": 199, "musical": 371, "video_games": 1257}
+
+
+def _main_p6_canonical() -> None:
+    """Recompute P6 in canonical Stage 08 paths from the frozen candidate dump.
+
+    The dump contains Stage 08's encoded Stage 07 queries, with source indices;
+    Stage 32 used this exact dump. We verify every source query against the
+    *current* Stage 07 pool before replacing downstream-consumed outputs, so a
+    modified pool cannot silently reuse outdated embeddings. The original
+    source encoder and fitted Gaussians are NOT retrained.
+    """
+    import importlib
+
+    sys.path.insert(0, str(REPO_ROOT / "32_query_feasibility_pair_selection"))
+    s32 = importlib.import_module("feasibility_pair_selection")
+    s31 = s32.s31
+    ExactGaussian = s32.ExactGaussian
+    load_asin_users = s32.load_asin_users
+
+    out_root = (SCRATCH / "stage08_p6_smoke" if SMOKE
+                else REPO_ROOT / "result/08_select_query")
+    _svdmlp_log("Canonical Stage 08 = Stage 32 P6 feasibility-aware pair C3")
+    _svdmlp_log("Pair-conditional C3, NOT global all-user strict exclusion")
+
+    # Prepare and check all three domains BEFORE writing any canonical output.
+    pending = []
+    for _category, sub in CATEGORY_INPUTS:
+        dumped = s31.load_dump(sub)
+        if not dumped:
+            raise RuntimeError(f"{sub}: Stage 30 encoded candidate dump is empty")
+        pool_path = REPO_ROOT / "result/07_gen_query" / sub / "pool_queries.json"
+        with open(pool_path, encoding="utf-8") as f:
+            pool_doc = json.load(f)
+        raw = pool_doc.get("pool", pool_doc)
+        if not isinstance(raw, dict):
+            raise ValueError(f"{sub}: Stage 07 pool must be a dict")
+        pool = {}
+        for asin, items in raw.items():
+            texts = []
+            for item in items:
+                q = item.get("text") if isinstance(item, dict) else item
+                if isinstance(q, str) and q.strip():
+                    texts.append(q.strip())
+            if texts:
+                pool[asin] = texts
+        for asin, candidates in dumped.items():
+            if asin not in pool:
+                raise RuntimeError(f"{sub}/{asin}: candidate ASIN absent from Stage 07 pool")
+            seen_idx = set()
+            for c in candidates:
+                i = int(c["local_idx"])
+                if i in seen_idx or not (0 <= i < len(pool[asin])):
+                    raise RuntimeError(f"{sub}/{asin}: invalid or duplicate local_idx={i}")
+                seen_idx.add(i)
+                if c["query"].strip() != pool[asin][i]:
+                    raise RuntimeError(
+                        f"{sub}/{asin}/{i}: stale Stage 30 embedding dump; "
+                        "regenerate candidate dump from the current Stage 07 pool")
+        g = ExactGaussian(sub)
+        a2u = load_asin_users(sub)
+        picked = []
+        n_pairs_examined = 0
+        n_zero_feasible = 0
+        for asin, cands in dumped.items():
+            ctx = s31.build_ctx(g, asin, cands, a2u)
+            if ctx is None or len(ctx["uids"]) < 2:
+                continue
+            d_b, bad = s31.pair_bd_matrix(g, ctx["users"])
+            if bad:
+                raise RuntimeError(f"{sub}/{asin}: nonfinite Gaussian pair distances")
+            pair_records, feasible = s32.enumerate_pairs(ctx, d_b)
+            n_pairs_examined += len(pair_records)
+            if not feasible:
+                n_zero_feasible += 1
+                continue
+            i, j = s32.pick_p6_stable(d_b, feasible, ctx["uids"])
+            selected = s31.conditional_select(ctx, [i, j])
+            if not s31.outcome_of(selected, ctx)["ge2_distinct_text"]:
+                raise AssertionError(f"{sub}/{asin}: P6 selected an infeasible pair")
+            users = []
+            for col in (i, j):
+                row = selected[col]
+                other = j if col == i else i
+                cand = ctx["cands"][row]
+                users.append({
+                    "uid": ctx["uids"][col],
+                    "query": cand["query"],
+                    "logp": float(ctx["LOGP"][row, col]),
+                    "d2": float(ctx["D2"][row, col]),
+                    "margin": float(ctx["LOGP"][row, col] - ctx["LOGP"][row, other]),
+                    "source_local_idx": int(cand["local_idx"]),
+                })
+            if users[0]["uid"] == users[1]["uid"] or users[0]["query"] == users[1]["query"]:
+                raise AssertionError(f"{sub}/{asin}: non-distinct P6 user or query")
+            picked.append({"asin": asin, "users": users, "max_pair_cos": None})
+            if SMOKE and len(picked) >= SMOKE_ASIN_LIMIT:
+                break
+
+        expected = P6_EXPECTED_ASINS[sub]
+        if not SMOKE and len(picked) != expected:
+            raise RuntimeError(
+                f"{sub}: expected {expected} Stage 32 P6 ASINs, got {len(picked)}; "
+                "canonical outputs left untouched")
+        if not picked:
+            raise RuntimeError(f"{sub}: no P6 selections available")
+        chosen = {block["asin"]: [u["query"] for u in block["users"]] for block in picked}
+        doc = {
+            "config": {
+                "source": "stage32_p6_query_feasibility_aware",
+                "selection_method": "P6_max_BD_feasible_pair",
+                "cohort_semantics": "strict C3 within the selected user pair, not all original users",
+                "gaussian_scoring": "exact normalized 16D multivariate Gaussian",
+                "d2_gate": float(s31.TAU_95),
+                "margin_min": float(s31.MARGIN_MIN),
+                "n_inside_required_within_pair": 1,
+                "candidate_source": "Stage 30 encoded dump checked against current Stage 07 query indices/text",
+                "n_selected_asins": len(picked),
+                "n_selected_user_query_cells": 2 * len(picked),
+                "smoke": bool(SMOKE),
+            },
+            "kept": chosen,
+            "selections": picked,
+        }
+        stats = {
+            "selection_method": "P6_max_BD_feasible_pair",
+            "n_asins": len(picked),
+            "n_users_queries": 2 * len(picked),
+            "n_pairs_examined": n_pairs_examined,
+            "n_asins_zero_feasible": n_zero_feasible,
+            "expected_n_asins_full": expected,
+            "full_reproduction": not SMOKE,
+        }
+        pending.append((sub, doc, stats))
+
+    # Archive + fingerprint the historical canonical outputs BEFORE replacing
+    # them, so the pre-migration baseline stays directly recoverable and the
+    # provenance of the replacement is auditable.
+    import hashlib as _hashlib
+    archive_root = SCRATCH / "stage08_canonical_archive"
+    archived = {}
+    for sub, _doc, _stats in pending:
+        for name in ("selected_queries.json", "selection_stats.json"):
+            src = REPO_ROOT / "result/08_select_query" / sub / name
+            if not src.exists():
+                continue
+            digest = _hashlib.sha256(src.read_bytes()).hexdigest()
+            dst_dir = archive_root / sub
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            dst = dst_dir / name
+            if not dst.exists():
+                dst.write_bytes(src.read_bytes())
+            archived[f"{sub}/{name}"] = {"sha256": digest, "bytes": src.stat().st_size,
+                                         "archived_to": str(dst)}
+    if archived:
+        _svdmlp_log(f"archived {len(archived)} historical Stage 08 artifacts -> "
+                    f"{archive_root}")
+
+    # Only publish the new canonical Stage 08 artifacts after complete
+    # schema/count/source validation of the entire frozen three-domain run.
+    for sub, doc, stats in pending:
+        doc["config"]["archived_previous"] = {
+            k: v for k, v in archived.items() if k.startswith(f"{sub}/")}
+        out_dir = out_root / sub
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, payload in (("selected_queries.json", doc),
+                              ("selection_stats.json", stats)):
+            target = out_dir / name
+            temporary = target.with_suffix(target.suffix + ".writing")
+            with open(temporary, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False)
+            os.replace(temporary, target)
+        _svdmlp_log(f"Stage 08 P6 [{sub}]: {stats['n_asins']} products / "
+                    f"{stats['n_users_queries']} user Queries -> {out_dir}")
 
 
 # ============================================================================
 # Entry point
 # ============================================================================
 
-def main() -> None:
+def main(out_root: Path | None = None, collect: dict | None = None,
+         candidate_dump_root: Path | None = None) -> None:
+    if out_root is None and collect is None and candidate_dump_root is None:
+        _main_p6_canonical()
+        return
     """Run the 3 categories (Baby / Musical / Video_Games) serially.
 
     For each category, rebind the script path constants to the
     category-specific paths, then call the original main_task_body()
     (logic unchanged). Outputs go to result/<stage>/<baby|musical|video_games>/.
+
+    ``out_root`` redirects that output tree, so Stage 27 can replay the
+    canonical scoring without touching the released artifacts. ``collect``
+    receives ``{subdir: main_task_body() result}`` for the pre-Top-1 supports.
     """
-    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS, SVD_COMPONENTS, SVD_NPZ, MLP_ENCODER, MLP_PT, VOCAB_PATH, TRAINED_UIDS_PATH, STRICT3_NPZ, CORAL_ART_DIR, CORAL_ASIN_PATH  # noqa
+    global SENT_CACHE, UID_TO_SENTS, ASIN_USERS_PATH, ATTRIBUTES_PATH, META_FILE, OUT_DIR, OUT_PATH, OUT_STATS_PATH, POOL_PATH, GAUSSIAN_PATH, ASIN_TO_USERS, SVD_COMPONENTS, SVD_NPZ, MLP_ENCODER, MLP_PT, VOCAB_PATH, TRAINED_UIDS_PATH, STRICT3_NPZ, CANDIDATE_DUMP  # noqa
     # backup current (Baby) defaults
     saved = {
         k: v for k, v in globals().items()
@@ -985,9 +997,12 @@ def main() -> None:
                  "GAUSSIAN_PATH", "ASIN_TO_USERS"}
         and isinstance(v, Path)
     }
-    base_out = REPO_ROOT / "result" / Path(__file__).parent.name
+    base_out = (Path(out_root) if out_root is not None
+                else REPO_ROOT / "result" / Path(__file__).parent.name)
     for category, subdir in CATEGORY_INPUTS:
         _svdmlp_log(f"\n========== [{category}] (subdir={subdir}) ==========")
+        CANDIDATE_DUMP = (Path(candidate_dump_root) / subdir / "candidates.jsonl"
+                          if candidate_dump_root is not None else None)
         # Reset all known category-dependent paths to point at the per-category subdir.
         cache_dir = SCRATCH / f"pcfg_cache_{subdir}"
         SVD_COMPONENTS = str(cache_dir / "svd_components.npz")
@@ -999,10 +1014,6 @@ def main() -> None:
         TRAINED_UIDS_PATH = (REPO_ROOT / "result/03_spacy_encode" / subdir /
                              "cohort3_trained_uids.json")
         STRICT3_NPZ = cache_dir / "strict3_embeddings.npz"
-        CORAL_ART_DIR = (SCRATCH /
-                         f"coral_asin_cohort2_mlp16_30_{subdir}")
-        CORAL_ART_DIR.mkdir(parents=True, exist_ok=True)
-        CORAL_ASIN_PATH = str(CORAL_ART_DIR / "coral_asin_cohort2_mlp16_30.npz")
         if "SENT_CACHE" in saved:
             SENT_CACHE = REPO_ROOT / "result/02_user_review_sentence_extract" / f"uid_to_sentences_{subdir}.pkl"
         if "UID_TO_SENTS" in saved:
@@ -1044,13 +1055,16 @@ def main() -> None:
         POOL_PATH.parent.mkdir(parents=True, exist_ok=True) if "POOL_PATH" in saved else None
         GAUSSIAN_PATH.parent.mkdir(parents=True, exist_ok=True) if "GAUSSIAN_PATH" in saved else None
         try:
-            main_task_body()
+            result = main_task_body()
         except Exception as e:
             _svdmlp_log(f"[{category}] FAILED: {e!r}")
             raise
+        if collect is not None:
+            collect[subdir] = result
     # Restore Baby defaults (for import compatibility with downstream).
     for k, v in saved.items():
         globals()[k] = v
+    CANDIDATE_DUMP = None
 
 
 if __name__ == "__main__":

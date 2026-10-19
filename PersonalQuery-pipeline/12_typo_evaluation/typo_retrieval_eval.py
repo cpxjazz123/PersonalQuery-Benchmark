@@ -17,8 +17,9 @@ Output:
   - result/12_typo_evaluation/per_query.json (paired records across the active Stage 11 registry)
   - result/12_typo_evaluation/retrieval_degradation.json  (per-retriever hit@k means)
 
-Smoke (SMOKE=True):  5 pairs → 10 queries, ~2min (embed cache cold)
-Full  (SMOKE=False): 45 pairs → 90 queries, ~3min with warm cache
+Smoke (SMOKE=True): first 5 genuinely changed typo pairs.
+STAGE12_RECOMPUTE_FROM_CACHE=1 recomputes metrics from existing per-query ranks
+without loading retriever models; clean-only and unchanged rows are excluded.
 """
 from __future__ import annotations
 
@@ -53,6 +54,7 @@ TOPK_SAVE_K = 100
 
 # Hardcoded (Rule 3)
 SMOKE = os.environ.get("STAGE12_SMOKE") == "1"
+RECOMPUTE_FROM_CACHE = os.environ.get("STAGE12_RECOMPUTE_FROM_CACHE") == "1"
 N_SMOKE_PAIRS = 5
 STAGE12_RETRIEVERS = tuple(
     name.strip() for name in os.environ.get("STAGE12_RETRIEVERS", "").split(",")
@@ -131,13 +133,20 @@ def _queries_sig(query_records: list[dict]) -> str:
 def load_pairs():
     with open(TYPO_RESULTS) as f:
         data = json.load(f)
-    pairs = data["results"]
+    pairs = [
+        p for p in data["results"]
+        if p["typo_query"].strip()
+        and p["typo_query"].strip() != p["original_query"].strip()
+    ]
     if SMOKE:
         pairs = pairs[:N_SMOKE_PAIRS]
     return pairs
 
 
 def main_task_body():
+    if RECOMPUTE_FROM_CACHE:
+        _recompute_from_cache()
+        return
     t0 = time.time()
     log("=== Stage 12 Typo Retrieval Evaluation (paired degradation) ===")
     log(f"  SMOKE={SMOKE}  KS={KS}")
@@ -156,7 +165,7 @@ def main_task_body():
     active_names = [retr["name"] for retr in active_retrievers]
     log(f"  active retrievers: {active_names}")
 
-    # ---- Load 45 pairs (uid, asin, original, typo) ----
+    # ---- Load genuinely changed (uid, asin, original, typo) pairs ----
     pairs = load_pairs()
     log(f"  loaded {len(pairs)} (uid, asin, original, typo) pairs")
 
@@ -207,8 +216,7 @@ def main_task_body():
     log(f"  query_sig={query_sig}")
 
     # ---- Load Stage 11 clean query top-100 cache for orig side ----
-    # Stage 11 selection has 1947 entries (asin, query); Stage 10 typo has 1912 (subset).
-    # Need to map each typo pair's original_query → its position in Stage 11 selection
+    # Map each retained pair back to the Stage 11 clean selection order.
     # to load the right row from Stage 11 top-100 cache.
     with open(STAGE11_SEL_PATH) as f:
         sel = json.load(f)
@@ -381,6 +389,14 @@ def main_task_body():
         )
         log(f"  merged current retrievers into existing results: {summary_names}")
 
+    _write_results(records, summary_names, corpus_size=len(asins), corpus_sig=corpus_sig)
+    log(f"done in {time.time()-t0:.1f}s")
+
+
+def _write_results(records: list[dict], summary_names: list[str], *,
+                   corpus_size: int, corpus_sig: str,
+                   topk_updates: dict | None = None) -> None:
+    query_sig = _queries_sig(records)
     with open(STAGE11_PER_QUERY_PATH, encoding="utf-8") as f:
         stage11_queries = json.load(f)["queries"]
     clean_by_key = {(record["asin"], record["query"]): record
@@ -414,12 +430,13 @@ def main_task_body():
             "smoke": SMOKE,
             "ks": list(KS),
             "retrievers": summary_names,
-            "corpus_size": len(asins),
+            "corpus_size": corpus_size,
             "query_sig": query_sig,
             "corpus_sig": corpus_sig,
+            "pair_selection": "nonempty_changed_typo",
             "note": (
-                "paired degradation: orig - typo hit@k and RR; "
-                "clean ranks are sourced from Stage 11 full-corpus per-query results"
+                "paired degradation: orig - typo hit@k and RR on the same "
+                "nonempty, changed typo subset; clean ranks come from Stage 11"
             ),
         },
         "per_retriever": {},
@@ -432,8 +449,8 @@ def main_task_body():
     for retr in summary_names:
         per_k = {}
         for k in KS:
-            orig_arr = np.array([rec[f"{retr}_hit{k}_orig"] for rec in records], dtype=np.float32)
-            typo_arr = np.array([rec[f"{retr}_hit{k}_typo"] for rec in records], dtype=np.float32)
+            orig_arr = np.array([rec[f"{retr}_hit{k}_orig"] for rec in records], dtype=np.float64)
+            typo_arr = np.array([rec[f"{retr}_hit{k}_typo"] for rec in records], dtype=np.float64)
             deg = orig_arr - typo_arr
             per_k[f"hit@{k}"] = {
                 "orig_mean": float(orig_arr.mean()),
@@ -469,6 +486,10 @@ def main_task_body():
         log(row)
 
     # ---- Save ----
+    # Do not alter downstream cache rows until clean joins and all paired
+    # metrics have been validated and computed successfully.
+    for path, arrays in (topk_updates or {}).items():
+        np.savez_compressed(path, **arrays)
     OUT_PER_QUERY.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_PER_QUERY, "w", encoding="utf-8") as f:
         json.dump({
@@ -481,7 +502,61 @@ def main_task_body():
         json.dump(summary, f, indent=2, ensure_ascii=False)
     log(f"wrote → {OUT_DEGRADATION}")
 
-    log(f"done in {time.time()-t0:.1f}s")
+
+def _recompute_from_cache() -> None:
+    """Re-aggregate existing ranks and align Top-100 rows to the retained pairs."""
+    cache_dir = REPO_ROOT / "result/12_typo_evaluation" / TYPO_RESULTS.parent.name
+    with open(cache_dir / "per_query.json", encoding="utf-8") as f:
+        previous = json.load(f)
+    with open(cache_dir / "retrieval_degradation.json", encoding="utf-8") as f:
+        previous_summary = json.load(f)
+    cached_records = previous["records"]
+    config = previous["config"]
+    if (config["query_sig"] != _queries_sig(cached_records)
+            or config != previous_summary["config"]):
+        raise ValueError("Stage 12 cached ranks and summary have inconsistent provenance.")
+
+    def pair_key(record):
+        return (record["asin"], record["uid"],
+                record["original_query"], record["typo_query"])
+
+    cached_by_key = {pair_key(record): i for i, record in enumerate(cached_records)}
+    if len(cached_by_key) != len(cached_records):
+        raise ValueError("Stage 12 cached ranks contain duplicate pair identities.")
+    pairs = load_pairs()
+    if not pairs:
+        raise ValueError("No genuinely changed typo pairs to recompute.")
+    keys = [pair_key(pair) for pair in pairs]
+    if len(set(keys)) != len(keys):
+        raise ValueError("Stage 10 contains duplicate typo pair identities.")
+    missing = set(keys) - cached_by_key.keys()
+    if missing:
+        raise ValueError(f"Stage 12 cached ranks are missing {len(missing)} current typo pairs.")
+    indices = [cached_by_key[key] for key in keys]
+    records = [dict(cached_records[i]) for i in indices]
+    names = list(config["retrievers"])
+    if STAGE12_RETRIEVERS and set(STAGE12_RETRIEVERS) - set(names):
+        raise ValueError("Requested retrievers are missing from the cached Stage 12 ranks.")
+    with open(STAGE11_PER_QUERY_PATH, encoding="utf-8") as f:
+        clean_config = json.load(f)["config"]
+    if clean_config["corpus_size"] != config["corpus_size"]:
+        raise ValueError("Stage 11 and cached Stage 12 corpus sizes do not match.")
+
+    # Stage 14 consumes these rows in Stage 12 per-query order. Validate every
+    # array before publishing any slice; smoke never changes canonical caches.
+    cache_arrays = {}
+    for name in names:
+        path = TOPK_DIR_TYPO / f"{name}_top100.npz"
+        with np.load(path) as cached:
+            arrays = {key: cached[key] for key in cached.files}
+        if arrays["topk_asins"].shape[0] != len(cached_records):
+            raise ValueError(f"[{name}] Top-100 rows do not align with cached Stage 12 records.")
+        arrays["topk_asins"] = arrays["topk_asins"][indices]
+        cache_arrays[path] = arrays
+    _write_results(records, names, corpus_size=config["corpus_size"],
+                   corpus_sig=config["corpus_sig"],
+                   topk_updates=cache_arrays if not SMOKE else None)
+    log(f"Recomputed Stage 12 on {len(records)} genuinely changed typo pairs (no inference).")
 
 
 # ============================================================================
