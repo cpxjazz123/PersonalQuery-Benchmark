@@ -85,29 +85,35 @@ When `typo_query` is non-empty, the clean and noisy queries form a within-record
 
 | Category | ASINs | User–Product Pairs | `syntax_query` | `typo_query` |
 |----------|-------|--------------------|----------------|--------------|
-| Baby_Products | 1,428 | 2,714 | 2,714 | 2,017 |
-| Musical_Instruments | 1,603 | 3,052 | 3,052 | 2,428 |
-| Video_Games | 1,661 | 3,084 | 3,084 | 2,386 |
-| **Total** | **4,692** | **8,850** | **8,850** | **6,831** |
+| Baby_Products | 199 | 398 | 398 | 298 |
+| Musical_Instruments | 371 | 742 | 742 | 573 |
+| Video_Games | 1,257 | 2,514 | 2,514 | 1,991 |
+| **Total** | **1,827** | **3,654** | **3,654** | **2,862** |
 
-`typo_query` is non-empty for the majority of pairs (about 77% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, `typo_query` is the empty string and `syntax_query` should be used as the only query. Consumers should treat `syntax_query` as always present and `typo_query` as present only when non-empty.
+`typo_query` is non-empty for the majority of pairs (about 78% overall) and empty for the remainder: when no writing error was sampled from the user's error profile for that pair, `typo_query` is the empty string and `syntax_query` should be used as the only query. Consumers should treat `syntax_query` as always present and `typo_query` as present only when non-empty.
 
 ### Example Record
 
 ```json
 {
-  "B0891R8DT2": [
+  "B09BHWCH2M": [
     {
-      "asin": "B0891R8DT2",
-      "uid": "AE27EZJGURITRHDXGP6RODDKD7PA",
-      "syntax_query": "I am looking for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage.",
-      "typo_query": "I am laying for a Small Food Storage unit that is produced by PandaEar and costs 19.98 for Storage."
+      "asin": "B09BHWCH2M",
+      "uid": "AERYYQ2LT6B427JFUK626KQY3ESA",
+      "syntax_query": "I'm looking for a child door mount made of white foam, where the brand is Wittle and the style is child.",
+      "typo_query": "I'm looking for a child door moun made of white foam, where the brand is Wittle and the style is child."
+    },
+    {
+      "asin": "B09BHWCH2M",
+      "uid": "AG4APLODR5CG5TCC5NVIICMQRHNQ",
+      "syntax_query": "I'm after a white foam door mount from Wittle, with a child's style and a door that requires mounting on a wall.",
+      "typo_query": "I'm after a white foam door munt frm Wittle, with a child's style and a door that reqires mounting on a wall."
     }
   ]
 }
 ```
 
-In this example, the word "looking" in the clean query was replaced with "laying" to create the noisy variant. This writing error was detected from the user's historical writing patterns in the writing-pattern analysis stage.
+Each retained ASIN carries two distinct users with their own query texts. In the first record, the word "mount" in the clean query was corrupted to "moun" to create the noisy variant; the second record shows several such edits ("mount" to "munt", "from" to "frm", "requires" to "reqires"). These writing errors were detected from each user's historical writing patterns in the writing-pattern analysis stage.
 
 ## Documentation Layout
 
